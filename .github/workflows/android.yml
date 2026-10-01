@@ -22,8 +22,23 @@ jobs:
         with:
           packages: 'platform-tools'
 
+      - name: Create temporary Android signing keystore
+        shell: bash
+        run: |
+          keytool -genkeypair -v \
+            -keystore "$RUNNER_TEMP/worldsandbox.keystore" \
+            -storepass "worldsandbox" \
+            -keypass "worldsandbox" \
+            -alias "worldsandbox" \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=World Sandbox Bangladesh, OU=Game, O=titasdev1, L=Bangladesh, ST=Dhaka, C=BD"
+
       - name: Export Godot Android APK
         uses: firebelley/godot-export@v7.0.0
+        env:
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/worldsandbox.keystore
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: worldsandbox
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: worldsandbox
         with:
           godot_executable_download_url: https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
           godot_export_templates_download_url: https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz
