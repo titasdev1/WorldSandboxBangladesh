@@ -1,0 +1,25 @@
+[application]
+config/name="World Sandbox: Bangladesh"
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.4", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=1280
+window/size/window_height_override=720
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.08,0.12,0.16,1)
+
+[input]
+move_forward={"deadzone":0.2,"events":[Object(InputEventKey,"physical_keycode":87)]}
+move_back={"deadzone":0.2,"events":[Object(InputEventKey,"physical_keycode":83)]}
+move_left={"deadzone":0.2,"events":[Object(InputEventKey,"physical_keycode":65)]}
+move_right={"deadzone":0.2,"events":[Object(InputEventKey,"physical_keycode":68)]}
+interact={"deadzone":0.2,"events":[Object(InputEventKey,"physical_keycode":69)]}
+fire={"deadzone":0.2,"events":[Object(InputEventMouseButton,"button_index":1)]}
+rain={"deadzone":0.2,"events":[Object(InputEventKey,"physical_keycode":82)]}
