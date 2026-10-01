@@ -1,0 +1,46 @@
+name: Final Game Project Archive
+
+on:
+  workflow_dispatch:
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout canonical project
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Verify finalization state
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          state = json.loads(Path("development_state.json").read_text())
+          if state.get("finalization_status") != "ready":
+              raise SystemExit("Final archive blocked: development_state.json is not marked ready.")
+          print("Finalization state is READY.")
+          PY
+
+      - name: Create one canonical project ZIP
+        shell: bash
+        run: |
+          rm -rf archive_stage
+          mkdir archive_stage
+          rsync -a --exclude='.git' --exclude='archive_stage' --exclude='FINAL_GAME_PROJECT.zip' --exclude='*.zip' ./ archive_stage/
+          cd archive_stage
+          zip -9 -r ../FINAL_GAME_PROJECT.zip .
+          cd ..
+          sha256sum FINAL_GAME_PROJECT.zip
+          du -h FINAL_GAME_PROJECT.zip
+
+      - name: Upload final ZIP as a single file
+        uses: actions/upload-artifact@v4
+        with:
+          name: FINAL_GAME_PROJECT
+          path: FINAL_GAME_PROJECT.zip
+          archive: false
+          compression-level: 0
+          retention-days: 90

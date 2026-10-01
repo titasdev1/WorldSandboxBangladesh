@@ -1,0 +1,9 @@
+# Generated Godot/editor files
+.godot/
+build/
+exported/
+*.tmp
+*.log
+
+# Final archive is generated only by the release workflow
+FINAL_GAME_PROJECT.zip
