@@ -275,6 +275,10 @@ func _process(delta):
   event_timer = 0.0
   if rng.randf() < 0.35:
    cash += 50
+ if Input.is_action_just_pressed("save_game"):
+  SaveSystem.save_world(self)
+ if Input.is_action_just_pressed("load_game"):
+  SaveSystem.load_world(self)
  if Input.is_action_just_pressed("rain"):
   rain = !rain
   var env = get_node_or_null("WorldEnvironment")
@@ -298,3 +302,12 @@ func try_fire():
  if hit and hit.collider and hit.collider is CharacterBody3D:
   if hit.collider.has_method("on_hit"):
    hit.collider.on_hit()
+
+
+func respawn_player():
+ if not player:
+  return
+ player.health = 100
+ player.position = Vector3(0, 1, -12)
+ wanted = 0
+ cash = max(0, cash - 100)
