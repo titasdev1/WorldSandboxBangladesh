@@ -19,3 +19,6 @@ Current vertical slice:
 Controls: WASD to move, E to bargain/interact, mouse click to increase wanted level, R to toggle rain.
 
 The architecture is modular for larger missions, shops, combat, richer vehicles, multiplayer systems and licensed map providers.
+
+
+Build trigger refreshed: 2026-10-01T15:57:51.230Z
