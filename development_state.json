@@ -1,0 +1,21 @@
+{
+  "project": "World Sandbox: Bangladesh",
+  "version": "0.2.0-dev",
+  "engine": "Godot 4.4.1",
+  "platform": "Android",
+  "canonical_repository": "titasdev1/WorldSandboxBangladesh",
+  "current_milestone": "003_CAMERA_AND_FOUNDATION",
+  "completed_milestones": ["001_PROJECT_FOUNDATION","004_WORLD_PROCEDURAL_VERTICAL_SLICE"],
+  "partially_completed": ["002_PLAYER","003_CAMERA","005_NPC","006_TRAFFIC","007_LOCAL_TRANSPORT","008_FARE_SYSTEM","009_ECONOMY","010_MISSIONS","011_POLICE","012_COMBAT","014_WORLD_SIMULATION","015_UI"],
+  "next_priority": "005_NPC_BEHAVIOR_AND_TRAFFIC_RULES",
+  "known_bugs": ["Vehicle movement is kinematic/manual rather than full physical collision resolution.","NPCs can spawn without navigation/pathfinding.","Rain is an environmental toggle, not particle precipitation.","Traffic lights and lane pathfinding are not yet implemented.","Vehicle entry/exit is not yet implemented.","Combat is currently a simple raycast prototype."],
+  "build_status": "verified_android_build_run_24_success",
+  "latest_verified_run": 36893375307,
+  "latest_verified_commit": "f8285d8a521a7a388b91f28dc7a53528b6fcf507",
+  "save_system": "implemented",
+  "finalization_status": "not_ready",
+  "final_archive": "not_generated",
+  "target_archive": "FINAL_GAME_PROJECT.zip",
+  "archive_policy": "one archive from canonical project directory; never nest previous archives",
+  "asset_scale_target": "approximately 200GB only if technically and legally supportable; never use filler data"
+}
