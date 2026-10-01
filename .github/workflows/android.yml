@@ -37,7 +37,8 @@ jobs:
           s = s.replace('package/signed=false', 'package/signed=true')
           s = s.replace('gradle_build/min_sdk=""', 'gradle_build/min_sdk="24"')
           s = s.replace('gradle_build/target_sdk=""', 'gradle_build/target_sdk="34"')
-          s = s.replace('package/app_category=2', 'keystore/debug="${RUNNER_TEMP}/godot-debug.keystore"\\nkeystore/debug_user="androiddebugkey"\\nkeystore/debug_password="android"\\nkeystore/release=""\\nkeystore/release_user=""\\nkeystore/release_password=""\\npackage/app_category=2')
+          nl = chr(10)
+          s = s.replace('package/app_category=2', 'keystore/debug="${RUNNER_TEMP}/godot-debug.keystore"' + nl + 'keystore/debug_user="androiddebugkey"' + nl + 'keystore/debug_password="android"' + nl + 'keystore/release=""' + nl + 'keystore/release_user=""' + nl + 'keystore/release_password=""' + nl + 'package/app_category=2')
           p.write_text(s)
           PY
           echo "=== Android preset used by CI ==="
