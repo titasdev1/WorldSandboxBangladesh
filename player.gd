@@ -80,6 +80,8 @@ func interact():
   world.bargain_offer = min(world.fare_requested, world.bargain_offer + 10)
  elif position.distance_to(Vector3(30, 0, -30)) < 18:
   world.cash += 100
+ else:
+  world.try_vehicle_interaction()
 
 func take_damage(amount: int):
  health = max(0, health - amount)

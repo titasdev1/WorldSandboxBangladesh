@@ -14,6 +14,9 @@ var mission_target := Vector3(42, 0, 42)
 var rng := RandomNumberGenerator.new()
 var police_timer := 0.0
 var event_timer := 0.0
+var traffic_clock := 0.0
+var traffic_cycle := 16.0
+var rain_particles: GPUParticles3D
 
 var road_x := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 var road_z := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
@@ -21,6 +24,8 @@ var road_z := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 func _ready():
  rng.randomize()
  build_environment()
+ build_traffic_lights()
+ build_rain_system()
  build_city()
  build_landmarks()
  spawn_player()
@@ -270,6 +275,7 @@ func _process(delta):
   if police_timer > 18.0:
    wanted = max(0, wanted - 1)
    police_timer = 0.0
+ traffic_clock = fmod(traffic_clock + delta, traffic_cycle)
  event_timer += delta
  if event_timer > 30.0:
   event_timer = 0.0
@@ -284,6 +290,10 @@ func _process(delta):
   var env = get_node_or_null("WorldEnvironment")
   if env:
    env.environment.background_color = Color("#52677a") if rain else Color("#8eb9d2")
+  if rain_particles:
+   rain_particles.emitting = rain
+   if player:
+    rain_particles.position = Vector3(player.position.x, 28, player.position.z)
 
 func update_marker():
  var marker = get_node_or_null("MissionMarker")
@@ -311,3 +321,64 @@ func respawn_player():
  player.position = Vector3(0, 1, -12)
  wanted = 0
  cash = max(0, cash - 100)
+
+func build_traffic_lights():
+ for x in road_x:
+  for z in road_z:
+   var pole = box(Vector3(x + 4.8, 2.6, z + 4.8), Vector3(0.18, 5.2, 0.18), Color("#34383b"), true)
+   box(Vector3(x + 4.8, 5.0, z + 4.8), Vector3(0.55, 1.4, 0.45), Color("#202326"), false)
+
+func build_rain_system():
+ rain_particles = GPUParticles3D.new()
+ rain_particles.name = "RainParticles"
+ rain_particles.amount = 700
+ rain_particles.lifetime = 0.8
+ rain_particles.emitting = false
+ var process_mat = ParticleProcessMaterial.new()
+ process_mat.direction = Vector3(0, -1, 0)
+ process_mat.initial_velocity_min = 18.0
+ process_mat.initial_velocity_max = 26.0
+ process_mat.gravity = Vector3(0, -3, 0)
+ process_mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+ process_mat.emission_box_extents = Vector3(70, 2, 70)
+ rain_particles.process_material = process_mat
+ var quad = QuadMesh.new()
+ quad.size = Vector2(0.025, 0.5)
+ var mat = StandardMaterial3D.new()
+ mat.albedo_color = Color(0.65, 0.75, 0.9, 0.45)
+ mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+ mat.shading_mode = BaseMaterial3D.SHADING_UNSHADED
+ quad.material = mat
+ rain_particles.draw_pass_1 = quad
+ rain_particles.position = Vector3(0, 28, 0)
+ add_child(rain_particles)
+
+func is_red_for_axis(axis: String, vehicle_position: Vector3) -> bool:
+ var near_intersection = false
+ if axis == "z":
+  for x in road_x:
+   if abs(vehicle_position.x - x) < 3.0:
+    near_intersection = true
+    break
+ else:
+  for z in road_z:
+   if abs(vehicle_position.z - z) < 3.0:
+    near_intersection = true
+    break
+ if not near_intersection:
+  return false
+ return fmod(traffic_clock, traffic_cycle) > 8.0
+
+func try_vehicle_interaction():
+ if not player:
+  return
+ var nearest = null
+ var best = 4.0
+ for node in get_children():
+  if node is CharacterBody3D and node.has_method("enter_player") and not node.occupied:
+   var d = player.global_position.distance_to(node.global_position)
+   if d < best:
+    best = d
+    nearest = node
+ if nearest:
+  nearest.enter_player(player)

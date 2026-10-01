@@ -7,6 +7,7 @@ var vehicle_type := "Car"
 var body_size := Vector3(2.0, 1.0, 4.0)
 var body_color := Color("#d94a45")
 var is_police := false
+var occupied := false
 
 func _ready():
  var mesh = MeshInstance3D.new()
@@ -30,6 +31,20 @@ func make_mat(c: Color):
  return m
 
 func _physics_process(delta):
+ if occupied and world and world.player:
+  var steer = Input.get_axis("move_left", "move_right")
+  var throttle = Input.get_axis("move_back", "move_forward")
+  speed = clamp(speed + throttle * delta * 8.0, -5.0, 14.0)
+  rotation.y += steer * delta * 1.8
+  velocity = -global_transform.basis.z * speed
+  move_and_slide()
+  world.player.global_position = global_position + Vector3(0, 1.2, 0)
+  if Input.is_action_just_pressed("interact"):
+   exit_player()
+  return
+ if world and not is_police and world.is_red_for_axis(lane_axis, global_position):
+  velocity = Vector3.ZERO
+  return
  if lane_axis == "z":
   position.z += speed * delta
   rotation.y = 0.0
@@ -49,3 +64,20 @@ func on_hit():
   world.cash += 20
   if is_police:
    world.wanted = min(5, world.wanted + 2)
+
+func enter_player(p):
+ if occupied or not p:
+  return false
+ occupied = true
+ p.visible = false
+ p.set_physics_process(false)
+ return true
+
+func exit_player():
+ if not occupied or not world or not world.player:
+  return
+ var p = world.player
+ occupied = false
+ p.visible = true
+ p.set_physics_process(true)
+ p.global_position = global_position + global_transform.basis.x * 2.5 + Vector3(0, 0.9, 0)
