@@ -22,7 +22,12 @@ jobs:
         with:
           packages: 'platform-tools build-tools;34.0.0 platforms;android-34 cmdline-tools;latest cmake;3.10.2.4988404 ndk;23.2.8568313'
 
-      - name: Configure Godot Android editor settings
+      - name: Create Godot debug keystore
+        shell: bash
+        run: |
+          keytool -genkeypair -v             -keystore "$RUNNER_TEMP/godot-debug.keystore"             -storepass android             -keypass android             -alias androiddebugkey             -keyalg RSA             -keysize 2048             -validity 10000             -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Configure Godot Android export settings
         shell: bash
         run: |
           mkdir -p "$HOME/.config/godot"
@@ -30,9 +35,11 @@ jobs:
           [gd_resource type="EditorSettings" format=3]
 
           [resource]
-
           export/android/android_sdk_path = "$ANDROID_HOME"
           export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/debug_keystore = "$RUNNER_TEMP/godot-debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
           EOF
 
       - name: Export Godot Android APK
@@ -41,11 +48,10 @@ jobs:
           godot_executable_download_url: https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
           godot_export_templates_download_url: https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz
           relative_project_path: ./
+          relative_export_path: build
           presets_to_export: Android
           export_debug: true
           verbose: true
-          archive_output: true
-          archive_output_dir: build
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
