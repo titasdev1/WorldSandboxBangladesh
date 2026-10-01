@@ -27,23 +27,6 @@ jobs:
         run: |
           keytool -genkeypair -v             -keystore "$RUNNER_TEMP/godot-debug.keystore"             -storepass android             -keypass android             -alias androiddebugkey             -keyalg RSA             -keysize 2048             -validity 10000             -dname "CN=Android Debug,O=Android,C=US"
 
-      - name: Inject CI Android signing settings into export preset
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("export_presets.cfg")
-          s = p.read_text()
-          s = s.replace('package/signed=false', 'package/signed=true')
-          s = s.replace('gradle_build/min_sdk=""', 'gradle_build/min_sdk="24"')
-          s = s.replace('gradle_build/target_sdk=""', 'gradle_build/target_sdk="34"')
-          nl = chr(10)
-          s = s.replace('package/app_category=2', 'keystore/debug="${RUNNER_TEMP}/godot-debug.keystore"' + nl + 'keystore/debug_user="androiddebugkey"' + nl + 'keystore/debug_password="android"' + nl + 'keystore/release=""' + nl + 'keystore/release_user=""' + nl + 'keystore/release_password=""' + nl + 'package/app_category=2')
-          p.write_text(s)
-          PY
-          echo "=== Android preset used by CI ==="
-          sed -n '/\[preset.0.options\]/,$p' export_presets.cfg
-
       - name: Configure Godot Android export settings
         shell: bash
         run: |
