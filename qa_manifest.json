@@ -1,0 +1,12 @@
+{
+  "project": "World Sandbox: Bangladesh",
+  "checks": [
+    "canonical_files_present",
+    "godot_project_present",
+    "android_export_present",
+    "save_system_present",
+    "roadmap_present",
+    "final_archive_guarded"
+  ],
+  "final_archive_policy": "single canonical project archive; exclude nested zip files"
+}
