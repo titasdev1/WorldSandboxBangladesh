@@ -5,7 +5,8 @@ const FEATURE_PATHS = [
   "res://features/feature_001.gd",
   "res://features/feature_002.gd",
   "res://features/feature_003.gd",
-  "res://features/feature_004.gd"
+  "res://features/feature_004.gd",
+  "res://features/feature_005.gd"
 ]
 
 func start(w):
