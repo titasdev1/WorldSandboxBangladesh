@@ -33,6 +33,9 @@ func _ready():
  spawn_npcs()
  spawn_police()
  create_mission_marker()
+ var feature_runtime = load("res://feature_runtime.gd").new()
+ add_child(feature_runtime)
+ feature_runtime.start(self)
 
 func make_mat(c: Color, roughness := 0.8, metallic := 0.0):
  var m = StandardMaterial3D.new()
