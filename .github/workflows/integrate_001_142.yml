@@ -1,0 +1,110 @@
+name: Integrate 001-142 Into One Playable Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  integrate-build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout canonical project
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Verify cumulative development history
+        shell: bash
+        run: |
+          set -e
+          test -f project.godot
+          test -f Main.tscn
+          test -f world.gd
+          test -f player.gd
+          test -f vehicle.gd
+          test -f npc.gd
+          test -f hud.gd
+          test -f feature_runtime.gd
+          count=$(find .github/workflows -maxdepth 1 -name 'dev_pass_*.yml' | wc -l)
+          test "$count" -ge 100
+          feature_count=$(find features -maxdepth 1 -name 'feature_*.gd' | wc -l)
+          test "$feature_count" -eq 99
+          echo "Cumulative integration baseline: core + $feature_count feature modules + $count development-pass workflows"
+
+      - name: Create integration manifest
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,glob,subprocess,os
+          workflows=sorted(glob.glob('.github/workflows/dev_pass_*.yml'))
+          features=sorted(glob.glob('features/feature_*.gd'))
+          commits=subprocess.check_output(['git','rev-list','--count','HEAD'],text=True).strip()
+          manifest={
+            "integration":"001-142 cumulative playable build",
+            "canonical_project":"World Sandbox: Bangladesh",
+            "core_preserved":["Main.tscn","world.gd","player.gd","vehicle.gd","npc.gd","hud.gd"],
+            "feature_modules":len(features),
+            "development_pass_workflows":len(workflows),
+            "git_commits":int(commits),
+            "startup_policy":"playable core first, feature modules incrementally after boot",
+            "regression_policy":"never replace the core world with feature-only UI"
+          }
+          os.makedirs('integration',exist_ok=True)
+          with open('integration/integration_001_142.json','w') as f: json.dump(manifest,f,indent=2)
+          PY
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools build-tools;34.0.0 platforms;android-34 cmdline-tools;latest cmake;3.10.2.4988404 ndk;23.2.8568313'
+
+      - name: Create debug keystore
+        shell: bash
+        run: |
+          keytool -genkeypair -v -keystore "$RUNNER_TEMP/godot-debug.keystore"             -storepass android -keypass android -alias androiddebugkey             -keyalg RSA -keysize 2048 -validity 10000             -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Configure Godot
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.config/godot"
+          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/debug_keystore = "$RUNNER_TEMP/godot-debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF
+
+      - name: Export cumulative Android APK
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ runner.temp }}/godot-debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+        uses: firebelley/godot-export@v8.0.0
+        with:
+          godot_executable_download_url: https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
+          godot_export_templates_download_url: https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz
+          relative_project_path: ./
+          relative_export_path: build
+          presets_to_export: Android
+          export_debug: true
+          verbose: true
+
+      - name: Upload one cumulative APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: WorldSandboxBangladesh-001-142-Cumulative
+          path: build/**/*.apk
+          if-no-files-found: error
