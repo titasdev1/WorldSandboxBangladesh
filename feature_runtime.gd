@@ -1,128 +1,67 @@
 extends Node
 
+# Cumulative integration runtime for the complete 001-142 development history.
+# The playable core is always booted first. Feature modules are then attached
+# incrementally so a single bad/slow extension cannot hide the world at startup.
+
+const BOOT_DELAY := 3.0
+const FEATURE_INTERVAL := 0.35
+
 var world
-var paths: Array[String] = [
-  "res://features/feature_001.gd",
-  "res://features/feature_002.gd",
-  "res://features/feature_003.gd",
-  "res://features/feature_004.gd",
-  "res://features/feature_005.gd",
-  "res://features/feature_006.gd",
-  "res://features/feature_007.gd",
-  "res://features/feature_008.gd",
-  "res://features/feature_009.gd",
-  "res://features/feature_010.gd",
-  "res://features/feature_011.gd",
-  "res://features/feature_012.gd",
-  "res://features/feature_013.gd",
-  "res://features/feature_014.gd",
-  "res://features/feature_015.gd",
-  "res://features/feature_016.gd",
-  "res://features/feature_017.gd",
-  "res://features/feature_018.gd",
-  "res://features/feature_019.gd",
-  "res://features/feature_020.gd",
-  "res://features/feature_021.gd",
-  "res://features/feature_022.gd",
-  "res://features/feature_023.gd",
-  "res://features/feature_024.gd",
-  "res://features/feature_025.gd",
-  "res://features/feature_026.gd",
-  "res://features/feature_027.gd",
-  "res://features/feature_028.gd",
-  "res://features/feature_029.gd",
-  "res://features/feature_030.gd",
-  "res://features/feature_031.gd",
-  "res://features/feature_032.gd",
-  "res://features/feature_033.gd",
-  "res://features/feature_034.gd",
-  "res://features/feature_035.gd",
-  "res://features/feature_036.gd",
-  "res://features/feature_037.gd",
-  "res://features/feature_038.gd",
-  "res://features/feature_039.gd",
-  "res://features/feature_040.gd",
-  "res://features/feature_041.gd",
-  "res://features/feature_042.gd",
-  "res://features/feature_043.gd",
-  "res://features/feature_044.gd",
-  "res://features/feature_045.gd",
-  "res://features/feature_046.gd",
-  "res://features/feature_047.gd",
-  "res://features/feature_048.gd",
-  "res://features/feature_049.gd",
-  "res://features/feature_050.gd",
-  "res://features/feature_051.gd",
-  "res://features/feature_052.gd",
-  "res://features/feature_053.gd",
-  "res://features/feature_054.gd",
-  "res://features/feature_055.gd",
-  "res://features/feature_056.gd",
-  "res://features/feature_057.gd",
-  "res://features/feature_058.gd",
-  "res://features/feature_059.gd",
-  "res://features/feature_060.gd",
-  "res://features/feature_061.gd",
-  "res://features/feature_062.gd",
-  "res://features/feature_063.gd",
-  "res://features/feature_064.gd",
-  "res://features/feature_065.gd",
-  "res://features/feature_066.gd",
-  "res://features/feature_067.gd",
-  "res://features/feature_068.gd",
-  "res://features/feature_069.gd",
-  "res://features/feature_070.gd",
-  "res://features/feature_071.gd",
-  "res://features/feature_072.gd",
-  "res://features/feature_073.gd",
-  "res://features/feature_074.gd",
-  "res://features/feature_075.gd",
-  "res://features/feature_076.gd",
-  "res://features/feature_077.gd",
-  "res://features/feature_078.gd",
-  "res://features/feature_079.gd",
-  "res://features/feature_080.gd",
-  "res://features/feature_081.gd",
-  "res://features/feature_082.gd",
-  "res://features/feature_083.gd",
-  "res://features/feature_084.gd",
-  "res://features/feature_085.gd",
-  "res://features/feature_086.gd",
-  "res://features/feature_087.gd",
-  "res://features/feature_088.gd",
-  "res://features/feature_089.gd",
-  "res://features/feature_090.gd",
-  "res://features/feature_091.gd",
-  "res://features/feature_092.gd",
-  "res://features/feature_093.gd",
-  "res://features/feature_094.gd",
-  "res://features/feature_095.gd",
-  "res://features/feature_096.gd",
-  "res://features/feature_097.gd",
-  "res://features/feature_098.gd",
-  "res://features/feature_099.gd"
-]
+var paths: Array[String] = []
 var index := 0
 var timer: Timer
+var boot_timer: Timer
+var activated := 0
+
+func _ready():
+ for i in range(1, 100):
+  paths.append("res://features/feature_%03d.gd" % i)
 
 func start(w):
  world = w
+ set_meta("integration_total", paths.size())
+ set_meta("integration_activated", 0)
+ boot_timer = Timer.new()
+ boot_timer.one_shot = true
+ boot_timer.wait_time = BOOT_DELAY
+ boot_timer.timeout.connect(_begin_feature_activation)
+ add_child(boot_timer)
+ boot_timer.start()
+
+func _begin_feature_activation():
  timer = Timer.new()
- timer.wait_time = 0.12
+ timer.wait_time = FEATURE_INTERVAL
  timer.autostart = true
  timer.timeout.connect(_activate_next)
  add_child(timer)
+ _activate_next()
 
 func _activate_next():
  if index >= paths.size():
-  timer.stop()
+  if timer:
+   timer.stop()
+  set_meta("integration_complete", true)
+  set_meta("integration_activated", activated)
   return
+
  var path = paths[index]
  index += 1
+ if not ResourceLoader.exists(path):
+  return
+
  var script = load(path)
- if script and script.can_instantiate():
-  var feature = script.new()
-  feature.name = path.get_file().get_basename()
-  add_child(feature)
-  if feature.has_method("activate"):
-   feature.activate(world)
+ if script == null:
+  return
+
+ # Every feature owns its own timer/state. Adding it as a child keeps it in
+ # the same canonical scene tree and preserves all earlier gameplay systems.
+ var feature = script.new()
+ if feature == null:
+  return
+ feature.name = path.get_file().get_basename()
+ add_child(feature)
+ if feature.has_method("activate"):
+  feature.activate(world)
+ activated += 1
+ set_meta("integration_activated", activated)
