@@ -27,7 +27,7 @@ func _ready():
  camera.fov = 68
  camera_pivot.add_child(camera)
 
-func _unhandled_input(event):
+func _input(event):
  if event is InputEventScreenDrag:
   if event.position.x > 300.0:
    rotate_camera(event.relative.x, event.relative.y)
