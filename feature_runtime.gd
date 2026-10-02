@@ -2,7 +2,8 @@ extends Node
 
 var world
 const FEATURE_PATHS = [
-  "res://features/feature_001.gd"
+  "res://features/feature_001.gd",
+  "res://features/feature_002.gd"
 ]
 
 func start(w):
