@@ -66,4 +66,6 @@ func _process(_delta):
   mission.text = "MISSION %d/3: %s    Rickshaw ৳%d → offer ৳%d" % [w.mission_stage + 1, stage_names[w.mission_stage], w.fare_requested, w.bargain_offer]
  else:
   mission.text = "MISSION COMPLETE  +৳1000   FREE ROAM"
- status.text = "Noborongo City • 3D third-person • 45 NPCs • traffic • police • camera drag"
+ var ammo_text = "%d/%d" % [w.player.ammo, w.player.reserve_ammo] if w.player else "30/120"
+ var reload_text = " • RELOADING" if w.player and w.player.reload_time > 0.0 else ""
+ status.text = "NOBORONGO CITY • FREE ROAM • VEHICLES • POLICE • WEATHER • EVENTS\nAMMO %s%s   %s" % [ammo_text, reload_text, w.event_text if w.event_time_left > 0 else "Explore • drive • bargain • fight"]
