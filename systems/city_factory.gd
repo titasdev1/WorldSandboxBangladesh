@@ -13,9 +13,55 @@ const PALETTES := {
     "riverfront": [Color("#6b8790"), Color("#8b755c"), Color("#6e8a6b")]
 }
 
-func generate(parent: Node3D, rng: RandomNumberGenerator, centers: Array[Dictionary], box_fn: Callable, cylinder_fn: Callable) -> void:
+func _ready() -> void:
+    var parent := get_parent()
+    if not parent:
+        return
+    var rng := RandomNumberGenerator.new()
+    rng.randomize()
+    var centers: Array[Dictionary] = load("res://systems/district_content.gd").all_districts()
     for district in centers:
-        _generate_district(parent, rng, district, box_fn, cylinder_fn)
+        _generate_district(parent, rng, district, Callable(self, "_box"), Callable(self, "_cylinder"))
+
+func _box(parent: Node3D, pos: Vector3, size: Vector3, c: Color, collision: bool = false) -> Node3D:
+    var body: Node3D
+    if collision:
+        var static_body := StaticBody3D.new()
+        var shape := CollisionShape3D.new()
+        var bs := BoxShape3D.new()
+        bs.size = size
+        shape.shape = bs
+        static_body.add_child(shape)
+        body = static_body
+    else:
+        body = MeshInstance3D.new()
+    var mesh := MeshInstance3D.new()
+    var bm := BoxMesh.new()
+    bm.size = size
+    mesh.mesh = bm
+    mesh.material_override = _mat(c)
+    body.add_child(mesh)
+    body.position = pos
+    parent.add_child(body)
+    return body
+
+func _cylinder(parent: Node3D, pos: Vector3, radius: float, height: float, c: Color) -> Node3D:
+    var mesh := MeshInstance3D.new()
+    var cm := CylinderMesh.new()
+    cm.top_radius = radius
+    cm.bottom_radius = radius
+    cm.height = height
+    mesh.mesh = cm
+    mesh.material_override = _mat(c)
+    mesh.position = pos
+    parent.add_child(mesh)
+    return mesh
+
+func _mat(c: Color) -> StandardMaterial3D:
+    var m := StandardMaterial3D.new()
+    m.albedo_color = c
+    m.roughness = 0.82
+    return m
 
 func _generate_district(parent: Node3D, rng: RandomNumberGenerator, district: Dictionary, box_fn: Callable, cylinder_fn: Callable) -> void:
     var center := Vector3(float(district.get("x", 0.0)), 0.0, float(district.get("z", 0.0)))
@@ -26,7 +72,7 @@ func _generate_district(parent: Node3D, rng: RandomNumberGenerator, district: Di
     # A district gets a recognizable civic spine rather than anonymous cubes.
     for side in [-1.0, 1.0]:
         var sidewalk = center + Vector3(side * 5.7, 0.16, 0)
-        box_fn.call(sidewalk, Vector3(2.0, 0.25, 18.0), Color("#9b9b86"), false)
+        box_fn.call(parent, sidewalk, Vector3(2.0, 0.25, 18.0), Color("#9b9b86"), false)
         var curb = center + Vector3(side * 4.75, 0.24, 0)
         box_fn.call(curb, Vector3(0.35, 0.3, 18.0), Color("#c8c2a9"), false)
 
@@ -48,7 +94,7 @@ func _generate_district(parent: Node3D, rng: RandomNumberGenerator, district: Di
         # Rooftop tanks/utility details make buildings read as local rather than
         # generic boxes.
         if h > 8.0:
-            cylinder_fn.call(Vector3(p.x, h + 1.0, p.z), 0.7, 1.8, Color("#626b70"))
+            cylinder_fn.call(parent, Vector3(p.x, h + 1.0, p.z), 0.7, 1.8, Color("#626b70"))
         if kind == "commercial" or kind == "market":
             _storefront(parent, p + Vector3(0, 0.7, d * 0.52), w, rng, box_fn)
 
