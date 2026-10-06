@@ -22,10 +22,29 @@ jobs:
         with:
           packages: 'platform-tools build-tools;34.0.0 platforms;android-34 cmdline-tools;latest cmake;3.10.2.4988404 ndk;23.2.8568313'
 
-      - name: Create Godot debug keystore
+      - name: Prepare stable signing configuration
         shell: bash
+        env:
+          RELEASE_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          keytool -genkeypair -v             -keystore "$RUNNER_TEMP/godot-debug.keystore"             -storepass android             -keypass android             -alias androiddebugkey             -keyalg RSA             -keysize 2048             -validity 10000             -dname "CN=Android Debug,O=Android,C=US"
+          if [ -n "$RELEASE_KEYSTORE_B64" ] && [ -n "$RELEASE_KEYSTORE_PASSWORD" ] && [ -n "$RELEASE_KEY_ALIAS" ] && [ -n "$RELEASE_KEY_PASSWORD" ]; then
+            echo "$RELEASE_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+            echo "WSB_SIGNING_MODE=release" >> "$GITHUB_ENV"
+            echo "WSB_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            echo "WSB_KEY_ALIAS=$RELEASE_KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "WSB_KEY_PASSWORD=$RELEASE_KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "WSB_STORE_PASSWORD=$RELEASE_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          else
+            keytool -genkeypair -v -keystore "$RUNNER_TEMP/godot-debug.keystore" -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=World Sandbox Development,O=World Sandbox,C=BD"
+            echo "WSB_SIGNING_MODE=debug-fallback" >> "$GITHUB_ENV"
+            echo "WSB_KEYSTORE=$RUNNER_TEMP/godot-debug.keystore" >> "$GITHUB_ENV"
+            echo "WSB_KEY_ALIAS=androiddebugkey" >> "$GITHUB_ENV"
+            echo "WSB_KEY_PASSWORD=android" >> "$GITHUB_ENV"
+            echo "WSB_STORE_PASSWORD=android" >> "$GITHUB_ENV"
+          fi
 
       - name: Configure Godot Android export settings
         shell: bash
@@ -37,9 +56,9 @@ jobs:
           [resource]
           export/android/android_sdk_path = "$ANDROID_HOME"
           export/android/java_sdk_path = "$JAVA_HOME"
-          export/android/debug_keystore = "$RUNNER_TEMP/godot-debug.keystore"
-          export/android/debug_keystore_user = "androiddebugkey"
-          export/android/debug_keystore_pass = "android"
+          export/android/debug_keystore = "$WSB_KEYSTORE"
+          export/android/debug_keystore_user = "$WSB_KEY_ALIAS"
+          export/android/debug_keystore_pass = "$WSB_STORE_PASSWORD"
           EOF
 
       - name: Export Godot Android APK
