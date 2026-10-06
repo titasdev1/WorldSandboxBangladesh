@@ -16,9 +16,6 @@ var police_timer := 0.0
 var event_timer := 0.0
 var event_text := "CITY LIFE ACTIVE"
 var event_time_left := 0.0
-var traffic_clock := 0.0
-var traffic_cycle := 16.0
-var rain_particles: GPUParticles3D
 
 var road_x := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 var road_z := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
@@ -26,8 +23,6 @@ var road_z := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 func _ready():
  rng.randomize()
  build_environment()
- build_traffic_lights()
- build_rain_system()
  build_city()
  build_landmarks()
  spawn_player()
@@ -35,9 +30,6 @@ func _ready():
  spawn_npcs()
  spawn_police()
  create_mission_marker()
- var feature_runtime = load("res://feature_runtime.gd").new()
- add_child(feature_runtime)
- feature_runtime.start(self)
 
 func make_mat(c: Color, roughness := 0.8, metallic := 0.0):
  var m = StandardMaterial3D.new()
@@ -171,6 +163,12 @@ func spawn_player():
  mesh.material_override = make_mat(Color("#3b577a"))
  mesh.position.y = 1
  player.add_child(mesh)
+ var cam = Camera3D.new()
+ cam.position = Vector3(0, 6.2, 9.5)
+ cam.rotation_degrees = Vector3(-28, 180, 0)
+ cam.current = true
+ cam.fov = 68
+ player.add_child(cam)
  add_child(player)
 
 func spawn_traffic():
@@ -249,6 +247,7 @@ func create_mission_marker():
 
 func _process(delta):
  day_time = fmod(day_time + delta * 0.08, 24.0)
+ event_time_left = max(0.0, event_time_left - delta)
  var sun = get_node_or_null("Sun")
  if sun:
   sun.rotation_degrees.x = -35 - sin(day_time / 24.0 * TAU) * 35.0
@@ -274,40 +273,18 @@ func _process(delta):
   if police_timer > 18.0:
    wanted = max(0, wanted - 1)
    police_timer = 0.0
- traffic_clock = fmod(traffic_clock + delta, traffic_cycle)
  event_timer += delta
- event_time_left = max(0.0, event_time_left - delta)
  if event_timer > 30.0:
   event_timer = 0.0
-  var roll := rng.randi_range(0, 4)
-  if roll == 0:
+  if rng.randf() < 0.35:
    cash += 50
-   event_text = "RANDOM JOB: delivery bonus +৳50"
-  elif roll == 1:
-   wanted = min(5, wanted + 1)
-   event_text = "POLICE ALERT: wanted level increased"
-  elif roll == 2:
-   rain = true
-   event_text = "WEATHER: monsoon rain incoming"
-  elif roll == 3:
-   cash += 100
-   event_text = "STREET EVENT: crowd reward +৳100"
-  else:
-   event_text = "CITY EVENT: traffic surge"
-  event_time_left = 8.0
- if Input.is_action_just_pressed("save_game"):
-  SaveSystem.save_world(self)
- if Input.is_action_just_pressed("load_game"):
-  SaveSystem.load_world(self)
+   event_text = "RANDOM JOB: +৳50"
+   event_time_left = 8.0
  if Input.is_action_just_pressed("rain"):
   rain = !rain
   var env = get_node_or_null("WorldEnvironment")
   if env:
    env.environment.background_color = Color("#52677a") if rain else Color("#8eb9d2")
-  if rain_particles:
-   rain_particles.emitting = rain
-   if player:
-    rain_particles.position = Vector3(player.position.x, 28, player.position.z)
 
 func update_marker():
  var marker = get_node_or_null("MissionMarker")
@@ -327,7 +304,6 @@ func try_fire():
   if hit.collider.has_method("on_hit"):
    hit.collider.on_hit()
 
-
 func respawn_player():
  if not player:
   return
@@ -335,53 +311,6 @@ func respawn_player():
  player.position = Vector3(0, 1, -12)
  wanted = 0
  cash = max(0, cash - 100)
-
-func build_traffic_lights():
- for x in road_x:
-  for z in road_z:
-   var pole = box(Vector3(x + 4.8, 2.6, z + 4.8), Vector3(0.18, 5.2, 0.18), Color("#34383b"), true)
-   box(Vector3(x + 4.8, 5.0, z + 4.8), Vector3(0.55, 1.4, 0.45), Color("#202326"), false)
-
-func build_rain_system():
- rain_particles = GPUParticles3D.new()
- rain_particles.name = "RainParticles"
- rain_particles.amount = 700
- rain_particles.lifetime = 0.8
- rain_particles.emitting = false
- var process_mat = ParticleProcessMaterial.new()
- process_mat.direction = Vector3(0, -1, 0)
- process_mat.initial_velocity_min = 18.0
- process_mat.initial_velocity_max = 26.0
- process_mat.gravity = Vector3(0, -3, 0)
- process_mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
- process_mat.emission_box_extents = Vector3(70, 2, 70)
- rain_particles.process_material = process_mat
- var quad = QuadMesh.new()
- quad.size = Vector2(0.025, 0.5)
- var mat = StandardMaterial3D.new()
- mat.albedo_color = Color(0.65, 0.75, 0.9, 0.45)
- mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
- mat.shading_mode = BaseMaterial3D.SHADING_UNSHADED
- quad.material = mat
- rain_particles.draw_pass_1 = quad
- rain_particles.position = Vector3(0, 28, 0)
- add_child(rain_particles)
-
-func is_red_for_axis(axis: String, vehicle_position: Vector3) -> bool:
- var near_intersection = false
- if axis == "z":
-  for x in road_x:
-   if abs(vehicle_position.x - x) < 3.0:
-    near_intersection = true
-    break
- else:
-  for z in road_z:
-   if abs(vehicle_position.z - z) < 3.0:
-    near_intersection = true
-    break
- if not near_intersection:
-  return false
- return fmod(traffic_clock, traffic_cycle) > 8.0
 
 func try_vehicle_interaction():
  if not player:
@@ -396,3 +325,6 @@ func try_vehicle_interaction():
     nearest = node
  if nearest:
   nearest.enter_player(player)
+
+func is_red_for_axis(_axis: String, _vehicle_position: Vector3) -> bool:
+ return false
