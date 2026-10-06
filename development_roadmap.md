@@ -39,3 +39,10 @@ Do not create disconnected projects or nested ZIPs.
 
 ## Final
 Create exactly one FINAL_GAME_PROJECT.zip from the latest complete canonical project directory. It must contain actual source/assets/configuration and legally redistributable dependencies, not previous ZIP files or filler data.
+
+
+## Regression rule (added 2026-10-06)
+- Proven playable baseline is the #24 core behavior.
+- Feature modules are cumulative repository content, not permission to replace the boot scene.
+- No feature may be activated globally until a build preserves the playable baseline.
+- One canonical Android workflow is the release gate; no parallel feature-only APKs.
