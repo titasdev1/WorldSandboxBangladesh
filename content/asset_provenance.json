@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "assets": [],
+  "required_fields": ["asset_id", "source", "license", "creator", "date_added", "redistribution_allowed"]
+}

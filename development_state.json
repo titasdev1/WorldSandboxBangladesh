@@ -1,10 +1,10 @@
 {
   "project": "World Sandbox: Bangladesh",
-  "version": "0.5.0-dev",
+  "version": "0.6.0-dev",
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "014_STABLE_PLAYABLE_CORE_RECOVERY",
+  "current_milestone": "015_LARGE_CONTENT_PIPELINE_FOUNDATION",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -25,12 +25,12 @@
     "015_UI",
     "017_SAVE_LOAD"
   ],
-  "next_priority": "015_SAFE_FEATURE_INTEGRATION_WITH_REGRESSION_GATES",
+  "next_priority": "016_INTEGRATED_DISTRICT_VEHICLE_AND_ASSET_EXPANSION",
   "known_bugs": [
     "Physical device verification is required for the recovered build.",
     "Later feature modules are retained in the canonical repository but are not allowed to block initial scene boot.",
     "Traffic remains lane-based and NPCs remain lightweight roaming AI.",
-    "Production-scale art/audio/content is not yet present."
+    "Large authored asset packs require an external high-storage workspace; GitHub remains source/control infrastructure."
   ],
   "build_status": "building_stable_core_recovery",
   "latest_verified_run": 36909781456,
@@ -41,5 +41,6 @@
   "target_archive": "FINAL_GAME_PROJECT.zip",
   "archive_policy": "one archive from canonical project directory; never nest previous archives",
   "asset_scale_target": "approximately 200GB only if technically and legally supportable; never use filler data",
-  "recovery_rule": "Never modify the proven playable boot path and feature activation simultaneously; every feature batch must pass Android build plus core boot regression checks."
+  "recovery_rule": "Never modify the proven playable boot path and feature activation simultaneously; every feature batch must pass Android build plus core boot regression checks.",
+  "asset_pipeline": "external_content_manifest_ready"
 }

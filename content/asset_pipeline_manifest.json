@@ -1,0 +1,26 @@
+{
+  "project": "World Sandbox: Bangladesh",
+  "purpose": "Large external asset/content pipeline without bloating Git history",
+  "canonical_asset_root": "external_content/",
+  "formats": {
+    "3d": ["glb", "gltf"],
+    "textures": ["png", "jpg", "ktx2"],
+    "audio": ["ogg", "wav"],
+    "video": ["webm", "mp4"]
+  },
+  "packs": [
+    {"id":"districts","status":"procedural_placeholder","future_source":"generated_or_authored_3d_assets"},
+    {"id":"vehicles","status":"procedural_placeholder","future_source":"generated_or_authored_3d_assets"},
+    {"id":"characters","status":"procedural_placeholder","future_source":"generated_or_authored_character_assets"},
+    {"id":"props","status":"procedural_placeholder","future_source":"generated_or_authored_environment_assets"},
+    {"id":"audio","status":"placeholder","future_source":"original_or_licensed_audio"},
+    {"id":"cinematics","status":"not_started","future_source":"original_generated_media"}
+  ],
+  "rules": [
+    "Never commit filler bytes just to increase project size.",
+    "Never redistribute ripped GTA/COD assets.",
+    "Every external asset pack must record provenance and license.",
+    "Git stores source/code/manifests; large binary packs belong in the external content workspace.",
+    "Android builds consume only the optimized packs required by the selected release profile."
+  ]
+}
