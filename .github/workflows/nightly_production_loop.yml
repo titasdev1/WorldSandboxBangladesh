@@ -1,0 +1,88 @@
+name: Nightly Production Loop
+
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-production
+  cancel-in-progress: false
+
+jobs:
+  verify-build-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout canonical project
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools build-tools;34.0.0 platforms;android-34 cmdline-tools;latest cmake;3.10.2.4988404 ndk;23.2.8568313'
+      - name: Create debug signing key
+        shell: bash
+        run: |
+          keytool -genkeypair -v \
+            -keystore "$RUNNER_TEMP/godot-debug.keystore" \
+            -storepass android -keypass android -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+      - name: Download Godot
+        shell: bash
+        run: |
+          curl -L --fail --retry 3 -o "$RUNNER_TEMP/godot.zip" \
+            "https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT="$(find "$RUNNER_TEMP/godot" -type f -name 'Godot_v4.4.1-stable_linux.x86_64' | head -1)"
+          chmod +x "$GODOT"
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+      - name: Configure Android editor settings
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.config/godot"
+          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/debug_keystore = "$RUNNER_TEMP/godot-debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF
+      - name: Headless project validation
+        run: "$GODOT" --headless --editor --path . --quit --verbose
+      - name: Export Android APK
+        run: |
+          mkdir -p build
+          "$GODOT" --headless --path . --export-debug "Android" build/WorldSandboxBangladesh.apk
+      - name: Assemble canonical source archive
+        shell: bash
+        run: |
+          mkdir -p release
+          zip -qr release/WORLDSANDBOX_BANGLADESH_SOURCE_\u0024{GITHUB_SHA::12}.zip . \
+            -x ".git/*" ".godot/*" "build/*" "release/*"
+      - name: Upload nightly APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: WorldSandboxBangladesh-Nightly-APK-\u0024{{ github.run_number }}
+          path: build/WorldSandboxBangladesh.apk
+          retention-days: 7
+      - name: Upload canonical source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: WorldSandboxBangladesh-Nightly-Source-\u0024{{ github.run_number }}
+          path: release/WORLDSANDBOX_BANGLADESH_SOURCE_*.zip
+          retention-days: 7
