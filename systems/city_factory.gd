@@ -74,7 +74,7 @@ func _generate_district(parent: Node3D, rng: RandomNumberGenerator, district: Di
         var sidewalk = center + Vector3(side * 5.7, 0.16, 0)
         box_fn.call(parent, sidewalk, Vector3(2.0, 0.25, 18.0), Color("#9b9b86"), false)
         var curb = center + Vector3(side * 4.75, 0.24, 0)
-        box_fn.call(curb, Vector3(0.35, 0.3, 18.0), Color("#c8c2a9"), false)
+        box_fn.call(parent, curb, Vector3(0.35, 0.3, 18.0), Color("#c8c2a9"), false)
 
     var lots := int(round(7.0 * density))
     for i in range(max(4, lots)):
@@ -89,7 +89,7 @@ func _generate_district(parent: Node3D, rng: RandomNumberGenerator, district: Di
         if kind == "industrial":
             h = rng.randf_range(3.0, 8.0)
         var c: Color = palette[rng.randi_range(0, palette.size() - 1)]
-        box_fn.call(Vector3(p.x, h * 0.5, p.z), Vector3(w, h, d), c, true)
+        box_fn.call(parent, Vector3(p.x, h * 0.5, p.z), Vector3(w, h, d), c, true)
 
         # Rooftop tanks/utility details make buildings read as local rather than
         # generic boxes.
@@ -101,30 +101,30 @@ func _generate_district(parent: Node3D, rng: RandomNumberGenerator, district: Di
     # District-specific visual anchor.
     var anchor := center + Vector3(0, 0, -16)
     if kind == "market":
-        box_fn.call(anchor + Vector3(0, 1.2, 0), Vector3(13, 2.4, 5), Color("#b55e39"), true)
+        box_fn.call(parent, anchor + Vector3(0, 1.2, 0), Vector3(13, 2.4, 5), Color("#b55e39"), true)
         for i in range(5):
-            cylinder_fn.call(anchor + Vector3(-5 + i * 2.5, 3.0, 0), 0.18, 3.2, Color("#4d4038"))
+            cylinder_fn.call(parent, anchor + Vector3(-5 + i * 2.5, 3.0, 0), 0.18, 3.2, Color("#4d4038"))
     elif kind == "school":
-        box_fn.call(anchor + Vector3(0, 2.0, 0), Vector3(14, 4, 7), Color("#d3b76c"), true)
-        box_fn.call(anchor + Vector3(0, 4.4, 0), Vector3(15, 0.5, 8), Color("#6d7f91"), false)
+        box_fn.call(parent, anchor + Vector3(0, 2.0, 0), Vector3(14, 4, 7), Color("#d3b76c"), true)
+        box_fn.call(parent, anchor + Vector3(0, 4.4, 0), Vector3(15, 0.5, 8), Color("#6d7f91"), false)
     elif kind == "transport":
-        box_fn.call(anchor + Vector3(0, 0.7, 0), Vector3(16, 1.4, 8), Color("#4e5e62"), true)
+        box_fn.call(parent, anchor + Vector3(0, 0.7, 0), Vector3(16, 1.4, 8), Color("#4e5e62"), true)
         for i in range(4):
-            box_fn.call(anchor + Vector3(-6 + i * 4, 1.7, 0), Vector3(2.8, 0.25, 5.5), Color("#d6c28a"), false)
+            box_fn.call(parent, anchor + Vector3(-6 + i * 4, 1.7, 0), Vector3(2.8, 0.25, 5.5), Color("#d6c28a"), false)
     elif kind == "industrial":
-        cylinder_fn.call(anchor + Vector3(0, 5, 0), 2.2, 10, Color("#596368"))
+        cylinder_fn.call(parent, anchor + Vector3(0, 5, 0), 2.2, 10, Color("#596368"))
     elif kind == "riverfront":
         for i in range(7):
-            cylinder_fn.call(anchor + Vector3(-9 + i * 3, 0.8, 0), 0.18, 1.6, Color("#705f4b"))
+            cylinder_fn.call(parent, anchor + Vector3(-9 + i * 3, 0.8, 0), 0.18, 1.6, Color("#705f4b"))
     else:
-        box_fn.call(anchor + Vector3(0, 1.0, 0), Vector3(10, 2, 4), palette[0], true)
+        box_fn.call(parent, anchor + Vector3(0, 1.0, 0), Vector3(10, 2, 4), palette[0], true)
 
     # Lamps and trees around every district make the world feel inhabited.
     for i in range(6):
         var z := -12.0 + i * 4.8
-        cylinder_fn.call(center + Vector3(7.0, 2.4, z), 0.11, 4.8, Color("#3e4549"))
-        cylinder_fn.call(center + Vector3(-7.0, 2.0, z + 2.0), 0.55, 4.0, Color("#3d754b"))
+        cylinder_fn.call(parent, center + Vector3(7.0, 2.4, z), 0.11, 4.8, Color("#3e4549"))
+        cylinder_fn.call(parent, center + Vector3(-7.0, 2.0, z + 2.0), 0.55, 4.0, Color("#3d754b"))
 
 func _storefront(parent: Node3D, pos: Vector3, width: float, rng: RandomNumberGenerator, box_fn: Callable) -> void:
     var sign_colors := [Color("#e2bf62"), Color("#6e9ca4"), Color("#a75e4d")]
-    box_fn.call(pos, Vector3(min(width, 6.5), 0.55, 0.18), sign_colors[rng.randi_range(0, sign_colors.size() - 1)], false)
+    box_fn.call(parent, pos, Vector3(min(width, 6.5), 0.55, 0.18), sign_colors[rng.randi_range(0, sign_colors.size() - 1)], false)
