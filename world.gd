@@ -286,6 +286,10 @@ func _process(delta):
   var env = get_node_or_null("WorldEnvironment")
   if env:
    env.environment.background_color = Color("#52677a") if rain else Color("#8eb9d2")
+  if district_factory and district_factory.has_method("update"):
+   district_factory.update(player)
+  if gameplay_director and gameplay_director.has_method("update"):
+   gameplay_director.update(delta)
 
 func update_marker():
  var marker = get_node_or_null("MissionMarker")
