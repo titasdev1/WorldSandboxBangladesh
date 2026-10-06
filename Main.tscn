@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource path="res://world.gd" type="Script" id="1"]
 [ext_resource path="res://hud.gd" type="Script" id="2"]
@@ -6,6 +6,7 @@
 [ext_resource path="res://systems/gameplay_factory.gd" type="Script" id="4"]
 [ext_resource path="res://systems/population_factory.gd" type="Script" id="5"]
 [ext_resource path="res://systems/mission_factory.gd" type="Script" id="6"]
+[ext_resource path="res://systems/vehicle_gameplay_factory.gd" type="Script" id="7"]
 
 [node name="WorldSandboxBangladesh" type="Node3D"]
 script = ExtResource("1")
@@ -21,6 +22,9 @@ script = ExtResource("5")
 
 [node name="MissionFactory" type="Node3D" parent="."]
 script = ExtResource("6")
+
+[node name="VehicleGameplayFactory" type="Node3D" parent="."]
+script = ExtResource("7")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("2")
