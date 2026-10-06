@@ -30,6 +30,7 @@ func _ready():
  spawn_npcs()
  spawn_police()
  create_mission_marker()
+ _setup_a_square()
 
 func make_mat(c: Color, roughness := 0.8, metallic := 0.0):
  var m = StandardMaterial3D.new()
@@ -328,3 +329,32 @@ func try_vehicle_interaction():
 
 func is_red_for_axis(_axis: String, _vehicle_position: Vector3) -> bool:
  return false
+
+
+# Project A-Square integrated world director.
+var district_factory
+var gameplay_director
+var city_stream_timer := 0.0
+
+func _setup_a_square():
+    district_factory = load("res://systems/district_factory.gd").new()
+    district_factory.name = "DistrictFactory"
+    add_child(district_factory)
+    district_factory.build(self, player)
+    gameplay_director = load("res://systems/gameplay_director.gd").new()
+    gameplay_director.name = "GameplayDirector"
+    add_child(gameplay_director)
+    gameplay_director.configure(self, player, district_factory)
+
+func _process(delta):
+    city_stream_timer += delta
+    if city_stream_timer >= 0.5:
+        city_stream_timer = 0.0
+        if district_factory and district_factory.has_method("update"):
+            district_factory.update(player)
+    if gameplay_director and gameplay_director.has_method("update"):
+        gameplay_director.update(delta)
+
+func notify_gameplay_event(event_name: String, value := 1):
+    if gameplay_director and gameplay_director.has_method("event"):
+        gameplay_director.event(event_name, value)
