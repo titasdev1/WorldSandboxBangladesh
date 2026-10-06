@@ -1,10 +1,10 @@
 {
   "project": "World Sandbox: Bangladesh",
-  "version": "0.6.0-dev",
+  "version": "0.7.0-dev",
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "015_LARGE_CONTENT_PIPELINE_FOUNDATION",
+  "current_milestone": "016_INTEGRATED_WORLD_GAMEPLAY_FACTORY",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -25,14 +25,13 @@
     "015_UI",
     "017_SAVE_LOAD"
   ],
-  "next_priority": "016_INTEGRATED_DISTRICT_VEHICLE_AND_ASSET_EXPANSION",
+  "next_priority": "017_VEHICLE_AND_MISSION_GAMEPLAY_EXPANSION",
   "known_bugs": [
-    "Physical device verification is required for the recovered build.",
-    "Later feature modules are retained in the canonical repository but are not allowed to block initial scene boot.",
-    "Traffic remains lane-based and NPCs remain lightweight roaming AI.",
-    "Large authored asset packs require an external high-storage workspace; GitHub remains source/control infrastructure."
+    "Physical device verification is still required.",
+    "Procedural world remains compact; large authored asset packs require external storage.",
+    "Vehicle physics and traffic remain lightweight."
   ],
-  "build_status": "building_stable_core_recovery",
+  "build_status": "building_after_integrated_factory_batch",
   "latest_verified_run": 36909781456,
   "latest_verified_commit": "8a9324c61a6a39cfccf3cf905da0e005ea17c195",
   "save_system": "implemented",
@@ -42,5 +41,5 @@
   "archive_policy": "one archive from canonical project directory; never nest previous archives",
   "asset_scale_target": "approximately 200GB only if technically and legally supportable; never use filler data",
   "recovery_rule": "Never modify the proven playable boot path and feature activation simultaneously; every feature batch must pass Android build plus core boot regression checks.",
-  "asset_pipeline": "external_content_manifest_ready"
+  "asset_pipeline": "factory_generation_layer_ready"
 }
