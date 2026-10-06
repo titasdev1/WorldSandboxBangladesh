@@ -1,10 +1,10 @@
 {
   "project": "World Sandbox: Bangladesh",
-  "version": "0.7.0-dev",
+  "version": "0.8.0-dev",
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "016_LIVE_GAME_FACTORY_WORLD_EXPANSION",
+  "current_milestone": "017_INTEGRATED_SIMULATION_AND_GAMEPLAY_FACTORIES",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -25,16 +25,17 @@
     "015_UI",
     "017_SAVE_LOAD"
   ],
-  "next_priority": "017_INTEGRATED_SIMULATION_AND_GAMEPLAY_FACTORIES",
+  "next_priority": "018_VEHICLE_PHYSICS_TRAFFIC_PATHFINDING_AND_MOBILE_POLISH",
   "known_bugs": [
     "Physical device verification is still required for the expanded build.",
     "Outer districts are generated procedurally and currently use primitive meshes rather than authored high-resolution assets.",
-    "Traffic and NPC simulation still need to scale into the outer districts.",
-    "Large authored asset packs still require an external high-storage workspace."
+    "Traffic and NPC simulation still need performance/behavior tuning in the outer districts.",
+    "Large authored asset packs still require an external high-storage workspace.",
+    "Expanded factory scene needs Android runtime regression verification after the world.gd process merge."
   ],
-  "build_status": "pending_android_verification_after_live_game_factory",
+  "build_status": "android_build_triggered_after_process_fix_and_mission_factory",
   "latest_verified_run": null,
-  "latest_verified_commit": null,
+  "latest_verified_commit": "ff9491ed4f9eb4b2e595ab3b52fb659083bfc15b",
   "save_system": "implemented",
   "finalization_status": "not_ready",
   "final_archive": "not_generated",
