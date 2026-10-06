@@ -35,7 +35,7 @@ func _process(delta):
     if _next_index <= FEATURE_TOTAL:
         _activate_one(_next_index)
         _next_index += 1
-        _boot_timer = BOOT_DELAY - (BOOT_DELAY - FEATURE_INTERVAL)
+        _boot_timer = 0.0
     elif not bool(get_meta("integration_complete", false)):
         set_meta("integration_complete", true)
         set_meta("integration_activated", activated)
