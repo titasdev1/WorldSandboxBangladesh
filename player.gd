@@ -7,6 +7,9 @@ var crouch_speed := 3.5
 var gravity := 20.0
 var jump_velocity := 7.0
 var health := 100
+var ammo := 30
+var reserve_ammo := 120
+var reload_time := 0.0
 var crouched := false
 var camera_yaw := 0.0
 var camera_pitch := -14.0
@@ -56,6 +59,13 @@ func _update_camera():
     camera.look_at(target, Vector3.UP)
 
 func _physics_process(delta):
+    if reload_time > 0.0:
+        reload_time -= delta
+        if reload_time <= 0.0:
+            var needed := 30 - ammo
+            var loaded := min(needed, reserve_ammo)
+            ammo += loaded
+            reserve_ammo -= loaded
     var input_vec = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
     var local_dir = Vector3(input_vec.x, 0, input_vec.y)
     var dir = local_dir.normalized()
@@ -82,7 +92,11 @@ func _physics_process(delta):
         _update_camera()
 
     if Input.is_action_just_pressed("fire") and world:
-        world.try_fire()
+        if reload_time <= 0.0 and ammo > 0:
+            ammo -= 1
+            world.try_fire()
+    if Input.is_action_just_pressed("interact") and reload_time <= 0.0 and ammo < 30 and reserve_ammo > 0:
+        reload_time = 1.35
     if Input.is_action_just_pressed("interact") and world:
         interact()
 
