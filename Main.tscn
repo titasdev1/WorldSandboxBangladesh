@@ -2,6 +2,7 @@
 
 [ext_resource path="res://world.gd" type="Script" id="1"]
 [ext_resource path="res://hud.gd" type="Script" id="2"]
+[ext_resource path="res://systems/city_factory.gd" type="Script" id="3"]
 [ext_resource path="res://systems/game_factory.gd" type="Script" id="3"]
 
 [node name="WorldSandboxBangladesh" type="Node3D"]
@@ -12,3 +13,6 @@ script = ExtResource("3")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("2")
+
+[node name="CityFactory" type="Node" parent="."]
+script = ExtResource("3")
