@@ -55,3 +55,12 @@ Development batches are now measured by integrated playable capability, not work
 - Vehicle Factory: reusable transport archetypes.
 - Content Factory: external authored assets can be streamed into the same canonical project later.
 - Every large batch must preserve the proven playable boot path and produce a buildable Android project.
+
+
+## Scale strategy (added 2026-10-07)
+- The project is no longer developed as one-feature-per-pass.
+- Build reusable factories that multiply content: world sectors, buildings, props, vehicles, NPC populations, missions, economy, events and gameplay.
+- Every factory must produce player-visible content in the canonical running scene.
+- Large batches should integrate several related systems before the Android regression build.
+- Project size is an outcome of legitimate content, not a progress metric.
+- External high-storage workspaces are reserved for real authored/generated asset packs when available.
