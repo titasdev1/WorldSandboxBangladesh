@@ -14,6 +14,8 @@ var mission_target := Vector3(42, 0, 42)
 var rng := RandomNumberGenerator.new()
 var police_timer := 0.0
 var event_timer := 0.0
+var event_text := "CITY LIFE ACTIVE"
+var event_time_left := 0.0
 var traffic_clock := 0.0
 var traffic_cycle := 16.0
 var rain_particles: GPUParticles3D
@@ -274,10 +276,25 @@ func _process(delta):
    police_timer = 0.0
  traffic_clock = fmod(traffic_clock + delta, traffic_cycle)
  event_timer += delta
+ event_time_left = max(0.0, event_time_left - delta)
  if event_timer > 30.0:
   event_timer = 0.0
-  if rng.randf() < 0.35:
+  var roll := rng.randi_range(0, 4)
+  if roll == 0:
    cash += 50
+   event_text = "RANDOM JOB: delivery bonus +৳50"
+  elif roll == 1:
+   wanted = min(5, wanted + 1)
+   event_text = "POLICE ALERT: wanted level increased"
+  elif roll == 2:
+   rain = true
+   event_text = "WEATHER: monsoon rain incoming"
+  elif roll == 3:
+   cash += 100
+   event_text = "STREET EVENT: crowd reward +৳100"
+  else:
+   event_text = "CITY EVENT: traffic surge"
+  event_time_left = 8.0
  if Input.is_action_just_pressed("save_game"):
   SaveSystem.save_world(self)
  if Input.is_action_just_pressed("load_game"):
