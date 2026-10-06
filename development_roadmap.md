@@ -21,12 +21,12 @@ Single canonical Godot project. Every workflow/build must operate on this same r
 - [~] 010 Mission framework
 - [~] 011 Police/wanted
 - [~] 012 Combat
-- [ ] 013 Vehicle entry/exit and ownership
+- [~] 013 Vehicle entry/exit and ownership
 - [~] 014 World simulation
 - [~] 015 Mobile UI
 - [ ] 016 Audio
 - [~] 017 Save/load foundation
-- [ ] 018 Performance/streaming/LOD
+- [~] 018 Performance/streaming/LOD
 - [ ] 019 Game modes
 - [ ] 020 Polish
 - [ ] 021 QA
@@ -46,3 +46,12 @@ Create exactly one FINAL_GAME_PROJECT.zip from the latest complete canonical pro
 - Feature modules are cumulative repository content, not permission to replace the boot scene.
 - No feature may be activated globally until a build preserves the playable baseline.
 - One canonical Android workflow is the release gate; no parallel feature-only APKs.
+
+
+## A-Square scaling architecture (2026-10-07)
+Development batches are now measured by integrated playable capability, not workflow/commit count.
+- World Factory: district archetypes and procedural expansion.
+- Gameplay Factory: dynamic events, objectives, score/reputation and district-aware simulation.
+- Vehicle Factory: reusable transport archetypes.
+- Content Factory: external authored assets can be streamed into the same canonical project later.
+- Every large batch must preserve the proven playable boot path and produce a buildable Android project.
