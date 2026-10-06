@@ -21,6 +21,7 @@ func _bootstrap() -> void:
         return
     rng.seed = 20261007
     _expand_ground()
+    _generate_outer_arterials()
     _generate_sectors()
     _generate_transport_hubs()
     _generate_public_spaces()
@@ -61,6 +62,18 @@ func _expand_ground() -> void:
     # The original 180m floor remains untouched; this creates the scalable
     # outer playable terrain around it.
     mesh_box(Vector3(0, -0.56, 0), Vector3(CITY_RADIUS * 2.0, 0.08, CITY_RADIUS * 2.0), Color("#526b49"), true)
+
+func _generate_outer_arterials() -> void:
+    # Extend the proven six-by-six city road axes into the new 600m world.
+    var axes := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
+    for x in axes:
+        mesh_box(Vector3(x, 0.03, 0), Vector3(8.5, 0.14, CITY_RADIUS * 2.0 - 20.0), Color("#303438"), false)
+        for z in range(-280, 281, 12):
+            mesh_box(Vector3(x, 0.12, z), Vector3(0.16, 0.035, 3.4), Color("#d8cfa7"), false)
+    for z in axes:
+        mesh_box(Vector3(0, 0.03, z), Vector3(CITY_RADIUS * 2.0 - 20.0, 0.14, 8.5), Color("#303438"), false)
+        for x in range(-280, 281, 12):
+            mesh_box(Vector3(x, 0.12, z), Vector3(3.4, 0.035, 0.16), Color("#d8cfa7"), false)
 
 func _generate_sectors() -> void:
     for sector in range(SECTOR_COUNT):
