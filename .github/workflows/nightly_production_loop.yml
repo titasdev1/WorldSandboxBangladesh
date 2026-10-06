@@ -72,17 +72,17 @@ jobs:
         shell: bash
         run: |
           mkdir -p release
-          zip -qr release/WORLDSANDBOX_BANGLADESH_SOURCE_\u0024{GITHUB_SHA::12}.zip . \
+          zip -qr release/WORLDSANDBOX_BANGLADESH_SOURCE_${GITHUB_SHA::12}.zip . \
             -x ".git/*" ".godot/*" "build/*" "release/*"
       - name: Upload nightly APK
         uses: actions/upload-artifact@v4
         with:
-          name: WorldSandboxBangladesh-Nightly-APK-\u0024{{ github.run_number }}
+          name: WorldSandboxBangladesh-Nightly-APK-${{ github.run_number }}
           path: build/WorldSandboxBangladesh.apk
           retention-days: 7
       - name: Upload canonical source snapshot
         uses: actions/upload-artifact@v4
         with:
-          name: WorldSandboxBangladesh-Nightly-Source-\u0024{{ github.run_number }}
+          name: WorldSandboxBangladesh-Nightly-Source-${{ github.run_number }}
           path: release/WORLDSANDBOX_BANGLADESH_SOURCE_*.zip
           retention-days: 7
