@@ -65,3 +65,5 @@ func _process(_delta):
  var ammo_text = "%d/%d" % [w.player.ammo, w.player.reserve_ammo] if w.player else "30/120"
  var reload_text = " • RELOADING" if w.player and w.player.reload_time > 0.0 else ""
  status.text = "NOBORONGO CITY • PLAYABLE CORE • VEHICLES • POLICE • WEATHER\nAMMO %s%s   %s" % [ammo_text, reload_text, w.event_text if w.event_time_left > 0 else "Explore • drive • bargain • fight"]
+
+# HUD integrated district/objective layer.
