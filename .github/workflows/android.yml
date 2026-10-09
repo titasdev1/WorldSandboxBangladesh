@@ -32,7 +32,7 @@ jobs:
           IMPORT_STATUS=$?
           cat "$GODOT_DIR/import.log"
           set -e
-          if [ "$IMPORT_STATUS" -ne 0 ] || grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|ERROR: Cannot open" "$GODOT_DIR/import.log"; then
+          if [ "$IMPORT_STATUS" -ne 0 ] || grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|ERROR:" "$GODOT_DIR/import.log"; then
             echo "Godot editor/import validation failed."
             exit 1
           fi
@@ -45,7 +45,7 @@ jobs:
             echo "Godot headless startup exited with status $START_STATUS."
             exit "$START_STATUS"
           fi
-          if grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|Invalid call|Invalid get index" "$GODOT_DIR/startup.log"; then
+          if grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|Invalid call|Invalid get index|ERROR:" "$GODOT_DIR/startup.log"; then
             echo "Godot runtime validation found script errors."
             exit 1
           fi
