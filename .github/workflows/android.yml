@@ -15,6 +15,41 @@ jobs:
         shell: bash
         run: python3 tools/production_gate.py
 
+      - name: Validate Godot project scripts and startup
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT_DIR="$RUNNER_TEMP/godot-validation"
+          mkdir -p "$GODOT_DIR"
+          curl -L --fail --silent --show-error \
+            "https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip" \
+            -o "$GODOT_DIR/godot.zip"
+          unzip -q "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
+          GODOT="$GODOT_DIR/Godot_v4.4.1-stable_linux.x86_64"
+          chmod +x "$GODOT"
+          set +e
+          "$GODOT" --headless --editor --path . --quit > "$GODOT_DIR/import.log" 2>&1
+          IMPORT_STATUS=$?
+          cat "$GODOT_DIR/import.log"
+          set -e
+          if [ "$IMPORT_STATUS" -ne 0 ] || grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|ERROR: Cannot open" "$GODOT_DIR/import.log"; then
+            echo "Godot editor/import validation failed."
+            exit 1
+          fi
+          set +e
+          timeout 30s "$GODOT" --headless --path . --quit-after 120 > "$GODOT_DIR/startup.log" 2>&1
+          START_STATUS=$?
+          cat "$GODOT_DIR/startup.log"
+          set -e
+          if [ "$START_STATUS" -ne 0 ] && [ "$START_STATUS" -ne 124 ]; then
+            echo "Godot headless startup exited with status $START_STATUS."
+            exit "$START_STATUS"
+          fi
+          if grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|Invalid call|Invalid get index" "$GODOT_DIR/startup.log"; then
+            echo "Godot runtime validation found script errors."
+            exit 1
+          fi
+
       - name: Setup Java
         uses: actions/setup-java@v5
         with:
