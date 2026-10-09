@@ -111,9 +111,11 @@ func _make_sector_roads(center: Vector3, angle: float, kind: String) -> void:
     var side := Vector3(-forward.z, 0, forward.x)
     for lane in [-1.0, 1.0]:
         var offset := side * lane * 9.0
-        mesh_box(center + offset, Vector3(110.0, 0.10, 5.5), Color("#34383b"), false).rotation.y = angle
+        var road := mesh_box(center + offset, Vector3(110.0, 0.10, 5.5), Color("#34383b"), false)
+        road.rotation.y = angle
     # Local connector through the district.
-    mesh_box(center + forward * 45.0, Vector3(90.0, 0.10, 5.0), Color("#34383b"), false).rotation.y = angle + PI * 0.5
+    var connector := mesh_box(center + forward * 45.0, Vector3(90.0, 0.10, 5.0), Color("#34383b"), false)
+    connector.rotation.y = angle + PI * 0.5
     _make_district_sign(center + side * 13.0 + Vector3(0, 3.0, 0), kind)
 
 func _make_district_sign(pos: Vector3, kind: String) -> void:
