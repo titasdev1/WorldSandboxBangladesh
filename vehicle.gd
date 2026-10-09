@@ -58,18 +58,18 @@ func _physics_process(delta):
     if lane_axis == "z":
         velocity = Vector3(0, 0, speed)
         move_and_slide()
-        if position.z > 86:
-            position.z = -86
-        elif position.z < -86:
-            position.z = 86
+        if position.z > 286:
+            position.z = -286
+        elif position.z < -286:
+            position.z = 286
         rotation.y = 0.0
     else:
         velocity = Vector3(speed, 0, 0)
         move_and_slide()
-        if position.x > 86:
-            position.x = -86
-        elif position.x < -86:
-            position.x = 86
+        if position.x > 286:
+            position.x = -286
+        elif position.x < -286:
+            position.x = 286
         rotation.y = PI * 0.5
 
     if is_police and world and world.wanted > 0 and world.player:
