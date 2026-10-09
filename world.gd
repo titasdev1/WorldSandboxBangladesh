@@ -286,10 +286,7 @@ func _process(delta):
   var env = get_node_or_null("WorldEnvironment")
   if env:
    env.environment.background_color = Color("#52677a") if rain else Color("#8eb9d2")
-  if district_factory and district_factory.has_method("update"):
-   district_factory.update(player)
-  if gameplay_director and gameplay_director.has_method("update"):
-   gameplay_director.update(delta)
+ _update_a_square_systems(delta)
 
 func update_marker():
  var marker = get_node_or_null("MissionMarker")
@@ -350,11 +347,11 @@ func _setup_a_square():
     add_child(gameplay_director)
     gameplay_director.configure(self, player, district_factory)
 
-func _process(delta):
+func _update_a_square_systems(delta):
     city_stream_timer += delta
     if city_stream_timer >= 0.5:
         city_stream_timer = 0.0
-        if district_factory and district_factory.has_method("update"):
+        if district_factory and district_factory.has_method("update") and player:
             district_factory.update(player)
     if gameplay_director and gameplay_director.has_method("update"):
         gameplay_director.update(delta)
