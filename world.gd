@@ -164,12 +164,6 @@ func spawn_player():
  mesh.material_override = make_mat(Color("#3b577a"))
  mesh.position.y = 1
  player.add_child(mesh)
- var cam = Camera3D.new()
- cam.position = Vector3(0, 6.2, 9.5)
- cam.rotation_degrees = Vector3(-28, 180, 0)
- cam.current = true
- cam.fov = 68
- player.add_child(cam)
  add_child(player)
 
 func spawn_traffic():
