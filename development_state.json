@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "018_TRANSPORT_RACING_AND_WORLD_ACTIVITY",
+  "current_milestone": "019_PLAYER_CAMERA_AND_BUILD_RECOVERY",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -25,23 +25,40 @@
     "015_UI",
     "017_SAVE_LOAD"
   ],
-  "next_priority": "019_COMBAT_AI_POLICE_AND_MISSION_DEPTH",
+  "next_priority": "019_VALIDATE_PLAYER_CAMERA_AND_ANDROID_BOOT",
   "known_bugs": [
-    "Physical device verification is still required for the expanded build.",
-    "Outer districts are generated procedurally and currently use primitive meshes rather than authored high-resolution assets.",
-    "Traffic and NPC simulation still need performance/behavior tuning in the outer districts.",
-    "Large authored asset packs still require an external high-storage workspace.",
-    "Expanded factory scene needs Android runtime regression verification after the world.gd process merge."
+    "Latest audited Android workflow run 37979533857 failed during Godot import validation; no APK was exported by that run.",
+    "The audit identified parse failures in features/feature_003.gd, systems/game_factory.gd, and player.gd; fixes are staged on a recovery branch and require Godot validation.",
+    "Outer districts and traffic vehicles are generated mainly from primitive meshes; authored high-quality asset packs are not present.",
+    "Traffic and NPC simulation still need performance and behavior tuning in outer districts.",
+    "Physical Android device verification is still required.",
+    "Full touch-control, mission, vehicle, combat, police, and save/load regression remains unverified on a physical device."
   ],
-  "build_status": "android_build_triggered_after_transport_racing_batch",
+  "build_status": "audit_complete_fixes_staged_not_yet_built",
   "latest_verified_run": 37518077569,
   "latest_verified_commit": "3830f9e43ba434b1f271d6d2860a1eb197795b17",
-  "save_system": "implemented",
+  "save_system": "implemented_but_device_regression_pending",
   "finalization_status": "not_ready",
   "final_archive": "not_generated",
   "target_archive": "FINAL_GAME_PROJECT.zip",
   "archive_policy": "one archive from canonical project directory; never nest previous archives",
   "asset_scale_target": "approximately 200GB only if technically and legally supportable; never use filler data",
-  "recovery_rule": "Never modify the proven playable boot path and feature activation simultaneously; every feature batch must pass Android build plus core boot regression checks.",
-  "asset_pipeline": "live_game_factory_installed"
+  "recovery_rule": "Preserve the existing playable boot path; each feature batch must pass Godot import/startup and Android export checks before being treated as verified.",
+  "asset_pipeline": "live_game_factory_installed",
+  "audit": {
+    "date": "2026-10-13",
+    "latest_audited_commit": "00720de2788c375756fcda79ee95c24322fcb246",
+    "latest_audited_workflow_run": 37979533857,
+    "latest_audited_workflow_conclusion": "failure",
+    "confirmed_parse_failures": [
+      "features/feature_003.gd: loop indentation",
+      "systems/game_factory.gd: untyped offset inference",
+      "player.gd: Variant type inference treated as error"
+    ],
+    "improvements_staged": [
+      "Fix confirmed parser errors",
+      "Make player movement camera-relative"
+    ],
+    "verification_status": "pending"
+  }
 }

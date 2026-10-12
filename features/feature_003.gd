@@ -12,8 +12,9 @@ func activate(w):
  add_child(timer)
 
 func _tick():
- if not world or not is_instance_valid(world): return
- var pulse = 0.75 + 0.25 * sin(Time.get_ticks_msec() / 12000.0)
-for v in world.get_children():
+ if not world or not is_instance_valid(world):
+  return
+ var pulse: float = 0.75 + 0.25 * sin(Time.get_ticks_msec() / 12000.0)
+ for v in world.get_children():
   if v is CharacterBody3D and v.has_method("enter_player") and not v.occupied:
    v.visible = pulse > 0.72
