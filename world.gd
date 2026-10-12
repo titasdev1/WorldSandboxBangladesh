@@ -410,26 +410,3 @@ func try_street_vendor(at: Vector3) -> bool:
         event_text = "STREET SNACK: -৳20  +HEALTH"
         event_time_left = 4.0
     return true
-
-
-func try_street_vendor(at: Vector3) -> bool:
-    var stalls := [Vector3(18,0,-20), Vector3(23,0,-20), Vector3(28,0,-20), Vector3(33,0,-20), Vector3(18,0,-25), Vector3(33,0,-25)]
-    var nearest := 999.0
-    for stall in stalls:
-        nearest = minf(nearest, Vector2(at.x-stall.x, at.z-stall.z).length())
-    if nearest > 4.2:
-        return false
-    if not player:
-        return true
-    if player.health >= 100:
-        event_text = "MARKET: ALREADY HEALTHY"
-        event_time_left = 3.5
-    elif cash < 20:
-        event_text = "MARKET: NEED ৳20"
-        event_time_left = 3.5
-    else:
-        cash -= 20
-        player.health = mini(100, player.health + 15)
-        event_text = "SNACK BOUGHT: -৳20 / +15 HEALTH"
-        event_time_left = 4.0
-    return true
