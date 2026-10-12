@@ -47,12 +47,18 @@ func _physics_process(delta):
  if reload_time > 0.0:
   reload_time -= delta
   if reload_time <= 0.0:
-   var loaded := min(30 - ammo, reserve_ammo)
+   var loaded: int = mini(30 - ammo, reserve_ammo)
    ammo += loaded
    reserve_ammo -= loaded
- var input_vec = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
- var dir = Vector3(input_vec.x, 0, input_vec.y).normalized()
- var current_speed = sprint_speed if Input.is_action_pressed("sprint") else speed
+
+ # Move relative to the camera's horizontal facing direction, so rotating
+ # the view on a touchscreen also rotates the player's forward movement.
+ var input_vec: Vector2 = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+ var yaw := deg_to_rad(camera_yaw)
+ var forward := Vector3(sin(yaw), 0.0, -cos(yaw))
+ var right := Vector3(cos(yaw), 0.0, sin(yaw))
+ var dir := (right * input_vec.x + forward * -input_vec.y).normalized()
+ var current_speed: float = sprint_speed if Input.is_action_pressed("sprint") else speed
  velocity.x = dir.x * current_speed
  velocity.z = dir.z * current_speed
  if not is_on_floor():
