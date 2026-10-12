@@ -82,3 +82,11 @@ Development batches are measured by integrated playable capability, not workflow
 - Every factory must produce player-visible content in the canonical running scene.
 - Project size is an outcome of legitimate content, not a progress metric.
 - External high-storage workspaces are reserved for real authored/generated asset packs when available.
+
+ 
+## 2026-10 authored-city integration batch
+- Added a CI-only optional downloader for the official Kenney City Kit Suburban, Commercial, and Industrial CC0 packs. The downloader reads official asset pages to discover ZIP URLs rather than guessing URLs; each pack has a manifest recording source, CC0 license, model paths, and fallback reason.
+- Added `CityAssetFactory`, which reads generated manifests and instances matching authored building/house/shop/office/warehouse/factory models into the existing city lot layout. When the assets are absent or a scene cannot load, the original procedural buildings remain the fallback.
+- Added an explicit Python syntax check for the asset pipeline before Godot validation.
+- Added production-gate checks to ensure the city asset factory is integrated into the canonical `world.gd` path.
+- This batch is not build-verified until the canonical Android workflow succeeds. Even a successful export does not establish device visual quality; imported materials and model scale still need on-device inspection.
