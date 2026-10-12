@@ -6,10 +6,10 @@ Single canonical Godot project. Every workflow/build must operate on this same r
 - Audited main at commit `00720de2788c375756fcda79ee95c24322fcb246`.
 - Latest inspected Android run: [#207](https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/37979533857), failed in Godot editor/import validation before Android SDK setup and APK export.
 - Confirmed parser failures: indentation in `features/feature_003.gd`, untyped `offset` in `systems/game_factory.gd`, and Variant inference in `player.gd`.
-- Staged recovery fixes also make walking direction relative to the rotated camera.
+- Applied recovery fixes: corrected the three parser failures and made walking direction relative to the rotated camera.
 - The preflight gate checks repository structure but does not prove GDScript parses; Godot import/startup validation remains mandatory.
 - Asset manifest currently identifies districts, vehicles, characters and props as procedural placeholders; visual quality requires real authored or licensed assets, not more script files.
-- Recovery branch changes are not considered verified until Godot import, headless startup and Android export pass.
+- Recovery fixes were merged in commit `9806eee6aa4e90072c098ab8fca9bfa40232786c`; canonical run [#208](https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/38289653294) passed Godot import/startup and Android APK export. Physical-device gameplay remains unverified.
 
 ## Verified state
 - Godot 4.4.1
