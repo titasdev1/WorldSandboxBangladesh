@@ -85,7 +85,7 @@ def process_pack(slug: str, page_url: str, source_url: str) -> dict:
             "creator": "Kenney", "license": "CC0-1.0",
             "attribution_required": False, "model_count": len(models), "models": models,
         }
-        (out / "asset_manifest.json").write_text(json.dumps(data, indent=2) + "\\n", encoding="utf-8")
+        (out / "asset_manifest.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         print(f"{slug}: prepared {len(models)} authored CC0 models")
         return data
     except Exception as exc:
