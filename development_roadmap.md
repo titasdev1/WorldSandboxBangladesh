@@ -11,6 +11,14 @@ Single canonical Godot project. Every workflow/build must operate on this same r
 - Asset manifest currently identifies districts, vehicles, characters and props as procedural placeholders; visual quality requires real authored or licensed assets, not more script files.
 - Recovery fixes were merged in commit `9806eee6aa4e90072c098ab8fca9bfa40232786c`; canonical run [#208](https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/38289653294) passed Godot import/startup and Android APK export. Physical-device gameplay remains unverified.
 
+## Staged visual production batch (2026-10-13)
+- Added a reusable low-poly humanoid rig with simple gait animation and integrated it into player and inner/outer NPC spawn paths.
+- Replaced box-only traffic silhouettes with differentiated procedural car, CNG, rickshaw, bus, motorcycle and police models; wheel geometry rotates while vehicles move.
+- Added repeated framed window bands to core-city buildings and a procedural sky/fog atmosphere.
+- Added an optional CI fetcher for Kenney's official Car Kit (CC0-1.0). Cars/trucks use imported GLTF/GLB models when matching assets are successfully fetched and imported; custom procedural models remain the fallback. Source: https://kenney.nl/assets/car-kit
+- Added material caching and visual-system checks to reduce avoidable allocations and catch disconnected model code.
+- Status: staged only. Do not claim success until canonical Godot import/startup and Android export finish. Physical-device gameplay/performance remains unverified.
+
 ## Verified state
 - Godot 4.4.1
 - Android target

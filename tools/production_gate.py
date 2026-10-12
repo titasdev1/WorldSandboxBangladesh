@@ -21,6 +21,9 @@ REQUIRED = [
     "world.gd",
     "player.gd",
     "hud.gd",
+    "vehicle.gd",
+    "character_visual.gd",
+    "tools/fetch_free_assets.py",
     "development_state.json",
     "development_roadmap.md",
     "PRODUCTION_MASTER_DIRECTIVE.md",
@@ -53,6 +56,28 @@ if apk_workflows != ["android.yml"]:
         "PRODUCTION GATE FAILED: expected exactly one APK workflow (android.yml), "
         f"found {apk_workflows}"
     )
+
+# Require visible-model systems to be wired into the canonical game path.
+world_text = (ROOT / "world.gd").read_text(encoding="utf-8")
+vehicle_text = (ROOT / "vehicle.gd").read_text(encoding="utf-8")
+population_text = (ROOT / "systems" / "population_factory.gd").read_text(encoding="utf-8")
+if "HumanoidVisual.new()" not in world_text or "HumanoidVisual.new()" not in population_text:
+    raise SystemExit("PRODUCTION GATE FAILED: humanoid visual rig is not integrated into player and NPC spawn paths")
+for builder in ("_build_car", "_build_cng", "_build_rickshaw", "_build_bus", "_build_motorcycle"):
+    if f"func {builder}(" not in vehicle_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: missing vehicle visual builder {builder}")
+if "func _try_load_authored_model()" not in vehicle_text:
+    raise SystemExit("PRODUCTION GATE FAILED: optional authored vehicle loader is missing")
+asset_manifest_path = ROOT / "content" / "asset_pipeline_manifest.json"
+try:
+    asset_manifest = json.loads(asset_manifest_path.read_text(encoding="utf-8"))
+except Exception as exc:
+    raise SystemExit(f"PRODUCTION GATE FAILED: asset manifest is invalid: {exc}")
+if not any(
+    item.get("id") == "kenney_car_kit" and item.get("license") == "CC0-1.0"
+    for item in asset_manifest.get("optional_external_sources", [])
+):
+    raise SystemExit("PRODUCTION GATE FAILED: optional CC0 vehicle source/provenance is missing")
 
 # Keep feature modules as repository material, but don't pretend they are all integrated.
 features = sorted((ROOT / "features").glob("feature_*.gd"))

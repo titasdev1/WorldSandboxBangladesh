@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "019_PLAYER_CAMERA_AND_BUILD_RECOVERY",
+  "current_milestone": "020_RECOGNIZABLE_WORLD_VISUALS_AND_CC0_ASSET_PIPELINE",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -25,14 +25,16 @@
     "015_UI",
     "017_SAVE_LOAD"
   ],
-  "next_priority": "020_AUTHORED_ASSETS_AND_DEVICE_GAMEPLAY_QA",
+  "next_priority": "021_ANDROID_VISUAL_RUNTIME_AND_PERFORMANCE_QA",
   "known_bugs": [
-    "The canonical Godot import/startup and Android export checks passed in run 208, but gameplay has not been verified on a physical Android device.",
-    "Outer districts and traffic vehicles are generated mainly from primitive meshes; authored high-quality asset packs are not present.",
-    "Traffic and NPC simulation still need performance and behavior tuning in outer districts.",
-    "Full touch-control, mission, vehicle, combat, police, and save/load regression remains unverified on a physical device."
+    "This visual batch is staged but not yet validated by the canonical Android workflow.",
+    "Optional Kenney CC0 Car Kit download may be unavailable in CI; the build intentionally falls back to procedural car/truck meshes.",
+    "CNG and rickshaw are custom procedural prototypes, not scanned or authored high-fidelity models.",
+    "Humanoid meshes and gait animation are procedural low-poly prototypes, not final character art.",
+    "Physical Android device verification and frame-time/memory profiling remain required.",
+    "Traffic behavior, collision tuning, and complete mission/vehicle/combat/save-load regression remain unverified on a physical device."
   ],
-  "build_status": "android_export_success_run_208_device_verification_pending",
+  "build_status": "visual_batch_staged_validation_pending",
   "latest_verified_run": 38289653294,
   "latest_verified_commit": "9806eee6aa4e90072c098ab8fca9bfa40232786c",
   "latest_build_artifact": {
@@ -66,6 +68,19 @@
       "Used integer min helper for ammo reload calculation",
       "Changed player movement to follow the rotated camera direction"
     ],
-    "verification_status": "Godot import/startup and Android export passed in run 208; physical-device verification pending"
+    "verification_status": "Godot import/startup and Android export passed in run 208; physical-device verification pending",
+    "visual_batch": {
+      "date": "2026-10-13",
+      "branch": "production/recognizable-vehicles-humanoid-city-pass",
+      "changes_staged": [
+        "Replace single-box vehicle silhouettes with detailed custom rickshaw/CNG/bus/motorcycle/police models and rotating wheels",
+        "Use optional official Kenney CC0 car/truck models when available",
+        "Add reusable animated humanoid rig for player and inner/outer NPCs",
+        "Add building window facades and procedural sky/fog",
+        "Cache repeated materials to reduce allocation overhead",
+        "Add CI integration checks for visual systems"
+      ],
+      "verification_status": "pending canonical Godot import/startup and Android export"
+    }
   }
 }

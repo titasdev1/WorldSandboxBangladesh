@@ -16,6 +16,7 @@ var police_timer := 0.0
 var event_timer := 0.0
 var event_text := "CITY LIFE ACTIVE"
 var event_time_left := 0.0
+var material_cache: Dictionary = {}
 
 var road_x := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 var road_z := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
@@ -32,11 +33,15 @@ func _ready():
  create_mission_marker()
  _setup_a_square()
 
-func make_mat(c: Color, roughness := 0.8, metallic := 0.0):
- var m = StandardMaterial3D.new()
+func make_mat(c: Color, roughness := 0.8, metallic := 0.0) -> StandardMaterial3D:
+ var key := c.to_html(true) + ":" + str(roughness) + ":" + str(metallic)
+ if material_cache.has(key):
+  return material_cache[key]
+ var m := StandardMaterial3D.new()
  m.albedo_color = c
  m.roughness = roughness
  m.metallic = metallic
+ material_cache[key] = m
  return m
 
 func box(pos: Vector3, size: Vector3, c: Color, collision := true):
@@ -76,9 +81,21 @@ func cylinder(pos: Vector3, radius: float, height: float, c: Color):
 func build_environment():
  var env = WorldEnvironment.new()
  var e = Environment.new()
- e.background_mode = Environment.BG_COLOR
- e.background_color = Color("#8fb9d2")
+ e.background_mode = Environment.BG_SKY
+ var sky := Sky.new()
+ var sky_material := ProceduralSkyMaterial.new()
+ sky_material.sky_top_color = Color("#3e78a8")
+ sky_material.sky_horizon_color = Color("#b6d1df")
+ sky_material.ground_bottom_color = Color("#4b5b4a")
+ sky_material.ground_horizon_color = Color("#a6b6b0")
+ sky_material.sun_angle_max = 25.0
+ sky_material.sun_curve = 0.18
+ sky.sky_material = sky_material
+ e.sky = sky
  e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+ e.fog_enabled = true
+ e.fog_light_color = Color("#b5cbd4")
+ e.fog_density = 0.0012
  e.ambient_light_color = Color("#d7e7ff")
  e.ambient_light_energy = 0.78
  e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
@@ -119,8 +136,24 @@ func build_city():
    var d = rng.randf_range(7.0, 10.0)
    var c = Color.from_hsv(rng.randf(), 0.12, rng.randf_range(0.55, 0.78))
    box(Vector3(x, h / 2.0, z), Vector3(w, h, d), c, true)
+   _add_building_facade_details(x, h, z, w, d)
    if h > 14:
     cylinder(Vector3(x, h + 1.2, z), 1.1, 2.2, Color("#6b747a"))
+
+func _add_building_facade_details(x: float, h: float, z: float, w: float, d: float) -> void:
+ # Repeated framed window bands add recognizable apartment/market facades.
+ # Keep mesh/material counts bounded for mid-range Android hardware.
+ var floors: int = clampi(int(h / 3.8), 1, 4)
+ for floor_index in range(floors):
+  var y: float = 2.0 + float(floor_index) * 3.45
+  if y + 0.6 >= h:
+   continue
+  var width: float = w * 0.68
+  var window_pos := Vector3(x, y, z - d * 0.5 - 0.055)
+  box(window_pos, Vector3(width, 0.88, 0.10), Color("#253a43"), false)
+  box(window_pos + Vector3(0, 0.015, -0.065), Vector3(width * 0.86, 0.65, 0.035), Color("#6eaabd"), false)
+  if w > 8.5:
+   box(window_pos, Vector3(0.07, 0.84, 0.045), Color("#b5b9b2"), false)
 
 func build_landmarks():
  box(Vector3(0, -0.02, 48), Vector3(170, 0.12, 18), Color("#247c9e"), false)
@@ -148,7 +181,7 @@ func spawn_player():
  player.name = "Player"
  player.set_script(load("res://player.gd"))
  player.world = self
- player.position = Vector3(0, 1, -12)
+ player.position = Vector3(0, 0, -12)
  var cs = CollisionShape3D.new()
  var cap = CapsuleShape3D.new()
  cap.radius = 0.45
@@ -156,14 +189,12 @@ func spawn_player():
  cs.shape = cap
  cs.position.y = 1
  player.add_child(cs)
- var mesh = MeshInstance3D.new()
- var cm = CapsuleMesh.new()
- cm.radius = 0.45
- cm.height = 1.8
- mesh.mesh = cm
- mesh.material_override = make_mat(Color("#3b577a"))
- mesh.position.y = 1
- player.add_child(mesh)
+ var visual := HumanoidVisual.new()
+ visual.name = "HumanoidVisual"
+ visual.outfit_color = Color("#3b577a")
+ visual.skin_color = Color("#b97850")
+ visual.hair_color = Color("#24201f")
+ player.add_child(visual)
  add_child(player)
 
 func spawn_traffic():
@@ -171,7 +202,8 @@ func spawn_traffic():
   {"name":"Rickshaw","size":Vector3(1.5, 1.5, 2.5), "speed":4.2, "color":Color("#168447")},
   {"name":"CNG","size":Vector3(1.8, 1.5, 3.0), "speed":5.0, "color":Color("#168b70")},
   {"name":"Car","size":Vector3(2.1, 1.0, 4.0), "speed":6.2, "color":Color("#d94a45")},
-  {"name":"Bus","size":Vector3(2.5, 2.6, 7.0), "speed":3.8, "color":Color("#d5a629")}
+  {"name":"Bus","size":Vector3(2.5, 2.6, 7.0), "speed":3.8, "color":Color("#d5a629")},
+  {"name":"Motorcycle","size":Vector3(1.0, 1.2, 2.1), "speed":7.0, "color":Color("#3d4248")}
  ]
  for i in range(30):
   var t = types[rng.randi_range(0, types.size() - 1)]
@@ -198,14 +230,13 @@ func spawn_npcs():
   npc.world = self
   npc.position = Vector3(rng.randf_range(-70, 70), 0, rng.randf_range(-70, 70))
   npc.walk_speed = rng.randf_range(1.0, 2.4)
-  var mesh = MeshInstance3D.new()
-  var cm = CapsuleMesh.new()
-  cm.radius = 0.3
-  cm.height = 1.5
-  mesh.mesh = cm
-  mesh.material_override = make_mat(Color.from_hsv(rng.randf(), 0.35, 0.65))
-  mesh.position.y = 0.75
-  npc.add_child(mesh)
+  var visual := HumanoidVisual.new()
+  visual.name = "HumanoidVisual"
+  visual.outfit_color = Color.from_hsv(rng.randf(), 0.48, rng.randf_range(0.38, 0.78))
+  visual.skin_color = [Color("#b97850"), Color("#8c583b"), Color("#d29a6e")][rng.randi_range(0, 2)]
+  visual.hair_color = [Color("#211d1a"), Color("#3c3029"), Color("#242a2c")][rng.randi_range(0, 2)]
+  visual.has_satchel = i % 5 == 0
+  npc.add_child(visual)
   var cs = CollisionShape3D.new()
   var cap = CapsuleShape3D.new()
   cap.radius = 0.3
@@ -304,7 +335,7 @@ func respawn_player():
  if not player:
   return
  player.health = 100
- player.position = Vector3(0, 1, -12)
+ player.position = Vector3(0, 0, -12)
  wanted = 0
  cash = max(0, cash - 100)
 
