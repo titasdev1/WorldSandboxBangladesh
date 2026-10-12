@@ -16,6 +16,7 @@ var police_timer := 0.0
 var event_timer := 0.0
 var event_text := "CITY LIFE ACTIVE"
 var event_time_left := 0.0
+var material_cache: Dictionary = {}
 
 var road_x := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 var road_z := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
@@ -32,11 +33,15 @@ func _ready():
  create_mission_marker()
  _setup_a_square()
 
-func make_mat(c: Color, roughness := 0.8, metallic := 0.0):
- var m = StandardMaterial3D.new()
+func make_mat(c: Color, roughness := 0.8, metallic := 0.0) -> StandardMaterial3D:
+ var key := c.to_html(true) + ":" + str(roughness) + ":" + str(metallic)
+ if material_cache.has(key):
+  return material_cache[key]
+ var m := StandardMaterial3D.new()
  m.albedo_color = c
  m.roughness = roughness
  m.metallic = metallic
+ material_cache[key] = m
  return m
 
 func box(pos: Vector3, size: Vector3, c: Color, collision := true):
@@ -136,21 +141,19 @@ func build_city():
     cylinder(Vector3(x, h + 1.2, z), 1.1, 2.2, Color("#6b747a"))
 
 func _add_building_facade_details(x: float, h: float, z: float, w: float, d: float) -> void:
- # Repeated window bands, mullions and sills turn plain masses into readable
- # apartments and shops without importing copyrighted game assets.
+ # Repeated framed window bands add recognizable apartment/market facades.
+ # Keep mesh/material counts bounded for mid-range Android hardware.
  var floors: int = clampi(int(h / 3.8), 1, 4)
- var columns: int = 1 if w < 8.5 else 2
  for floor_index in range(floors):
   var y: float = 2.0 + float(floor_index) * 3.45
   if y + 0.6 >= h:
    continue
-  for column in range(columns):
-   var x_offset: float = (float(column) - (float(columns) - 1.0) * 0.5) * (w * 0.36)
-   var width: float = minf(1.5, w * 0.28)
-   var window_pos := Vector3(x + x_offset, y, z - d * 0.5 - 0.055)
-   box(window_pos, Vector3(width, 0.95, 0.10), Color("#253a43"), false)
-   box(window_pos + Vector3(0, 0.015, -0.065), Vector3(width * 0.78, 0.69, 0.035), Color("#6eaabd"), false)
-   box(window_pos + Vector3(0, -0.53, -0.075), Vector3(width + 0.12, 0.09, 0.13), Color("#c6c3b7"), false)
+  var width: float = w * 0.68
+  var window_pos := Vector3(x, y, z - d * 0.5 - 0.055)
+  box(window_pos, Vector3(width, 0.88, 0.10), Color("#253a43"), false)
+  box(window_pos + Vector3(0, 0.015, -0.065), Vector3(width * 0.86, 0.65, 0.035), Color("#6eaabd"), false)
+  if w > 8.5:
+   box(window_pos, Vector3(0.07, 0.84, 0.045), Color("#b5b9b2"), false)
 
 func build_landmarks():
  box(Vector3(0, -0.02, 48), Vector3(170, 0.12, 18), Color("#247c9e"), false)
