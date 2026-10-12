@@ -27,14 +27,14 @@
   ],
   "next_priority": "021_ANDROID_VISUAL_RUNTIME_AND_PERFORMANCE_QA",
   "known_bugs": [
-    "This visual batch is staged but not yet validated by the canonical Android workflow.",
-    "Optional Kenney CC0 Car Kit download may be unavailable in CI; the build intentionally falls back to procedural car/truck meshes.",
-    "CNG and rickshaw are custom procedural prototypes, not scanned or authored high-fidelity models.",
-    "Humanoid meshes and gait animation are procedural low-poly prototypes, not final character art.",
+    "Visual batch run #209 failed in strict headless editor/import validation because the downloaded GLB pack emitted repeated renderer dummy-storage errors: ERROR: Parameter t is null. No APK was produced by that run.",
+    "The optional official Kenney Car Kit download succeeded with 50 GLTF/GLB models; the validation retry moves that optional download after strict script/startup checks so core code errors remain independently testable.",
+    "Android export with the optional GLB pack must still pass; asset availability and imported model rendering remain to be verified.",
+    "CNG/rickshaw and humanoids are low-poly procedural prototypes rather than final authored high-fidelity art.",
     "Physical Android device verification and frame-time/memory profiling remain required.",
     "Traffic behavior, collision tuning, and complete mission/vehicle/combat/save-load regression remain unverified on a physical device."
   ],
-  "build_status": "visual_batch_staged_validation_pending",
+  "build_status": "visual_batch_retry_pending_after_headless_asset_import_issue",
   "latest_verified_run": 38289653294,
   "latest_verified_commit": "9806eee6aa4e90072c098ab8fca9bfa40232786c",
   "latest_build_artifact": {
@@ -80,7 +80,7 @@
         "Cache repeated materials to reduce allocation overhead",
         "Add CI integration checks for visual systems"
       ],
-      "verification_status": "pending canonical Godot import/startup and Android export"
+      "verification_status": "first attempt run 209 failed during headless import of downloaded GLBs with renderer dummy-storage errors; retry moves optional assets after strict code/startup validation and will verify canonical Android export"
     }
   }
 }
