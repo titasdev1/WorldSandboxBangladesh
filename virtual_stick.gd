@@ -21,10 +21,10 @@ func _ready() -> void:
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
-		if event.pressed and _touch_index == -1 and Rect2(Vector2.ZERO, size).has_point(event.position - global_position):
+		if event.pressed and _touch_index == -1 and Rect2(Vector2.ZERO, size).has_point(event.position):
 			_touch_index = event.index
 			_active = true
-			_update_stick(event.position - global_position)
+			_update_stick(event.position)
 			accept_event()
 		elif not event.pressed and event.index == _touch_index:
 			_release_stick()
