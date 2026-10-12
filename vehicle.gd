@@ -139,13 +139,15 @@ func _try_load_authored_model() -> bool:
     if not parsed is Dictionary or not bool(parsed.get("available", false)):
         return false
     var models: Array = parsed.get("models", [])
-    var priorities: Array[String] = ["sedan", "hatchback", "taxi", "race", "sports", "car", "vehicle"] if kind == "car" else ["bus", "truck", "van", "lorry"]
+    var priorities: Array[String] = ["sedan", "hatchback", "taxi", "race", "sports", "car", "vehicle"] if kind == "car" else ["bus", "van", "truck", "lorry"]
     var selected_path := ""
     for token in priorities:
         for entry in models:
             if not entry is Dictionary:
                 continue
             var file_name := str(entry.get("name", "")).to_lower()
+            if token == "truck" and (file_name.contains("garbage") or file_name.contains("fire")):
+                continue
             if file_name.contains(token):
                 var candidate := str(entry.get("path", ""))
                 if candidate.ends_with(".glb") or candidate.ends_with(".gltf"):

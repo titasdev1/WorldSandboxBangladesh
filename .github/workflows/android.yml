@@ -11,10 +11,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Fetch optional CC0 vehicle art
-        shell: bash
-        run: python3 tools/fetch_free_assets.py
-
       - name: Run production preflight gate
         shell: bash
         run: python3 tools/production_gate.py
@@ -53,6 +49,10 @@ jobs:
             echo "Godot runtime validation found script errors."
             exit 1
           fi
+
+      - name: Fetch optional CC0 vehicle art
+        shell: bash
+        run: python3 tools/fetch_free_assets.py
 
       - name: Setup Java
         uses: actions/setup-java@v5

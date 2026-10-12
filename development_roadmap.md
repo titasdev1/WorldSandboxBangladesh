@@ -19,6 +19,11 @@ Single canonical Godot project. Every workflow/build must operate on this same r
 - Added material caching and visual-system checks to reduce avoidable allocations and catch disconnected model code.
 - Status: staged only. Do not claim success until canonical Godot import/startup and Android export finish. Physical-device gameplay/performance remains unverified.
 
+## Asset-import validation correction (2026-10-13)
+- Run [#209](https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/38292681240) successfully downloaded 50 CC0 vehicle models and passed the production preflight, but failed the strict headless editor/import gate because Godot's dummy renderer logged repeated `ERROR: Parameter "t" is null.` messages while importing GLBs. No APK was produced.
+- The retry moves the optional asset download after the strict script/startup validation, then lets the canonical Android export process the asset pack. The downloader now excludes duplicate OBJ/MTL sources and retains GLTF dependencies.
+- This is not marked successful until the next canonical run proves the Android export completes. If it fails or the models do not import, keep the procedural fallback and revise the pipeline rather than suppressing unrelated errors.
+
 ## Verified state
 - Godot 4.4.1
 - Android target
