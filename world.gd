@@ -186,9 +186,8 @@ func spawn_player():
  cs.shape = cap
  cs.position.y = 1
  player.add_child(cs)
- var visual := Node3D.new()
+ var visual := HumanoidVisual.new()
  visual.name = "HumanoidVisual"
- visual.set_script(load("res://character_visual.gd"))
  visual.outfit_color = Color("#3b577a")
  visual.skin_color = Color("#b97850")
  visual.hair_color = Color("#24201f")
@@ -228,9 +227,8 @@ func spawn_npcs():
   npc.world = self
   npc.position = Vector3(rng.randf_range(-70, 70), 0, rng.randf_range(-70, 70))
   npc.walk_speed = rng.randf_range(1.0, 2.4)
-  var visual := Node3D.new()
+  var visual := HumanoidVisual.new()
   visual.name = "HumanoidVisual"
-  visual.set_script(load("res://character_visual.gd"))
   visual.outfit_color = Color.from_hsv(rng.randf(), 0.48, rng.randf_range(0.38, 0.78))
   visual.skin_color = [Color("#b97850"), Color("#8c583b"), Color("#d29a6e")][rng.randi_range(0, 2)]
   visual.hair_color = [Color("#211d1a"), Color("#3c3029"), Color("#242a2c")][rng.randi_range(0, 2)]
