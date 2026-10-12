@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "020_RECOGNIZABLE_WORLD_VISUALS_AND_CC0_ASSET_PIPELINE",
+  "current_milestone": "021_AUTHORED_CITY_BUILDING_ASSET_INTEGRATION",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -25,15 +25,16 @@
     "015_UI",
     "017_SAVE_LOAD"
   ],
-  "next_priority": "021_ANDROID_DEVICE_VISUAL_QA_AND_ASSET_IMPORT_CLEANUP",
+  "next_priority": "022_ANDROID_ASSET_IMPORT_AND_DEVICE_VISUAL_QA",
   "known_bugs": [
-    "Run #210 passed production preflight, strict source-only Godot import/startup validation, Android APK export and artifact upload; physical Android gameplay remains unverified.",
-    "The optional Kenney CC0 Car Kit fetch succeeded with 50 GLTF/GLB models. During Android export Godot logged repeated dummy-renderer errors: ERROR: Parameter t is null. Export still succeeded; actual on-device model/texturing appearance is not verified.",
-    "Cars and some trucks use optional authored CC0 models when import succeeds; CNG/rickshaw, motorcycles, police details and characters remain low-poly procedural prototypes.",
-    "Outer districts remain procedurally generated and still need authored high-quality architecture, props, and environment assets.",
+    "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
+    "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
+    "Optional Kenney CC0 Car Kit downloads 50 GLTF/GLB models. Godot has logged dummy-renderer texture errors during export; actual Android model/texturing appearance remains unverified.",
+    "New optional CC0 city-building pipeline scrapes official Kenney asset pages for ZIP links, downloads suburban/commercial/industrial packs, and uses matching authored building models in the core-city lots; first CI validation of this pipeline is pending.",
+    "City models remain optional and procedural building fallbacks remain active if pack download/import/model-name matching fails.",
     "Frame-time/memory profiling, traffic behavior, collision tuning, and complete mission/vehicle/combat/save-load regression remain unverified on a physical device."
   ],
-  "build_status": "android_export_success_run_210_optional_cc0_assets_included_device_visual_check_pending",
+  "build_status": "city_asset_integration_pending_validation",
   "latest_verified_run": 38292883996,
   "latest_verified_commit": "a206fe7e032a28364bd1df628c52ea59b171666f",
   "latest_build_artifact": {

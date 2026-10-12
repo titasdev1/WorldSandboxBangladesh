@@ -15,6 +15,10 @@ jobs:
         shell: bash
         run: python3 tools/production_gate.py
 
+      - name: Validate asset pipeline Python syntax
+        shell: bash
+        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py
+
       - name: Validate Godot project scripts and startup
         shell: bash
         run: |
@@ -53,6 +57,10 @@ jobs:
       - name: Fetch optional CC0 vehicle art
         shell: bash
         run: python3 tools/fetch_free_assets.py
+
+      - name: Fetch optional CC0 city building art
+        shell: bash
+        run: python3 tools/fetch_city_assets.py
 
       - name: Setup Java
         uses: actions/setup-java@v5

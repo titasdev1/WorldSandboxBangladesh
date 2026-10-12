@@ -93,6 +93,36 @@
   ],
   "optional_external_sources": [
     {
+      "id": "kenney_city_kit_suburban",
+      "source": "https://kenney.nl/assets/city-kit-suburban",
+      "creator": "Kenney",
+      "license": "CC0-1.0",
+      "attribution_required": false,
+      "formats": ["glTF", "GLB"],
+      "integration": "CI downloads official pack; manifest-driven building factory instances matching building/house/shop model names in city lots",
+      "failure_policy": "warn and use procedural building fallback"
+    },
+    {
+      "id": "kenney_city_kit_commercial",
+      "source": "https://kenney.nl/assets/city-kit-commercial",
+      "creator": "Kenney",
+      "license": "CC0-1.0",
+      "attribution_required": false,
+      "formats": ["glTF", "GLB"],
+      "integration": "CI downloads official pack; manifest-driven building factory instances matching commercial building model names in city lots",
+      "failure_policy": "warn and use procedural building fallback"
+    },
+    {
+      "id": "kenney_city_kit_industrial",
+      "source": "https://kenney.nl/assets/city-kit-industrial",
+      "creator": "Kenney",
+      "license": "CC0-1.0",
+      "attribution_required": false,
+      "formats": ["glTF", "GLB"],
+      "integration": "CI downloads official pack; manifest-driven building factory instances matching factory/warehouse model names in city lots",
+      "failure_policy": "warn and use procedural building fallback"
+    },
+    {
       "id": "kenney_car_kit",
       "source": "https://kenney.nl/assets/car-kit",
       "download_url": "https://kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/kenney_car-kit.zip",

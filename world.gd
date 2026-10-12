@@ -17,6 +17,7 @@ var event_timer := 0.0
 var event_text := "CITY LIFE ACTIVE"
 var event_time_left := 0.0
 var material_cache: Dictionary = {}
+var city_asset_factory
 
 var road_x := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 var road_z := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
@@ -24,6 +25,10 @@ var road_z := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 func _ready():
  rng.randomize()
  build_environment()
+ city_asset_factory = load("res://city_asset_factory.gd").new()
+ city_asset_factory.name = "CityAssetFactory"
+ add_child(city_asset_factory)
+ city_asset_factory.configure(self)
  build_city()
  build_landmarks()
  var street_life = load("res://street_life_factory.gd").new()
@@ -137,10 +142,14 @@ func build_city():
    var w = rng.randf_range(7.0, 10.0)
    var d = rng.randf_range(7.0, 10.0)
    var c = Color.from_hsv(rng.randf(), 0.12, rng.randf_range(0.55, 0.78))
-   box(Vector3(x, h / 2.0, z), Vector3(w, h, d), c, true)
-   _add_building_facade_details(x, h, z, w, d)
-   if h > 14:
-    cylinder(Vector3(x, h + 1.2, z), 1.1, 2.2, Color("#6b747a"))
+   var authored := false
+   if city_asset_factory and city_asset_factory.has_method("spawn_building"):
+    authored = city_asset_factory.spawn_building(Vector3(x, 0, z), Vector3(w, h, d))
+   if not authored:
+    box(Vector3(x, h / 2.0, z), Vector3(w, h, d), c, true)
+    _add_building_facade_details(x, h, z, w, d)
+    if h > 14:
+     cylinder(Vector3(x, h + 1.2, z), 1.1, 2.2, Color("#6b747a"))
 
 func _add_building_facade_details(x: float, h: float, z: float, w: float, d: float) -> void:
  # Repeated framed window bands add recognizable apartment/market facades.
