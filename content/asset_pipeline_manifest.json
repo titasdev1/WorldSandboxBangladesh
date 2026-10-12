@@ -3,18 +3,55 @@
   "purpose": "Large external asset/content pipeline without bloating Git history",
   "canonical_asset_root": "external_content/",
   "formats": {
-    "3d": ["glb", "gltf"],
-    "textures": ["png", "jpg", "ktx2"],
-    "audio": ["ogg", "wav"],
-    "video": ["webm", "mp4"]
+    "3d": [
+      "glb",
+      "gltf"
+    ],
+    "textures": [
+      "png",
+      "jpg",
+      "ktx2"
+    ],
+    "audio": [
+      "ogg",
+      "wav"
+    ],
+    "video": [
+      "webm",
+      "mp4"
+    ]
   },
   "packs": [
-    {"id":"districts","status":"procedural_placeholder","future_source":"generated_or_authored_3d_assets"},
-    {"id":"vehicles","status":"procedural_placeholder","future_source":"generated_or_authored_3d_assets"},
-    {"id":"characters","status":"procedural_placeholder","future_source":"generated_or_authored_character_assets"},
-    {"id":"props","status":"procedural_placeholder","future_source":"generated_or_authored_environment_assets"},
-    {"id":"audio","status":"placeholder","future_source":"original_or_licensed_audio"},
-    {"id":"cinematics","status":"not_started","future_source":"original_generated_media"}
+    {
+      "id": "districts",
+      "status": "procedural_city_facades_partial_placeholder",
+      "future_source": "generated_or_authored_3d_assets"
+    },
+    {
+      "id": "vehicles",
+      "status": "original_procedural_low_poly_detailed_prototype",
+      "future_source": "licensed_or_authored_glb_assets"
+    },
+    {
+      "id": "characters",
+      "status": "original_procedural_animated_humanoid_prototype",
+      "future_source": "licensed_or_authored_character_assets"
+    },
+    {
+      "id": "props",
+      "status": "procedural_placeholder",
+      "future_source": "original_or_licensed_environment_assets"
+    },
+    {
+      "id": "audio",
+      "status": "placeholder",
+      "future_source": "original_or_licensed_audio"
+    },
+    {
+      "id": "cinematics",
+      "status": "not_started",
+      "future_source": "original_generated_media"
+    }
   ],
   "rules": [
     "Never commit filler bytes just to increase project size.",
@@ -22,5 +59,36 @@
     "Every external asset pack must record provenance and license.",
     "Git stores source/code/manifests; large binary packs belong in the external content workspace.",
     "Android builds consume only the optimized packs required by the selected release profile."
+  ],
+  "generated_prototype_assets": [
+    {
+      "id": "vehicle_silhouettes_v1",
+      "files": [
+        "vehicle.gd"
+      ],
+      "source": "Original procedural Godot mesh geometry",
+      "license": "Original project implementation; no third-party model copied",
+      "scope": "Cars, CNG, rickshaw, bus, motorcycle, police details; visual prototype"
+    },
+    {
+      "id": "humanoid_rig_v1",
+      "files": [
+        "character_visual.gd",
+        "world.gd",
+        "systems/population_factory.gd"
+      ],
+      "source": "Original procedural Godot mesh geometry",
+      "license": "Original project implementation; no third-party model copied",
+      "scope": "Player/NPC low-poly body parts and gait animation"
+    },
+    {
+      "id": "city_facades_v1",
+      "files": [
+        "world.gd"
+      ],
+      "source": "Original procedural Godot mesh geometry",
+      "license": "Original project implementation; no third-party model copied",
+      "scope": "Core-city window bands, sills, atmospheric sky and fog"
+    }
   ]
 }
