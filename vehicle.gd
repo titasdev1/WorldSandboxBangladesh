@@ -153,10 +153,11 @@ func _try_load_authored_model() -> bool:
     var packed: Resource = load(selected_path)
     if not packed is PackedScene:
         return false
-    var model: Node = (packed as PackedScene).instantiate()
-    if not model is Node3D:
-        model.queue_free()
+    var model_node: Node = (packed as PackedScene).instantiate()
+    if not model_node is Node3D:
+        model_node.queue_free()
         return false
+    var model := model_node as Node3D
     model.name = "KenneyCC0AuthoredModel"
     model.scale = Vector3.ONE * (1.5 if kind == "car" else 1.55)
     model.position.y = 0.025
