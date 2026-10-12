@@ -59,14 +59,13 @@ func _spawn_outer_people() -> void:
         var radius := rng.randf_range(110,285)
         npc.position = Vector3(cos(angle)*radius,0,sin(angle)*radius)
         npc.walk_speed = rng.randf_range(1.0,2.5)
-        var mesh := MeshInstance3D.new()
-        var cm := CapsuleMesh.new()
-        cm.radius = 0.3
-        cm.height = 1.5
-        mesh.mesh = cm
-        mesh.material_override = _mat(Color.from_hsv(rng.randf(),0.35,0.65))
-        mesh.position.y = 0.75
-        npc.add_child(mesh)
+        var visual := HumanoidVisual.new()
+        visual.name = "HumanoidVisual"
+        visual.outfit_color = Color.from_hsv(rng.randf(),0.48,rng.randf_range(0.38,0.78))
+        visual.skin_color = [Color("#b97850"),Color("#8c583b"),Color("#d29a6e")][rng.randi_range(0,2)]
+        visual.hair_color = [Color("#211d1a"),Color("#3c3029"),Color("#242a2c")][rng.randi_range(0,2)]
+        visual.has_satchel = i % 5 == 0
+        npc.add_child(visual)
         var cs := CollisionShape3D.new()
         var cap := CapsuleShape3D.new()
         cap.radius = 0.3
