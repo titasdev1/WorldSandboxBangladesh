@@ -54,6 +54,10 @@ jobs:
         shell: bash
         run: python3 tools/fetch_free_assets.py
 
+      - name: Fetch optional CC0 city building art
+        shell: bash
+        run: python3 tools/fetch_city_assets.py
+
       - name: Setup Java
         uses: actions/setup-java@v5
         with:
