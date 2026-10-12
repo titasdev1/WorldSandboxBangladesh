@@ -24,6 +24,8 @@ REQUIRED = [
     "vehicle.gd",
     "character_visual.gd",
     "tools/fetch_free_assets.py",
+    "tools/fetch_city_assets.py",
+    "city_asset_factory.gd",
     "development_state.json",
     "development_roadmap.md",
     "PRODUCTION_MASTER_DIRECTIVE.md",
@@ -68,6 +70,11 @@ for builder in ("_build_car", "_build_cng", "_build_rickshaw", "_build_bus", "_b
         raise SystemExit(f"PRODUCTION GATE FAILED: missing vehicle visual builder {builder}")
 if "func _try_load_authored_model()" not in vehicle_text:
     raise SystemExit("PRODUCTION GATE FAILED: optional authored vehicle loader is missing")
+if "city_asset_factory.configure(self)" not in world_text or "spawn_building(Vector3(x, 0, z)" not in world_text:
+    raise SystemExit("PRODUCTION GATE FAILED: authored city building factory is not integrated into the world")
+city_factory_text = (ROOT / "city_asset_factory.gd").read_text(encoding="utf-8")
+if "MANIFESTS" not in city_factory_text or "spawn_building" not in city_factory_text:
+    raise SystemExit("PRODUCTION GATE FAILED: city asset factory is missing manifest-driven building placement")
 asset_manifest_path = ROOT / "content" / "asset_pipeline_manifest.json"
 try:
     asset_manifest = json.loads(asset_manifest_path.read_text(encoding="utf-8"))
