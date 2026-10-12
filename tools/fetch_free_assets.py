@@ -17,7 +17,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUT = ROOT / "external_content" / "kenney_car_kit"
 MANIFEST = OUT / "asset_manifest.json"
 URL = "https://kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/kenney_car-kit.zip"
-ALLOWED = {".gltf", ".glb", ".bin", ".png", ".jpg", ".jpeg", ".webp", ".txt", ".md", ".obj", ".mtl", ".license"}
+ALLOWED = {".gltf", ".glb", ".bin", ".png", ".jpg", ".jpeg", ".webp", ".txt", ".md", ".license"}
 
 def write_fallback(reason: str) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
