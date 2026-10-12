@@ -29,9 +29,9 @@ def get(url: str) -> bytes:
 def find_zip(page: str, slug: str) -> str:
     page = html.unescape(page)
     patterns = [
-        rf"https?://(?:www\\.)?kenney\\.nl/media/pages/assets/{re.escape(slug)}/[^\\s\"'<>]+?\\.zip",
-        rf"[\"']([^\"']*media/pages/assets/{re.escape(slug)}/[^\"']+?\\.zip)[\"']",
-        r"href=[\"']([^\"']+?\\.zip)[\"']",
+        rf"""https?://(?:www[.])?kenney[.]nl/media/pages/assets/{re.escape(slug)}/[^\\s"'<>]+?[.]zip""",
+        rf"""["']([^"']*media/pages/assets/{re.escape(slug)}/[^"']+?[.]zip)["']""",
+        r"""href=["']([^"']+?[.]zip)["']""",
     ]
     for pattern in patterns:
         for match in re.findall(pattern, page, flags=re.I):
