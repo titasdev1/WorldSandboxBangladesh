@@ -29,7 +29,7 @@
     },
     {
       "id": "vehicles",
-      "status": "original_procedural_low_poly_detailed_prototype",
+      "status": "hybrid_custom_procedural_plus_optional_cc0_car_kit",
       "future_source": "licensed_or_authored_glb_assets"
     },
     {
@@ -89,6 +89,22 @@
       "source": "Original procedural Godot mesh geometry",
       "license": "Original project implementation; no third-party model copied",
       "scope": "Core-city window bands, sills, atmospheric sky and fog"
+    }
+  ],
+  "optional_external_sources": [
+    {
+      "id": "kenney_car_kit",
+      "source": "https://kenney.nl/assets/car-kit",
+      "download_url": "https://kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/kenney_car-kit.zip",
+      "creator": "Kenney",
+      "license": "CC0-1.0",
+      "attribution_required": false,
+      "formats": [
+        "glTF",
+        "GLB"
+      ],
+      "integration": "CI downloads before Godot import; car/truck models are used when matching assets are present; procedural fallbacks remain enabled",
+      "failure_policy": "warn and continue with original procedural vehicle models"
     }
   ]
 }
