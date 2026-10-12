@@ -29,15 +29,19 @@ func _ready():
  add_child(status)
 
  var hint = Label.new()
- hint.text = "TOUCH / WASD • Sprint • E Bargain • FIRE • R Rain"
+ hint.text = "CIRCULAR MOVE • DRAG RIGHT SIDE TO LOOK • SPRINT • BARGAIN • FIRE • RAIN"
  hint.position = Vector2(28, 680)
  hint.add_theme_font_size_override("font_size", 16)
  add_child(hint)
 
- add_touch_button("▲", Vector2(70, 530), Vector2(70, 55), "move_forward")
- add_touch_button("◀", Vector2(5, 585), Vector2(70, 55), "move_left")
- add_touch_button("▼", Vector2(70, 585), Vector2(70, 55), "move_back")
- add_touch_button("▶", Vector2(135, 585), Vector2(70, 55), "move_right")
+ # CODM/PUBG-style circular analog movement control replaces the four directional buttons.
+ var stick = Control.new()
+ stick.set_script(load("res://virtual_stick.gd"))
+ stick.name = "MovementStick"
+ stick.position = Vector2(24, 472)
+ stick.size = Vector2(220, 220)
+ stick.add_to_group("movement_stick")
+ add_child(stick)
  add_touch_button("SPRINT", Vector2(35, 645), Vector2(150, 45), "sprint")
  add_touch_button("FIRE", Vector2(1080, 560), Vector2(150, 75), "fire")
  add_touch_button("BARGAIN", Vector2(900, 650), Vector2(150, 55), "interact")
