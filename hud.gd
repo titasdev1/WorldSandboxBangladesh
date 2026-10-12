@@ -8,6 +8,7 @@ var settings_panel: PanelContainer
 var quality_option: OptionButton
 var fps_option: OptionButton
 var settings_config := ConfigFile.new()
+var _world_quality_applied := false
 
 func _ready():
  w = get_parent()
@@ -174,6 +175,11 @@ func add_touch_button(label_text: String, pos: Vector2, size: Vector2, action_na
 func _process(_delta):
  if not w:
   return
+ # HUD child _ready runs before the world creates its lights/environment.
+ # Apply the saved preset once those world nodes actually exist.
+ if not _world_quality_applied and w.get_node_or_null("Sun"):
+  _apply_quality(quality_option.selected)
+  _world_quality_applied = true
  stats.text = "৳ %d    Wanted: %d/5    Weather: %s" % [w.cash, w.wanted, "RAIN" if w.rain else "CLEAR"]
  if w.mission_active:
   var stage_names = ["Market delivery", "Tower pickup", "Bus terminal drop"]
