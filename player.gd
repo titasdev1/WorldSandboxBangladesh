@@ -39,6 +39,8 @@ func _update_camera():
  var yaw := deg_to_rad(camera_yaw)
  var pitch := deg_to_rad(camera_pitch)
  var target := global_position + Vector3(0, 1.0, 0)
+ # Camera stays behind the player. Its horizontal offset and movement basis
+ # must use opposite signs: forward movement points from camera toward target.
  var offset := Vector3(sin(yaw) * cos(pitch) * 9.5, -sin(pitch) * 9.5 + 1.0, cos(yaw) * cos(pitch) * 9.5)
  camera.global_position = target + offset
  camera.look_at(target, Vector3.UP)
@@ -51,12 +53,14 @@ func _physics_process(delta):
    ammo += loaded
    reserve_ammo -= loaded
 
- # Move relative to the camera's horizontal facing direction, so rotating
- # the view on a touchscreen also rotates the player's forward movement.
+ # Four-button movement is camera-relative. Godot's get_vector returns
+ # negative Y for "forward"; convert it to a positive forward amount here.
  var input_vec: Vector2 = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
  var yaw := deg_to_rad(camera_yaw)
- var forward := Vector3(sin(yaw), 0.0, -cos(yaw))
- var right := Vector3(cos(yaw), 0.0, sin(yaw))
+ # The camera is positioned at (+sin(yaw), +cos(yaw)) behind the player.
+ # Forward therefore points away from that offset, not toward it.
+ var forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
+ var right := Vector3(cos(yaw), 0.0, -sin(yaw))
  var dir := (right * input_vec.x + forward * -input_vec.y).normalized()
  var current_speed: float = sprint_speed if Input.is_action_pressed("sprint") else speed
  velocity.x = dir.x * current_speed
