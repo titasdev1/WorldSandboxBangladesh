@@ -2,11 +2,20 @@
 
 Single canonical Godot project. Every workflow/build must operate on this same repository state.
 
+## Current audit (2026-10-13)
+- Audited main at commit `00720de2788c375756fcda79ee95c24322fcb246`.
+- Latest inspected Android run: [#207](https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/37979533857), failed in Godot editor/import validation before Android SDK setup and APK export.
+- Confirmed parser failures: indentation in `features/feature_003.gd`, untyped `offset` in `systems/game_factory.gd`, and Variant inference in `player.gd`.
+- Staged recovery fixes also make walking direction relative to the rotated camera.
+- The preflight gate checks repository structure but does not prove GDScript parses; Godot import/startup validation remains mandatory.
+- Asset manifest currently identifies districts, vehicles, characters and props as procedural placeholders; visual quality requires real authored or licensed assets, not more script files.
+- Recovery branch changes are not considered verified until Godot import, headless startup and Android export pass.
+
 ## Verified state
 - Godot 4.4.1
 - Android target
-- Latest verified Android workflow: run 24
-- Current focus: third-person camera, mobile foundation, persistence
+- Canonical Android workflow: `.github/workflows/android.yml`
+- Physical Android device testing has not been verified.
 
 ## Milestones
 - [x] 001 Project foundation / Android CI
@@ -33,34 +42,30 @@ Single canonical Godot project. Every workflow/build must operate on this same r
 - [ ] 022 Release/final archive
 
 ## Loop
-Inspect → implement highest-priority unfinished system → Android build → inspect logs → fix failures → checkpoint verified state → continue.
+Inspect → implement highest-priority unfinished system → Godot import/startup validation → Android build → inspect logs → fix failures → checkpoint verified state → continue.
 
 Do not create disconnected projects or nested ZIPs.
 
 ## Final
 Create exactly one FINAL_GAME_PROJECT.zip from the latest complete canonical project directory. It must contain actual source/assets/configuration and legally redistributable dependencies, not previous ZIP files or filler data.
 
-
-## Regression rule (added 2026-10-06)
-- Proven playable baseline is the #24 core behavior.
+## Regression rule
+- Preserve the existing playable boot path.
 - Feature modules are cumulative repository content, not permission to replace the boot scene.
-- No feature may be activated globally until a build preserves the playable baseline.
+- No feature may be treated as integrated until verified in the canonical running scene.
 - One canonical Android workflow is the release gate; no parallel feature-only APKs.
 
-
-## A-Square scaling architecture (2026-10-07)
-Development batches are now measured by integrated playable capability, not workflow/commit count.
+## A-Square scaling architecture
+Development batches are measured by integrated playable capability, not workflow/commit count.
 - World Factory: district archetypes and procedural expansion.
 - Gameplay Factory: dynamic events, objectives, score/reputation and district-aware simulation.
 - Vehicle Factory: reusable transport archetypes.
 - Content Factory: external authored assets can be streamed into the same canonical project later.
-- Every large batch must preserve the proven playable boot path and produce a buildable Android project.
+- Every factory must produce player-visible content in the canonical running scene.
+- Large batches preserve the playable boot path and produce a buildable Android project.
 
-
-## Scale strategy (added 2026-10-07)
-- The project is no longer developed as one-feature-per-pass.
+## Scale strategy
 - Build reusable factories that multiply content: world sectors, buildings, props, vehicles, NPC populations, missions, economy, events and gameplay.
 - Every factory must produce player-visible content in the canonical running scene.
-- Large batches should integrate several related systems before the Android regression build.
 - Project size is an outcome of legitimate content, not a progress metric.
 - External high-storage workspaces are reserved for real authored/generated asset packs when available.
