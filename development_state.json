@@ -25,24 +25,23 @@
     "015_UI",
     "017_SAVE_LOAD"
   ],
-  "next_priority": "021_ANDROID_VISUAL_RUNTIME_AND_PERFORMANCE_QA",
+  "next_priority": "021_ANDROID_DEVICE_VISUAL_QA_AND_ASSET_IMPORT_CLEANUP",
   "known_bugs": [
-    "Visual batch run #209 failed in strict headless editor/import validation because the downloaded GLB pack emitted repeated renderer dummy-storage errors: ERROR: Parameter t is null. No APK was produced by that run.",
-    "The optional official Kenney Car Kit download succeeded with 50 GLTF/GLB models; the validation retry moves that optional download after strict script/startup checks so core code errors remain independently testable.",
-    "Android export with the optional GLB pack must still pass; asset availability and imported model rendering remain to be verified.",
-    "CNG/rickshaw and humanoids are low-poly procedural prototypes rather than final authored high-fidelity art.",
-    "Physical Android device verification and frame-time/memory profiling remain required.",
-    "Traffic behavior, collision tuning, and complete mission/vehicle/combat/save-load regression remain unverified on a physical device."
+    "Run #210 passed production preflight, strict source-only Godot import/startup validation, Android APK export and artifact upload; physical Android gameplay remains unverified.",
+    "The optional Kenney CC0 Car Kit fetch succeeded with 50 GLTF/GLB models. During Android export Godot logged repeated dummy-renderer errors: ERROR: Parameter t is null. Export still succeeded; actual on-device model/texturing appearance is not verified.",
+    "Cars and some trucks use optional authored CC0 models when import succeeds; CNG/rickshaw, motorcycles, police details and characters remain low-poly procedural prototypes.",
+    "Outer districts remain procedurally generated and still need authored high-quality architecture, props, and environment assets.",
+    "Frame-time/memory profiling, traffic behavior, collision tuning, and complete mission/vehicle/combat/save-load regression remain unverified on a physical device."
   ],
-  "build_status": "visual_batch_retry_pending_after_headless_asset_import_issue",
-  "latest_verified_run": 38289653294,
-  "latest_verified_commit": "9806eee6aa4e90072c098ab8fca9bfa40232786c",
+  "build_status": "android_export_success_run_210_optional_cc0_assets_included_device_visual_check_pending",
+  "latest_verified_run": 38292883996,
+  "latest_verified_commit": "a206fe7e032a28364bd1df628c52ea59b171666f",
   "latest_build_artifact": {
     "name": "WorldSandboxBangladesh-Android",
-    "artifact_id": 11765510308,
-    "size_bytes": 26957969,
-    "sha256": "f74c6640a13fc7f1b9f6d549bf2ff7a7751a73fdfecbd41b2d858ccf2528107a",
-    "expires_at": "2027-01-10T18:15:13Z"
+    "artifact_id": 11766533609,
+    "size_bytes": 29270579,
+    "sha256": "517a77e38bbc1aa34f130ad5e9ae901a0381a6a11518e06e4a2ac03a670e2964",
+    "expires_at": "2027-01-10T18:43:52Z"
   },
   "save_system": "implemented_but_device_regression_pending",
   "finalization_status": "not_ready",
@@ -80,7 +79,7 @@
         "Cache repeated materials to reduce allocation overhead",
         "Add CI integration checks for visual systems"
       ],
-      "verification_status": "first attempt run 209 failed during headless import of downloaded GLBs with renderer dummy-storage errors; retry moves optional assets after strict code/startup validation and will verify canonical Android export"
+      "verification_status": "run 210 passed production gate, strict source-only Godot import/startup, Android export and artifact upload; optional CC0 download succeeded with 50 models; exporter logs dummy-renderer texture errors, so Android visual QA remains pending"
     }
   }
 }
