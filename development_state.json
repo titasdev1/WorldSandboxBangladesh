@@ -25,18 +25,23 @@
     "015_UI",
     "017_SAVE_LOAD"
   ],
-  "next_priority": "019_VALIDATE_PLAYER_CAMERA_AND_ANDROID_BOOT",
+  "next_priority": "020_AUTHORED_ASSETS_AND_DEVICE_GAMEPLAY_QA",
   "known_bugs": [
-    "Latest audited Android workflow run 37979533857 failed during Godot import validation; no APK was exported by that run.",
-    "The audit identified parse failures in features/feature_003.gd, systems/game_factory.gd, and player.gd; fixes are staged on a recovery branch and require Godot validation.",
+    "The canonical Godot import/startup and Android export checks passed in run 208, but gameplay has not been verified on a physical Android device.",
     "Outer districts and traffic vehicles are generated mainly from primitive meshes; authored high-quality asset packs are not present.",
     "Traffic and NPC simulation still need performance and behavior tuning in outer districts.",
-    "Physical Android device verification is still required.",
     "Full touch-control, mission, vehicle, combat, police, and save/load regression remains unverified on a physical device."
   ],
-  "build_status": "audit_complete_fixes_staged_not_yet_built",
-  "latest_verified_run": 37518077569,
-  "latest_verified_commit": "3830f9e43ba434b1f271d6d2860a1eb197795b17",
+  "build_status": "android_export_success_run_208_device_verification_pending",
+  "latest_verified_run": 38289653294,
+  "latest_verified_commit": "9806eee6aa4e90072c098ab8fca9bfa40232786c",
+  "latest_build_artifact": {
+    "name": "WorldSandboxBangladesh-Android",
+    "artifact_id": 11765510308,
+    "size_bytes": 26957969,
+    "sha256": "f74c6640a13fc7f1b9f6d549bf2ff7a7751a73fdfecbd41b2d858ccf2528107a",
+    "expires_at": "2027-01-10T18:15:13Z"
+  },
   "save_system": "implemented_but_device_regression_pending",
   "finalization_status": "not_ready",
   "final_archive": "not_generated",
@@ -55,10 +60,12 @@
       "systems/game_factory.gd: untyped offset inference",
       "player.gd: Variant type inference treated as error"
     ],
-    "improvements_staged": [
-      "Fix confirmed parser errors",
-      "Make player movement camera-relative"
+    "fixes_applied": [
+      "Corrected feature_003.gd loop indentation",
+      "Explicitly typed the procedural road offset",
+      "Used integer min helper for ammo reload calculation",
+      "Changed player movement to follow the rotated camera direction"
     ],
-    "verification_status": "pending"
+    "verification_status": "Godot import/startup and Android export passed in run 208; physical-device verification pending"
   }
 }
