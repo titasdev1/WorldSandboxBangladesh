@@ -17,12 +17,12 @@ Single canonical Godot project. Every workflow/build must operate on this same r
 - Added repeated framed window bands to core-city buildings and a procedural sky/fog atmosphere.
 - Added an optional CI fetcher for Kenney's official Car Kit (CC0-1.0). Cars/trucks use imported GLTF/GLB models when matching assets are successfully fetched and imported; custom procedural models remain the fallback. Source: https://kenney.nl/assets/car-kit
 - Added material caching and visual-system checks to reduce avoidable allocations and catch disconnected model code.
-- Status: staged only. Do not claim success until canonical Godot import/startup and Android export finish. Physical-device gameplay/performance remains unverified.
+- Canonical run [#210](https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/38292883996) passed the production gate, strict source-only Godot import/startup checks, Android APK export, and artifact upload. The official Kenney Car Kit fetch succeeded with 50 GLTF/GLB models. Export logs still contain repeated dummy-renderer `ERROR: Parameter "t" is null.` messages while processing GLBs; export succeeded, but actual device-side model/texturing appearance is not verified. Physical-device gameplay/performance remains unverified.
 
 ## Asset-import validation correction (2026-10-13)
 - Run [#209](https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/38292681240) successfully downloaded 50 CC0 vehicle models and passed the production preflight, but failed the strict headless editor/import gate because Godot's dummy renderer logged repeated `ERROR: Parameter "t" is null.` messages while importing GLBs. No APK was produced.
-- The retry moves the optional asset download after the strict script/startup validation, then lets the canonical Android export process the asset pack. The downloader now excludes duplicate OBJ/MTL sources and retains GLTF dependencies.
-- This is not marked successful until the next canonical run proves the Android export completes. If it fails or the models do not import, keep the procedural fallback and revise the pipeline rather than suppressing unrelated errors.
+- The retry moved optional asset download after strict script/startup validation, then let the canonical Android export process the asset pack. The downloader excludes duplicate OBJ/MTL sources and retains GLTF dependencies. Run #210 exported successfully but still logged the renderer dummy-storage texture message during GLB import.
+- Android export is now successful in run #210. The GLB renderer messages are recorded as an open verification issue, not silently suppressed; check on a physical Android device and revise asset import if models/textures are missing. Keep procedural fallback available.
 
 ## Verified state
 - Godot 4.4.1
