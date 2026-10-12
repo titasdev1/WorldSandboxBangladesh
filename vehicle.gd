@@ -13,6 +13,7 @@ var steering_velocity := 0.0
 var vehicle_camera: Camera3D
 var wheel_pivots: Array[Node3D] = []
 var authored_wheels: Array[Node3D] = []
+var material_cache: Dictionary = {}
 var indicator_time := 0.0
 
 func _ready() -> void:
@@ -37,6 +38,9 @@ func _ready() -> void:
     add_child(vehicle_camera)
 
 func _mat(c: Color, roughness := 0.68, metallic := 0.0, glow := false) -> StandardMaterial3D:
+    var key := c.to_html(true) + ":" + str(roughness) + ":" + str(metallic) + ":" + str(glow)
+    if material_cache.has(key):
+        return material_cache[key]
     var m := StandardMaterial3D.new()
     m.albedo_color = c
     m.roughness = roughness
@@ -45,6 +49,7 @@ func _mat(c: Color, roughness := 0.68, metallic := 0.0, glow := false) -> Standa
         m.emission_enabled = true
         m.emission = c
         m.emission_energy_multiplier = 1.1
+    material_cache[key] = m
     return m
 
 func _part(parent: Node3D, part_name: String, pos: Vector3, size: Vector3, color: Color, roughness := 0.68, metallic := 0.0, glow := false) -> MeshInstance3D:
