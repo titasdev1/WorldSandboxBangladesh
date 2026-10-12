@@ -64,7 +64,7 @@ func _expand_ground() -> void:
     mesh_box(Vector3(0, -0.56, 0), Vector3(CITY_RADIUS * 2.0, 0.08, CITY_RADIUS * 2.0), Color("#526b49"), true)
 
 func _generate_outer_arterials() -> void:
-    # Extend the proven six-by-six city road axes into the new 600m world.
+    # Extend the proven six-by-six city road axes into the 600m world.
     var axes := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
     for x in axes:
         mesh_box(Vector3(x, 0.03, 0), Vector3(8.5, 0.14, CITY_RADIUS * 2.0 - 20.0), Color("#303438"), false)
@@ -110,7 +110,7 @@ func _make_sector_roads(center: Vector3, angle: float, kind: String) -> void:
     var forward := Vector3(cos(angle), 0, sin(angle))
     var side := Vector3(-forward.z, 0, forward.x)
     for lane in [-1.0, 1.0]:
-        var offset := side * lane * 9.0
+        var offset: Vector3 = side * lane * 9.0
         var road := mesh_box(center + offset, Vector3(110.0, 0.10, 5.5), Color("#34383b"), false)
         road.rotation.y = angle
     # Local connector through the district.
