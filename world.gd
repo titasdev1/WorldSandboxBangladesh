@@ -26,6 +26,8 @@ func _ready():
  build_environment()
  build_city()
  build_landmarks()
+ var street_life = load("res://street_life_factory.gd").new()
+ street_life.build(self)
  spawn_player()
  spawn_traffic()
  spawn_npcs()
