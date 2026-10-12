@@ -12,6 +12,7 @@ var cruise_speed := 4.0
 var steering_velocity := 0.0
 var vehicle_camera: Camera3D
 var wheel_pivots: Array[Node3D] = []
+var authored_wheels: Array[Node3D] = []
 var indicator_time := 0.0
 
 func _ready() -> void:
@@ -84,6 +85,8 @@ func _wheel(pos: Vector3, radius: float, width: float) -> Node3D:
     return pivot
 
 func _build_vehicle_model() -> void:
+    if _try_load_authored_model():
+        return
     var w: float = body_size.x
     var h: float = body_size.y
     var length: float = body_size.z
@@ -119,6 +122,56 @@ func _build_vehicle_model() -> void:
         _part(self, "RedBeacon", Vector3(-w * 0.19, h + 0.73, 0), Vector3(0.22, 0.16, 0.22), Color("#ff283c"), 0.2, 0.0, true)
         _part(self, "BlueBeacon", Vector3(w * 0.19, h + 0.73, 0), Vector3(0.22, 0.16, 0.22), Color("#318bff"), 0.2, 0.0, true)
         _part(self, "PoliceStripe", Vector3(0, h * 0.36, -length * 0.03), Vector3(w * 1.005, 0.15, length * 0.42), Color("#e7edf3"), 0.5, 0.0)
+
+func _try_load_authored_model() -> bool:
+    var kind := vehicle_type.to_lower()
+    if kind != "car" and kind != "bus":
+        return false
+    var manifest_path := "res://external_content/kenney_car_kit/asset_manifest.json"
+    if not FileAccess.file_exists(manifest_path):
+        return false
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(manifest_path))
+    if not parsed is Dictionary or not bool(parsed.get("available", false)):
+        return false
+    var models: Array = parsed.get("models", [])
+    var priorities: Array[String] = ["sedan", "hatchback", "taxi", "race", "sports", "car", "vehicle"] if kind == "car" else ["bus", "truck", "van", "lorry"]
+    var selected_path := ""
+    for token in priorities:
+        for entry in models:
+            if not entry is Dictionary:
+                continue
+            var file_name := str(entry.get("name", "")).to_lower()
+            if file_name.contains(token):
+                var candidate := str(entry.get("path", ""))
+                if candidate.ends_with(".glb") or candidate.ends_with(".gltf"):
+                    selected_path = candidate
+                    break
+        if not selected_path.is_empty():
+            break
+    if selected_path.is_empty() or not ResourceLoader.exists(selected_path):
+        return false
+    var packed: Resource = load(selected_path)
+    if not packed is PackedScene:
+        return false
+    var model: Node = (packed as PackedScene).instantiate()
+    if not model is Node3D:
+        model.queue_free()
+        return false
+    model.name = "KenneyCC0AuthoredModel"
+    model.scale = Vector3.ONE * (1.5 if kind == "car" else 1.55)
+    model.position.y = 0.025
+    add_child(model)
+    _collect_authored_wheels(model)
+    set_meta("authored_asset_source", "Kenney Car Kit — CC0-1.0")
+    return true
+
+func _collect_authored_wheels(node: Node) -> void:
+    for child in node.get_children():
+        if child is Node3D:
+            var lower_name := child.name.to_lower()
+            if lower_name.contains("wheel") or lower_name.contains("tire"):
+                authored_wheels.append(child as Node3D)
+        _collect_authored_wheels(child)
 
 func _build_car(w: float, h: float, length: float, glass: Color, metal: Color, dark: Color) -> void:
     var cabin_y := h * 0.93
@@ -221,6 +274,9 @@ func _physics_process(delta: float) -> void:
 func _animate_wheels(delta: float) -> void:
     var roll: float = speed * delta * 1.8
     for wheel in wheel_pivots:
+        if is_instance_valid(wheel):
+            wheel.rotation.x += roll
+    for wheel in authored_wheels:
         if is_instance_valid(wheel):
             wheel.rotation.x += roll
 
