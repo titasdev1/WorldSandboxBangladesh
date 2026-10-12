@@ -11,6 +11,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Fetch optional CC0 vehicle art
+        shell: bash
+        run: python3 tools/fetch_free_assets.py
+
       - name: Run production preflight gate
         shell: bash
         run: python3 tools/production_gate.py
