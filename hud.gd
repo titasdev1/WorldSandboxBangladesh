@@ -214,8 +214,8 @@ func _build_lobby_ui() -> void:
  lobby_overlay.add_child(panel)
 
  var column := VBoxContainer.new()
- column.position = Vector2(22, 18)
- column.size = Vector2(1126, 585)
+ column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ column.size_flags_vertical = Control.SIZE_EXPAND_FILL
  column.add_theme_constant_override("separation", 14)
  panel.add_child(column)
 
@@ -252,14 +252,39 @@ func _build_lobby_ui() -> void:
  mode_buttons.clear()
  for mode in modes:
   var card := Button.new()
-  card.text = mode.title + "\n\n" + mode.subtitle + "\n\n" + mode.desc
+  card.text = ""
   card.custom_minimum_size = Vector2(205, 245)
   card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
   card.size_flags_vertical = Control.SIZE_EXPAND_FILL
-  card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-  card.alignment = HORIZONTAL_ALIGNMENT_CENTER
-  card.add_theme_font_size_override("font_size", 17)
-  card.add_theme_color_override("font_color", Color("#eaf5ff"))
+  var card_content := VBoxContainer.new()
+  card_content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+  card_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+  card_content.add_theme_constant_override("separation", 10)
+  card.add_child(card_content)
+  var card_title := Label.new()
+  card_title.text = mode.title
+  card_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+  card_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+  card_title.add_theme_font_size_override("font_size", 18)
+  card_title.add_theme_color_override("font_color", Color("#f4f9ff"))
+  card_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+  card_content.add_child(card_title)
+  var card_subtitle := Label.new()
+  card_subtitle.text = mode.subtitle
+  card_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+  card_subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+  card_subtitle.add_theme_font_size_override("font_size", 12)
+  card_subtitle.add_theme_color_override("font_color", Color("#50d7e9"))
+  card_subtitle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+  card_content.add_child(card_subtitle)
+  var card_desc := Label.new()
+  card_desc.text = mode.desc
+  card_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+  card_desc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+  card_desc.add_theme_font_size_override("font_size", 14)
+  card_desc.add_theme_color_override("font_color", Color("#c4d6e5"))
+  card_desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+  card_content.add_child(card_desc)
   card.add_theme_color_override("font_hover_color", Color("#ffffff"))
   card.add_theme_stylebox_override("normal", _lobby_style(Color("#10263a"), Color("#2b5268"), 1, 14))
   card.add_theme_stylebox_override("hover", _lobby_style(Color("#153c52"), Color("#50d7e9"), 2, 14))
