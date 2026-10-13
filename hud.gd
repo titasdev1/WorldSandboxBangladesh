@@ -9,6 +9,9 @@ var quality_option: OptionButton
 var fps_option: OptionButton
 var settings_config := ConfigFile.new()
 var _world_quality_applied := false
+var lobby_overlay: ColorRect
+var selected_mode := "deshi_story"
+var mode_buttons: Array[Button] = []
 
 func _ready():
  w = get_parent()
@@ -53,6 +56,7 @@ func _ready():
  add_touch_button("RAIN", Vector2(1060, 650), Vector2(150, 55), "rain")
  _build_settings_ui()
  _load_graphics_settings()
+ _build_lobby_ui()
 
 func _build_settings_ui() -> void:
  var settings_button := Button.new()
@@ -191,3 +195,138 @@ func _process(_delta):
  status.text = "NOBORONGO CITY • PLAYABLE CORE • VEHICLES • POLICE • WEATHER\nAMMO %s%s   %s" % [ammo_text, reload_text, w.event_text if w.event_time_left > 0 else "Explore • drive • bargain • fight"]
 
 # HUD integrated district/objective layer.
+
+
+# First-boot mode lobby: intentionally uses vector UI so it stays crisp at any resolution.
+func _build_lobby_ui() -> void:
+ lobby_overlay = ColorRect.new()
+ lobby_overlay.name = "ModeLobby"
+ lobby_overlay.color = Color(0.015, 0.035, 0.065, 0.94)
+ lobby_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+ lobby_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+ lobby_overlay.z_index = 100
+ add_child(lobby_overlay)
+
+ var panel := PanelContainer.new()
+ panel.position = Vector2(55, 42)
+ panel.size = Vector2(1170, 625)
+ panel.add_theme_stylebox_override("panel", _lobby_style(Color(0.035, 0.075, 0.12, 0.98), Color(0.12, 0.68, 0.82, 0.9), 2, 22))
+ lobby_overlay.add_child(panel)
+
+ var column := VBoxContainer.new()
+ column.position = Vector2(22, 18)
+ column.size = Vector2(1126, 585)
+ column.add_theme_constant_override("separation", 14)
+ panel.add_child(column)
+
+ var eyebrow := Label.new()
+ eyebrow.text = "PROJECT A-SQUARE  /  BANGLADESH OPEN-WORLD"
+ eyebrow.add_theme_color_override("font_color", Color("#50d7e9"))
+ eyebrow.add_theme_font_size_override("font_size", 15)
+ column.add_child(eyebrow)
+
+ var heading := Label.new()
+ heading.text = "CHOOSE YOUR WORLD"
+ heading.add_theme_color_override("font_color", Color("#f4f9ff"))
+ heading.add_theme_font_size_override("font_size", 34)
+ column.add_child(heading)
+
+ var subheading := Label.new()
+ subheading.text = "One city. Five ways to play. Touch controls and graphics settings are available in-game."
+ subheading.add_theme_color_override("font_color", Color("#b6c8d9"))
+ subheading.add_theme_font_size_override("font_size", 16)
+ column.add_child(subheading)
+
+ var cards := HBoxContainer.new()
+ cards.size_flags_vertical = Control.SIZE_EXPAND_FILL
+ cards.add_theme_constant_override("separation", 12)
+ column.add_child(cards)
+
+ var modes := [
+  {"id":"deshi_story", "title":"DESHI STORIES", "subtitle":"MISSIONS", "desc":"Deliveries, local jobs, fare bargaining and a connected 3-stage story."},
+  {"id":"free_roam", "title":"WORLD ROAM", "subtitle":"FREE EXPLORATION", "desc":"Explore the current city, meet NPCs, use transport and discover side activities."},
+  {"id":"survival", "title":"LAST STAND", "subtitle":"SOLO PROTOTYPE", "desc":"Combat foundation for a future battle-royale mode. Not a full battle royale yet."},
+  {"id":"arena_training", "title":"ARENA TRAINING", "subtitle":"OFFLINE PROTOTYPE", "desc":"Test movement and shooting. Real online multiplayer and matchmaking are not implemented."},
+  {"id":"district_explorer", "title":"DISTRICT EXPLORER", "subtitle":"MAP LEARNING PROTOTYPE", "desc":"Navigation practice in the fictional city. Real Bangladesh map tiles are a later integration."}
+ ]
+ mode_buttons.clear()
+ for mode in modes:
+  var card := Button.new()
+  card.text = mode.title + "\n\n" + mode.subtitle + "\n\n" + mode.desc
+  card.custom_minimum_size = Vector2(205, 245)
+  card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+  card.size_flags_vertical = Control.SIZE_EXPAND_FILL
+  card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+  card.alignment = HORIZONTAL_ALIGNMENT_CENTER
+  card.add_theme_font_size_override("font_size", 17)
+  card.add_theme_color_override("font_color", Color("#eaf5ff"))
+  card.add_theme_color_override("font_hover_color", Color("#ffffff"))
+  card.add_theme_stylebox_override("normal", _lobby_style(Color("#10263a"), Color("#2b5268"), 1, 14))
+  card.add_theme_stylebox_override("hover", _lobby_style(Color("#153c52"), Color("#50d7e9"), 2, 14))
+  card.add_theme_stylebox_override("pressed", _lobby_style(Color("#14546a"), Color("#50d7e9"), 3, 14))
+  card.toggle_mode = true
+  card.button_pressed = mode.id == selected_mode
+  card.pressed.connect(_select_lobby_mode.bind(mode.id, card))
+  cards.add_child(card)
+  mode_buttons.append(card)
+
+ var footer := HBoxContainer.new()
+ footer.add_theme_constant_override("separation", 16)
+ column.add_child(footer)
+
+ var note := Label.new()
+ note.text = "ONLINE ROAM / REAL-WORLD MAP / FULL BR MODES: planned, not falsely presented as finished."
+ note.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ note.add_theme_color_override("font_color", Color("#a7bacb"))
+ note.add_theme_font_size_override("font_size", 13)
+ footer.add_child(note)
+
+ var play := Button.new()
+ play.text = "ENTER CITY  →"
+ play.custom_minimum_size = Vector2(210, 58)
+ play.add_theme_font_size_override("font_size", 20)
+ play.add_theme_color_override("font_color", Color("#061724"))
+ play.add_theme_stylebox_override("normal", _lobby_style(Color("#50d7e9"), Color("#50d7e9"), 1, 12))
+ play.add_theme_stylebox_override("hover", _lobby_style(Color("#8beafa"), Color("#ffffff"), 2, 12))
+ play.pressed.connect(_enter_selected_mode)
+ footer.add_child(play)
+
+func _lobby_style(fill: Color, border_color: Color, border_width: int, corner_radius: int) -> StyleBoxFlat:
+ var style := StyleBoxFlat.new()
+ style.bg_color = fill
+ style.border_color = border_color
+ style.set_border_width_all(border_width)
+ style.set_corner_radius_all(corner_radius)
+ style.content_margin_left = 12
+ style.content_margin_right = 12
+ style.content_margin_top = 12
+ style.content_margin_bottom = 12
+ return style
+
+func _select_lobby_mode(mode_id: String, selected_button: Button) -> void:
+ selected_mode = mode_id
+ for button in mode_buttons:
+  button.button_pressed = button == selected_button
+
+func _enter_selected_mode() -> void:
+ if w:
+  w.game_mode = selected_mode
+  if selected_mode == "free_roam":
+   w.mission_active = false
+   w.event_text = "FREE ROAM SELECTED"
+  elif selected_mode == "deshi_story":
+   w.mission_active = true
+   w.event_text = "DESHI STORIES: FOLLOW THE GOLD MARKER"
+  elif selected_mode == "district_explorer":
+   w.mission_active = true
+   w.event_text = "EXPLORER PROTOTYPE: FOLLOW THE CITY MARKER"
+  elif selected_mode == "survival":
+   w.mission_active = false
+   w.event_text = "SOLO SURVIVAL PROTOTYPE • NO ONLINE PLAY"
+  else:
+   w.mission_active = false
+   w.event_text = "OFFLINE ARENA TRAINING • ONLINE MATCHES NOT AVAILABLE"
+  w.event_time_left = 8.0
+ if lobby_overlay:
+  lobby_overlay.visible = false
