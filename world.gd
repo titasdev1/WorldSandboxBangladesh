@@ -1,6 +1,7 @@
 extends Node3D
 
 var player: CharacterBody3D
+var game_mode := "deshi_story"
 var cash := 850
 var wanted := 0
 var rain := false
