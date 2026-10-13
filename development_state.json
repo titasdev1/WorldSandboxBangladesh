@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "021_AUTHORED_CITY_BUILDING_ASSET_INTEGRATION",
+  "current_milestone": "022_MODE_LOBBY_AND_MOBILE_INPUT_CORRECTION",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -25,16 +25,17 @@
     "015_UI",
     "017_SAVE_LOAD"
   ],
-  "next_priority": "022_ANDROID_ASSET_IMPORT_AND_DEVICE_VISUAL_QA",
+  "next_priority": "023_ANDROID_DEVICE_VISUAL_QA_AND_AUTHORED_HIGH_RES_ASSET_PIPELINE",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
     "Optional Kenney CC0 Car Kit downloads 50 GLTF/GLB models. Godot has logged dummy-renderer texture errors during export; actual Android model/texturing appearance remains unverified.",
     "New optional CC0 city-building pipeline scrapes official Kenney asset pages for ZIP links, downloads suburban/commercial/industrial packs, and uses matching authored building models in the core-city lots; first CI validation of this pipeline is pending.",
     "City models remain optional and procedural building fallbacks remain active if pack download/import/model-name matching fails.",
-    "Frame-time/memory profiling, traffic behavior, collision tuning, and complete mission/vehicle/combat/save-load regression remain unverified on a physical device."
+    "Frame-time/memory profiling, traffic behavior, collision tuning, and complete mission/vehicle/combat/save-load regression remain unverified on a physical device.",
+    "Mode lobby and touch drag-coordinate correction added on feature branch; awaiting canonical Android workflow validation."
   ],
-  "build_status": "city_asset_integration_pending_validation",
+  "build_status": "pending_mode_lobby_input_fix_validation",
   "latest_verified_run": 38292883996,
   "latest_verified_commit": "a206fe7e032a28364bd1df628c52ea59b171666f",
   "latest_build_artifact": {

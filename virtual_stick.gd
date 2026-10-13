@@ -30,7 +30,7 @@ func _gui_input(event: InputEvent) -> void:
 			_release_stick()
 			accept_event()
 	elif event is InputEventScreenDrag and event.index == _touch_index:
-		_update_stick(event.position - global_position)
+		_update_stick(event.position)
 		accept_event()
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed and _touch_index == -1 and Rect2(Vector2.ZERO, size).has_point(event.position):

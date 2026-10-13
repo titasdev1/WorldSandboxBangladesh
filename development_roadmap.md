@@ -90,3 +90,11 @@ Development batches are measured by integrated playable capability, not workflow
 - Added an explicit Python syntax check for the asset pipeline before Godot validation.
 - Added production-gate checks to ensure the city asset factory is integrated into the canonical `world.gd` path.
 - This batch is not build-verified until the canonical Android workflow succeeds. Even a successful export does not establish device visual quality; imported materials and model scale still need on-device inspection.
+
+
+## 2026-10 mode lobby and mobile-input correction batch
+- Added a crisp, scalable vector first-boot lobby with five selectable modes and clear labels distinguishing current prototypes from future online/real-map features.
+- Mode selection is connected to the canonical world: story/explorer select the existing objective chain; free roam and prototype training modes suppress the story objective. The lobby does not claim that matchmaking, online world-roam, or a full battle royale exists.
+- Fixed analog-stick drag coordinate handling to use the event's local position consistently. Previously the drag path subtracted the control's global position a second time, which could pull the virtual thumb in the wrong direction and contribute to reversed/unresponsive movement.
+- Added player-facing movement orientation so the avatar rotates into the direction of travel.
+- This batch is pending the canonical Godot startup/import and Android export workflow; touch feel and mode behavior still require physical-device testing.
