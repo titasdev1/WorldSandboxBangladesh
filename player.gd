@@ -65,6 +65,9 @@ func _physics_process(delta):
  var current_speed: float = sprint_speed if Input.is_action_pressed("sprint") else speed
  velocity.x = dir.x * current_speed
  velocity.z = dir.z * current_speed
+ # Rotate the avatar to face travel direction; -Z is the character forward axis.
+ if dir.length_squared() > 0.001:
+  rotation.y = lerp_angle(rotation.y, atan2(-dir.x, -dir.z), minf(1.0, delta * 12.0))
  if not is_on_floor():
   velocity.y -= gravity * delta
  else:
