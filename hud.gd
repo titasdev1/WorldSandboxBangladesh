@@ -285,35 +285,39 @@ func _build_lobby_ui() -> void:
  subheading.add_theme_font_size_override("font_size", 16)
  column.add_child(subheading)
 
- var cards := HBoxContainer.new()
+ var cards := GridContainer.new()
+ cards.columns = 3
  cards.size_flags_vertical = Control.SIZE_EXPAND_FILL
- cards.add_theme_constant_override("separation", 12)
+ cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ cards.add_theme_constant_override("h_separation", 14)
+ cards.add_theme_constant_override("v_separation", 12)
  column.add_child(cards)
 
  var modes := [
-  {"id":"deshi_story", "title":"DESHI STORIES", "subtitle":"MISSIONS", "desc":"Deliveries, local jobs, fare bargaining and a connected 3-stage story."},
-  {"id":"free_roam", "title":"WORLD ROAM", "subtitle":"FREE EXPLORATION", "desc":"Explore the current city, meet NPCs, use transport and discover side activities."},
-  {"id":"survival", "title":"LAST STAND", "subtitle":"SOLO PROTOTYPE", "desc":"Combat foundation for a future battle-royale mode. Not a full battle royale yet."},
-  {"id":"arena_training", "title":"ARENA TRAINING", "subtitle":"OFFLINE PROTOTYPE", "desc":"Test movement and shooting. Real online multiplayer and matchmaking are not implemented."},
-  {"id":"district_explorer", "title":"DISTRICT EXPLORER", "subtitle":"MAP LEARNING PROTOTYPE", "desc":"Navigation practice in the fictional city. Real Bangladesh map tiles are a later integration."}
+  {"id":"deshi_story", "title":"DESHI STORIES", "subtitle":"01  /  STORY MISSIONS", "desc":"Follow local deliveries, bargain transport fares, earn cash and finish the connected three-stage story."},
+  {"id":"free_roam", "title":"OPEN CITY", "subtitle":"02  /  FREE ROAM", "desc":"Explore the living starter city with pedestrians, traffic, rickshaws, CNGs, shops and side activities."},
+  {"id":"survival", "title":"LAST STAND", "subtitle":"03  /  SOLO COMBAT", "desc":"Enter the current combat sandbox. A full shrinking-zone battle royale and downloadable arenas are not implemented yet."},
+  {"id":"arena_training", "title":"COMBAT LAB", "subtitle":"04  /  OFFLINE PRACTICE", "desc":"Practice movement, camera control and shooting against the current sandbox systems; no online matchmaking yet."},
+  {"id":"street_life", "title":"STREET LIFE", "subtitle":"05  /  CITY ACTIVITIES", "desc":"Focus on city exploration, market stalls, local economy, transport interactions and dynamic street events."},
+  {"id":"district_explorer", "title":"DISTRICT ATLAS", "subtitle":"06  /  NAVIGATION", "desc":"Learn the fictional starter city's named districts and follow map markers. Licensed Bangladesh geodata is a later integration."}
  ]
  mode_buttons.clear()
  for mode in modes:
   var card := Button.new()
   card.text = ""
-  card.custom_minimum_size = Vector2(205, 245)
+  card.custom_minimum_size = Vector2(205, 170)
   card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
   card.size_flags_vertical = Control.SIZE_EXPAND_FILL
   var card_content := VBoxContainer.new()
   card_content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
   card_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
-  card_content.add_theme_constant_override("separation", 10)
+  card_content.add_theme_constant_override("separation", 6)
   card.add_child(card_content)
   var card_title := Label.new()
   card_title.text = mode.title
   card_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
   card_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-  card_title.add_theme_font_size_override("font_size", 18)
+  card_title.add_theme_font_size_override("font_size", 17)
   card_title.add_theme_color_override("font_color", Color("#f4f9ff"))
   card_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
   card_content.add_child(card_title)
@@ -321,7 +325,7 @@ func _build_lobby_ui() -> void:
   card_subtitle.text = mode.subtitle
   card_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
   card_subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-  card_subtitle.add_theme_font_size_override("font_size", 12)
+  card_subtitle.add_theme_font_size_override("font_size", 11)
   card_subtitle.add_theme_color_override("font_color", Color("#50d7e9"))
   card_subtitle.mouse_filter = Control.MOUSE_FILTER_IGNORE
   card_content.add_child(card_subtitle)
@@ -329,7 +333,7 @@ func _build_lobby_ui() -> void:
   card_desc.text = mode.desc
   card_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
   card_desc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-  card_desc.add_theme_font_size_override("font_size", 14)
+  card_desc.add_theme_font_size_override("font_size", 13)
   card_desc.add_theme_color_override("font_color", Color("#c4d6e5"))
   card_desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
   card_content.add_child(card_desc)
@@ -337,6 +341,7 @@ func _build_lobby_ui() -> void:
   card.add_theme_stylebox_override("normal", _lobby_style(Color("#10263a"), Color("#2b5268"), 1, 14))
   card.add_theme_stylebox_override("hover", _lobby_style(Color("#153c52"), Color("#50d7e9"), 2, 14))
   card.add_theme_stylebox_override("pressed", _lobby_style(Color("#14546a"), Color("#50d7e9"), 3, 14))
+  card.add_theme_stylebox_override("focus", _lobby_style(Color("#173c50"), Color("#8beafa"), 2, 14))
   card.toggle_mode = true
   card.button_pressed = mode.id == selected_mode
   card.pressed.connect(_select_lobby_mode.bind(mode.id, card))
@@ -348,7 +353,7 @@ func _build_lobby_ui() -> void:
  column.add_child(footer)
 
  var note := Label.new()
- note.text = "ONLINE ROAM / REAL-WORLD MAP / FULL BR MODES: planned, not falsely presented as finished."
+ note.text = "ONLINE PLAY, REAL BANGLADESH MAPS AND FULL BATTLE ROYALE ARE future systems—not claimed as finished."
  note.size_flags_horizontal = Control.SIZE_EXPAND_FILL
  note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
  note.add_theme_color_override("font_color", Color("#a7bacb"))
@@ -393,7 +398,10 @@ func _enter_selected_mode() -> void:
    w.event_text = "DESHI STORIES: FOLLOW THE GOLD MARKER"
   elif selected_mode == "district_explorer":
    w.mission_active = true
-   w.event_text = "EXPLORER PROTOTYPE: FOLLOW THE CITY MARKER"
+   w.event_text = "DISTRICT ATLAS: FOLLOW THE CITY MARKER"
+  elif selected_mode == "street_life":
+   w.mission_active = false
+   w.event_text = "STREET LIFE: MARKETS • TRANSPORT • CITY EVENTS"
   elif selected_mode == "survival":
    w.mission_active = false
    w.event_text = "SOLO SURVIVAL PROTOTYPE • NO ONLINE PLAY"
