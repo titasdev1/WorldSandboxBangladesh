@@ -67,10 +67,13 @@ class DhakaMapPipelineTests(unittest.TestCase):
             min_xy = local_xy(south, west, origin_lat, origin_lon)
             max_xy = local_xy(north, east, origin_lat, origin_lon)
             width, depth = max_xy[0] - min_xy[0], max_xy[1] - min_xy[1]
+            # GLB must use Y-up: X is east-west, Y is elevation, Z is north-south.
             self.assertGreaterEqual(scene.bounds[0][0], -width / 2 - 1)
             self.assertLessEqual(scene.bounds[1][0], width / 2 + 1)
-            self.assertGreaterEqual(scene.bounds[0][1], -depth / 2 - 1)
-            self.assertLessEqual(scene.bounds[1][1], depth / 2 + 1)
+            self.assertGreaterEqual(scene.bounds[0][2], -depth / 2 - 1)
+            self.assertLessEqual(scene.bounds[1][2], depth / 2 + 1)
+            self.assertGreater(scene.bounds[1][1], scene.bounds[0][1])
+            self.assertLess(scene.bounds[1][1], 260)
             self.assertEqual(manifest["feature_counts"]["building_footprints"], 1)
             self.assertEqual(manifest["feature_counts"]["road_ways"], 1)
             self.assertTrue((out / "Dhaka_OSM_Source.geojson").exists())
