@@ -50,6 +50,11 @@ func _ready():
  var street_life = load("res://street_life_factory.gd").new()
  street_life.build(self)
  spawn_player()
+ if has_real_world_map:
+  var chunk_streamer = load("res://systems/osm_chunk_streamer.gd").new()
+  chunk_streamer.name = "OSMChunkStreamer"
+  add_child(chunk_streamer)
+  chunk_streamer.configure(self, player)
  spawn_traffic()
  spawn_npcs()
  spawn_police()

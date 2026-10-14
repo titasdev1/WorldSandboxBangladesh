@@ -16,18 +16,23 @@ import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "content" / "realworld" / "area.geojson"
+CHUNK_DIR = ROOT / "content" / "realworld" / "chunks"
 # Approximately a 2 km x 2 km central-Dhaka starter district.
 SOUTH, WEST, NORTH, EAST = 23.8003, 90.4025, 23.8203, 90.4225
 MAX_FEATURES = 1800
 ROAD_LIMIT = 500
+CHUNK_MAX_FEATURES = 900
+CHUNK_ROAD_LIMIT = 250
+CHUNK_OFFSETS = {"north": (0.0203, 0.0), "south": (-0.0203, 0.0), "east": (0.0, 0.0200), "west": (0.0, -0.0200)}
 OVERPASS_ENDPOINTS = (
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
 )
 USER_AGENT = "WorldSandboxBangladesh/1.0 (open-source game prototype; OSM attribution preserved)"
 
-def fetch_overpass() -> dict:
-    bbox = f"{SOUTH},{WEST},{NORTH},{EAST}"
+def fetch_overpass(bounds: tuple[float, float, float, float] | None = None) -> dict:
+    south, west, north, east = bounds or (SOUTH, WEST, NORTH, EAST)
+    bbox = f"{south},{west},{north},{east}"
     query = (
         "[out:json][timeout:60];("
         f'way["highway"]({bbox});'
@@ -98,14 +103,7 @@ def to_feature(element: dict) -> dict | None:
     return {"type": "Feature", "id": f"way/{element.get('id', 0)}",
             "properties": properties, "geometry": geometry}
 
-def main() -> int:
-    try:
-        response = fetch_overpass()
-    except Exception as exc:
-        # Optional source: do not make a release impossible during an Overpass outage.
-        print(f"WARNING: Dhaka OSM download unavailable; build will use its fallback map: {exc}")
-        return 0
-
+def prepare_features(response: dict, max_features: int, road_limit: int) -> tuple[list[dict], int, int]:
     roads: list[dict] = []
     buildings: list[dict] = []
     for element in response["elements"]:
@@ -117,8 +115,6 @@ def main() -> int:
             roads.append(feature)
         elif "building" in props:
             buildings.append(feature)
-
-    # Preserve road connectivity first, then prioritize shops and named buildings.
     roads.sort(key=lambda f: (
         {"primary": 0, "secondary": 1, "tertiary": 2, "residential": 3,
          "unclassified": 4, "service": 5}.get(f["properties"].get("highway"), 6),
@@ -129,9 +125,18 @@ def main() -> int:
         0 if f["properties"].get("name") else 1,
         f["properties"].get("osm_id", 0),
     ))
-    features = roads[:ROAD_LIMIT] + buildings[:MAX_FEATURES - ROAD_LIMIT]
-    if len(features) > MAX_FEATURES:
-        features = features[:MAX_FEATURES]
+    selected = roads[:road_limit] + buildings[:max_features - road_limit]
+    return selected[:max_features], min(len(roads), road_limit), min(len(buildings), max_features - road_limit)
+
+def main() -> int:
+    try:
+        response = fetch_overpass()
+    except Exception as exc:
+        # Optional source: do not make a release impossible during an Overpass outage.
+        print(f"WARNING: Dhaka OSM download unavailable; build will use its fallback map: {exc}")
+        return 0
+
+    features, road_count, building_count = prepare_features(response, MAX_FEATURES, ROAD_LIMIT)
     if not features:
         print("WARNING: no usable OSM road/building features returned; keeping fallback map")
         return 0
@@ -147,14 +152,51 @@ def main() -> int:
             "bbox": [WEST, SOUTH, EAST, NORTH],
             "district_scope": "Central Dhaka starter slice; not the whole city",
             "feature_count": len(features),
-            "roads": min(len(roads), ROAD_LIMIT),
-            "buildings": min(len(buildings), MAX_FEATURES - ROAD_LIMIT),
+            "roads": road_count,
+            "buildings": building_count,
         },
         "features": features,
     }
     OUTPUT.write_text(json.dumps(document, separators=(",", ":")) + "\n", encoding="utf-8")
     print(f"Dhaka OSM district prepared: {len(features)} features "
           f"({document['metadata']['roads']} roads, {document['metadata']['buildings']} buildings)")
+
+    # Four contiguous neighboring chunks expand the playable map beyond the starter district.
+    CHUNK_DIR.mkdir(parents=True, exist_ok=True)
+    for stale in CHUNK_DIR.glob("*.geojson"):
+        stale.unlink()
+    for chunk_name, (lat_shift, lon_shift) in CHUNK_OFFSETS.items():
+        bounds = (SOUTH + lat_shift, WEST + lon_shift, NORTH + lat_shift, EAST + lon_shift)
+        try:
+            chunk_response = fetch_overpass(bounds)
+            chunk_features, chunk_roads, chunk_buildings = prepare_features(
+                chunk_response, CHUNK_MAX_FEATURES, CHUNK_ROAD_LIMIT
+            )
+        except Exception as exc:
+            print(f"WARNING: optional Dhaka chunk '{chunk_name}' unavailable: {exc}")
+            continue
+        if not chunk_features:
+            print(f"WARNING: optional Dhaka chunk '{chunk_name}' returned no usable features")
+            continue
+        chunk_output = CHUNK_DIR / f"{chunk_name}.geojson"
+        chunk_document = {
+            "type": "FeatureCollection",
+            "name": f"Dhaka {chunk_name} district chunk",
+            "metadata": {
+                "source": "OpenStreetMap contributors",
+                "license": "ODbL-1.0",
+                "attribution": "© OpenStreetMap contributors",
+                "bbox": [bounds[1], bounds[0], bounds[3], bounds[2]],
+                "district_scope": f"Adjacent Dhaka exploration chunk: {chunk_name}",
+                "feature_count": len(chunk_features),
+                "roads": chunk_roads,
+                "buildings": chunk_buildings,
+            },
+            "features": chunk_features,
+        }
+        chunk_output.write_text(json.dumps(chunk_document, separators=(",", ":")) + "\n", encoding="utf-8")
+        print(f"Dhaka OSM chunk '{chunk_name}': {len(chunk_features)} features")
+
     print(f"Source: © OpenStreetMap contributors; ODbL-1.0. Output: {OUTPUT.relative_to(ROOT)}")
     return 0
 

@@ -56,10 +56,12 @@ func import_geojson(target_world: Node3D, path := "res://content/realworld/area.
             skipped_features += 1
     if features.size() > max_features:
         skipped_features += features.size() - max_features
-    world.set_meta("osm_road_paths", imported_road_paths.duplicate(true))
-    world.set_meta("osm_import_roads", imported_roads)
-    world.set_meta("osm_import_buildings", imported_buildings)
-    world.set_meta("osm_import_skipped", skipped_features)
+    var combined_paths: Array = world.get_meta("osm_road_paths", [])
+    combined_paths.append_array(imported_road_paths)
+    world.set_meta("osm_road_paths", combined_paths)
+    world.set_meta("osm_import_roads", int(world.get_meta("osm_import_roads", 0)) + imported_roads)
+    world.set_meta("osm_import_buildings", int(world.get_meta("osm_import_buildings", 0)) + imported_buildings)
+    world.set_meta("osm_import_skipped", int(world.get_meta("osm_import_skipped", 0)) + skipped_features)
     return imported_roads > 0 or imported_buildings > 0
 
 func _to_local(coord: Variant) -> Vector3:
