@@ -102,7 +102,7 @@ def write_manifest(surfaces: dict, note: str = "") -> None:
         "api": API,
         "license": "CC0-1.0",
         "attribution_required_for_downloaded_assets": False,
-        "resolution_policy": "HD content pack: retain highest available source maps (8K, then 4K, 2K, 1K). Device-specific runtime quality must be handled by graphics presets/texture filtering, not by silently excluding source detail.",
+        "resolution_policy": "Base Android build: maximum 2K source maps. 4K/8K maps are reserved for a separately downloadable optional HD pack; they are not included in the base APK.",
         "surfaces": surfaces,
         "note": note,
     }, indent=2) + "\n", encoding="utf-8")
@@ -130,7 +130,7 @@ def main() -> int:
                 for kind, options in candidates.items():
                     options.sort(key=lambda row: (row[0], len(row[1])))
                     rank, path, url, suffix = options[0]
-                    if rank > 3:
+                    if rank > 2:
                         continue
                     filename = kind + suffix
                     destination = OUT / asset_id / filename
@@ -151,7 +151,7 @@ def main() -> int:
                     print(f"Prepared {surface}: {asset_id} ({', '.join(sorted(maps))})")
             except Exception as exc:
                 print(f"WARNING: could not prepare {surface} texture: {exc}")
-        write_manifest(surfaces, "Only downloaded CC0 files are included; highest available source resolution is preferred; missing maps use procedural fallbacks.")
+        write_manifest(surfaces, "Only downloaded CC0 files are included; base build caps source maps at 2K; missing maps use procedural fallbacks.")
         print(f"Poly Haven CC0 PBR surfaces prepared: {len(surfaces)}")
         return 0
     except Exception as exc:
