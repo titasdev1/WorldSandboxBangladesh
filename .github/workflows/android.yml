@@ -140,13 +140,16 @@ jobs:
           set -euo pipefail
           APK="$(find build -type f -name '*.apk' ! -path 'build/canonical_release/*' -print -quit)"
           test -n "$APK"
+          APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
+          test -x "$APKSIGNER"
+          # The Godot export can leave this APK without a usable Android signature.
+          # Sign the exported file with the configured stable keystore before verifying it.
+          "$APKSIGNER" sign --ks "$WSB_KEYSTORE" --ks-key-alias "$WSB_KEY_ALIAS" --ks-pass "pass:$WSB_STORE_PASSWORD" --key-pass "pass:$WSB_KEY_PASSWORD" "$APK"
           echo "APK_PATH=$APK"
           echo "APK_BYTES=$(stat -c '%s' "$APK")"
           sha256sum "$APK" | tee build/apk-sha256.txt
           unzip -t "$APK" > build/apk-zip-test.txt
           cat build/apk-zip-test.txt
-          APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
-          test -x "$APKSIGNER"
           # Verify schemes applicable to Android 7+; fail on a genuine APK signature problem.
           "$APKSIGNER" verify --verbose --print-certs --min-sdk-version 24 --max-sdk-version 35 "$APK" | tee build/apk-signature-verification.txt
           {
