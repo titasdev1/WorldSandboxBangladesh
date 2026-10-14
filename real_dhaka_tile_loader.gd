@@ -16,6 +16,7 @@ const STREAM_INTERVAL := 0.5
 var _world: Node3D
 var _records: Array[Dictionary] = []
 var _loaded: Dictionary = {}
+var _road_routes_by_tile: Dictionary = {}
 var _manifest_origin_lat := GAME_ORIGIN_LAT
 var _manifest_origin_lon := GAME_ORIGIN_LON
 var _stream_clock := 0.0
@@ -79,6 +80,63 @@ func _process(delta: float) -> void:
 	if player != null:
 		_stream_tiles(player.global_position)
 
+func get_road_routes() -> Array:
+	var result: Array = []
+	for routes in _road_routes_by_tile.values():
+		result.append_array(routes)
+	return result
+
+func _load_road_routes(record: Dictionary) -> void:
+	var tile_id := str(record.get("tile_id", ""))
+	var relative_geojson := str(record.get("geojson", ""))
+	if tile_id.is_empty() or relative_geojson.is_empty():
+		return
+	var path := MAP_ROOT + "/" + relative_geojson
+	if not FileAccess.file_exists(path):
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (parsed is Dictionary):
+		return
+	var features: Variant = parsed.get("features", [])
+	if not (features is Array):
+		return
+	var routes: Array = []
+	for feature in features:
+		if not (feature is Dictionary):
+			continue
+		var properties: Variant = feature.get("properties", {})
+		if not (properties is Dictionary) or not properties.has("highway"):
+			continue
+		var geometry: Variant = feature.get("geometry", {})
+		if not (geometry is Dictionary):
+			continue
+		var geometry_type := str(geometry.get("type", ""))
+		var coordinates: Variant = geometry.get("coordinates", [])
+		var lines: Array = []
+		if geometry_type == "LineString":
+			lines.append(coordinates)
+		elif geometry_type == "MultiLineString" and coordinates is Array:
+			lines.append_array(coordinates)
+		for line in lines:
+			if not (line is Array) or line.size() < 2:
+				continue
+			var route: Array[Vector3] = []
+			for coordinate in line:
+				if not (coordinate is Array and coordinate.size() >= 2):
+					continue
+				var point := _geo_to_world(float(coordinate[1]), float(coordinate[0]))
+				point.y = 0.0
+				if route.is_empty() or route[route.size() - 1].distance_to(point) >= 1.0:
+					route.append(point)
+			if route.size() < 2:
+				continue
+			var route_length := 0.0
+			for i in range(1, route.size()):
+				route_length += route[i - 1].distance_to(route[i])
+			if route_length >= 22.0:
+				routes.append(route)
+	_road_routes_by_tile[tile_id] = routes
+
 func _geo_to_world(lat: float, lon: float) -> Vector3:
 	var x := deg_to_rad(lon - _manifest_origin_lon) * EARTH_RADIUS_M * cos(deg_to_rad(_manifest_origin_lat))
 	var northing := deg_to_rad(lat - _manifest_origin_lat) * EARTH_RADIUS_M
@@ -100,6 +158,7 @@ func _stream_tiles(player_position: Vector3) -> void:
 			if instance != null and is_instance_valid(instance):
 				instance.queue_free()
 			_loaded.erase(key)
+			_road_routes_by_tile.erase(key)
 	for key in desired.keys():
 		if _loaded.has(key):
 			continue
@@ -115,6 +174,7 @@ func _stream_tiles(player_position: Vector3) -> void:
 		instance.position = record["world_position"]
 		_world.add_child(instance)
 		_add_walkable_collisions(instance)
+		_load_road_routes(record)
 		record["instance"] = instance
 		_loaded[key] = record
 
