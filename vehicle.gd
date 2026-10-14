@@ -15,6 +15,9 @@ var wheel_pivots: Array[Node3D] = []
 var authored_wheels: Array[Node3D] = []
 var material_cache: Dictionary = {}
 var indicator_time := 0.0
+var route_points: Array = []
+var route_index := 0
+var route_direction := 1
 
 func _ready() -> void:
     cruise_speed = speed
@@ -252,6 +255,11 @@ func _physics_process(delta: float) -> void:
         _animate_wheels(delta)
         return
 
+    if route_points.size() >= 2:
+        _follow_mapped_route(delta)
+        _animate_wheels(delta)
+        return
+
     if world and not is_police and world.is_red_for_axis(lane_axis, global_position):
         velocity = Vector3.ZERO
         return
@@ -278,6 +286,37 @@ func _physics_process(delta: float) -> void:
         if distance < 18:
             world.wanted = mini(5, world.wanted + 1)
     _animate_wheels(delta)
+
+func _follow_mapped_route(delta: float) -> void:
+    if route_points.size() < 2:
+        return
+    route_index = clampi(route_index, 0, route_points.size() - 1)
+    var target: Vector3 = route_points[route_index]
+    var to_target := Vector3(target.x - global_position.x, 0.0, target.z - global_position.z)
+    if to_target.length() < maxf(1.6, speed * delta * 1.4):
+        if route_direction > 0:
+            if route_index >= route_points.size() - 1:
+                route_direction = -1
+                route_index = maxi(0, route_points.size() - 2)
+            else:
+                route_index += 1
+        else:
+            if route_index <= 0:
+                route_direction = 1
+                route_index = mini(1, route_points.size() - 1)
+            else:
+                route_index -= 1
+        target = route_points[route_index]
+        to_target = Vector3(target.x - global_position.x, 0.0, target.z - global_position.z)
+    if to_target.length_squared() > 0.01:
+        var direction := to_target.normalized()
+        velocity = direction * speed
+        velocity.y = 0.0
+        rotation.y = atan2(-direction.x, -direction.z)
+        move_and_slide()
+    if is_police and world and world.wanted > 0 and world.player:
+        if global_position.distance_to(world.player.global_position) < 18.0:
+            world.wanted = mini(5, world.wanted + 1)
 
 func _animate_wheels(delta: float) -> void:
     var roll: float = speed * delta * 1.8
