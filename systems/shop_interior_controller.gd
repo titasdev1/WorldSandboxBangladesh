@@ -35,7 +35,18 @@ func _process(delta: float) -> void:
         shopkeeper.position.y = shopkeeper_base.y + sin(animation_clock * 2.0) * 0.025
         shopkeeper.rotation.y = sin(animation_clock * 0.65) * 0.12
     if interior_active and Input.is_action_just_pressed("interact"):
-        _leave_shop()
+        if not is_instance_valid(player_inside):
+            _leave_shop()
+        else:
+            var exit_position := host.to_global(Vector3(0, 0.15, -building_depth * 0.5 - 1.0))
+            if player_inside.global_position.distance_to(exit_position) <= 1.8:
+                _leave_shop()
+            else:
+                _talk_to_shopkeeper()
+    if interior_active and is_instance_valid(player_inside) and is_instance_valid(shopkeeper):
+        var to_player := player_inside.global_position - shopkeeper.global_position
+        if to_player.length() < 6.0 and to_player.length() > 0.1:
+            shopkeeper.look_at(player_inside.global_position, Vector3.UP)
 
 func _build_entry_trigger() -> void:
     door_area = Area3D.new()
@@ -189,6 +200,27 @@ func _add_specialized_furnishings() -> void:
     else:
         # Unknown OSM shop categories still get a distinct back-wall display.
         _add_box("SpecialtyDisplay", Vector3(interior_width * 0.42, 1.0, 0.35), Vector3(0, 0.65, interior_depth * 0.3), _mat("specialty_display", Color("#92775a"), 0.75))
+
+func _talk_to_shopkeeper() -> void:
+    if not is_instance_valid(shopkeeper):
+        return
+    var dialogue := "Welcome! Take your time and look around."
+    if shop_kind in ["restaurant", "cafe", "fast_food", "food", "bakery"]:
+        dialogue = "Assalamu alaikum! Today's special is ready. What would you like?"
+    elif shop_kind in ["pharmacy", "chemist", "medical_supply"]:
+        dialogue = "How can I help? Please tell me what you need."
+    elif shop_kind in ["clothes", "fashion", "clothing", "tailor"]:
+        dialogue = "Looking for a panjabi, shirt, or something custom-made?"
+    elif shop_kind in ["electronics", "mobile_phone", "computer", "hardware"]:
+        dialogue = "Need a phone, charger, or repair? I can show you the options."
+    elif shop_kind in ["books", "bookstore", "stationery"]:
+        dialogue = "Need notebooks, pens, or a book? Tell me what you're looking for."
+    elif shop_kind in ["supermarket", "convenience", "general", "department_store"]:
+        dialogue = "What do you need, bhai? Feel free to browse."
+    _show_status(shop_name + ": " + dialogue)
+    shopkeeper.rotation.y += 0.08
+    set_meta("shopkeeper_last_dialogue", dialogue)
+    set_meta("shopkeeper_interactions", int(get_meta("shopkeeper_interactions", 0)) + 1)
 
 func _service_line() -> String:
     if shop_kind in ["restaurant", "cafe", "fast_food"]:
