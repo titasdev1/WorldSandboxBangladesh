@@ -117,28 +117,20 @@ func _build_interior() -> void:
             _add_box("Stock_%d_%d" % [shelf_index, item_index], Vector3(0.28, 0.38, 0.22), Vector3(-interior_width * 0.5 + 0.42, 1.86, z - 0.34 + float(item_index) * 0.34), _mat("stock_%d_%d" % [shelf_index, item_index], item_color, 0.45))
     _add_box("CeilingLight", Vector3(1.4, 0.08, 0.5), Vector3(0, 2.92, 0), _mat("light", Color("#fff1c4"), 0.25, true))
     _add_specialized_furnishings()
-    var keeper := Node3D.new()
-    keeper.name = "ProceduralShopkeeper"
+    var keeper := CharacterBody3D.new()
+    keeper.name = "ShopkeeperCharacter"
     keeper.position = Vector3(0, 0, 0.75)
     shopkeeper_base = keeper.position
     add_child(keeper)
     shopkeeper = keeper
-    var torso := MeshInstance3D.new()
-    var torso_mesh := CapsuleMesh.new()
-    torso_mesh.radius = 0.32
-    torso_mesh.height = 1.05
-    torso.mesh = torso_mesh
-    torso.position = Vector3(0, 0.9, 0)
-    torso.material_override = _mat("keeper_clothes", Color("#247c77"), 0.82)
-    keeper.add_child(torso)
-    var head := MeshInstance3D.new()
-    var head_mesh := SphereMesh.new()
-    head_mesh.radius = 0.22
-    head_mesh.height = 0.44
-    head.mesh = head_mesh
-    head.position = Vector3(0, 1.55, 0)
-    head.material_override = _mat("keeper_skin", Color("#b9825e"), 0.8)
-    keeper.add_child(head)
+    # Reuse the game's animated, textured humanoid system. CI downloads a pinned
+    # CC0 rigged character; HumanoidVisual falls back to a fully procedural body.
+    var keeper_visual := HumanoidVisual.new()
+    keeper_visual.name = "ShopkeeperHumanoidVisual"
+    keeper_visual.outfit_color = Color("#247c77")
+    keeper_visual.skin_color = Color("#b9825e")
+    keeper_visual.hair_color = Color("#282321")
+    keeper.add_child(keeper_visual)
     var name_label := Label3D.new()
     name_label.name = "ShopkeeperPrompt"
     name_label.text = shop_name + "\n" + _service_line()
