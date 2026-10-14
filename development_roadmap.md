@@ -121,3 +121,10 @@ Development batches are measured by integrated playable capability, not workflow
 - Android and project-archive workflows fetch the texture maps after source startup validation, preserving a clean fallback when the public API is unavailable.
 - Poly Haven assets are CC0; use of their live API in the game itself is not required. Downloaded maps are self-contained project assets, and missing assets must never break the playable scene.
 - Next validation must verify Python syntax, Godot script import/startup, Android export, and report actual texture files downloaded. Texture appearance still requires visual testing on Android.
+
+
+## Mobile asset-budget and six-mode lobby pass (pending canonical validation)
+- Rebalanced the Poly Haven PBR download policy for Android: road surfaces prefer 4K maps, other surfaces prefer 2K, and 8K maps are excluded from runtime packs to reduce APK size and GPU memory pressure. This is a quality/performance choice, not fake file-size reduction; the game still uses licensed, authored PBR textures and procedural fallbacks.
+- Reworked the first-boot mode lobby into a three-column, two-row card grid with clearer hierarchy, compact typography, keyboard/controller focus styling, and six connected selections: Deshi Stories, Open City, Last Stand, Combat Lab, Street Life, and District Atlas.
+- Added Street Life as a distinct selection that emphasizes the existing market/economy/transport/event systems. It does not claim online multiplayer, real-world Bangladesh map coverage, or a full battle royale.
+- Pending: canonical Godot import/startup and Android export; inspect resulting APK/artifact size and confirm the downloaded texture count. On-device layout/touch QA remains necessary.
