@@ -76,6 +76,8 @@ class RegionHandler(osmium.SimpleHandler):
             return
         self.elements.append({
             "type": "way", "id": int(w.id), "tags": {tag.k: tag.v for tag in w.tags}, "geometry": coords,
+            # Cache geographic bounds once; the tiler checks each way against many tiles.
+            "_bbox": [min_lon, min_lat, max_lon, max_lat],
         })
 
 
@@ -159,11 +161,14 @@ def main() -> int:
             geom = element.get("geometry", [])
             if not geom:
                 continue
-            min_lon = min(p["lon"] for p in geom)
-            max_lon = max(p["lon"] for p in geom)
-            min_lat = min(p["lat"] for p in geom)
-            max_lat = max(p["lat"] for p in geom)
-            if box(min_lon, min_lat, max_lon, max_lat).intersects(tile_box):
+            bounds = element.get("_bbox")
+            if bounds is None:
+                # Compatibility for hand-built fixtures or older extracted records.
+                bounds = [
+                    min(p["lon"] for p in geom), min(p["lat"] for p in geom),
+                    max(p["lon"] for p in geom), max(p["lat"] for p in geom),
+                ]
+            if box(*bounds).intersects(tile_box):
                 candidates.append(element)
         tile_id = f"tile_{tile_s:.4f}_{tile_w:.4f}".replace(".", "p")
         tile_dir = args.out / tile_id
