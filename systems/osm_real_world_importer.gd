@@ -346,6 +346,9 @@ func _road_material(highway_type: String) -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
     material.albedo_color = Color("#44484b") if highway_type not in ["footway", "path", "pedestrian", "cycleway"] else Color("#8b897e")
     material.roughness = 0.96
+    var factory := metadata_world.get_node_or_null("PBRSurfaceFactory") if is_instance_valid(metadata_world) else null
+    if factory and factory.has_method("material_for"):
+        return factory.material_for("road", material)
     return material
 
 func _building_material(building_type: String, properties: Dictionary = {}) -> StandardMaterial3D:
@@ -365,6 +368,18 @@ func _building_material(building_type: String, properties: Dictionary = {}) -> S
         material.roughness = 0.82
     # OSM rings can have either winding in source extracts; render both sides.
     material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    var surface_id := "plaster"
+    if material_tag in ["brick", "bricks", "stone"]:
+        surface_id = "brick"
+    elif material_tag in ["concrete", "cement"]:
+        surface_id = "concrete"
+    elif material_tag in ["glass", "metal", "steel"]:
+        surface_id = "metal"
+    var factory := metadata_world.get_node_or_null("PBRSurfaceFactory") if is_instance_valid(metadata_world) else null
+    if factory and factory.has_method("material_for"):
+        var textured: StandardMaterial3D = factory.material_for(surface_id, material)
+        textured.cull_mode = BaseMaterial3D.CULL_DISABLED
+        return textured
     return material
 
 func _roof_material(properties: Dictionary, building_type: String) -> StandardMaterial3D:
@@ -376,4 +391,10 @@ func _roof_material(properties: Dictionary, building_type: String) -> StandardMa
     material.metallic = 0.32 if roof_kind in ["metal", "steel", "aluminium"] else 0.0
     material.roughness = 0.76 if material.metallic == 0.0 else 0.58
     material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    var surface_id := "metal" if roof_kind in ["metal", "steel", "aluminium"] else "concrete"
+    var factory := metadata_world.get_node_or_null("PBRSurfaceFactory") if is_instance_valid(metadata_world) else null
+    if factory and factory.has_method("material_for"):
+        var textured: StandardMaterial3D = factory.material_for(surface_id, material)
+        textured.cull_mode = BaseMaterial3D.CULL_DISABLED
+        return textured
     return material
