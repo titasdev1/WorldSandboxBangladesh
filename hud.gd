@@ -227,7 +227,20 @@ func _process(_delta):
   mission.text = "STORY COMPLETE  +৳1000   FREE ROAM"
  var ammo_text = "%d/%d" % [w.player.ammo, w.player.reserve_ammo] if w.player else "30/120"
  var reload_text = " • RELOADING" if w.player and w.player.reload_time > 0.0 else ""
- status.text = "NOBORONGO CITY • PLAYABLE CORE • VEHICLES • POLICE • WEATHER\nAMMO %s%s   %s" % [ammo_text, reload_text, w.event_text if w.event_time_left > 0 else "Explore • drive • bargain • fight"]
+ var district_name := "Noborongo City"
+ if w.district_factory and w.district_factory.has_method("current_district") and w.player:
+  district_name = w.district_factory.current_district(w.player)
+ var active_target_position: Vector3 = w.mission_target
+ var has_live_target: bool = w.mission_active
+ var active_factory = w.get_node_or_null("MissionFactory")
+ if is_instance_valid(active_factory) and int(active_factory.get("active_index")) >= 0:
+  var factory_target = active_factory.get("active_target")
+  if is_instance_valid(factory_target):
+   active_target_position = factory_target.global_position
+   has_live_target = true
+ var target_distance := int(w.player.global_position.distance_to(active_target_position)) if w.player and has_live_target else -1
+ var objective_text := "TARGET %dm" % target_distance if target_distance >= 0 else "FREE ROAM"
+ status.text = "%s • %s\nAMMO %s%s   %s" % [district_name.to_upper(), objective_text, ammo_text, reload_text, w.event_text if w.event_time_left > 0 else "Explore • drive • bargain • fight"]
 
 # HUD integrated district/objective layer.
 
