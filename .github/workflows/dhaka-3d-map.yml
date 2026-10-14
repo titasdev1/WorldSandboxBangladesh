@@ -1,0 +1,93 @@
+name: Build Dhaka 3D Map Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      south:
+        description: "South latitude"
+        required: false
+        default: "23.8043"
+      west:
+        description: "West longitude"
+        required: false
+        default: "90.4065"
+      north:
+        description: "North latitude"
+        required: false
+        default: "23.8163"
+      east:
+        description: "East longitude"
+        required: false
+        default: "90.4185"
+  pull_request:
+    paths:
+      - "tools/map_pipeline/**"
+      - "tests/test_dhaka_map_pipeline.py"
+      - ".github/workflows/dhaka-3d-map.yml"
+      - "MAP_PIPELINE.md"
+  push:
+    branches: [main]
+    paths:
+      - "tools/map_pipeline/**"
+      - "tests/test_dhaka_map_pipeline.py"
+      - ".github/workflows/dhaka-3d-map.yml"
+      - "MAP_PIPELINE.md"
+
+permissions:
+  contents: read
+
+jobs:
+  build-map:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout canonical repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install geometry and GLB export dependencies
+        run: python -m pip install --upgrade pip shapely trimesh mapbox-earcut
+
+      - name: Run offline fixture tests
+        run: python -m unittest tests.test_dhaka_map_pipeline -v
+
+      - name: Fetch OSM data and build the real Dhaka map tile
+        shell: bash
+        env:
+          INPUT_SOUTH: ${{ inputs.south || '23.8043' }}
+          INPUT_WEST: ${{ inputs.west || '90.4065' }}
+          INPUT_NORTH: ${{ inputs.north || '23.8163' }}
+          INPUT_EAST: ${{ inputs.east || '90.4185' }}
+        run: |
+          python tools/map_pipeline/build_dhaka_map.py \
+            --bbox "$INPUT_SOUTH" "$INPUT_WEST" "$INPUT_NORTH" "$INPUT_EAST" \
+            --out build/dhaka-map
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          m = json.loads(Path("build/dhaka-map/map_manifest.json").read_text())
+          glb = Path("build/dhaka-map/Dhaka_Explorable_Map.glb")
+          assert glb.exists() and glb.stat().st_size > 1000, "GLB export missing or empty"
+          assert m["feature_counts"]["building_footprints"] > 0, "No building footprints in output"
+          assert m["feature_counts"]["road_ways"] > 0, "No roads in output"
+          print(f"GLB bytes: {glb.stat().st_size}")
+          print(json.dumps(m["feature_counts"], indent=2))
+          PY
+
+      - name: Upload standalone map package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dhaka-Explorable-3D-Map
+          path: |
+            build/dhaka-map/Dhaka_Explorable_Map.glb
+            build/dhaka-map/Dhaka_OSM_Source.geojson
+            build/dhaka-map/AI_Interior_Seeds.json
+            build/dhaka-map/map_manifest.json
+            build/dhaka-map/ATTRIBUTION.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
