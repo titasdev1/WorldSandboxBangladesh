@@ -36,8 +36,15 @@ func _ready():
  city_asset_factory.name = "CityAssetFactory"
  add_child(city_asset_factory)
  city_asset_factory.configure(self)
- build_city()
- build_landmarks()
+ # Prefer the streamed, georeferenced Dhaka package when the complete licensed
+ # OSM tile package is installed. Keep the existing city as a safe fallback.
+ var real_dhaka_loader = load("res://real_dhaka_tile_loader.gd").new()
+ real_dhaka_loader.name = "RealDhakaTileLoader"
+ add_child(real_dhaka_loader)
+ var real_dhaka_loaded: bool = real_dhaka_loader.configure(self)
+ if not real_dhaka_loaded:
+  build_city()
+  build_landmarks()
  var street_life = load("res://street_life_factory.gd").new()
  street_life.build(self)
  spawn_player()
