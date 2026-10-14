@@ -228,6 +228,25 @@ def fetch_geofabrik(bounds: tuple[float, float, float, float]) -> dict:
     return {"elements": elements}
 
 
+def element_intersects_bounds(element: dict, bounds: tuple[float, float, float, float]) -> bool:
+    south, west, north, east = bounds
+    points: list[tuple[float, float]] = []
+    if element.get("type") == "node":
+        if "lon" in element and "lat" in element:
+            points.append((float(element["lon"]), float(element["lat"])))
+    else:
+        for point in element.get("geometry", []):
+            if isinstance(point, dict) and "lon" in point and "lat" in point:
+                points.append((float(point["lon"]), float(point["lat"])))
+    if not points:
+        return False
+    min_lon = min(point[0] for point in points)
+    max_lon = max(point[0] for point in points)
+    min_lat = min(point[1] for point in points)
+    max_lat = max(point[1] for point in points)
+    return max_lon >= west and min_lon <= east and max_lat >= south and min_lat <= north
+
+
 def main() -> int:
     try:
         # The central district is required for a real-Dhaka build. Give each mirror
@@ -274,6 +293,18 @@ def main() -> int:
         stale.unlink()
     manifest = {"source": "OpenStreetMap contributors", "license": "ODbL-1.0",
                 "attribution": "© OpenStreetMap contributors", "grid": []}
+    city_bounds = (
+        ORIGIN_LAT - (CITY_GRID_RADIUS + 0.5) * CITY_CELL_DEGREES,
+        ORIGIN_LON - (CITY_GRID_RADIUS + 0.5) * CITY_CELL_DEGREES,
+        ORIGIN_LAT + (CITY_GRID_RADIUS + 0.5) * CITY_CELL_DEGREES,
+        ORIGIN_LON + (CITY_GRID_RADIUS + 0.5) * CITY_CELL_DEGREES,
+    )
+    try:
+        city_response = fetch_geofabrik(city_bounds)
+        print(f"Regional OSM extract ready for grid: {len(city_response['elements'])} elements")
+    except Exception as pbf_exc:
+        print(f"WARNING: regional PBF extraction unavailable: {pbf_exc}; per-cell Overpass fallback will be used")
+        city_response = {"elements": []}
     for row in range(-CITY_GRID_RADIUS, CITY_GRID_RADIUS + 1):
         for col in range(-CITY_GRID_RADIUS, CITY_GRID_RADIUS + 1):
             chunk_name = f"grid_{row + CITY_GRID_RADIUS:02d}_{col + CITY_GRID_RADIUS:02d}"
@@ -283,10 +314,11 @@ def main() -> int:
                       center_lon - CITY_CELL_DEGREES / 2,
                       center_lat + CITY_CELL_DEGREES / 2,
                       center_lon + CITY_CELL_DEGREES / 2)
-            try:
-                chunk_response = fetch_geofabrik(bounds)
-            except Exception as pbf_exc:
-                print(f"WARNING: PBF clip failed for {chunk_name}: {pbf_exc}; trying Overpass")
+            cell_elements = [element for element in city_response["elements"]
+                             if element_intersects_bounds(element, bounds)]
+            chunk_response = {"elements": cell_elements}
+            if not cell_elements:
+                print(f"WARNING: regional extract has no features in {chunk_name}; trying Overpass")
                 try:
                     chunk_response = fetch_overpass(bounds, timeout_seconds=25, attempts_per_endpoint=1,
                                                     endpoints=OVERPASS_ENDPOINTS)
