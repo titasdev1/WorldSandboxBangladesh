@@ -3,6 +3,18 @@ on:
   workflow_dispatch:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "world.gd"
+      - "player.gd"
+      - "vehicle.gd"
+      - "hud.gd"
+      - "district_map_display.gd"
+      - "real_dhaka_tile_loader.gd"
+      - "tools/map_pipeline/**"
+      - "tests/test_dhaka_map_pipeline.py"
+      - ".github/workflows/android.yml"
 
 permissions:
   contents: write
