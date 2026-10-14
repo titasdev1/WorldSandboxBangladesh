@@ -135,15 +135,25 @@ jobs:
         shell: bash
         run: python3 tools/report_build_assets.py
 
-      - name: Upload size audit report
-        uses: actions/upload-artifact@v4
-        with:
-          name: WorldSandboxBangladesh-Asset-Audit
-          path: build/asset_build_report.json
-          if-no-files-found: error
+      - name: Assemble one canonical build artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/canonical_release
+          find build -type f -name '*.apk' ! -path 'build/canonical_release/*' -exec cp {} build/canonical_release/ \;
+          test -n "$(find build/canonical_release -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          cp build/asset_build_report.json build/canonical_release/ASSET_BUILD_REPORT.json
+          cat > build/canonical_release/README.txt <<'EOF'
+          World Sandbox: Bangladesh / Project A-Square
+          This single artifact contains the Android APK and its exact size/asset audit.
+          The JSON report is build metadata, not a second game.
+          Artifact-container size and APK file size are different measurements.
+          EOF
+          ls -lh build/canonical_release
 
-      - name: Upload APK
+      - name: Upload one canonical game artifact (APK + audit)
         uses: actions/upload-artifact@v4
         with:
-          name: WorldSandboxBangladesh-Android
-          path: build/**/*.apk
+          name: WorldSandboxBangladesh-Canonical-Build
+          path: build/canonical_release/*
+          if-no-files-found: error
