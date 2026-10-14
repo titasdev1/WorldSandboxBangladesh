@@ -36,9 +36,10 @@ func _ready():
  city_asset_factory.name = "CityAssetFactory"
  add_child(city_asset_factory)
  city_asset_factory.configure(self)
- build_city()
- build_landmarks()
- _load_optional_real_world_map()
+ var has_real_world_map := _load_optional_real_world_map()
+ if not has_real_world_map:
+  build_city()
+  build_landmarks()
  var street_life = load("res://street_life_factory.gd").new()
  street_life.build(self)
  spawn_player()
@@ -438,15 +439,18 @@ func try_street_vendor(at: Vector3) -> bool:
     return true
 
 
-# Optional OpenStreetMap-derived GeoJSON overlay. When no licensed/local dataset
-# is packaged, the original city boots exactly as before.
-func _load_optional_real_world_map() -> void:
+# Real-world GeoJSON replaces the synthetic grid when data is available.
+# Never stack the procedural test city on top of the imported real street network.
+func _load_optional_real_world_map() -> bool:
     var data_path := "res://content/realworld/area.geojson"
     if not FileAccess.file_exists(data_path):
-        return
+        return false
     var importer = load("res://systems/osm_real_world_importer.gd").new()
     importer.name = "OSMRealWorldImporter"
     add_child(importer)
     if importer.import_geojson(self, data_path):
         event_text = "REAL-WORLD MAP DATA LOADED"
         event_time_left = 6.0
+        return true
+    importer.queue_free()
+    return false
