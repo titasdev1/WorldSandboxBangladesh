@@ -141,3 +141,20 @@ Development batches are measured by integrated playable capability, not workflow
 - Added `systems/combat_mode_controller.gd`: Combat Lab starts six practice targets and reports eliminations/completion; Last Stand starts escalating waves, tracks enemies remaining, progresses through three waves, and awards a victory reward. Entering a combat mode restores player health/ammo and resets wanted level.
 - Integrated controller lifecycle into `world.gd`, mode selection in `hud.gd`, and HUD health/combat progress. Corrected lobby subtitle to accurately say six modes.
 - Merged in commit `123f84f`. Next canonical run must validate script parsing/import/startup and Android export. This is a source-level playable loop, not yet device-verified; aiming, enemy pathing around buildings, difficulty, collision, and FPS need Android QA. Online play and full battle royale remain future systems.
+
+
+## 2026-10 real-Dhaka district + enterable storefront batch (draft PR #20)
+- Added build-time OpenStreetMap data retrieval for a bounded central-Dhaka starter district, with ODbL attribution in the runtime HUD and an offline converter regression test.
+- Replaced axis-aligned building blockouts in OSM mode with polygon-footprint roof/wall meshes and convex collision approximations. Inner holes and extra MultiPolygon parts remain unsupported.
+- Expanded the ground and movement bounds for the 2 km district; updated the minimap/HUD to identify Central Dhaka and draw imported roads.
+- Exported road polylines and connected them to traffic/police movement; pedestrians spawn near the mapped road network. Traffic currently reverses at the end of individual ways and is not yet a connected intersection/traffic-light simulation.
+- Added a reusable enterable shop interior with a procedural shopkeeper visual, shelves, products, lighting, counter purchases, health-item effects, and an exit. This is a functional first loop, not per-building architectural interiors or full inventory/dialogue systems.
+- Run [#237](https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/38544285677) passed its tested revision's production gate, Python checks, OSM converter tests, Godot import/startup, and Android export. It predates subsequent road-routing/interior/ground-bound changes. Run [#242](https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/38544545358) is still in progress when last checked and its tested revision may also predate the newest commits.
+- Keep PR #20 in draft until the latest head passes Godot import/startup and Android export. The public/main APK has not been updated by this draft branch.
+
+### Next implementation priorities
+1. Validate the newest branch head and fix any GDScript/runtime/export failures before distributing another APK.
+2. Upgrade per-way traffic reversal into connected road-graph navigation, intersections, lane directions, and traffic-light rules.
+3. Make shop interactions and missions use real mapped locations, then expand inventories and distinct interior archetypes.
+4. Add authored, properly licensed Bangladesh-specific assets and animations only when their visual quality is verified; keep 4K/8K assets as optional downloadable packs rather than fake base-game bulk.
+5. Continue toward streamed districts, save-state persistence, distinct modes, audio, multiplayer architecture, and device profiling. Do not claim online multiplayer or full Dhaka/world coverage until implemented and tested.
