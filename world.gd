@@ -232,6 +232,11 @@ func spawn_traffic():
   {"name":"Bus","size":Vector3(2.5, 2.6, 7.0), "speed":3.8, "color":Color("#d5a629")},
   {"name":"Motorcycle","size":Vector3(1.0, 1.2, 2.1), "speed":7.0, "color":Color("#3d4248")}
  ]
+ var osm_paths: Array = get_meta("osm_road_paths", []) if has_meta("osm_road_paths") else []
+ var usable_paths: Array = []
+ for path in osm_paths:
+  if path is Array and path.size() >= 2:
+   usable_paths.append(path)
  for i in range(30):
   var t = types[rng.randi_range(0, types.size() - 1)]
   var v = CharacterBody3D.new()
@@ -239,14 +244,23 @@ func spawn_traffic():
   v.world = self
   v.vehicle_type = t.name
   v.speed = t.speed * rng.randf_range(0.8, 1.2)
-  v.lane_axis = "z" if rng.randi_range(0, 1) == 0 else "x"
-  var lane = road_x[rng.randi_range(0, road_x.size() - 1)] if v.lane_axis == "z" else road_z[rng.randi_range(0, road_z.size() - 1)]
-  if v.lane_axis == "z":
-   v.position = Vector3(lane + (1.8 if i % 2 == 0 else -1.8), 0, rng.randf_range(-78, 78))
-  else:
-   v.position = Vector3(rng.randf_range(-78, 78), 0, lane + (1.8 if i % 2 == 0 else -1.8))
   v.body_size = t.size
   v.body_color = t.color
+  if not usable_paths.is_empty():
+   var selected_path: Array = usable_paths[rng.randi_range(0, usable_paths.size() - 1)]
+   v.road_route = selected_path.duplicate()
+   v.road_route_index = rng.randi_range(0, v.road_route.size() - 1)
+   v.road_route_direction = 1 if rng.randi_range(0, 1) == 0 else -1
+   v.position = v.road_route[v.road_route_index]
+   v.lane_axis = "osm"
+  else:
+   # Synthetic traffic remains the reliable fallback if OSM is unavailable.
+   v.lane_axis = "z" if rng.randi_range(0, 1) == 0 else "x"
+   var lane = road_x[rng.randi_range(0, road_x.size() - 1)] if v.lane_axis == "z" else road_z[rng.randi_range(0, road_z.size() - 1)]
+   if v.lane_axis == "z":
+    v.position = Vector3(lane + (1.8 if i % 2 == 0 else -1.8), 0, rng.randf_range(-78, 78))
+   else:
+    v.position = Vector3(rng.randf_range(-78, 78), 0, lane + (1.8 if i % 2 == 0 else -1.8))
   add_child(v)
 
 func spawn_npcs():
