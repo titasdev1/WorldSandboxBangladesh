@@ -680,7 +680,9 @@ func _load_optional_real_world_map() -> bool:
             var ground_mesh := ground.get_node_or_null("MeshInstance3D") as MeshInstance3D
             if ground_mesh and ground_mesh.mesh is BoxMesh:
                 (ground_mesh.mesh as BoxMesh).size = Vector3(2500, 1, 2500)
-        event_text = "REAL-WORLD MAP DATA LOADED"
+        var imported_road_count := int(get_meta("osm_import_roads", 0))
+        var imported_building_count := int(get_meta("osm_import_buildings", 0))
+        event_text = "CENTRAL DHAKA MAP: %d ROAD WAYS / %d BUILDINGS" % [imported_road_count, imported_building_count]
         event_time_left = 6.0
         return true
     importer.queue_free()
