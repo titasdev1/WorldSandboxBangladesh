@@ -182,3 +182,12 @@ The user's staged ambition is: **a meaningful first content-rich project around 
 ## 10. Definition of success
 
 Success is not “a huge ZIP,” “many commits,” “a successful compile,” or a polished menu alone. Success is one continuously improved Android game where the player can enter a recognizable, lively city; control the character and camera naturally; use local transport and bargain fares; explore and discover districts; complete varied missions; interact with markets and NPCs; play real combat modes; save progress; and eventually join other players or download new map regions. All of this must remain in one canonical project, with measurable build evidence and no silent loss of earlier working features.
+
+
+## 11. Latest cumulative development checkpoint — 14 October 2026
+
+- The canonical Android workflow #223 passed: https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/38513708962
+- Added separate asset/APK size audit reporting. Artifact container was 188,983,443 bytes; audit report artifact was 884 bytes. These are not the APK's raw size. The JSON report must be inspected to retrieve exact APK bytes and texture/model counts.
+- Merged commit `123f84f` adds the first distinct combat-mode gameplay controller: six stationary targets and completion feedback for Combat Lab; three escalating waves, enemy pursuit/damage, kill progress and victory reward for Last Stand. Player health/ammo/wanted state reset on entering a combat mode. The lobby now correctly says six modes.
+- This is merged source code, **not yet build-verified** as of this checkpoint. The next canonical workflow must pass before treating the combat loop as validated. Physical Android aiming, enemy navigation/collision, performance, and touch UX still need real-device QA.
+- Immediate next task: verify the combat loop build; fix regressions before adding more features; then deepen multi-stage local missions, transportation fare negotiation, and district-specific activities without replacing the existing city systems.
