@@ -18,6 +18,7 @@ on:
     paths:
       - "tools/map_pipeline/**"
       - "tests/test_dhaka_map_pipeline.py"
+      - "tests/test_dhaka_division_pipeline.py"
       - ".github/workflows/dhaka-3d-map.yml"
       - ".github/workflows/dhaka-division-map.yml"
       - "MAP_PIPELINE.md"
@@ -26,6 +27,7 @@ on:
     paths:
       - "tools/map_pipeline/**"
       - "tests/test_dhaka_map_pipeline.py"
+      - "tests/test_dhaka_division_pipeline.py"
       - ".github/workflows/dhaka-3d-map.yml"
       - ".github/workflows/dhaka-division-map.yml"
       - "MAP_PIPELINE.md"
@@ -55,10 +57,10 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install osmium shapely trimesh mapbox-earcut
 
-      - name: Validate Python syntax and existing offline fixtures
+      - name: Validate Python syntax and offline fixtures
         run: |
           python -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_division.py tools/map_pipeline/tile_grid.py
-          python -m unittest discover -s tests -p 'test_dhaka_map_pipeline.py' -v
+          python -m unittest discover -s tests -p 'test_dhaka*_pipeline.py' -v
 
       - name: Build boundary-clipped Dhaka Division tiles
         run: |
