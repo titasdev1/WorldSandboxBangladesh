@@ -73,9 +73,10 @@ func _physics_process(delta):
  else:
   velocity.y = -0.5
  move_and_slide()
- # The playable world now extends to the 600 m outer districts.
- position.x = clamp(position.x, -285.0, 285.0)
- position.z = clamp(position.z, -285.0, 285.0)
+ # Keep the synthetic test map bounded, but let OSM mode traverse the full starter district.
+ var movement_bound := 1100.0 if world and world.has_meta("osm_road_paths") else 285.0
+ position.x = clamp(position.x, -movement_bound, movement_bound)
+ position.z = clamp(position.z, -movement_bound, movement_bound)
  _update_camera()
  if Input.is_action_just_pressed("fire") and world and ammo > 0 and reload_time <= 0.0:
   ammo -= 1
