@@ -57,6 +57,7 @@ func _process(delta: float) -> void:
   else:
    loaded_chunks[chunk_id] = "empty"
    chunk_root.queue_free()
+  importer.queue_free()
 
 func _expand_ground() -> void:
  if not is_instance_valid(world):

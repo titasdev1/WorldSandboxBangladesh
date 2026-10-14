@@ -123,7 +123,7 @@ func _import_road(raw_coords: Variant, highway_type: String, properties: Diction
 
     if is_drivable and current_path.size() > 1:
         imported_road_paths.append(current_path.duplicate())
-    if highway_type in ["trunk", "primary", "secondary", "tertiary", "residential"] and properties.has("name"):
+    if highway_type in ["trunk", "primary", "secondary", "tertiary", "residential"] and (properties.has("name") or properties.has("name:bn")):
         _add_road_label(raw_coords, properties)
     imported_roads += 1
 
