@@ -213,11 +213,18 @@ func _process(_delta):
  if district_map:
   district_map.call("update_world", w)
  stats.text = "৳ %d    Wanted: %d/5    Weather: %s" % [w.cash, w.wanted, "RAIN" if w.rain else "CLEAR"]
- if w.mission_active:
+ var mission_factory = w.get_node_or_null("MissionFactory")
+ if is_instance_valid(mission_factory) and int(mission_factory.get("active_index")) >= 0:
+  var active_index: int = int(mission_factory.get("active_index"))
+  var side_missions: Array = mission_factory.get("missions")
+  if active_index < side_missions.size():
+   var active_mission: Dictionary = side_missions[active_index]
+   mission.text = "SIDE JOB: %s    REWARD +৳%d    FARE ৳%d → OFFER ৳%d" % [active_mission.get("title", "Local job"), int(active_mission.get("reward", 0)), w.fare_requested, w.bargain_offer]
+ elif w.mission_active:
   var stage_names = ["Market delivery", "Tower pickup", "Bus terminal drop"]
-  mission.text = "MISSION %d/3: %s    Rickshaw fare ৳%d → offer ৳%d" % [w.mission_stage + 1, stage_names[w.mission_stage], w.fare_requested, w.bargain_offer]
+  mission.text = "STORY %d/3: %s    Rickshaw fare ৳%d → offer ৳%d" % [w.mission_stage + 1, stage_names[w.mission_stage], w.fare_requested, w.bargain_offer]
  else:
-  mission.text = "MISSION COMPLETE  +৳1000   FREE ROAM"
+  mission.text = "STORY COMPLETE  +৳1000   FREE ROAM"
  var ammo_text = "%d/%d" % [w.player.ammo, w.player.reserve_ammo] if w.player else "30/120"
  var reload_text = " • RELOADING" if w.player and w.player.reload_time > 0.0 else ""
  status.text = "NOBORONGO CITY • PLAYABLE CORE • VEHICLES • POLICE • WEATHER\nAMMO %s%s   %s" % [ammo_text, reload_text, w.event_text if w.event_time_left > 0 else "Explore • drive • bargain • fight"]
