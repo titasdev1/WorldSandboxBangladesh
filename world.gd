@@ -439,6 +439,52 @@ func try_street_vendor(at: Vector3) -> bool:
     return true
 
 
+# OSM-tagged storefronts become usable economy interactions, not just decorative signs.
+func try_osm_shop_interaction(at: Vector3) -> bool:
+    var nearest_shop: StaticBody3D
+    var nearest_distance := 6.0
+    for node in get_children():
+        if not node is StaticBody3D or not node.has_meta("is_shop"):
+            continue
+        var distance := Vector2(at.x - node.global_position.x, at.z - node.global_position.z).length()
+        if distance < nearest_distance:
+            nearest_distance = distance
+            nearest_shop = node
+    if not is_instance_valid(nearest_shop):
+        return false
+
+    var shop_type := str(nearest_shop.get_meta("shop_type", "general")).to_lower()
+    var shop_name := str(nearest_shop.get_meta("shop_name", "Local Shop"))
+    var price := 35
+    var product := "snack"
+    var health_gain := 18
+    if shop_type in ["pharmacy", "chemist", "medical_supply"]:
+        price = 90
+        product = "first-aid medicine"
+        health_gain = 45
+    elif shop_type in ["restaurant", "fast_food", "food", "cafe", "bakery"]:
+        price = 45
+        product = "meal"
+        health_gain = 25
+    elif shop_type in ["supermarket", "convenience", "grocery"]:
+        price = 30
+        product = "packed food"
+        health_gain = 15
+
+    if player and player.health >= 100:
+        event_text = "%s: YOU DON'T NEED A RECOVERY ITEM" % shop_name
+        event_time_left = 3.5
+    elif cash < price:
+        event_text = "%s: NEED ৳%d FOR %s" % [shop_name, price, product.to_upper()]
+        event_time_left = 3.5
+    elif player:
+        cash -= price
+        player.health = mini(100, player.health + health_gain)
+        event_text = "%s: BOUGHT %s  -৳%d  +%d HEALTH" % [shop_name, product.to_upper(), price, health_gain]
+        event_time_left = 4.5
+    return true
+
+
 # Real-world GeoJSON replaces the synthetic grid when data is available.
 # Never stack the procedural test city on top of the imported real street network.
 func _load_optional_real_world_map() -> bool:
