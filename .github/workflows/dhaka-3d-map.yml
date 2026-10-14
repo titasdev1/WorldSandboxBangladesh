@@ -36,7 +36,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: dhaka-division-map-${{ github.ref }}
+  group: dhaka-division-map-v2-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
