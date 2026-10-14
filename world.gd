@@ -576,6 +576,39 @@ func _build_shop_interior() -> void:
     _interior_box("ShelfProductsB", Vector3(-0.65, 123.0, 4.35), Vector3(0.75, 0.6, 0.35), Color("#529a6b"), false)
     _interior_box("ShelfProductsC", Vector3(0.7, 123.0, 4.35), Vector3(0.75, 0.6, 0.35), Color("#4e8ab8"), false)
     _interior_box("ShelfProductsD", Vector3(2.05, 123.0, 4.35), Vector3(0.75, 0.6, 0.35), Color("#b45b50"), false)
+
+    # Generate a layout that matches the mapped storefront type instead of
+    # giving every real-world shop the same generic shelf arrangement.
+    if interior_shop_type in ["pharmacy", "chemist", "medical_supply", "healthcare"]:
+        _interior_box("MedicineRackLeft", Vector3(-4.8, 122.6, 1.4), Vector3(0.35, 2.2, 6.0), Color("#e8e4d8"), true)
+        _interior_box("MedicineRackRight", Vector3(4.8, 122.6, 1.4), Vector3(0.35, 2.2, 6.0), Color("#e8e4d8"), true)
+        for row in range(3):
+            for column in range(4):
+                var medicine_color: Color = [Color("#f4f0df"), Color("#4c9e91"), Color("#d86c64"), Color("#e0b54f")][(row + column) % 4]
+                _interior_box("MedicinePack_%d_%d" % [row, column], Vector3(-4.55 + float(column) * 0.12, 121.9 + float(row) * 0.62, -1.0 + float(column) * 1.25), Vector3(0.22, 0.34, 0.72), medicine_color, false)
+        _interior_box("PharmacyCross", Vector3(0, 127.8, 5.55), Vector3(1.1, 1.1, 0.12), Color("#2f9a70"), false)
+    elif interior_shop_type in ["restaurant", "fast_food", "food", "cafe", "bakery"]:
+        _interior_box("DiningTableA", Vector3(-3.2, 121.1, -1.0), Vector3(2.0, 0.16, 1.4), Color("#80543a"), true)
+        _interior_box("DiningTableB", Vector3(3.1, 121.1, -1.0), Vector3(2.0, 0.16, 1.4), Color("#80543a"), true)
+        for stool_x in [-3.8, -2.6, 2.5, 3.7]:
+            _interior_box("DiningStool", Vector3(stool_x, 120.45, -1.0), Vector3(0.55, 0.75, 0.55), Color("#343b3d"), true)
+        _interior_box("MenuBoard", Vector3(0, 127.7, 5.58), Vector3(4.6, 1.4, 0.12), Color("#2e3830"), false)
+        _interior_box("ServingCounter", Vector3(0, 121.0, 2.7), Vector3(5.8, 0.28, 1.0), Color("#a16b42"), false)
+    elif interior_shop_type in ["supermarket", "convenience", "grocery", "general", "variety_store"]:
+        _interior_box("AisleRackLeft", Vector3(-2.9, 122.2, 0.8), Vector3(0.65, 2.0, 4.8), Color("#6b5542"), true)
+        _interior_box("AisleRackRight", Vector3(2.9, 122.2, 0.8), Vector3(0.65, 2.0, 4.8), Color("#6b5542"), true)
+        for row in range(3):
+            for column in range(3):
+                var pack_color: Color = [Color("#dfb84d"), Color("#4f9b68"), Color("#d56d55"), Color("#578bb5"), Color("#e4d8c2")][(row * 2 + column) % 5]
+                _interior_box("AisleGoods_%d_%d" % [row, column], Vector3(-3.28 + float(column) * 0.08, 121.6 + float(row) * 0.58, -1.0 + float(column) * 1.45), Vector3(0.2, 0.32, 0.68), pack_color, false)
+    elif interior_shop_type in ["mobile_phone", "electronics", "computer", "electrical"]:
+        _interior_box("ElectronicsDisplay", Vector3(0, 121.0, -1.2), Vector3(4.8, 0.3, 1.0), Color("#303d49"), false)
+        for phone_index in range(5):
+            _interior_box("PhoneDisplay_%d" % phone_index, Vector3(-1.8 + float(phone_index) * 0.9, 121.25, -1.2), Vector3(0.35, 0.08, 0.62), [Color("#171c22"), Color("#647c8b"), Color("#222222")][phone_index % 3], false)
+        _interior_box("AccessoryWall", Vector3(0, 124.4, 5.5), Vector3(6.0, 2.4, 0.18), Color("#414b54"), false)
+    else:
+        _interior_box("WallPoster", Vector3(-4.9, 124.5, 3.2), Vector3(0.12, 1.8, 1.3), Color("#c5ad72"), false)
+        _interior_box("CustomerBench", Vector3(3.5, 120.8, -2.8), Vector3(2.0, 0.7, 0.65), Color("#80543a"), true)
     var sign := Label3D.new()
     sign.name = "InteriorShopSign"
     sign.text = interior_shop_name
