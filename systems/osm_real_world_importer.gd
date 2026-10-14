@@ -54,6 +54,8 @@ func import_geojson(target_world: Node3D, path := "res://content/realworld/area.
             _import_road(coords, str(properties.get("highway", "road")), properties)
         elif properties.has("building") and (kind == "Polygon" or kind == "MultiPolygon"):
             _import_building(coords, kind, properties)
+        elif kind == "Point" and coords is Array and coords.size() >= 2:
+            _import_place(coords, properties)
         else:
             skipped_features += 1
     if features.size() > max_features:
@@ -68,6 +70,24 @@ func import_geojson(target_world: Node3D, path := "res://content/realworld/area.
     metadata_world.set_meta("osm_import_buildings", int(metadata_world.get_meta("osm_import_buildings", 0)) + imported_buildings)
     metadata_world.set_meta("osm_import_skipped", int(metadata_world.get_meta("osm_import_skipped", 0)) + skipped_features)
     return imported_roads > 0 or imported_buildings > 0
+
+func _import_place(coords: Array, properties: Dictionary) -> void:
+    var display_name := str(properties.get("name:bn", properties.get("name", properties.get("brand", "")))).strip_edges()
+    if display_name.is_empty():
+        display_name = str(properties.get("shop", properties.get("amenity", properties.get("office", properties.get("tourism", "Place"))))).replace("_", " ").capitalize()
+    var category := str(properties.get("shop", properties.get("amenity", properties.get("office", properties.get("tourism", "place")))))
+    var label := Label3D.new()
+    label.name = "OSMPlace_" + str(properties.get("osm_id", display_name))
+    label.text = display_name
+    label.font_size = 22
+    label.pixel_size = 0.006
+    label.outline_size = 7
+    label.modulate = Color("#ffe4a3") if properties.has("shop") else Color("#d8edff")
+    label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    label.position = _to_local(coords) + Vector3(0, 2.2, 0)
+    label.set_meta("osm_properties", properties.duplicate(true))
+    label.set_meta("place_category", category)
+    world.add_child(label)
 
 func _to_local(coord: Variant) -> Vector3:
     if not coord is Array or coord.size() < 2:

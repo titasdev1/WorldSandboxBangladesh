@@ -19,9 +19,9 @@ OUTPUT = ROOT / "content" / "realworld" / "area.geojson"
 CHUNK_DIR = ROOT / "content" / "realworld" / "chunks"
 # Approximately a 1.3 km x 1.2 km central-Dhaka starter district; neighboring chunks extend exploration.
 SOUTH, WEST, NORTH, EAST = 23.8043, 90.4065, 23.8163, 90.4185
-MAX_FEATURES = 1400
+MAX_FEATURES = 1800
 ROAD_LIMIT = 400
-CHUNK_MAX_FEATURES = 600
+CHUNK_MAX_FEATURES = 1000
 CHUNK_ROAD_LIMIT = 180
 CHUNK_OFFSETS = {"north": (0.0120, 0.0), "south": (-0.0120, 0.0), "east": (0.0, 0.0120), "west": (0.0, -0.0120)}
 OVERPASS_ENDPOINTS = (
@@ -39,6 +39,10 @@ def fetch_overpass(bounds: tuple[float, float, float, float] | None = None, time
         f"[out:json][timeout:{timeout_seconds}];("
         f'way["highway"]({bbox});'
         f'way["building"]({bbox});'
+        f'node["shop"]({bbox});'
+        f'node["amenity"]({bbox});'
+        f'node["office"]({bbox});'
+        f'node["tourism"]({bbox});'
         ");out tags geom;"
     )
     payload = query.encode("utf-8")
@@ -70,9 +74,28 @@ def fetch_overpass(bounds: tuple[float, float, float, float] | None = None, time
     raise RuntimeError(f"all Overpass endpoints failed: {last_error}")
 
 def to_feature(element: dict) -> dict | None:
-    if element.get("type") != "way" or not isinstance(element.get("geometry"), list):
-        return None
+    element_type = element.get("type")
     tags = element.get("tags", {})
+    if element_type == "node":
+        if not isinstance(tags, dict) or not any(key in tags for key in ("shop", "amenity", "office", "tourism", "brand", "name", "name:bn")):
+            return None
+        if "lon" not in element or "lat" not in element:
+            return None
+        properties = {
+            key: tags[key]
+            for key in (
+                "name", "name:bn", "brand", "shop", "amenity", "office",
+                "tourism", "cuisine", "opening_hours", "addr:street",
+                "addr:housenumber", "phone", "website", "wheelchair",
+            ) if key in tags
+        }
+        properties["osm_id"] = int(element.get("id", 0))
+        properties["source"] = "OpenStreetMap"
+        return {"type": "Feature", "id": f"node/{element.get('id', 0)}",
+                "properties": properties,
+                "geometry": {"type": "Point", "coordinates": [float(element["lon"]), float(element["lat"])]}}
+    if element_type != "way" or not isinstance(element.get("geometry"), list):
+        return None
     if not isinstance(tags, dict):
         return None
     coords = []
@@ -110,6 +133,7 @@ def to_feature(element: dict) -> dict | None:
 def prepare_features(response: dict, max_features: int, road_limit: int) -> tuple[list[dict], int, int]:
     roads: list[dict] = []
     buildings: list[dict] = []
+    places: list[dict] = []
     for element in response["elements"]:
         feature = to_feature(element)
         if feature is None:
@@ -119,6 +143,8 @@ def prepare_features(response: dict, max_features: int, road_limit: int) -> tupl
             roads.append(feature)
         elif "building" in props:
             buildings.append(feature)
+        elif any(key in props for key in ("shop", "amenity", "office", "tourism", "brand", "name", "name:bn")):
+            places.append(feature)
     roads.sort(key=lambda f: (
         {"primary": 0, "secondary": 1, "tertiary": 2, "residential": 3,
          "unclassified": 4, "service": 5}.get(f["properties"].get("highway"), 6),
@@ -129,8 +155,15 @@ def prepare_features(response: dict, max_features: int, road_limit: int) -> tupl
         0 if f["properties"].get("name") else 1,
         f["properties"].get("osm_id", 0),
     ))
-    selected = roads[:road_limit] + buildings[:max_features - road_limit]
-    return selected[:max_features], min(len(roads), road_limit), min(len(buildings), max_features - road_limit)
+    places.sort(key=lambda f: (
+        0 if f["properties"].get("name:bn") else 1,
+        0 if f["properties"].get("name") else 1,
+        f["properties"].get("osm_id", 0),
+    ))
+    place_limit = min(max_features // 4, 400)
+    building_limit = max(0, max_features - road_limit - place_limit)
+    selected = roads[:road_limit] + buildings[:building_limit] + places[:place_limit]
+    return selected[:max_features], min(len(roads), road_limit), min(len(buildings), building_limit)
 
 def main() -> int:
     try:
@@ -160,6 +193,7 @@ def main() -> int:
             "feature_count": len(features),
             "roads": road_count,
             "buildings": building_count,
+            "named_places": sum(1 for f in features if f["geometry"]["type"] == "Point"),
         },
         "features": features,
     }
@@ -197,6 +231,7 @@ def main() -> int:
                 "feature_count": len(chunk_features),
                 "roads": chunk_roads,
                 "buildings": chunk_buildings,
+                "named_places": sum(1 for f in chunk_features if f["geometry"]["type"] == "Point"),
             },
             "features": chunk_features,
         }

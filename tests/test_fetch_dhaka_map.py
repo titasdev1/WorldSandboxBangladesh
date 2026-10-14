@@ -44,6 +44,19 @@ class DhakaFeatureConversionTests(unittest.TestCase):
         self.assertEqual(feature["properties"]["name"], "Local Market")
         self.assertEqual(feature["properties"]["building:levels"], "3")
 
+    def test_shop_node_preserves_exact_name_and_position(self) -> None:
+        feature = to_feature({
+            "type": "node", "id": 991,
+            "lon": 90.4123, "lat": 23.8107,
+            "tags": {"shop": "convenience", "name": "Example Mart", "name:bn": "উদাহরণ মার্ট"}
+        })
+        self.assertIsNotNone(feature)
+        assert feature is not None
+        self.assertEqual(feature["geometry"]["type"], "Point")
+        self.assertEqual(feature["geometry"]["coordinates"], [90.4123, 23.8107])
+        self.assertEqual(feature["properties"]["name"], "Example Mart")
+        self.assertEqual(feature["properties"]["name:bn"], "উদাহরণ মার্ট")
+
     def test_non_way_and_unusable_geometry_are_ignored(self) -> None:
         self.assertIsNone(to_feature({"type": "relation", "tags": {"building": "yes"}, "geometry": []}))
         self.assertIsNone(to_feature({"type": "way", "tags": {"building": "yes"},
