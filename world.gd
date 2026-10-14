@@ -12,6 +12,7 @@ var mission_progress := 0
 var fare_requested := 120
 var bargain_offer := 80
 var mission_target := Vector3(42, 0, 42)
+var real_mission_targets: Array[Vector3] = []
 var rng := RandomNumberGenerator.new()
 var police_timer := 0.0
 var event_timer := 0.0
@@ -53,6 +54,7 @@ func _ready():
  spawn_player()
  spawn_traffic()
  spawn_npcs()
+ _configure_real_missions()
  spawn_police()
  create_mission_marker()
  _setup_a_square()
@@ -374,11 +376,11 @@ func _process(delta):
   var distance = player.position.distance_to(mission_target)
   if mission_stage == 0 and distance < 6:
    mission_stage = 1
-   mission_target = Vector3(-36, 0, -36)
+   mission_target = real_mission_targets[1] if real_dhaka_loaded and real_mission_targets.size() > 1 else Vector3(-36, 0, -36)
    update_marker()
   elif mission_stage == 1 and player.position.distance_to(mission_target) < 6:
    mission_stage = 2
-   mission_target = Vector3(30, 0, -30)
+   mission_target = real_mission_targets[2] if real_dhaka_loaded and real_mission_targets.size() > 2 else Vector3(30, 0, -30)
    cash += 250
    update_marker()
   elif mission_stage == 2 and player.position.distance_to(mission_target) < 6:
@@ -456,11 +458,41 @@ var district_factory
 var gameplay_director
 var city_stream_timer := 0.0
 
+func _configure_real_missions() -> void:
+    if not real_dhaka_loaded or not real_dhaka_loader:
+        return
+    var routes: Array = real_dhaka_loader.get_road_routes()
+    var candidates: Array[Vector3] = []
+    for route in routes:
+        for point in route:
+            var p: Vector3 = point
+            if Vector2(p.x - player.position.x, p.z - player.position.z).length() <= 220.0:
+                var unique := true
+                for existing in candidates:
+                    if existing.distance_to(p) < 18.0:
+                        unique = false
+                        break
+                if unique:
+                    candidates.append(p)
+    if candidates.is_empty():
+        return
+    candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
+        return a.distance_to(player.position) < b.distance_to(player.position)
+    )
+    real_mission_targets.clear()
+    real_mission_targets.append(candidates[mini(0, candidates.size() - 1)])
+    if candidates.size() > 1:
+        real_mission_targets.append(candidates[mini(1, candidates.size() - 1)])
+    if candidates.size() > 2:
+        real_mission_targets.append(candidates[mini(2, candidates.size() - 1)])
+    mission_target = real_mission_targets[0]
+
 func _setup_a_square():
     district_factory = load("res://systems/district_factory.gd").new()
     district_factory.name = "DistrictFactory"
     add_child(district_factory)
-    district_factory.build(self, player)
+    if not real_dhaka_loaded:
+        district_factory.build(self, player)
     gameplay_director = load("res://systems/gameplay_director.gd").new()
     gameplay_director.name = "GameplayDirector"
     add_child(gameplay_director)
@@ -482,6 +514,8 @@ func notify_gameplay_event(event_name: String, value := 1):
 
 # Interactable market stalls: spend a little cash to recover health.
 func try_street_vendor(at: Vector3) -> bool:
+    if real_dhaka_loaded:
+        return false
     var stalls := [Vector3(18,0,-20), Vector3(23,0,-20), Vector3(28,0,-20), Vector3(33,0,-20), Vector3(18,0,-25), Vector3(33,0,-25)]
     var nearest := 999.0
     for stall in stalls:
