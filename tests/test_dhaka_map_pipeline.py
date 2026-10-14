@@ -6,12 +6,22 @@ from pathlib import Path
 import trimesh
 from shapely.geometry import shape
 
-from tools.map_pipeline.build_dhaka_map import DEFAULT_BBOX, build_map, local_xy
+from tools.map_pipeline.build_dhaka_map import DEFAULT_BBOX, build_map, building_height, local_xy
 
 
 class DhakaMapPipelineTests(unittest.TestCase):
     def test_default_tile_matches_existing_central_dhaka_anchor(self):
         self.assertEqual(DEFAULT_BBOX, (23.8043, 90.4065, 23.8163, 90.4185))
+
+    def test_unmapped_building_height_is_not_fabricated_as_a_tall_building(self):
+        height, inferred = building_height({"building": "yes"}, 999999)
+        self.assertEqual(height, 3.2)
+        self.assertTrue(inferred)
+
+    def test_tagged_building_levels_are_preserved_as_source_data(self):
+        height, inferred = building_height({"building:levels": "5"}, 1001)
+        self.assertAlmostEqual(height, 15.5)
+        self.assertFalse(inferred)
 
     def test_local_projection_is_stable_and_metric(self):
         x, y = local_xy(23.781, 90.407, 23.780, 90.407)
@@ -57,10 +67,13 @@ class DhakaMapPipelineTests(unittest.TestCase):
             min_xy = local_xy(south, west, origin_lat, origin_lon)
             max_xy = local_xy(north, east, origin_lat, origin_lon)
             width, depth = max_xy[0] - min_xy[0], max_xy[1] - min_xy[1]
+            # GLB must use Y-up: X is east-west, Y is elevation, Z is north-south.
             self.assertGreaterEqual(scene.bounds[0][0], -width / 2 - 1)
             self.assertLessEqual(scene.bounds[1][0], width / 2 + 1)
-            self.assertGreaterEqual(scene.bounds[0][1], -depth / 2 - 1)
-            self.assertLessEqual(scene.bounds[1][1], depth / 2 + 1)
+            self.assertGreaterEqual(scene.bounds[0][2], -depth / 2 - 1)
+            self.assertLessEqual(scene.bounds[1][2], depth / 2 + 1)
+            self.assertGreater(scene.bounds[1][1], scene.bounds[0][1])
+            self.assertLess(scene.bounds[1][1], 260)
             self.assertEqual(manifest["feature_counts"]["building_footprints"], 1)
             self.assertEqual(manifest["feature_counts"]["road_ways"], 1)
             self.assertTrue((out / "Dhaka_OSM_Source.geojson").exists())

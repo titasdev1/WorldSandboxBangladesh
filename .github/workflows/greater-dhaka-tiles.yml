@@ -1,0 +1,89 @@
+name: Build Greater Dhaka Real-World 3D Tiles
+
+on:
+  workflow_dispatch:
+    inputs:
+      tile_degrees:
+        description: "Tile edge in degrees"
+        required: true
+        default: "0.02"
+        type: choice
+        options:
+          - "0.01"
+          - "0.02"
+          - "0.03"
+  push:
+    branches:
+      - feature/dhaka-real-map-pipeline
+    paths:
+      - "tools/map_pipeline/**"
+      - ".github/workflows/greater-dhaka-tiles.yml"
+      - "tests/test_dhaka_map_pipeline.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: greater-dhaka-tiles-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bake-region:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout map pipeline
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install geospatial dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install osmium shapely trimesh mapbox-earcut
+
+      - name: Validate map exporter and fixtures
+        run: |
+          python -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_region.py
+          python -m unittest discover -s tests -p 'test_dhaka_map_pipeline.py' -v
+
+      - name: Build mapped Greater Dhaka tiles from the Bangladesh OSM extract
+        run: |
+          python tools/map_pipeline/build_dhaka_region.py \
+            --tile-degrees "${{ inputs.tile_degrees || '0.02' }}" \
+            --out build/greater-dhaka
+
+      - name: Verify every listed GLB exists and package has real geometry
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("build/greater-dhaka")
+          manifest = json.loads((root / "map_tiles_manifest.json").read_text())
+          glbs = list(root.rglob("Dhaka_Explorable_Map.glb"))
+          if not glbs:
+              raise SystemExit("No GLB tiles were built")
+          if len(glbs) != manifest["tile_count_with_geometry"]:
+              raise SystemExit("Manifest tile count does not match the GLB files")
+          if not (root / "ATTRIBUTION.txt").is_file():
+              raise SystemExit("OSM attribution is missing")
+          print(json.dumps({
+              "region": manifest["region_south_west_north_east"],
+              "tiles_with_geometry": len(glbs),
+              "source_elements": manifest["source_elements_in_region"],
+              "total_glb_bytes": sum(p.stat().st_size for p in glbs),
+              "manifest": str(root / "map_tiles_manifest.json"),
+          }, indent=2))
+          PY
+
+      - name: Upload Greater Dhaka 3D map package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project-A-Square-Greater-Dhaka-3D-Tiles
+          path: build/greater-dhaka/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 1
