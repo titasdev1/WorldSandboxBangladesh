@@ -16,11 +16,12 @@ var mode_buttons: Array[Button] = []
 var district_map: Control
 var map_button: Button
 var map_attribution: Label
+var extreme_speed_button: Button
 
 func _ready():
  w = get_parent()
  var title = Label.new()
- title.text = "WORLD SANDBOX: BANGLADESH"
+ title.text = "PROJECT A-SQUARE  •  DHAKA"
  title.position = Vector2(28, 20)
  title.add_theme_font_size_override("font_size", 28)
  add_child(title)
@@ -72,6 +73,14 @@ func _ready():
  add_touch_button("FIRE", Vector2(1080, 560), Vector2(150, 75), "fire")
  add_touch_button("BARGAIN", Vector2(900, 650), Vector2(150, 55), "interact")
  add_touch_button("RAIN", Vector2(1060, 650), Vector2(150, 55), "rain")
+ extreme_speed_button = Button.new()
+ extreme_speed_button.name = "ExtremeSpeedToggle"
+ extreme_speed_button.text = "EXTREME SPEED: OFF"
+ extreme_speed_button.position = Vector2(700, 635)
+ extreme_speed_button.size = Vector2(185, 55)
+ extreme_speed_button.add_theme_font_size_override("font_size", 15)
+ extreme_speed_button.pressed.connect(_toggle_extreme_speed)
+ add_child(extreme_speed_button)
  _build_settings_ui()
  _load_graphics_settings()
  _build_navigation_map()
@@ -170,6 +179,16 @@ func _build_settings_ui() -> void:
  close_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
  close_button.pressed.connect(func(): settings_panel.visible = false)
  column.add_child(close_button)
+
+func _toggle_extreme_speed() -> void:
+ if not is_instance_valid(w) or not is_instance_valid(w.player):
+  return
+ var enabled := not bool(w.player.get("extreme_speed_enabled"))
+ w.player.call("set_extreme_speed_enabled", enabled)
+ if extreme_speed_button:
+  extreme_speed_button.text = "EXTREME SPEED: ON" if enabled else "EXTREME SPEED: OFF"
+ w.event_text = "EXTREME SPEED ENABLED • 198 KM/H" if enabled else "NORMAL MOVEMENT RESTORED"
+ w.event_time_left = 3.0
 
 func _toggle_settings() -> void:
  if settings_panel:
