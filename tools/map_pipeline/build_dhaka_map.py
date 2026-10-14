@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import trimesh
-from shapely.geometry import GeometryCollection, LineString, MultiPolygon, Polygon
+from shapely.geometry import GeometryCollection, LineString, MultiLineString, MultiPolygon, Point, Polygon, box, mapping, shape
 from shapely.ops import unary_union
 
 # First map slice: central Dhaka. Small enough for responsible Overpass use and
@@ -160,7 +160,15 @@ def road_width(tags: dict[str, str]) -> float:
     return widths.get(highway, 3.5)
 
 
-def make_geojson(elements: list[dict[str, Any]], origin_lat: float, origin_lon: float) -> dict[str, Any]:
+def make_geojson(
+    elements: list[dict[str, Any]],
+    origin_lat: float,
+    origin_lon: float,
+    bbox: tuple[float, float, float, float],
+) -> dict[str, Any]:
+    """Export only source features clipped to the requested geographic tile."""
+    south, west, north, east = bbox
+    tile = box(west, south, east, north)
     features = []
     for el in elements:
         tags = el.get("tags", {})
@@ -168,25 +176,45 @@ def make_geojson(elements: list[dict[str, Any]], origin_lat: float, origin_lon: 
         if not tags:
             continue
         if el.get("type") == "node" and "lat" in el and "lon" in el:
-            geometry = {"type": "Point", "coordinates": [float(el["lon"]), float(el["lat"])]}
+            source_geom = Point(float(el["lon"]), float(el["lat"]))
         else:
-            coords = [[float(p["lon"]), float(p["lat"])] for p in geom if "lon" in p and "lat" in p]
+            coords = [(float(p["lon"]), float(p["lat"])) for p in geom if "lon" in p and "lat" in p]
             if not coords:
                 continue
             if el.get("type") == "way" and tags.get("building") and len(coords) >= 4 and coords[0] == coords[-1]:
-                geometry = {"type": "Polygon", "coordinates": [coords]}
+                source_geom = Polygon(coords)
+                if not source_geom.is_valid:
+                    source_geom = source_geom.buffer(0)
             elif el.get("type") == "way" and tags.get("highway") and len(coords) >= 2:
-                geometry = {"type": "LineString", "coordinates": coords}
+                source_geom = LineString(coords)
             else:
-                geometry = {"type": "Point", "coordinates": coords[0]}
+                source_geom = Point(coords[0])
+        clipped = source_geom.intersection(tile)
+        if clipped.is_empty:
+            continue
+        if clipped.geom_type in {"GeometryCollection", "MultiLineString", "MultiPolygon"}:
+            parts = [g for g in clipped.geoms if not g.is_empty and g.geom_type in {"Polygon", "LineString", "Point"}]
+            if not parts:
+                continue
+            if len(parts) == 1:
+                clipped = parts[0]
+            else:
+                # Keep multi-part clipping valid GeoJSON without extending past the tile.
+                geometry = mapping(clipped)
+                features.append({
+                    "type": "Feature",
+                    "id": f"{el.get('type', 'element')}/{el.get('id', 0)}",
+                    "geometry": geometry,
+                    "properties": {"osm_type": el.get("type"), "osm_id": el.get("id"), **tags},
+                })
+                continue
         features.append({
             "type": "Feature",
             "id": f"{el.get('type', 'element')}/{el.get('id', 0)}",
-            "geometry": geometry,
+            "geometry": mapping(clipped),
             "properties": {"osm_type": el.get("type"), "osm_id": el.get("id"), **tags},
         })
-    return {"type": "FeatureCollection", "name": "Dhaka OSM source features", "features": features}
-
+    return {"type": "FeatureCollection", "name": "Dhaka OSM source features (clipped to tile)", "features": features}
 
 def build_map(elements: list[dict[str, Any]], output_dir: Path,
               bbox: tuple[float, float, float, float] = DEFAULT_BBOX) -> dict[str, Any]:
@@ -282,7 +310,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     glb_path = output_dir / "Dhaka_Explorable_Map.glb"
     glb_path.write_bytes(scene.export(file_type="glb"))
     (output_dir / "Dhaka_OSM_Source.geojson").write_text(
-        json.dumps(make_geojson(elements, origin_lat, origin_lon), ensure_ascii=False, separators=(",", ":")),
+        json.dumps(make_geojson(elements, origin_lat, origin_lon, bbox), ensure_ascii=False, separators=(",", ":")),
         encoding="utf-8",
     )
     (output_dir / "AI_Interior_Seeds.json").write_text(
