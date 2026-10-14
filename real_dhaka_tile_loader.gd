@@ -9,8 +9,11 @@ const EARTH_RADIUS_M := 6378137.0
 const MAP_ROOT := "res://assets/world/dhaka_tiles"
 const GAME_ORIGIN_LAT := 23.8103
 const GAME_ORIGIN_LON := 90.4125
-const LOAD_RADIUS_M := 2450.0
-const UNLOAD_RADIUS_M := 3150.0
+# Division map tiles default to 0.05 degrees (~5 km per edge near Dhaka).
+# Load beyond the tile half-diagonal so a player standing near a tile corner
+# cannot fall through an unloaded tile; keep a larger unload hysteresis radius.
+const LOAD_RADIUS_M := 4300.0
+const UNLOAD_RADIUS_M := 6200.0
 const STREAM_INTERVAL := 0.5
 
 var _world: Node3D
