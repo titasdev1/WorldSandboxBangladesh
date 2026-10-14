@@ -21,6 +21,8 @@ var material_cache: Dictionary = {}
 var city_asset_factory
 var pbr_surface_factory
 var combat_controller
+var real_dhaka_loader
+var real_dhaka_loaded := false
 
 var road_x := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 var road_z := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
@@ -38,15 +40,16 @@ func _ready():
  city_asset_factory.configure(self)
  # Prefer the streamed, georeferenced Dhaka package when the complete licensed
  # OSM tile package is installed. Keep the existing city as a safe fallback.
- var real_dhaka_loader = load("res://real_dhaka_tile_loader.gd").new()
+ real_dhaka_loader = load("res://real_dhaka_tile_loader.gd").new()
  real_dhaka_loader.name = "RealDhakaTileLoader"
  add_child(real_dhaka_loader)
- var real_dhaka_loaded: bool = real_dhaka_loader.configure(self)
+ real_dhaka_loaded = real_dhaka_loader.configure(self)
  if not real_dhaka_loaded:
   build_city()
   build_landmarks()
- var street_life = load("res://street_life_factory.gd").new()
- street_life.build(self)
+ if not real_dhaka_loaded:
+  var street_life = load("res://street_life_factory.gd").new()
+  street_life.build(self)
  spawn_player()
  spawn_traffic()
  spawn_npcs()
@@ -230,6 +233,32 @@ func spawn_player():
  add_child(player)
 
 func spawn_traffic():
+ if real_dhaka_loaded and real_dhaka_loader:
+  var mapped_routes: Array = real_dhaka_loader.get_road_routes()
+  if mapped_routes.is_empty():
+   push_warning("Real Dhaka map loaded but no usable OSM road paths were found for traffic.")
+   return
+  var mapped_types = [
+   {"name":"Rickshaw","size":Vector3(1.5, 1.5, 2.5), "speed":2.8, "color":Color("#168447")},
+   {"name":"CNG","size":Vector3(1.8, 1.5, 3.0), "speed":3.5, "color":Color("#168b70")},
+   {"name":"Car","size":Vector3(2.1, 1.0, 4.0), "speed":4.2, "color":Color("#d94a45")},
+   {"name":"Bus","size":Vector3(2.5, 2.6, 7.0), "speed":2.6, "color":Color("#d5a629")},
+   {"name":"Motorcycle","size":Vector3(1.0, 1.2, 2.1), "speed":4.8, "color":Color("#3d4248")}
+  ]
+  for i in range(30):
+   var t: Dictionary = mapped_types[rng.randi_range(0, mapped_types.size() - 1)]
+   var v = CharacterBody3D.new()
+   v.set_script(load("res://vehicle.gd"))
+   v.world = self
+   v.vehicle_type = t.name
+   v.speed = float(t.speed) * rng.randf_range(0.8, 1.2)
+   v.route_points = mapped_routes[rng.randi_range(0, mapped_routes.size() - 1)].duplicate()
+   v.route_index = rng.randi_range(0, v.route_points.size() - 1)
+   v.body_size = t.size
+   v.body_color = t.color
+   v.position = v.route_points[v.route_index]
+   add_child(v)
+  return
  var types = [
   {"name":"Rickshaw","size":Vector3(1.5, 1.5, 2.5), "speed":4.2, "color":Color("#168447")},
   {"name":"CNG","size":Vector3(1.8, 1.5, 3.0), "speed":5.0, "color":Color("#168b70")},
@@ -255,12 +284,25 @@ func spawn_traffic():
   add_child(v)
 
 func spawn_npcs():
+ var mapped_routes: Array = []
+ if real_dhaka_loaded and real_dhaka_loader:
+  mapped_routes = real_dhaka_loader.get_road_routes()
  for i in range(45):
   var npc = CharacterBody3D.new()
   npc.name = "NPC_%02d" % i
   npc.set_script(load("res://npc.gd"))
   npc.world = self
-  npc.position = Vector3(rng.randf_range(-70, 70), 0, rng.randf_range(-70, 70))
+  if not mapped_routes.is_empty():
+   var route: Array = mapped_routes[rng.randi_range(0, mapped_routes.size() - 1)]
+   var route_index: int = rng.randi_range(0, route.size() - 1)
+   var route_point: Vector3 = route[route_index]
+   var before: Vector3 = route[maxi(0, route_index - 1)]
+   var after: Vector3 = route[mini(route.size() - 1, route_index + 1)]
+   var direction: Vector3 = (after - before).normalized()
+   var sidewalk_offset := Vector3(-direction.z, 0, direction.x) * (3.0 if i % 2 == 0 else -3.0)
+   npc.position = route_point + sidewalk_offset
+  else:
+   npc.position = Vector3(rng.randf_range(-70, 70), 0, rng.randf_range(-70, 70))
   npc.walk_speed = rng.randf_range(1.0, 2.4)
   var visual := HumanoidVisual.new()
   visual.name = "HumanoidVisual"
@@ -279,6 +321,24 @@ func spawn_npcs():
   add_child(npc)
 
 func spawn_police():
+ if real_dhaka_loaded and real_dhaka_loader:
+  var mapped_routes: Array = real_dhaka_loader.get_road_routes()
+  if mapped_routes.is_empty():
+   return
+  for i in range(3):
+   var v = CharacterBody3D.new()
+   v.set_script(load("res://vehicle.gd"))
+   v.world = self
+   v.vehicle_type = "Police"
+   v.speed = 4.5
+   v.body_size = Vector3(2.1, 1.0, 4.0)
+   v.body_color = Color("#263d8f")
+   v.is_police = true
+   v.route_points = mapped_routes[rng.randi_range(0, mapped_routes.size() - 1)].duplicate()
+   v.route_index = rng.randi_range(0, v.route_points.size() - 1)
+   v.position = v.route_points[v.route_index]
+   add_child(v)
+  return
  for i in range(3):
   var v = CharacterBody3D.new()
   v.set_script(load("res://vehicle.gd"))
