@@ -51,7 +51,7 @@ class RegionHandler(osmium.SimpleHandler):
         if self.west <= lon <= self.east and self.south <= lat <= self.north:
             self.elements.append({
                 "type": "node", "id": int(n.id), "lat": lat, "lon": lon,
-                "tags": dict(n.tags),
+                "tags": {tag.k: tag.v for tag in n.tags},
             })
 
     def way(self, w: Any) -> None:
@@ -75,7 +75,7 @@ class RegionHandler(osmium.SimpleHandler):
         if not box(min_lon, min_lat, max_lon, max_lat).intersects(self.bounds):
             return
         self.elements.append({
-            "type": "way", "id": int(w.id), "tags": dict(w.tags), "geometry": coords,
+            "type": "way", "id": int(w.id), "tags": {tag.k: tag.v for tag in w.tags}, "geometry": coords,
         })
 
 
