@@ -28,6 +28,7 @@ if str(REPO_ROOT) not in sys.path:
 import osmium
 from shapely.geometry import box
 from tools.map_pipeline.build_dhaka_map import DEFAULT_BBOX, build_map
+from tools.map_pipeline.tile_grid import tile_bounds
 
 PBF_URL = "https://download.geofabrik.de/asia/bangladesh-latest.osm.pbf"
 # Greater Dhaka working boundary: deliberately explicit and editable.
@@ -110,19 +111,6 @@ def download_pbf(path: pathlib.Path) -> None:
     if temp.stat().st_size < 100_000_000:
         raise RuntimeError("Downloaded OSM PBF is unexpectedly small; refusing to build an incomplete map.")
     temp.replace(path)
-
-
-def tile_bounds(region: tuple[float, float, float, float], tile_degrees: float):
-    south, west, north, east = region
-    lat = south
-    while lat < north - 1e-9:
-        next_lat = min(north, lat + tile_degrees)
-        lon = west
-        while lon < east - 1e-9:
-            next_lon = min(east, lon + tile_degrees)
-            yield (round(lat, 7), round(lon, 7), round(next_lat, 7), round(next_lon, 7))
-            lon = next_lon
-        lat = next_lat
 
 
 def main() -> int:
