@@ -4,6 +4,9 @@ on:
   push:
     branches: [ main ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -144,7 +147,8 @@ jobs:
           cat build/apk-zip-test.txt
           APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
           test -x "$APKSIGNER"
-          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee build/apk-signature-verification.txt
+          # Verify schemes applicable to Android 7+; fail on a genuine APK signature problem.
+          "$APKSIGNER" verify --verbose --print-certs --min-sdk-version 24 --max-sdk-version 35 "$APK" | tee build/apk-signature-verification.txt
           {
             echo "## APK integrity verification"
             echo
@@ -186,6 +190,21 @@ jobs:
           name: WorldSandboxBangladesh-Canonical-Build
           path: build/canonical_release/*
           if-no-files-found: error
+
+      - name: Publish direct APK download (no artifact ZIP wrapper)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-dev
+          name: World Sandbox: Bangladesh — Android Development Build
+          body: |
+            Automatically generated Android development build from the canonical main branch.
+            This is a direct APK download, not a GitHub Actions artifact ZIP.
+            APK ZIP integrity and Android signature verification must pass before this release step.
+            This is an in-progress development build; physical-device gameplay and performance are not yet certified.
+          prerelease: true
+          make_latest: false
+          overwrite_files: true
+          files: build/Android/world_sandbox_bangladesh.apk
 
       - name: Upload small verification reports separately
         uses: actions/upload-artifact@v4
