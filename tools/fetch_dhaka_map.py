@@ -222,6 +222,16 @@ def fetch_geofabrik(bounds: tuple[float, float, float, float]) -> dict:
             outer = coords[0]
             elements.append({"type": "way", "id": int(element_id) if element_id.isdigit() else 0,
                              "geometry": [{"lon": p[0], "lat": p[1]} for p in outer], "tags": tags})
+        elif kind == "MultiPolygon" and isinstance(coords, list):
+            for part_index, polygon in enumerate(coords):
+                if not isinstance(polygon, list) or not polygon:
+                    continue
+                outer = polygon[0]
+                if not isinstance(outer, list) or len(outer) < 4:
+                    continue
+                elements.append({"type": "way", "id": int(element_id) if element_id.isdigit() else 0,
+                                 "geometry": [{"lon": p[0], "lat": p[1]} for p in outer],
+                                 "tags": {**tags, "_multipolygon_part": part_index}})
     if not elements:
         raise RuntimeError("Geofabrik extract produced no usable OSM features for requested bounds")
     print(f"Geofabrik/osmium fallback: {len(elements)} mapped elements clipped to {bounds}")

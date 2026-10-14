@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from tools.fetch_dhaka_map import to_feature
+from tools.fetch_dhaka_map import element_intersects_bounds, to_feature
 
 
 class DhakaFeatureConversionTests(unittest.TestCase):
@@ -61,6 +61,24 @@ class DhakaFeatureConversionTests(unittest.TestCase):
         self.assertIsNone(to_feature({"type": "relation", "tags": {"building": "yes"}, "geometry": []}))
         self.assertIsNone(to_feature({"type": "way", "tags": {"building": "yes"},
                                       "geometry": [{"lon": 90.41, "lat": 23.81}]}))
+
+    def test_grid_clipping_keeps_features_crossing_cell_edges(self) -> None:
+        bounds = (23.80, 90.40, 23.83, 90.43)
+        crossing_road = {
+            "type": "way", "id": 321,
+            "geometry": [{"lon": 90.39, "lat": 23.81}, {"lon": 90.41, "lat": 23.81}],
+        }
+        outside_road = {
+            "type": "way", "id": 322,
+            "geometry": [{"lon": 90.35, "lat": 23.70}, {"lon": 90.36, "lat": 23.71}],
+        }
+        self.assertTrue(element_intersects_bounds(crossing_road, bounds))
+        self.assertFalse(element_intersects_bounds(outside_road, bounds))
+
+    def test_grid_manifest_dimensions_cover_city_scale_area(self) -> None:
+        from tools.fetch_dhaka_map import CITY_CELL_DEGREES, CITY_GRID_RADIUS
+        self.assertEqual(2 * CITY_GRID_RADIUS + 1, 7)
+        self.assertGreater((2 * CITY_GRID_RADIUS + 1) * CITY_CELL_DEGREES, 0.20)
 
     def test_unclosed_building_ring_is_ignored(self) -> None:
         element = {
