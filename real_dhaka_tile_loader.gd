@@ -7,6 +7,8 @@ extends Node3D
 
 const EARTH_RADIUS_M := 6378137.0
 const MAP_ROOT := "res://assets/world/dhaka_tiles"
+const GAME_ORIGIN_LAT := 23.8103
+const GAME_ORIGIN_LON := 90.4125
 const LOAD_RADIUS_M := 2450.0
 const UNLOAD_RADIUS_M := 3150.0
 const STREAM_INTERVAL := 0.5
@@ -14,8 +16,8 @@ const STREAM_INTERVAL := 0.5
 var _world: Node3D
 var _records: Array[Dictionary] = []
 var _loaded: Dictionary = {}
-var _manifest_origin_lat := 23.8103
-var _manifest_origin_lon := 90.4125
+var _manifest_origin_lat := GAME_ORIGIN_LAT
+var _manifest_origin_lon := GAME_ORIGIN_LON
 var _stream_clock := 0.0
 var _ready_for_streaming := false
 
@@ -34,8 +36,10 @@ func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.j
 	var tiles: Variant = manifest.get("tiles", [])
 	if not (region is Array and region.size() == 4 and tiles is Array and not tiles.is_empty()):
 		return false
-	_manifest_origin_lat = (float(region[0]) + float(region[2])) * 0.5
-	_manifest_origin_lon = (float(region[1]) + float(region[3])) * 0.5
+	# Keep the game origin fixed at central Dhaka so missions/player spawn remain
+	# aligned when the map coverage expands or tile size changes.
+	_manifest_origin_lat = GAME_ORIGIN_LAT
+	_manifest_origin_lon = GAME_ORIGIN_LON
 	var valid_records: Array[Dictionary] = []
 	for item in tiles:
 		if not (item is Dictionary) or item.get("status", "") != "BAKED_FROM_OSM":
