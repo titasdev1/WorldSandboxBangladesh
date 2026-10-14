@@ -113,3 +113,11 @@ Development batches are measured by integrated playable capability, not workflow
 - The HUD now surfaces side-job name/reward, current named district, and live target distance, joining mission selection, map marker, and player position into one feedback loop.
 - Canonical project archive workflow now fetches the official Kenney CC0 car and city packs before staging the single project ZIP. It reports included asset-file counts; this addresses the previous mismatch where CI builds could download models but a source-only archive would omit them.
 - Archive size remains a measured outcome of legitimate source and licensed content, never generated filler. The archive workflow still requires finalization state to be marked ready.
+
+
+## High-resolution PBR surface pipeline (pending validation)
+- Added an optional Poly Haven CC0 texture downloader. It selects a small curated set of asphalt/road, brick, concrete, plaster, metal, wood, and ground materials from the public asset catalog, preferring 4K maps and 8K road maps when available.
+- Added a runtime PBR material factory with procedural fallback. The core and expanded road network, ground, and procedural building shells can use authored albedo/normal/roughness textures when downloaded assets exist.
+- Android and project-archive workflows fetch the texture maps after source startup validation, preserving a clean fallback when the public API is unavailable.
+- Poly Haven assets are CC0; use of their live API in the game itself is not required. Downloaded maps are self-contained project assets, and missing assets must never break the playable scene.
+- Next validation must verify Python syntax, Godot script import/startup, Android export, and report actual texture files downloaded. Texture appearance still requires visual testing on Android.
