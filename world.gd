@@ -20,6 +20,7 @@ var event_time_left := 0.0
 var material_cache: Dictionary = {}
 var city_asset_factory
 var pbr_surface_factory
+var combat_controller
 
 var road_x := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 var road_z := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
@@ -45,6 +46,10 @@ func _ready():
  spawn_police()
  create_mission_marker()
  _setup_a_square()
+ combat_controller = load("res://systems/combat_mode_controller.gd").new()
+ combat_controller.name = "CombatModeController"
+ add_child(combat_controller)
+ combat_controller.configure(self)
 
 func make_mat(c: Color, roughness := 0.8, metallic := 0.0) -> StandardMaterial3D:
  var key := c.to_html(true) + ":" + str(roughness) + ":" + str(metallic)
@@ -332,6 +337,8 @@ func _process(delta):
   if env:
    env.environment.background_color = Color("#52677a") if rain else Color("#8eb9d2")
  _update_a_square_systems(delta)
+ if combat_controller and combat_controller.has_method("update"):
+  combat_controller.update(delta)
 
 func update_marker():
  var marker = get_node_or_null("MissionMarker")
