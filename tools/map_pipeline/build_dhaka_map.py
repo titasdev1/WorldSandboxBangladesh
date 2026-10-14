@@ -90,7 +90,7 @@ def geometry_xy(element: dict[str, Any], origin_lat: float, origin_lon: float) -
 
 
 def color_mesh(mesh: trimesh.Trimesh, color: tuple[int, int, int, int]) -> trimesh.Trimesh:
-    mesh.visual.face_colors = color
+    mesh.visual.vertex_colors = [color] * len(mesh.vertices)
     return mesh
 
 
@@ -102,7 +102,7 @@ def extruded_polygon(geom: Polygon, height: float, color: tuple[int, int, int, i
             continue
         try:
             mesh = trimesh.creation.extrude_polygon(part, max(0.08, float(height)), engine="earcut")
-            mesh.visual.face_colors = color
+            mesh.visual.vertex_colors = [color] * len(mesh.vertices)
             mesh.metadata["name"] = name
             result.append(mesh)
         except Exception:
