@@ -37,7 +37,7 @@ INTERESTING_KEYS = {
     "natural", "waterway", "railway", "man_made",
 }
 OSM_ATTRIBUTION = "© OpenStreetMap contributors — https://www.openstreetmap.org/copyright"
-BOUNDARY_ATTRIBUTION = "Administrative boundary: geoBoundaries (https://www.geoboundaries.org), gbOpen BGD ADM1, CC BY 4.0."
+BOUNDARY_ATTRIBUTION = "Administrative boundary source: geoBoundaries (https://www.geoboundaries.org), gbOpen BGD ADM1. See manifest for the returned dataset license."
 
 
 def download(url: str, path: pathlib.Path, min_bytes: int = 1000) -> None:
@@ -56,31 +56,40 @@ def download(url: str, path: pathlib.Path, min_bytes: int = 1000) -> None:
 
 
 def load_dhaka_boundary(path: pathlib.Path) -> tuple[Any, dict[str, Any]]:
+    request = urllib.request.Request(BOUNDARY_API, headers={"User-Agent": "Project-A-Square-MapPipeline/1.0"})
+    with urllib.request.urlopen(request, timeout=60) as response:
+        metadata = json.loads(response.read().decode("utf-8"))
+    if isinstance(metadata, list):
+        record = next((r for r in metadata if r.get("boundaryISO") == "BGD" and r.get("boundaryType") == "ADM1"), None)
+    else:
+        record = metadata
+    # geoBoundaries returns the Bangladesh ADM1 layer metadata; the downloaded
+    # GeoJSON contains all eight division polygons, including Dhaka.
+    if not record or not record.get("gjDownloadURL"):
+        raise RuntimeError("geoBoundaries API did not return the Bangladesh ADM1 GeoJSON URL.")
     if not path.exists():
-        request = urllib.request.Request(BOUNDARY_API, headers={"User-Agent": "Project-A-Square-MapPipeline/1.0"})
-        with urllib.request.urlopen(request, timeout=60) as response:
-            metadata = json.loads(response.read().decode("utf-8"))
-        if isinstance(metadata, dict):
-            metadata = [metadata]
-        record = next((r for r in metadata if "dhaka" in str(r.get("boundaryName", "")).lower()), None)
-        if not record or not record.get("gjDownloadURL"):
-            raise RuntimeError("geoBoundaries API did not return a Dhaka ADM1 boundary.")
         download(str(record["gjDownloadURL"]), path, 1000)
     payload = json.loads(path.read_text(encoding="utf-8"))
     features = payload.get("features", [])
     feature = next((f for f in features if any("dhaka" == str(v).strip().lower() for v in f.get("properties", {}).values())), None)
-    if feature is None and len(features) == 1:
-        feature = features[0]
     if feature is None:
         feature = next((f for f in features if "dhaka" in json.dumps(f.get("properties", {})).lower()), None)
     if feature is None:
-        raise RuntimeError("Could not identify the Dhaka Division feature in the boundary GeoJSON.")
+        raise RuntimeError("Could not identify the Dhaka Division feature in the Bangladesh ADM1 GeoJSON.")
     geom = shape(feature["geometry"])
     if geom.is_empty or not geom.is_valid:
         geom = geom.buffer(0)
     if geom.is_empty or geom.geom_type not in {"Polygon", "MultiPolygon"}:
         raise RuntimeError("Dhaka Division boundary is not a valid polygon.")
-    return geom, feature.get("properties", {})
+    details = {
+        "feature_properties": feature.get("properties", {}),
+        "boundary_source": record.get("boundarySource", "geoBoundaries"),
+        "boundary_year_represented": record.get("boundaryYearRepresented", "unspecified"),
+        "boundary_license": record.get("boundaryLicense", "See geoBoundaries metadata"),
+        "boundary_license_source": record.get("licenseSource", ""),
+        "boundary_id": record.get("boundaryID", ""),
+    }
+    return geom, details
 
 
 def has_feature(tags: Any) -> bool:
@@ -320,9 +329,9 @@ def main() -> int:
         "source": "Geofabrik Bangladesh OpenStreetMap PBF",
         "source_url": PBF_URL,
         "attribution": OSM_ATTRIBUTION,
-        "license": "OSM data: ODbL 1.0. Administrative boundary: geoBoundaries gbOpen, CC BY 4.0.",
+        "license": "OSM data: ODbL 1.0. Administrative boundary license is recorded from geoBoundaries API metadata in administrative_boundary.metadata.boundary_license.",
         "administrative_boundary": {"name": "Dhaka Division", "source": "geoBoundaries gbOpen BGD ADM1",
-                                   "properties": boundary_properties, "license": "CC BY 4.0",
+                                   "properties": boundary_properties.get("feature_properties", {}), "metadata": boundary_properties, "license": boundary_properties.get("boundary_license", "See geoBoundaries metadata"),
                                    "attribution": BOUNDARY_ATTRIBUTION},
         "region_south_west_north_east": list(bounds),
         "tile_edge_degrees": args.tile_degrees,
