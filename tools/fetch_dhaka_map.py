@@ -330,6 +330,7 @@ def main() -> int:
     except Exception as pbf_exc:
         print(f"WARNING: regional PBF extraction unavailable: {pbf_exc}; per-cell Overpass fallback will be used")
         city_response = {"elements": []}
+        city_index = []
     for row in range(-CITY_GRID_RADIUS, CITY_GRID_RADIUS + 1):
         for col in range(-CITY_GRID_RADIUS, CITY_GRID_RADIUS + 1):
             chunk_name = f"grid_{row + CITY_GRID_RADIUS:02d}_{col + CITY_GRID_RADIUS:02d}"
