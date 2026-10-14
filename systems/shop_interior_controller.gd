@@ -102,7 +102,7 @@ func _build_interior() -> void:
         var z := -1.8 + float(shelf_index) * 1.2
         _add_box("WallShelf_%d" % shelf_index, Vector3(0.5, 0.12, 1.1), Vector3(-interior_width * 0.5 + 0.42, 1.6, z), _mat("shelf", Color("#805b3b"), 0.7))
         for item_index in range(3):
-            var item_color := [Color("#c85b47"), Color("#d5ad43"), Color("#4c9a83")][(shelf_index + item_index) % 3]
+            var item_color: Color = [Color("#c85b47"), Color("#d5ad43"), Color("#4c9a83")][(shelf_index + item_index) % 3]
             _add_box("Stock_%d_%d" % [shelf_index, item_index], Vector3(0.28, 0.38, 0.22), Vector3(-interior_width * 0.5 + 0.42, 1.86, z - 0.34 + float(item_index) * 0.34), _mat("stock_%d_%d" % [shelf_index, item_index], item_color, 0.45))
     _add_box("CeilingLight", Vector3(1.4, 0.08, 0.5), Vector3(0, 2.92, 0), _mat("light", Color("#fff1c4"), 0.25, true))
     var keeper := Node3D.new()
