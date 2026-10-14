@@ -324,7 +324,7 @@ func _road_material(highway_type: String) -> StandardMaterial3D:
 func _building_material(building_type: String, properties: Dictionary = {}) -> StandardMaterial3D:
     var palette := [Color("#c8b39a"), Color("#b9c2bc"), Color("#d0b17a"), Color("#a9b6c0"), Color("#c6a1a1")]
     var index := absi(building_type.hash()) % palette.size()
-    var fallback := palette[index]
+    var fallback: Color = palette[index]
     var tagged_colour := str(properties.get("building:colour", properties.get("building:color", "")))
     var material := StandardMaterial3D.new()
     material.albedo_color = Color.from_string(tagged_colour, fallback) if not tagged_colour.is_empty() else fallback
@@ -341,7 +341,7 @@ func _building_material(building_type: String, properties: Dictionary = {}) -> S
     return material
 
 func _roof_material(properties: Dictionary, building_type: String) -> StandardMaterial3D:
-    var fallback := Color("#77766f") if building_type in ["industrial", "warehouse", "commercial"] else Color("#a99b82")
+    var fallback: Color = Color("#77766f") if building_type in ["industrial", "warehouse", "commercial"] else Color("#a99b82")
     var tagged_colour := str(properties.get("roof:colour", properties.get("roof:color", "")))
     var material := StandardMaterial3D.new()
     material.albedo_color = Color.from_string(tagged_colour, fallback) if not tagged_colour.is_empty() else fallback
