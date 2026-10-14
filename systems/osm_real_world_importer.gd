@@ -182,16 +182,27 @@ func _import_building(raw_coords: Variant, kind: String, properties: Dictionary)
     collision.shape = collider
     body.add_child(collision)
 
-    var surface := SurfaceTool.new()
-    surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+    # Keep roof and walls as separate surfaces so source material/colour tags
+    # can affect the actual mapped building instead of being ignored.
+    var roof_surface := SurfaceTool.new()
+    roof_surface.begin(Mesh.PRIMITIVE_TRIANGLES)
     var roof_indices := Geometry2D.triangulate_polygon(local_points)
     for i in range(0, roof_indices.size(), 3):
         var a: Vector2 = local_points[roof_indices[i]]
         var b: Vector2 = local_points[roof_indices[i + 1]]
         var c: Vector2 = local_points[roof_indices[i + 2]]
-        surface.add_vertex(Vector3(a.x, height, a.y))
-        surface.add_vertex(Vector3(b.x, height, b.y))
-        surface.add_vertex(Vector3(c.x, height, c.y))
+        roof_surface.add_vertex(Vector3(a.x, height, a.y))
+        roof_surface.add_vertex(Vector3(b.x, height, b.y))
+        roof_surface.add_vertex(Vector3(c.x, height, c.y))
+    roof_surface.generate_normals()
+    var roof_instance := MeshInstance3D.new()
+    roof_instance.name = "OSMRoofSurface"
+    roof_instance.mesh = roof_surface.commit()
+    roof_instance.material_override = _roof_material(properties, str(properties.get("building", "yes")))
+    body.add_child(roof_instance)
+
+    var wall_surface := SurfaceTool.new()
+    wall_surface.begin(Mesh.PRIMITIVE_TRIANGLES)
     for i in range(local_points.size()):
         var a: Vector2 = local_points[i]
         var b: Vector2 = local_points[(i + 1) % local_points.size()]
@@ -199,18 +210,18 @@ func _import_building(raw_coords: Variant, kind: String, properties: Dictionary)
         var b_bottom := Vector3(b.x, 0.0, b.y)
         var a_top := Vector3(a.x, height, a.y)
         var b_top := Vector3(b.x, height, b.y)
-        surface.add_vertex(a_bottom)
-        surface.add_vertex(a_top)
-        surface.add_vertex(b_top)
-        surface.add_vertex(a_bottom)
-        surface.add_vertex(b_top)
-        surface.add_vertex(b_bottom)
-    surface.generate_normals()
-    var mesh_instance := MeshInstance3D.new()
-    mesh_instance.name = "OSMFootprintMesh"
-    mesh_instance.mesh = surface.commit()
-    mesh_instance.material_override = _building_material(str(properties.get("building", "yes")))
-    body.add_child(mesh_instance)
+        wall_surface.add_vertex(a_bottom)
+        wall_surface.add_vertex(a_top)
+        wall_surface.add_vertex(b_top)
+        wall_surface.add_vertex(a_bottom)
+        wall_surface.add_vertex(b_top)
+        wall_surface.add_vertex(b_bottom)
+    wall_surface.generate_normals()
+    var wall_instance := MeshInstance3D.new()
+    wall_instance.name = "OSMWallSurfaces"
+    wall_instance.mesh = wall_surface.commit()
+    wall_instance.material_override = _building_material(str(properties.get("building", "yes")), properties)
+    body.add_child(wall_instance)
     body.position = Vector3(center_x, 0.0, center_z)
 
     # Facade accents are a separate pass. They use the footprint's bounds as
@@ -226,17 +237,16 @@ func _import_building(raw_coords: Variant, kind: String, properties: Dictionary)
     imported_buildings += 1
 
 func _add_facade_details(parent: StaticBody3D, width: float, depth: float, height: float, properties: Dictionary) -> void:
-    var floors := clampi(int(round(height / 3.2)), 1, 15)
+    var tagged_levels := str(properties.get("building:levels", ""))
+    var floors := clampi(int(round(float(tagged_levels))) if tagged_levels.is_valid_float() else int(round(height / 3.2)), 1, 15)
     var window_material := StandardMaterial3D.new()
     window_material.albedo_color = Color("#83b8c7")
     window_material.metallic = 0.08
     window_material.roughness = 0.24
-    var trim_material := StandardMaterial3D.new()
-    trim_material.albedo_color = Color("#d8d0bf")
-    trim_material.roughness = 0.76
-
     var columns := clampi(int(floor(width / 3.0)), 1, 8)
+    var side_columns := clampi(int(floor(depth / 3.0)), 1, 8)
     var window_w := minf(1.15, maxf(0.45, width / float(columns + 1) * 0.48))
+    var side_window_w := minf(1.15, maxf(0.45, depth / float(side_columns + 1) * 0.48))
     var window_h := 1.05
     for floor_index in range(floors):
         var y := minf(height - 0.8, 1.35 + float(floor_index) * 3.0)
@@ -246,9 +256,14 @@ func _add_facade_details(parent: StaticBody3D, width: float, depth: float, heigh
             var x := -width * 0.5 + width * float(column + 1) / float(columns + 1)
             _add_facade_box(parent, "FrontWindow", Vector3(x, y, -depth * 0.5 - 0.035),
                 Vector3(window_w, window_h, 0.07), window_material)
-            _add_facade_box(parent, "SideWindow", Vector3(width * 0.5 + 0.035, y,
-                -depth * 0.5 + depth * float(column + 1) / float(columns + 1)),
-                Vector3(0.07, window_h, minf(1.15, depth * 0.22)), window_material)
+            _add_facade_box(parent, "RearWindow", Vector3(x, y, depth * 0.5 + 0.035),
+                Vector3(window_w, window_h, 0.07), window_material)
+        for column in range(side_columns):
+            var z := -depth * 0.5 + depth * float(column + 1) / float(side_columns + 1)
+            _add_facade_box(parent, "RightWindow", Vector3(width * 0.5 + 0.035, y, z),
+                Vector3(0.07, window_h, side_window_w), window_material)
+            _add_facade_box(parent, "LeftWindow", Vector3(-width * 0.5 - 0.035, y, z),
+                Vector3(0.07, window_h, side_window_w), window_material)
 
     # A visible street-level doorway makes the exterior read as an entrance.
     var door_material := StandardMaterial3D.new()
@@ -306,13 +321,32 @@ func _road_material(highway_type: String) -> StandardMaterial3D:
     material.roughness = 0.96
     return material
 
-func _building_material(building_type: String) -> StandardMaterial3D:
+func _building_material(building_type: String, properties: Dictionary = {}) -> StandardMaterial3D:
     var palette := [Color("#c8b39a"), Color("#b9c2bc"), Color("#d0b17a"), Color("#a9b6c0"), Color("#c6a1a1")]
     var index := absi(building_type.hash()) % palette.size()
+    var fallback := palette[index]
+    var tagged_colour := str(properties.get("building:colour", properties.get("building:color", "")))
     var material := StandardMaterial3D.new()
-    material.albedo_color = palette[index]
-    material.roughness = 0.88
-    # OSM rings can have either winding in source extracts; render both sides
-    # so a valid footprint never disappears because of triangle orientation.
+    material.albedo_color = Color.from_string(tagged_colour, fallback) if not tagged_colour.is_empty() else fallback
+    var material_tag := str(properties.get("building:material", "")).to_lower()
+    if material_tag in ["glass", "metal", "steel"]:
+        material.metallic = 0.28 if material_tag == "glass" else 0.45
+        material.roughness = 0.34 if material_tag == "glass" else 0.62
+    elif material_tag in ["brick", "bricks", "concrete", "plaster", "stone"]:
+        material.roughness = 0.9
+    else:
+        material.roughness = 0.82
+    # OSM rings can have either winding in source extracts; render both sides.
+    material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    return material
+
+func _roof_material(properties: Dictionary, building_type: String) -> StandardMaterial3D:
+    var fallback := Color("#77766f") if building_type in ["industrial", "warehouse", "commercial"] else Color("#a99b82")
+    var tagged_colour := str(properties.get("roof:colour", properties.get("roof:color", "")))
+    var material := StandardMaterial3D.new()
+    material.albedo_color = Color.from_string(tagged_colour, fallback) if not tagged_colour.is_empty() else fallback
+    var roof_kind := str(properties.get("roof:material", "")).to_lower()
+    material.metallic = 0.32 if roof_kind in ["metal", "steel", "aluminium"] else 0.0
+    material.roughness = 0.76 if material.metallic == 0.0 else 0.58
     material.cull_mode = BaseMaterial3D.CULL_DISABLED
     return material
