@@ -15,12 +15,14 @@ var world: Node3D
 var imported_roads := 0
 var imported_buildings := 0
 var skipped_features := 0
+var imported_road_paths: Array = []
 
 func import_geojson(target_world: Node3D, path := "res://content/realworld/area.geojson") -> bool:
     world = target_world
     imported_roads = 0
     imported_buildings = 0
     skipped_features = 0
+    imported_road_paths.clear()
     if not is_instance_valid(world) or not FileAccess.file_exists(path):
         return false
     var file := FileAccess.open(path, FileAccess.READ)
@@ -54,6 +56,7 @@ func import_geojson(target_world: Node3D, path := "res://content/realworld/area.
             skipped_features += 1
     if features.size() > max_features:
         skipped_features += features.size() - max_features
+    world.set_meta("osm_road_paths", imported_road_paths.duplicate(true))
     world.set_meta("osm_import_roads", imported_roads)
     world.set_meta("osm_import_buildings", imported_buildings)
     world.set_meta("osm_import_skipped", skipped_features)
@@ -79,12 +82,18 @@ func _import_road(raw_coords: Variant, highway_type: String) -> void:
         width = road_width * 1.65
     elif highway_type in ["footway", "path", "pedestrian", "cycleway"]:
         width = road_width * 0.35
+
+    var current_path: Array[Vector3] = []
     for i in range(raw_coords.size() - 1):
         var a := _to_local(raw_coords[i])
         var b := _to_local(raw_coords[i + 1])
         var length := Vector2(b.x - a.x, b.z - a.z).length()
         if length < 0.5 or length > 250.0:
+            if current_path.size() > 1:
+                imported_road_paths.append(current_path.duplicate())
+            current_path.clear()
             continue
+
         var segment := MeshInstance3D.new()
         var mesh := BoxMesh.new()
         mesh.size = Vector3(width, 0.12, length)
@@ -94,6 +103,18 @@ func _import_road(raw_coords: Variant, highway_type: String) -> void:
         segment.rotation.y = atan2(-(b.x - a.x), -(b.z - a.z))
         segment.name = "OSMRoad_" + highway_type
         world.add_child(segment)
+
+        if current_path.is_empty():
+            current_path.append(a)
+        elif current_path[current_path.size() - 1].distance_to(a) > 1.0:
+            if current_path.size() > 1:
+                imported_road_paths.append(current_path.duplicate())
+            current_path.clear()
+            current_path.append(a)
+        current_path.append(b)
+
+    if current_path.size() > 1:
+        imported_road_paths.append(current_path.duplicate())
     imported_roads += 1
 
 func _import_building(raw_coords: Variant, kind: String, properties: Dictionary) -> void:
