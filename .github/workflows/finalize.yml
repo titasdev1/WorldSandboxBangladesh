@@ -16,9 +16,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py
+          python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py
           python3 tools/fetch_free_assets.py
           python3 tools/fetch_city_assets.py
+          python3 tools/fetch_polyhaven_pbr.py
           echo "Licensed authored asset payload included in the project archive:"
           du -sh external_content || true
           find external_content -type f | wc -l
