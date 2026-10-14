@@ -220,6 +220,22 @@ jobs:
           overwrite_files: true
           files: build/Android/world_sandbox_bangladesh.apk
 
+      - name: Publish direct APK download for development branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/osm-real-world-foundation'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-dev-feature
+          name: "World Sandbox: Bangladesh — Development Branch APK"
+          body: |
+            Direct APK for the latest successful push build of feature/osm-real-world-foundation.
+            This is the same canonical Godot project and Android pipeline, not a separate game.
+            It is a development preview, not a finished or device-certified release.
+            Automated APK integrity and Android signature checks run before publishing.
+          prerelease: true
+          make_latest: false
+          overwrite_files: true
+          files: build/Android/world_sandbox_bangladesh.apk
+
       - name: Upload small verification reports separately
         uses: actions/upload-artifact@v4
         with:
