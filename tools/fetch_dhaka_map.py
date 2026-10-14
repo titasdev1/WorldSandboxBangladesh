@@ -17,7 +17,7 @@ import urllib.request
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "content" / "realworld" / "area.geojson"
 CHUNK_DIR = ROOT / "content" / "realworld" / "chunks"
-# Approximately a 2 km x 2 km central-Dhaka starter district.
+# Approximately a 1.3 km x 1.2 km central-Dhaka starter district; neighboring chunks extend exploration.
 SOUTH, WEST, NORTH, EAST = 23.8043, 90.4065, 23.8163, 90.4185
 MAX_FEATURES = 1400
 ROAD_LIMIT = 400
@@ -170,7 +170,7 @@ def main() -> int:
     for chunk_name, (lat_shift, lon_shift) in CHUNK_OFFSETS.items():
         bounds = (SOUTH + lat_shift, WEST + lon_shift, NORTH + lat_shift, EAST + lon_shift)
         try:
-            chunk_response = fetch_overpass(bounds, timeout_seconds=25, attempts_per_endpoint=1, endpoints=OVERPASS_ENDPOINTS[:2])
+            chunk_response = fetch_overpass(bounds, timeout_seconds=20, attempts_per_endpoint=1, endpoints=OVERPASS_ENDPOINTS)
             chunk_features, chunk_roads, chunk_buildings = prepare_features(
                 chunk_response, CHUNK_MAX_FEATURES, CHUNK_ROAD_LIMIT
             )
