@@ -127,7 +127,10 @@ func _draw() -> void:
   draw_string(ThemeDB.fallback_font, Vector2(margin+4, margin+17), map_title, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("#50d7e9"))
 
 func _world_to_panel(point: Vector2, center: Vector2, scale_value: float) -> Vector2:
- return center + point * scale_value
+ # Render the map in player-relative coordinates. Without subtracting the player
+ # position, roads and the player marker drift off-screen as the player explores.
+ var relative := point - Vector2(_player_position.x, _player_position.z)
+ return center + relative * scale_value
 
 func set_expanded(value: bool) -> void:
  expanded = value
