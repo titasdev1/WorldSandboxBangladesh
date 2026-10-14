@@ -14,6 +14,8 @@ var selected_mode := "deshi_story"
 var mode_buttons: Array[Button] = []
 var district_map: Control
 var map_button: Button
+var interaction_button: Button
+var driving_status: Label
 
 func _ready():
  w = get_parent()
@@ -54,7 +56,8 @@ func _ready():
  add_child(stick)
  add_touch_button("SPRINT", Vector2(35, 645), Vector2(150, 45), "sprint")
  add_touch_button("FIRE", Vector2(1080, 560), Vector2(150, 75), "fire")
- add_touch_button("BARGAIN", Vector2(900, 650), Vector2(150, 55), "interact")
+ interaction_button = add_touch_button("INTERACT", Vector2(900, 650), Vector2(170, 55), "interact")
+	_build_driving_status()
  add_touch_button("RAIN", Vector2(1060, 650), Vector2(150, 55), "rain")
  _build_settings_ui()
  _load_graphics_settings()
@@ -192,7 +195,7 @@ func _save_graphics_settings() -> void:
  settings_config.save("user://graphics_settings.cfg")
 
 
-func add_touch_button(label_text: String, pos: Vector2, size: Vector2, action_name: String):
+func add_touch_button(label_text: String, pos: Vector2, size: Vector2, action_name: String) -> Button:
  var b = Button.new()
  b.text = label_text
  b.position = pos
@@ -201,6 +204,18 @@ func add_touch_button(label_text: String, pos: Vector2, size: Vector2, action_na
  b.button_down.connect(func(): Input.action_press(action_name))
  b.button_up.connect(func(): Input.action_release(action_name))
  add_child(b)
+ return b
+
+func _build_driving_status() -> void:
+ driving_status = Label.new()
+ driving_status.name = "DrivingStatus"
+ driving_status.position = Vector2(890, 500)
+ driving_status.size = Vector2(330, 54)
+ driving_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+ driving_status.add_theme_font_size_override("font_size", 22)
+ driving_status.add_theme_color_override("font_color", Color("#f4f9ff"))
+ driving_status.visible = false
+ add_child(driving_status)
 
 func _process(_delta):
  if not w:
@@ -212,6 +227,7 @@ func _process(_delta):
   _world_quality_applied = true
  if district_map:
   district_map.call("update_world", w)
+ _update_interaction_prompt()
  var health_value: int = w.player.health if w.player else 100
  stats.text = "৳ %d    Health: %d    Wanted: %d/5    Weather: %s" % [w.cash, health_value, w.wanted, "RAIN" if w.rain else "CLEAR"]
  var mission_factory = w.get_node_or_null("MissionFactory")
@@ -372,6 +388,34 @@ func _build_lobby_ui() -> void:
  play.add_theme_stylebox_override("hover", _lobby_style(Color("#8beafa"), Color("#ffffff"), 2, 12))
  play.pressed.connect(_enter_selected_mode)
  footer.add_child(play)
+
+
+func _update_interaction_prompt() -> void:
+ if not w or not w.player or not interaction_button or not driving_status:
+  return
+ var occupied_vehicle: Node3D = null
+ var nearby_vehicle: Node3D = null
+ var nearest_distance := 4.0
+ for node in w.get_children():
+  if node is CharacterBody3D and node.has_method("enter_player"):
+   if bool(node.get("occupied")):
+    occupied_vehicle = node
+   elif not bool(node.get("is_police")):
+    var distance: float = w.player.global_position.distance_to(node.global_position)
+    if distance < nearest_distance:
+     nearest_distance = distance
+     nearby_vehicle = node
+ if is_instance_valid(occupied_vehicle):
+  interaction_button.text = "EXIT VEHICLE"
+  var speed_mps := absf(float(occupied_vehicle.get("speed")))
+  driving_status.text = "DRIVING  %03d km/h\\nJOYSTICK: STEER / ACCELERATE" % int(speed_mps * 3.6)
+  driving_status.visible = true
+ elif is_instance_valid(nearby_vehicle):
+  interaction_button.text = "DRIVE"
+  driving_status.visible = false
+ else:
+  interaction_button.text = "INTERACT"
+  driving_status.visible = false
 
 func _lobby_style(fill: Color, border_color: Color, border_width: int, corner_radius: int) -> StyleBoxFlat:
  var style := StyleBoxFlat.new()
