@@ -141,8 +141,83 @@ func _import_building(raw_coords: Variant, kind: String, properties: Dictionary)
     mesh_instance.material_override = _building_material(str(properties.get("building", "yes")))
     body.add_child(mesh_instance)
     body.position = Vector3((min_x + max_x) * 0.5, 0.0, (min_z + max_z) * 0.5)
+
+    # Procedural facade pass: consistent floor rhythm, windows, ground-floor
+    # entrance and a shop sign where OSM tags identify a commercial property.
+    # These are lightweight meshes, not high-resolution filler textures.
+    _add_facade_details(body, width, depth, height, properties)
+    body.set_meta("osm_properties", properties.duplicate(true))
+    body.set_meta("osm_building_type", str(properties.get("building", "yes")))
+    if properties.has("shop") or properties.get("amenity", "") in ["restaurant", "cafe", "pharmacy", "bank"]:
+        body.set_meta("is_shop", true)
+        body.set_meta("shop_type", str(properties.get("shop", properties.get("amenity", "general"))))
+        body.set_meta("shop_name", str(properties.get("name", "Local Shop")))
     world.add_child(body)
     imported_buildings += 1
+
+func _add_facade_details(parent: StaticBody3D, width: float, depth: float, height: float, properties: Dictionary) -> void:
+    var floors := clampi(int(round(height / 3.2)), 1, 15)
+    var window_material := StandardMaterial3D.new()
+    window_material.albedo_color = Color("#83b8c7")
+    window_material.metallic = 0.08
+    window_material.roughness = 0.24
+    var trim_material := StandardMaterial3D.new()
+    trim_material.albedo_color = Color("#d8d0bf")
+    trim_material.roughness = 0.76
+
+    var columns := clampi(int(floor(width / 3.0)), 1, 8)
+    var window_w := minf(1.15, maxf(0.45, width / float(columns + 1) * 0.48))
+    var window_h := 1.05
+    for floor_index in range(floors):
+        var y := minf(height - 0.8, 1.35 + float(floor_index) * 3.0)
+        if y < 0.8:
+            continue
+        for column in range(columns):
+            var x := -width * 0.5 + width * float(column + 1) / float(columns + 1)
+            _add_facade_box(parent, "FrontWindow", Vector3(x, y, -depth * 0.5 - 0.035),
+                Vector3(window_w, window_h, 0.07), window_material)
+            _add_facade_box(parent, "SideWindow", Vector3(width * 0.5 + 0.035, y,
+                -depth * 0.5 + depth * float(column + 1) / float(columns + 1)),
+                Vector3(0.07, window_h, minf(1.15, depth * 0.22)), window_material)
+
+    # A visible street-level doorway makes the exterior read as an entrance.
+    var door_material := StandardMaterial3D.new()
+    door_material.albedo_color = Color("#514239")
+    door_material.roughness = 0.68
+    _add_facade_box(parent, "EntranceDoor", Vector3(0, 1.05, -depth * 0.5 - 0.045),
+        Vector3(minf(1.25, width * 0.25), 2.1, 0.09), door_material)
+
+    var shop_kind := str(properties.get("shop", properties.get("amenity", "")))
+    if not shop_kind.is_empty():
+        var sign_mesh := MeshInstance3D.new()
+        sign_mesh.name = "ShopSign"
+        var sign := BoxMesh.new()
+        sign.size = Vector3(minf(width * 0.78, 4.0), 0.55, 0.12)
+        sign_mesh.mesh = sign
+        var sign_material := StandardMaterial3D.new()
+        sign_material.albedo_color = Color("#e5bd69")
+        sign_material.roughness = 0.65
+        sign_mesh.material_override = sign_material
+        sign_mesh.position = Vector3(0, 2.35, -depth * 0.5 - 0.08)
+        parent.add_child(sign_mesh)
+        var label := Label3D.new()
+        label.name = "ShopName"
+        label.text = str(properties.get("name", shop_kind.capitalize()))
+        label.font_size = 24
+        label.pixel_size = 0.004
+        label.modulate = Color("#24201a")
+        label.position = Vector3(0, 2.35, -depth * 0.5 - 0.16)
+        parent.add_child(label)
+
+func _add_facade_box(parent: Node3D, node_name: String, pos: Vector3, size: Vector3, material: Material) -> void:
+    var instance := MeshInstance3D.new()
+    instance.name = node_name
+    var mesh := BoxMesh.new()
+    mesh.size = size
+    instance.mesh = mesh
+    instance.material_override = material
+    instance.position = pos
+    parent.add_child(instance)
 
 func _building_height(properties: Dictionary) -> float:
     if properties.has("height"):
