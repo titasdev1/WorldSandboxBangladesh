@@ -1,5 +1,5 @@
 [application]
-config/name="World Sandbox: Bangladesh"
+config/name="Project A-Square: Dhaka"
 run/main_scene="res://Main.tscn"
 config/features=PackedStringArray("4.4", "GL Compatibility")
 config/icon="res://icon.svg"
