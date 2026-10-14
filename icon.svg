@@ -1,1 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" rx="24" fill="#17222b"/><path d="M20 88L64 20l44 68-44-18z" fill="#e5c447"/><circle cx="64" cy="68" r="17" fill="#2f83a5"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#102b42"/><stop offset="1" stop-color="#07141f"/></linearGradient><linearGradient id="road" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#54d7e9"/><stop offset="1" stop-color="#1385b1"/></linearGradient></defs>
+<rect width="256" height="256" rx="48" fill="url(#bg)"/>
+<path d="M30 204 L88 55 Q96 35 109 55 L162 204 L128 204 L100 121 L68 204 Z" fill="#f4c84b"/>
+<path d="M119 204 L157 96 L205 204 L174 204 L157 158 L141 204 Z" fill="url(#road)"/>
+<path d="M101 75 L118 119 L108 147 L90 100 Z" fill="#102b42"/>
+<path d="M157 126 L166 150 L159 171 L149 147 Z" fill="#eaf7ff"/>
+<circle cx="193" cy="57" r="18" fill="#4ee0bb"/><circle cx="193" cy="57" r="7" fill="#102b42"/>
+</svg>
