@@ -82,16 +82,27 @@ def map_kind(path) -> str | None:
     return None
 
 def resolution_score(path, surface: str) -> int:
+    """Prefer sharp road maps but cap mobile texture payloads at 4K/2K.
+
+    8K source maps are intentionally excluded from the Android runtime pack:
+    they inflate the APK and GPU memory use without being useful on a phone
+    viewport. The original licensed sources remain discoverable in the manifest.
+    """
     joined = "/".join(path).lower()
-    preferred = ("8k", "8k") if surface == "road" else ("4k", "4k")
-    if preferred[0] in joined:
-        return 0
-    if "4k" in joined:
-        return 1
-    if "2k" in joined:
-        return 2
-    if "1k" in joined:
-        return 3
+    if surface == "road":
+        if "4k" in joined:
+            return 0
+        if "2k" in joined:
+            return 1
+        if "1k" in joined:
+            return 2
+    else:
+        if "2k" in joined:
+            return 0
+        if "4k" in joined:
+            return 1
+        if "1k" in joined:
+            return 2
     return 9
 
 def write_manifest(surfaces: dict, note: str = "") -> None:
@@ -102,7 +113,7 @@ def write_manifest(surfaces: dict, note: str = "") -> None:
         "api": API,
         "license": "CC0-1.0",
         "attribution_required_for_downloaded_assets": False,
-        "resolution_policy": "Prefer 4K PBR maps; prefer 8K for road surfaces when available.",
+        "resolution_policy": "Mobile budget: road maps up to 4K; other surfaces prefer 2K and fall back to 4K/1K. 8K maps are excluded from Android runtime packs to protect APK size and GPU memory.",
         "surfaces": surfaces,
         "note": note,
     }, indent=2) + "\n", encoding="utf-8")
