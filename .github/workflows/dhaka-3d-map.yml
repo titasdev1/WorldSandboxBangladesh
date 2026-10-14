@@ -6,19 +6,19 @@ on:
       south:
         description: "South latitude"
         required: false
-        default: "23.7680"
+        default: "23.8043"
       west:
         description: "West longitude"
         required: false
-        default: "90.3930"
+        default: "90.4065"
       north:
         description: "North latitude"
         required: false
-        default: "23.7900"
+        default: "23.8163"
       east:
         description: "East longitude"
         required: false
-        default: "90.4200"
+        default: "90.4185"
   pull_request:
     paths:
       - "tools/map_pipeline/**"
@@ -59,10 +59,10 @@ jobs:
       - name: Fetch OSM data and build the real Dhaka map tile
         shell: bash
         env:
-          INPUT_SOUTH: ${{ inputs.south || '23.7680' }}
-          INPUT_WEST: ${{ inputs.west || '90.3930' }}
-          INPUT_NORTH: ${{ inputs.north || '23.7900' }}
-          INPUT_EAST: ${{ inputs.east || '90.4200' }}
+          INPUT_SOUTH: ${{ inputs.south || '23.8043' }}
+          INPUT_WEST: ${{ inputs.west || '90.4065' }}
+          INPUT_NORTH: ${{ inputs.north || '23.8163' }}
+          INPUT_EAST: ${{ inputs.east || '90.4185' }}
         run: |
           python tools/map_pipeline/build_dhaka_map.py \
             --bbox "$INPUT_SOUTH" "$INPUT_WEST" "$INPUT_NORTH" "$INPUT_EAST" \
