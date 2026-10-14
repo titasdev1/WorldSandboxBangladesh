@@ -264,6 +264,11 @@ def main() -> int:
         s, w, n, e = tile
         if boundary.intersects(box(w, s, e, n)):
             tiles.append(tile)
+    # Build the central Dhaka core first. This makes bounded test builds and
+    # interrupted development runs produce the most useful playable area first.
+    tiles.sort(key=lambda t: ((t[0] + t[2]) * 0.5 - 23.8103) ** 2
+                            + (((t[1] + t[3]) * 0.5 - 90.4125)
+                               * math.cos(math.radians(23.8103))) ** 2)
     if args.max_tiles > 0:
         tiles = tiles[:args.max_tiles]
     args.out.mkdir(parents=True, exist_ok=True)
