@@ -22,6 +22,29 @@ jobs:
         shell: bash
         run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/report_build_assets.py
 
+      - name: Build and bundle the real Greater Dhaka map tiles
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user osmium shapely trimesh mapbox-earcut
+          python3 -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_region.py
+          python3 -m unittest discover -s tests -p 'test_dhaka_map_pipeline.py' -v
+          python3 tools/map_pipeline/build_dhaka_region.py --tile-degrees 0.02 --out build/greater-dhaka
+          test -s build/greater-dhaka/map_tiles_manifest.json
+          test -s build/greater-dhaka/ATTRIBUTION.txt
+          mkdir -p assets/world/dhaka_tiles
+          cp -a build/greater-dhaka/. assets/world/dhaka_tiles/
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("assets/world/dhaka_tiles")
+          manifest = json.loads((root / "map_tiles_manifest.json").read_text())
+          glbs = list(root.rglob("Dhaka_Explorable_Map.glb"))
+          if not glbs or len(glbs) != manifest["tile_count_with_geometry"]:
+              raise SystemExit("Greater Dhaka tile package failed integrity verification")
+          print(f"Bundled {len(glbs)} real-data GLB tiles; {sum(p.stat().st_size for p in glbs):,} bytes")
+          PY
+
       - name: Validate Godot project scripts and startup
         shell: bash
         run: |
