@@ -38,6 +38,7 @@ func _ready():
  city_asset_factory.configure(self)
  build_city()
  build_landmarks()
+ _load_optional_real_world_map()
  var street_life = load("res://street_life_factory.gd").new()
  street_life.build(self)
  spawn_player()
@@ -435,3 +436,17 @@ func try_street_vendor(at: Vector3) -> bool:
         event_text = "STREET SNACK: -৳20  +HEALTH"
         event_time_left = 4.0
     return true
+
+
+# Optional OpenStreetMap-derived GeoJSON overlay. When no licensed/local dataset
+# is packaged, the original city boots exactly as before.
+func _load_optional_real_world_map() -> void:
+    var data_path := "res://content/realworld/area.geojson"
+    if not FileAccess.file_exists(data_path):
+        return
+    var importer = load("res://systems/osm_real_world_importer.gd").new()
+    importer.name = "OSMRealWorldImporter"
+    add_child(importer)
+    if importer.import_geojson(self, data_path):
+        event_text = "REAL-WORLD MAP DATA LOADED"
+        event_time_left = 6.0
