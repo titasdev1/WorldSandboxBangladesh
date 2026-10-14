@@ -49,7 +49,7 @@ func import_geojson(target_world: Node3D, path := "res://content/realworld/area.
         var kind := str(geometry.get("type", ""))
         var coords: Variant = geometry.get("coordinates", [])
         if properties.has("highway") and kind == "LineString":
-            _import_road(coords, str(properties.get("highway", "road")))
+            _import_road(coords, str(properties.get("highway", "road")), properties)
         elif properties.has("building") and (kind == "Polygon" or kind == "MultiPolygon"):
             _import_building(coords, kind, properties)
         else:
@@ -73,7 +73,7 @@ func _to_local(coord: Variant) -> Vector3:
     var z := -(lat - origin_latitude) * meters_per_lat_degree * meters_per_game_unit
     return Vector3(x, 0.0, z)
 
-func _import_road(raw_coords: Variant, highway_type: String) -> void:
+func _import_road(raw_coords: Variant, highway_type: String, properties: Dictionary) -> void:
     if not raw_coords is Array or raw_coords.size() < 2:
         skipped_features += 1
         return
@@ -116,7 +116,27 @@ func _import_road(raw_coords: Variant, highway_type: String) -> void:
 
     if is_drivable and current_path.size() > 1:
         imported_road_paths.append(current_path.duplicate())
+    if highway_type in ["trunk", "primary", "secondary", "tertiary", "residential"] and properties.has("name"):
+        _add_road_label(raw_coords, properties)
     imported_roads += 1
+
+func _add_road_label(raw_coords: Variant, properties: Dictionary) -> void:
+    if not raw_coords is Array or raw_coords.size() < 2:
+        return
+    var road_name := str(properties.get("name:bn", properties.get("name", ""))).strip_edges()
+    if road_name.is_empty():
+        return
+    var midpoint: Variant = raw_coords[int(raw_coords.size() / 2)]
+    var label := Label3D.new()
+    label.name = "OSMRoadName"
+    label.text = road_name
+    label.font_size = 18
+    label.pixel_size = 0.012
+    label.outline_size = 5
+    label.modulate = Color("#f4e6bd")
+    label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    label.position = _to_local(midpoint) + Vector3(0, 2.6, 0)
+    world.add_child(label)
 
 func _import_building(raw_coords: Variant, kind: String, properties: Dictionary) -> void:
     var ring: Array = []
