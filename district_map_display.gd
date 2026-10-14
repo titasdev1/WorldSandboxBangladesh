@@ -111,7 +111,7 @@ func _draw() -> void:
  var label_size := 16 if expanded else 12
  draw_string(ThemeDB.fallback_font, Vector2(margin+4, size.y-margin-5), "N  ↑   •   " + current_district, HORIZONTAL_ALIGNMENT_LEFT, -1, label_size, Color("#d9f2fb"))
  if expanded:
-  var map_title := "CENTRAL DHAKA / REAL ROAD MAP" if real_map else "NOBORONGO CITY / DISTRICT ATLAS"
+  var map_title := "GREATER DHAKA / REAL ROAD MAP" if real_map else "NOBORONGO CITY / DISTRICT ATLAS"
   draw_string(ThemeDB.fallback_font, Vector2(margin+4, margin+17), map_title, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("#50d7e9"))
 
 func _world_to_panel(point: Vector2, center: Vector2, scale_value: float) -> Vector2:
