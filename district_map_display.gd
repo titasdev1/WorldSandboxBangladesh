@@ -46,6 +46,12 @@ func update_world(target_world: Node) -> void:
  _has_target = active
  if active:
   _target_position = world.get("mission_target")
+ var mission_factory := world.get_node_or_null("MissionFactory")
+ if is_instance_valid(mission_factory) and int(mission_factory.get("active_index")) >= 0:
+  var side_target = mission_factory.get("active_target")
+  if is_instance_valid(side_target):
+   _target_position = side_target.global_position
+   _has_target = true
  queue_redraw()
 
 func _draw() -> void:
