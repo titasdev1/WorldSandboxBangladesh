@@ -32,6 +32,10 @@ jobs:
         shell: bash
         run: python3 tools/fetch_dhaka_map.py
 
+      - name: Fetch optional rigged CC0 humanoid character
+        shell: bash
+        run: python3 tools/fetch_character_model.py
+
       - name: Validate Godot project scripts and startup
         shell: bash
         run: |
