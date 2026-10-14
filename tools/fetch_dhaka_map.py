@@ -77,10 +77,20 @@ def to_feature(element: dict) -> dict | None:
         geometry = {"type": "Polygon", "coordinates": [coords]}
     else:
         return None
+    # Preserve useful OSM semantics so the runtime can build distinct
+    # facades, roof finishes, named storefronts, and locally labelled places.
+    # Keep this allow-list bounded instead of copying arbitrary tag payloads.
     properties = {
         key: tags[key]
-        for key in ("highway", "building", "name", "height", "building:levels",
-                    "shop", "amenity", "landuse", "surface", "oneway")
+        for key in (
+            "highway", "building", "building:part", "building:use",
+            "building:levels", "height", "min_height", "building:material",
+            "building:colour", "building:color", "roof:shape", "roof:material",
+            "roof:colour", "roof:color", "name", "name:bn", "brand",
+            "addr:street", "addr:housenumber", "shop", "amenity", "landuse",
+            "surface", "oneway", "leisure", "tourism", "office", "craft",
+            "healthcare", "cuisine", "opening_hours", "building:architecture",
+        )
         if key in tags
     }
     properties["osm_id"] = int(element.get("id", 0))
