@@ -248,7 +248,7 @@ func _process(_delta):
  var reload_text = " • RELOADING" if w.player and w.player.reload_time > 0.0 else ""
  var district_name := "Noborongo City"
  if bool(w.get("real_dhaka_loaded")):
-  district_name = "Central Dhaka"
+  district_name = "Greater Dhaka"
  elif w.district_factory and w.district_factory.has_method("current_district") and w.player:
   district_name = w.district_factory.current_district(w.player)
  var active_target_position: Vector3 = w.mission_target
