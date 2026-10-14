@@ -27,6 +27,8 @@ CHUNK_OFFSETS = {"north": (0.0200, 0.0), "south": (-0.0200, 0.0), "east": (0.0, 
 OVERPASS_ENDPOINTS = (
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.nchc.org.tw/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
 )
 USER_AGENT = "WorldSandboxBangladesh/1.0 (open-source game prototype; OSM attribution preserved)"
 
@@ -133,13 +135,13 @@ def main() -> int:
         response = fetch_overpass()
     except Exception as exc:
         # Optional source: do not make a release impossible during an Overpass outage.
-        print(f"WARNING: Dhaka OSM download unavailable; build will use its fallback map: {exc}")
-        return 0
+        print(f"ERROR: required central-Dhaka OSM download unavailable; refusing to publish a fallback-only map: {exc}")
+        return 1
 
     features, road_count, building_count = prepare_features(response, MAX_FEATURES, ROAD_LIMIT)
     if not features:
-        print("WARNING: no usable OSM road/building features returned; keeping fallback map")
-        return 0
+        print("ERROR: central-Dhaka OSM query returned no usable road/building features; refusing to publish a fallback-only map")
+        return 1
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     document = {
@@ -168,7 +170,7 @@ def main() -> int:
     for chunk_name, (lat_shift, lon_shift) in CHUNK_OFFSETS.items():
         bounds = (SOUTH + lat_shift, WEST + lon_shift, NORTH + lat_shift, EAST + lon_shift)
         try:
-            chunk_response = fetch_overpass(bounds, timeout_seconds=30, attempts_per_endpoint=1, endpoints=OVERPASS_ENDPOINTS[:1])
+            chunk_response = fetch_overpass(bounds, timeout_seconds=25, attempts_per_endpoint=1, endpoints=OVERPASS_ENDPOINTS[:2])
             chunk_features, chunk_roads, chunk_buildings = prepare_features(
                 chunk_response, CHUNK_MAX_FEATURES, CHUNK_ROAD_LIMIT
             )
