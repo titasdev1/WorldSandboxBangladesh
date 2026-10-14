@@ -105,6 +105,7 @@ func _build_interior() -> void:
             var item_color: Color = [Color("#c85b47"), Color("#d5ad43"), Color("#4c9a83")][(shelf_index + item_index) % 3]
             _add_box("Stock_%d_%d" % [shelf_index, item_index], Vector3(0.28, 0.38, 0.22), Vector3(-interior_width * 0.5 + 0.42, 1.86, z - 0.34 + float(item_index) * 0.34), _mat("stock_%d_%d" % [shelf_index, item_index], item_color, 0.45))
     _add_box("CeilingLight", Vector3(1.4, 0.08, 0.5), Vector3(0, 2.92, 0), _mat("light", Color("#fff1c4"), 0.25, true))
+    _add_specialized_furnishings()
     var keeper := Node3D.new()
     keeper.name = "ProceduralShopkeeper"
     keeper.position = Vector3(0, 0, 0.75)
@@ -148,6 +149,46 @@ func _build_interior() -> void:
     set_meta("procedural_interior", true)
     set_meta("shop_name", shop_name)
     set_meta("shop_kind", shop_kind)
+
+func _add_specialized_furnishings() -> void:
+    # Distinct shop types receive different furniture and stock layouts; OSM supplies
+    # mapped shop categories, while these authored props provide the playable interior.
+    if shop_kind in ["restaurant", "cafe", "fast_food", "food", "bakery"]:
+        _add_box("KitchenPass", Vector3(interior_width * 0.55, 0.75, 0.55), Vector3(0, 0.45, interior_depth * 0.28), _mat("kitchen", Color("#d8d0c2"), 0.72))
+        for i in range(2):
+            var table_x: float = -1.6 + float(i) * 3.2
+            _add_box("DiningTable_%d" % i, Vector3(1.35, 0.12, 0.9), Vector3(table_x, 0.82, 1.0), _mat("dining_table", Color("#815638"), 0.68))
+            for side in [-1.0, 1.0]:
+                _add_box("DiningSeat_%d_%s" % [i, str(side)], Vector3(0.42, 0.55, 0.42), Vector3(table_x, 0.32, 1.0 + side * 0.72), _mat("dining_seat", Color("#b38a60"), 0.8))
+    elif shop_kind in ["pharmacy", "chemist", "medical_supply"]:
+        _add_box("MedicineCabinet", Vector3(0.3, 2.0, interior_depth * 0.62), Vector3(interior_width * 0.36, 1.2, 0.2), _mat("medicine_cabinet", Color("#edf0e8"), 0.5))
+        var cross := _add_box("PharmacyCross", Vector3(0.12, 0.65, 0.12), Vector3(-interior_width * 0.3, 2.15, -interior_depth * 0.5 + 0.18), _mat("pharmacy_cross", Color("#d64c4c"), 0.4, true))
+        cross.rotation.z = PI / 2.0
+    elif shop_kind in ["clothes", "fashion", "clothing", "tailor"]:
+        _add_box("ClothingRail", Vector3(interior_width * 0.5, 0.08, 0.08), Vector3(0, 1.9, interior_depth * 0.2), _mat("clothing_rail", Color("#686b70"), 0.35))
+        for i in range(6):
+            var garment_color: Color = [Color("#c65b55"), Color("#477ca8"), Color("#d4b04f"), Color("#5b9979"), Color("#9a6eaa"), Color("#ece2d2")][i]
+            _add_box("Garment_%d" % i, Vector3(0.42, 0.72, 0.12), Vector3(-interior_width * 0.22 + float(i) * 0.75, 1.38, interior_depth * 0.2), _mat("garment_%d" % i, garment_color, 0.9))
+    elif shop_kind in ["electronics", "mobile_phone", "computer", "hardware"]:
+        for i in range(3):
+            _add_box("ElectronicsDisplay_%d" % i, Vector3(0.8, 0.48, 0.42), Vector3(-1.8 + float(i) * 1.8, 0.38, 1.35), _mat("electronics_display_%d" % i, Color("#323e4c"), 0.28))
+            _add_box("Screen_%d" % i, Vector3(0.52, 0.28, 0.035), Vector3(-1.8 + float(i) * 1.8, 0.72, 1.12), _mat("screen_%d" % i, Color("#4d9da8"), 0.18, true))
+    elif shop_kind in ["books", "bookstore", "stationery"]:
+        for i in range(4):
+            _add_box("Bookcase_%d" % i, Vector3(0.22, 2.15, 1.05), Vector3(-interior_width * 0.35 + float(i) * 1.5, 1.15, interior_depth * 0.3), _mat("bookcase_%d" % i, Color("#765238"), 0.78))
+            for j in range(3):
+                var book_color: Color = [Color("#bb5448"), Color("#e0c06a"), Color("#4d8198")][(i + j) % 3]
+                _add_box("Book_%d_%d" % [i, j], Vector3(0.12, 0.42, 0.2), Vector3(-interior_width * 0.35 + float(i) * 1.5 + 0.16, 0.55 + float(j) * 0.62, interior_depth * 0.3), _mat("book_%d_%d" % [i, j], book_color, 0.82))
+    elif shop_kind in ["hairdresser", "beauty", "beauty_salon", "barber"]:
+        _add_box("SalonMirror", Vector3(1.1, 1.25, 0.06), Vector3(-interior_width * 0.28, 1.7, interior_depth * 0.3), _mat("salon_mirror", Color("#6c9ba5"), 0.12, true))
+        _add_box("SalonChairSeat", Vector3(0.75, 0.2, 0.7), Vector3(interior_width * 0.18, 0.85, interior_depth * 0.2), _mat("salon_chair", Color("#3b4248"), 0.35))
+        _add_box("SalonChairBack", Vector3(0.75, 0.8, 0.15), Vector3(interior_width * 0.18, 1.25, interior_depth * 0.45), _mat("salon_chair", Color("#3b4248"), 0.35))
+    elif shop_kind in ["supermarket", "convenience", "general", "department_store"]:
+        for i in range(3):
+            _add_box("MarketAisle_%d" % i, Vector3(0.65, 1.35, interior_depth * 0.48), Vector3(-2.0 + float(i) * 2.0, 0.8, 1.2), _mat("market_aisle_%d" % i, Color("#a78c6b"), 0.8))
+    else:
+        # Unknown OSM shop categories still get a distinct back-wall display.
+        _add_box("SpecialtyDisplay", Vector3(interior_width * 0.42, 1.0, 0.35), Vector3(0, 0.65, interior_depth * 0.3), _mat("specialty_display", Color("#92775a"), 0.75))
 
 func _service_line() -> String:
     if shop_kind in ["restaurant", "cafe", "fast_food"]:
