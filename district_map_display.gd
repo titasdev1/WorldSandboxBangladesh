@@ -63,25 +63,38 @@ func _draw() -> void:
  var range_m := 300.0 if expanded else 105.0
  var center := map_rect.position + map_rect.size * 0.5
  var pixels_per_m := minf(map_rect.size.x, map_rect.size.y) / (range_m * 2.0)
- for i in range(-3,4):
-  var road_coord := float(i) * 24.0
-  if absf(road_coord) > range_m:
-   continue
-  var px := center.x + road_coord * pixels_per_m
-  var py := center.y + road_coord * pixels_per_m
-  draw_line(Vector2(px,map_rect.position.y), Vector2(px,map_rect.end.y), Color("#56636a"), 5.0 if expanded else 3.0, true)
-  draw_line(Vector2(map_rect.position.x,py), Vector2(map_rect.end.x,py), Color("#56636a"), 5.0 if expanded else 3.0, true)
-  draw_line(Vector2(px,map_rect.position.y), Vector2(px,map_rect.end.y), Color("#c6b98d",0.8), 1.0, true)
-  draw_line(Vector2(map_rect.position.x,py), Vector2(map_rect.end.x,py), Color("#c6b98d",0.8), 1.0, true)
- # Landmark zones use named, color-coded district anchors to reinforce spatial memory.
- for district in DISTRICTS:
-  var p := _world_to_panel(district.pos, center, pixels_per_m)
-  if map_rect.has_point(p):
-   var discovered_now: bool = discovered.has(str(district.name))
-   var c: Color = district.color if (expanded or discovered_now) else Color("#65727a")
-   draw_circle(p, 5.5 if expanded else 3.5, c)
-   if expanded:
-    draw_string(ThemeDB.fallback_font, p + Vector2(8,-7), str(district.name), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("#e8f2f8") if discovered_now else Color("#9cabb5"))
+ var real_map := is_instance_valid(world) and bool(world.get("real_dhaka_loaded"))
+ if real_map:
+  var loader = world.get("real_dhaka_loader")
+  if is_instance_valid(loader) and loader.has_method("get_road_routes"):
+   var routes: Array = loader.get_road_routes()
+   for route in routes:
+    for i in range(1, route.size()):
+     var a3: Vector3 = route[i - 1]
+     var b3: Vector3 = route[i]
+     var a := _world_to_panel(Vector2(a3.x, a3.z), center, pixels_per_m)
+     var b := _world_to_panel(Vector2(b3.x, b3.z), center, pixels_per_m)
+     draw_line(a, b, Color("#65727a"), 4.5 if expanded else 2.5, true)
+     draw_line(a, b, Color("#c6b98d", 0.8), 1.0, true)
+ else:
+  for i in range(-3,4):
+   var road_coord := float(i) * 24.0
+   if absf(road_coord) > range_m:
+    continue
+   var px := center.x + road_coord * pixels_per_m
+   var py := center.y + road_coord * pixels_per_m
+   draw_line(Vector2(px,map_rect.position.y), Vector2(px,map_rect.end.y), Color("#56636a"), 5.0 if expanded else 3.0, true)
+   draw_line(Vector2(map_rect.position.x,py), Vector2(map_rect.end.x,py), Color("#56636a"), 5.0 if expanded else 3.0, true)
+   draw_line(Vector2(px,map_rect.position.y), Vector2(px,map_rect.end.y), Color("#c6b98d",0.8), 1.0, true)
+   draw_line(Vector2(map_rect.position.x,py), Vector2(map_rect.end.x,py), Color("#c6b98d",0.8), 1.0, true)
+  for district in DISTRICTS:
+   var p := _world_to_panel(district.pos, center, pixels_per_m)
+   if map_rect.has_point(p):
+    var discovered_now: bool = discovered.has(str(district.name))
+    var col: Color = district.color if (expanded or discovered_now) else Color("#65727a")
+    draw_circle(p, 5.5 if expanded else 3.5, col)
+    if expanded:
+     draw_string(ThemeDB.fallback_font, p + Vector2(8,-7), str(district.name), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("#e8f2f8") if discovered_now else Color("#9cabb5"))
  if _has_target:
   var target := _world_to_panel(Vector2(_target_position.x,_target_position.z), center, pixels_per_m)
   if map_rect.has_point(target):
@@ -98,7 +111,8 @@ func _draw() -> void:
  var label_size := 16 if expanded else 12
  draw_string(ThemeDB.fallback_font, Vector2(margin+4, size.y-margin-5), "N  ↑   •   " + current_district, HORIZONTAL_ALIGNMENT_LEFT, -1, label_size, Color("#d9f2fb"))
  if expanded:
-  draw_string(ThemeDB.fallback_font, Vector2(margin+4, margin+17), "NOBORONGO CITY  /  DISTRICT ATLAS", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("#50d7e9"))
+  var map_title := "CENTRAL DHAKA / REAL ROAD MAP" if real_map else "NOBORONGO CITY / DISTRICT ATLAS"
+  draw_string(ThemeDB.fallback_font, Vector2(margin+4, margin+17), map_title, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("#50d7e9"))
 
 func _world_to_panel(point: Vector2, center: Vector2, scale_value: float) -> Vector2:
  return center + point * scale_value
