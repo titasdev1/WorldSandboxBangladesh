@@ -14,7 +14,7 @@ const CHUNKS := [
  {"id": "north", "center": Vector3(0.0, 0.0, -1334.0), "path": "res://content/realworld/chunks/north.geojson"},
  {"id": "south", "center": Vector3(0.0, 0.0, 1334.0), "path": "res://content/realworld/chunks/south.geojson"},
  {"id": "east", "center": Vector3(1212.0, 0.0, 0.0), "path": "res://content/realworld/chunks/east.geojson"},
- {"id": "west", "center": Vector3(-2020.0, 0.0, 0.0), "path": "res://content/realworld/chunks/west.geojson"}
+ {"id": "west", "center": Vector3(-1212.0, 0.0, 0.0), "path": "res://content/realworld/chunks/west.geojson"}
 ]
 
 func configure(target_world: Node3D, target_player: Node3D) -> void:

@@ -15,6 +15,7 @@ var world: Node3D
 var metadata_world: Node3D
 var imported_roads := 0
 var imported_buildings := 0
+var imported_places := 0
 var skipped_features := 0
 var imported_road_paths: Array = []
 
@@ -23,6 +24,7 @@ func import_geojson(target_world: Node3D, path := "res://content/realworld/area.
     metadata_world = target_metadata_world if is_instance_valid(target_metadata_world) else target_world
     imported_roads = 0
     imported_buildings = 0
+    imported_places = 0
     skipped_features = 0
     imported_road_paths.clear()
     if not is_instance_valid(world) or not FileAccess.file_exists(path):
@@ -69,10 +71,14 @@ func import_geojson(target_world: Node3D, path := "res://content/realworld/area.
     metadata_world.set_meta("osm_import_roads", int(metadata_world.get_meta("osm_import_roads", 0)) + imported_roads)
     metadata_world.set_meta("osm_import_buildings", int(metadata_world.get_meta("osm_import_buildings", 0)) + imported_buildings)
     metadata_world.set_meta("osm_import_skipped", int(metadata_world.get_meta("osm_import_skipped", 0)) + skipped_features)
-    return imported_roads > 0 or imported_buildings > 0
+    return imported_roads > 0 or imported_buildings > 0 or imported_places > 0
 
 func _import_place(coords: Array, properties: Dictionary) -> void:
-    var display_name := str(properties.get("name:bn", properties.get("name", properties.get("brand", "")))).strip_edges()
+    var display_name := str(properties.get("name:bn", "")).strip_edges()
+    if display_name.is_empty():
+        display_name = str(properties.get("name", "")).strip_edges()
+    if display_name.is_empty():
+        display_name = str(properties.get("brand", "")).strip_edges()
     if display_name.is_empty():
         display_name = str(properties.get("shop", properties.get("amenity", properties.get("office", properties.get("tourism", "Place"))))).replace("_", " ").capitalize()
     var category := str(properties.get("shop", properties.get("amenity", properties.get("office", properties.get("tourism", "place")))))
@@ -88,6 +94,7 @@ func _import_place(coords: Array, properties: Dictionary) -> void:
     label.set_meta("osm_properties", properties.duplicate(true))
     label.set_meta("place_category", category)
     world.add_child(label)
+    imported_places += 1
 
 func _to_local(coord: Variant) -> Vector3:
     if not coord is Array or coord.size() < 2:
