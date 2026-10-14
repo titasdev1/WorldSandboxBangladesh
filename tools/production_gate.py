@@ -73,7 +73,7 @@ if "func _try_load_authored_model()" not in vehicle_text:
     raise SystemExit("PRODUCTION GATE FAILED: optional authored vehicle loader is missing")
 if "city_asset_factory.configure(self)" not in world_text or "spawn_building(Vector3(x, 0, z)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: authored city building factory is not integrated into the world")
-if "real_dhaka_tile_loader.configure(self)" not in world_text:
+if "real_dhaka_loader.configure(self)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: real-Dhaka tile loader is not wired into the canonical world")
 loader_text = (ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
 for token in ("map_tiles_manifest.json", "LOAD_RADIUS_M", "UNLOAD_RADIUS_M", "_geo_to_world", "create_trimesh_collision"):
