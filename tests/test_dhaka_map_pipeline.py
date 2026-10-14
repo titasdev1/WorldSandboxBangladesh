@@ -7,7 +7,7 @@ import trimesh
 from shapely.geometry import shape
 
 from tools.map_pipeline.build_dhaka_map import DEFAULT_BBOX, build_map, building_height, local_xy
-from tools.map_pipeline.build_dhaka_region import tile_bounds
+from tools.map_pipeline.tile_grid import tile_bounds
 
 
 class DhakaMapPipelineTests(unittest.TestCase):
