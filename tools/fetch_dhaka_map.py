@@ -32,7 +32,7 @@ OVERPASS_ENDPOINTS = (
 )
 USER_AGENT = "WorldSandboxBangladesh/1.0 (open-source game prototype; OSM attribution preserved)"
 
-def fetch_overpass(bounds: tuple[float, float, float, float] | None = None, timeout_seconds: int = 45, attempts_per_endpoint: int = 1, endpoints: tuple[str, ...] = OVERPASS_ENDPOINTS) -> dict:
+def fetch_overpass(bounds: tuple[float, float, float, float] | None = None, timeout_seconds: int = 45, attempts_per_endpoint: int = 2, endpoints: tuple[str, ...] = OVERPASS_ENDPOINTS) -> dict:
     south, west, north, east = bounds or (SOUTH, WEST, NORTH, EAST)
     bbox = f"{south},{west},{north},{east}"
     query = (
@@ -63,8 +63,10 @@ def fetch_overpass(bounds: tuple[float, float, float, float] | None = None, time
                 return data
             except Exception as exc:
                 last_error = exc
-                if attempt == 0:
-                    time.sleep(2)
+                # Public Overpass servers are frequently busy. Retry transient failures
+                # before moving to the next independent mirror, with bounded backoff.
+                if attempt + 1 < attempts_per_endpoint:
+                    time.sleep(min(8, 2 ** (attempt + 1)))
     raise RuntimeError(f"all Overpass endpoints failed: {last_error}")
 
 def to_feature(element: dict) -> dict | None:
@@ -132,7 +134,9 @@ def prepare_features(response: dict, max_features: int, road_limit: int) -> tupl
 
 def main() -> int:
     try:
-        response = fetch_overpass()
+        # The central district is required for a real-Dhaka build. Give each mirror
+        # one retry before refusing the build rather than publishing the fictional fallback.
+        response = fetch_overpass(timeout_seconds=35, attempts_per_endpoint=2)
     except Exception as exc:
         # Optional source: do not make a release impossible during an Overpass outage.
         print(f"ERROR: required central-Dhaka OSM download unavailable; refusing to publish a fallback-only map: {exc}")
@@ -170,7 +174,7 @@ def main() -> int:
     for chunk_name, (lat_shift, lon_shift) in CHUNK_OFFSETS.items():
         bounds = (SOUTH + lat_shift, WEST + lon_shift, NORTH + lat_shift, EAST + lon_shift)
         try:
-            chunk_response = fetch_overpass(bounds, timeout_seconds=20, attempts_per_endpoint=1, endpoints=OVERPASS_ENDPOINTS)
+            chunk_response = fetch_overpass(bounds, timeout_seconds=25, attempts_per_endpoint=1, endpoints=OVERPASS_ENDPOINTS)
             chunk_features, chunk_roads, chunk_buildings = prepare_features(
                 chunk_response, CHUNK_MAX_FEATURES, CHUNK_ROAD_LIMIT
             )
