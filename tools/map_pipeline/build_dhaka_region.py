@@ -19,6 +19,12 @@ import sys
 import urllib.request
 from typing import Any
 
+# Direct script execution puts tools/map_pipeline on sys.path, not the repo root.
+# Add the project root so the shared exporter can be imported in CI and locally.
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 import osmium
 from shapely.geometry import box
 from tools.map_pipeline.build_dhaka_map import DEFAULT_BBOX, build_map
