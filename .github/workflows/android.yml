@@ -26,10 +26,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --user osmium shapely trimesh mapbox-earcut
-          python3 -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_region.py
-          python3 -m unittest discover -s tests -p 'test_dhaka_map_pipeline.py' -v
-          python3 tools/map_pipeline/build_dhaka_region.py --tile-degrees 0.02 --out build/greater-dhaka
+          python3 -m venv "$RUNNER_TEMP/map-venv"
+          "$RUNNER_TEMP/map-venv/bin/python" -m pip install --upgrade pip
+          "$RUNNER_TEMP/map-venv/bin/python" -m pip install osmium shapely trimesh mapbox-earcut
+          "$RUNNER_TEMP/map-venv/bin/python" -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_region.py
+          "$RUNNER_TEMP/map-venv/bin/python" -m unittest discover -s tests -p 'test_dhaka_map_pipeline.py' -v
+          "$RUNNER_TEMP/map-venv/bin/python" tools/map_pipeline/build_dhaka_region.py --tile-degrees 0.02 --out build/greater-dhaka
           test -s build/greater-dhaka/map_tiles_manifest.json
           test -s build/greater-dhaka/ATTRIBUTION.txt
           mkdir -p assets/world/dhaka_tiles
