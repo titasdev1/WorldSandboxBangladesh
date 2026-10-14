@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import trimesh
-from shapely.geometry import LineString, MultiPolygon, Polygon, mapping
+from shapely.geometry import GeometryCollection, LineString, MultiPolygon, Polygon
 from shapely.ops import unary_union
 
 # First map slice: central Dhaka. Small enough for responsible Overpass use and
@@ -96,7 +96,10 @@ def color_mesh(mesh: trimesh.Trimesh, color: tuple[int, int, int, int]) -> trime
 
 def extruded_polygon(geom: Polygon, height: float, color: tuple[int, int, int, int], name: str) -> list[trimesh.Trimesh]:
     result: list[trimesh.Trimesh] = []
-    parts = list(geom.geoms) if isinstance(geom, MultiPolygon) else [geom]
+    if isinstance(geom, (MultiPolygon, GeometryCollection)):
+        parts = [part for part in geom.geoms if isinstance(part, Polygon)]
+    else:
+        parts = [geom]
     for part in parts:
         if part.is_empty or part.area < 0.5:
             continue
@@ -193,6 +196,8 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     min_xy = local_xy(south, west, origin_lat, origin_lon)
     max_xy = local_xy(north, east, origin_lat, origin_lon)
     width, depth = max_xy[0] - min_xy[0], max_xy[1] - min_xy[1]
+    tile_bounds = Polygon([(-width / 2, -depth / 2), (width / 2, -depth / 2),
+                           (width / 2, depth / 2), (-width / 2, depth / 2)])
     scene = trimesh.Scene()
     ground = trimesh.creation.box(extents=(width, depth, 0.20))
     ground.apply_translation((0.0, 0.0, -0.10))
@@ -230,7 +235,8 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 polygon = Polygon(points)
             if not polygon.is_valid:
                 polygon = polygon.buffer(0)
-            if polygon.is_empty:
+            polygon = polygon.intersection(tile_bounds)
+            if polygon.is_empty or polygon.area < 0.5:
                 continue
             height, inferred = building_height(tags, osm_id)
             if inferred:
@@ -254,10 +260,10 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             continue
         if el_type == "way" and tags.get("highway") and len(points) >= 2:
             try:
-                line = LineString(points)
-                if not line.is_valid or line.length < 1.0:
+                line = LineString(points).intersection(tile_bounds)
+                if line.is_empty or line.length < 1.0:
                     continue
-                road_polygon = line.buffer(road_width(tags) / 2.0, cap_style="flat", join_style="mitre")
+                road_polygon = line.buffer(road_width(tags) / 2.0, cap_style="flat", join_style="mitre").intersection(tile_bounds)
                 parts = list(road_polygon.geoms) if isinstance(road_polygon, MultiPolygon) else [road_polygon]
                 for part_index, part in enumerate(parts):
                     if part.area < 0.25:
@@ -269,6 +275,10 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             except Exception:
                 continue
 
+    scene_bounds = scene.bounds
+    if (scene_bounds[0][0] < -width / 2 - 1 or scene_bounds[1][0] > width / 2 + 1 or
+            scene_bounds[0][1] < -depth / 2 - 1 or scene_bounds[1][1] > depth / 2 + 1):
+        raise RuntimeError("Export geometry extends beyond the requested tile; refusing to publish an oversized map.")
     glb_path = output_dir / "Dhaka_Explorable_Map.glb"
     glb_path.write_bytes(scene.export(file_type="glb"))
     (output_dir / "Dhaka_OSM_Source.geojson").write_text(
