@@ -6,6 +6,7 @@ var lane_axis := "z"
 var road_route: Array = []
 var road_route_index := 0
 var road_route_direction := 1
+var road_route_lane_offset := 0.0
 var vehicle_type := "Car"
 var body_size := Vector3(2.0, 1.0, 4.0)
 var body_color := Color("#d94a45")
@@ -291,11 +292,26 @@ func _physics_process(delta: float) -> void:
             world.wanted = mini(5, world.wanted + 1)
     _animate_wheels(delta)
 
+func _road_route_point(index: int) -> Vector3:
+    var point: Vector3 = road_route[clampi(index, 0, road_route.size() - 1)]
+    if absf(road_route_lane_offset) < 0.01 or road_route.size() < 2:
+        return point
+    var previous_index := maxi(0, index - 1)
+    var next_index := mini(road_route.size() - 1, index + 1)
+    var tangent: Vector3 = road_route[next_index] - road_route[previous_index]
+    tangent.y = 0.0
+    if tangent.length_squared() < 0.001:
+        return point
+    tangent = tangent.normalized()
+    var perpendicular := Vector3(-tangent.z, 0.0, tangent.x)
+    return point + perpendicular * road_route_lane_offset
+
+
 func _drive_osm_route(delta: float) -> void:
     if road_route.size() < 2:
         return
     road_route_index = clampi(road_route_index, 0, road_route.size() - 1)
-    var target: Vector3 = road_route[road_route_index]
+    var target: Vector3 = _road_route_point(road_route_index)
     var to_target := target - global_position
     to_target.y = 0.0
     if to_target.length() < maxf(2.0, speed * delta * 1.4):
@@ -304,7 +320,7 @@ func _drive_osm_route(delta: float) -> void:
             road_route_direction *= -1
             next_index = road_route_index + road_route_direction
         road_route_index = clampi(next_index, 0, road_route.size() - 1)
-        target = road_route[road_route_index]
+        target = _road_route_point(road_route_index)
         to_target = target - global_position
         to_target.y = 0.0
     if to_target.length_squared() < 0.001:
