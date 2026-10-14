@@ -45,6 +45,15 @@ jobs:
           print(f"Bundled {len(glbs)} real-data GLB tiles; {sum(p.stat().st_size for p in glbs):,} bytes")
           PY
 
+      - name: Upload standalone Greater Dhaka 3D map package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project-A-Square-Greater-Dhaka-3D-Map
+          path: build/greater-dhaka/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 1
+
       - name: Validate Godot project scripts and startup
         shell: bash
         run: |
