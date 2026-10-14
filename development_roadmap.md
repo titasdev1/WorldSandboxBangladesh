@@ -128,3 +128,16 @@ Development batches are measured by integrated playable capability, not workflow
 - Reworked the first-boot mode lobby into a three-column, two-row card grid with clearer hierarchy, compact typography, keyboard/controller focus styling, and six connected selections: Deshi Stories, Open City, Last Stand, Combat Lab, Street Life, and District Atlas.
 - Added Street Life as a distinct selection that emphasizes the existing market/economy/transport/event systems. It does not claim online multiplayer, real-world Bangladesh map coverage, or a full battle royale.
 - Pending: canonical Godot import/startup and Android export; inspect resulting APK/artifact size and confirm the downloaded texture count. On-device layout/touch QA remains necessary.
+
+
+## 2026-10 unified blueprint and size-audit correction
+- Added `DREAM_GAME_MASTER_PLAN.md` as the unified source of truth for the user's complete game vision, cumulative development rules, release gates, size accounting, licensing, and explicit implemented/partial/planned/device-verified distinctions.
+- Added `tools/report_build_assets.py` and integrated it into the canonical Android workflow. It writes a machine-readable report with actual APK file bytes when APKs are available, asset pack file counts/bytes, and manifest-derived model/PBR counts. The report uploads separately from the Android artifact.
+- Canonical run [#223](https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/38513708962) passed. Android artifact container is 188,983,443 bytes; separate audit report artifact is 884 bytes. Do not interpret either artifact-container number as the APK's own size. The report's JSON contents have not yet been inspected directly in this record.
+- The #220→#221 reduction followed a deliberate mobile texture budget change (8K maps excluded, 4K road / 2K other preference). The asset report is intended to establish the exact contribution rather than guessing.
+
+## 2026-10 first integrated combat-mode rules
+- Added `systems/combat_enemy.gd`: health-bearing targets/enemies, pursuit and melee damage in survival mode, hit/defeat callback, and practice-target behavior.
+- Added `systems/combat_mode_controller.gd`: Combat Lab starts six practice targets and reports eliminations/completion; Last Stand starts escalating waves, tracks enemies remaining, progresses through three waves, and awards a victory reward. Entering a combat mode restores player health/ammo and resets wanted level.
+- Integrated controller lifecycle into `world.gd`, mode selection in `hud.gd`, and HUD health/combat progress. Corrected lobby subtitle to accurately say six modes.
+- Merged in commit `123f84f`. Next canonical run must validate script parsing/import/startup and Android export. This is a source-level playable loop, not yet device-verified; aiming, enemy pathing around buildings, difficulty, collision, and FPS need Android QA. Online play and full battle royale remain future systems.
