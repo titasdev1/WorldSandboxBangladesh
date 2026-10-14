@@ -7,6 +7,9 @@ from tools.map_pipeline.build_dhaka_map import DEFAULT_BBOX, build_map, local_xy
 
 
 class DhakaMapPipelineTests(unittest.TestCase):
+    def test_default_tile_matches_existing_central_dhaka_anchor(self):
+        self.assertEqual(DEFAULT_BBOX, (23.8043, 90.4065, 23.8163, 90.4185))
+
     def test_local_projection_is_stable_and_metric(self):
         x, y = local_xy(23.781, 90.407, 23.780, 90.407)
         self.assertAlmostEqual(x, 0.0, places=3)
