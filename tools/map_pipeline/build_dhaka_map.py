@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import random
 import time
 import urllib.parse
 import urllib.request
@@ -129,23 +128,27 @@ def building_height(tags: dict[str, str], osm_id: int) -> tuple[float, bool]:
             return max(3.2, levels * 3.1), False
     except (TypeError, ValueError):
         pass
-    # Inferred height is explicitly marked in the manifest; it is not a surveyed value.
-    rng = random.Random(int(osm_id))
-    return rng.uniform(6.2, 24.0), True
+    # Do not invent a different height for every unmapped building. A low,
+    # neutral placeholder keeps geometry usable while the manifest/seed marks
+    # it as unverified; real height must come from tagged/surveyed data.
+    return 3.2, True
 
 
 def building_color(tags: dict[str, str], osm_id: int) -> tuple[int, int, int, int]:
+    """Stable category color, never pseudo-random per-building facade color.
+
+    These are map-rendering placeholders, NOT claims about the real facade.
+    Exact facade appearance requires licensed street-level imagery or surveyed
+    building-specific material data.
+    """
     kind = tags.get("building", "").lower()
     if kind in {"commercial", "retail", "office", "hotel"} or "shop" in tags:
-        palette = [(185, 169, 145, 255), (197, 184, 161, 255), (157, 169, 174, 255)]
-    elif kind in {"industrial", "warehouse", "garages"}:
-        palette = [(155, 157, 151, 255), (177, 172, 158, 255)]
-    elif kind in {"religious", "mosque", "church", "temple"}:
-        palette = [(201, 187, 157, 255), (183, 173, 149, 255)]
-    else:
-        palette = [(195, 181, 162, 255), (176, 180, 171, 255), (207, 196, 179, 255),
-                   (166, 175, 180, 255), (187, 166, 151, 255)]
-    return palette[int(osm_id) % len(palette)]
+        return (177, 180, 181, 255)
+    if kind in {"industrial", "warehouse", "garages"}:
+        return (164, 167, 163, 255)
+    if kind in {"religious", "mosque", "church", "temple"}:
+        return (190, 184, 166, 255)
+    return (183, 178, 171, 255)
 
 
 def road_width(tags: dict[str, str]) -> float:
@@ -278,8 +281,11 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 interior_seeds.append({
                     "osm_id": osm_id, "name": name or tags.get("shop", tags.get("amenity", "Unnamed building")),
                     "category": tags.get("shop", tags.get("amenity", tags.get("building", "building"))),
-                    "floors_estimate": max(1, round(height / 3.1)),
-                    "height_source": "INFERRED" if inferred else ("OSM_HEIGHT_OR_LEVELS"),
+                    "floors_estimate": None if inferred else max(1, round(height / 3.1)),
+                    "height_metres": round(height, 2),
+                    "height_source": "UNVERIFIED_PLACEHOLDER_3_2M" if inferred else "OSM_HEIGHT_OR_LEVELS",
+                    "facade_status": "NO_VERIFIED_FACADE_TEXTURE",
+                    "geometry_confidence": "OSM_FOOTPRINT; VERIFY_ON_GROUND_OR_WITH_LICENSED_IMAGERY",
                     "footprint_local_m": [[round(x, 2), round(y, 2)] for x, y in points],
                     "interior_status": "AI_GENERATED_LATER_NOT_PRESENT_IN_OSM",
                     "npc_seed": "Create fictional AI shopkeepers/residents appropriate to this place and Bangladesh; never impersonate a real person.",
