@@ -106,3 +106,10 @@ Development batches are measured by integrated playable capability, not workflow
 - HUD now shows the current district and live distance to the active story target.
 - This remains a fictional starter city map, not real Bangladesh cartography. Real geospatial data needs a licensed data/provider integration and must obey provider attribution and caching terms.
 - Next: verify the generated map script and HUD on Godot 4.4.1; inspect imported CC0 asset inclusion and expand actual mission/content systems after validation.
+
+
+## Expanded navigation and mission feedback batch
+- The city atlas now checks the active MissionFactory side-job target before falling back to the three-stage story objective, so its yellow target marker follows the side mission when one is active.
+- The HUD now surfaces side-job name/reward, current named district, and live target distance, joining mission selection, map marker, and player position into one feedback loop.
+- Canonical project archive workflow now fetches the official Kenney CC0 car and city packs before staging the single project ZIP. It reports included asset-file counts; this addresses the previous mismatch where CI builds could download models but a source-only archive would omit them.
+- Archive size remains a measured outcome of legitimate source and licensed content, never generated filler. The archive workflow still requires finalization state to be marked ready.
