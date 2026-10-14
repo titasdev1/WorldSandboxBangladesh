@@ -17,7 +17,7 @@ jobs:
 
       - name: Validate asset pipeline Python syntax
         shell: bash
-        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py
+        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py
 
       - name: Validate Godot project scripts and startup
         shell: bash
@@ -61,6 +61,10 @@ jobs:
       - name: Fetch optional CC0 city building art
         shell: bash
         run: python3 tools/fetch_city_assets.py
+
+      - name: Fetch optional Poly Haven CC0 high-resolution PBR surfaces
+        shell: bash
+        run: python3 tools/fetch_polyhaven_pbr.py
 
       - name: Setup Java
         uses: actions/setup-java@v5
