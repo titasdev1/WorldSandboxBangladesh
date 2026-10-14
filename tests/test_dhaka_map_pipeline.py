@@ -17,6 +17,7 @@ class DhakaMapPipelineTests(unittest.TestCase):
         self.assertEqual(len(tiles), 144)
         self.assertEqual(tiles[0], (23.66, 90.3, 23.68, 90.32))
         self.assertEqual(tiles[-1], (23.88, 90.52, 23.9, 90.53))
+        self.assertTrue(all(south < north and west < east for south, west, north, east in tiles))
         # Tiles are row-major; adjacent tiles share edges exactly.
         for i in range(1, len(tiles)):
             previous = tiles[i - 1]
