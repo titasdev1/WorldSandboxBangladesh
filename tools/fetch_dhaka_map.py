@@ -238,8 +238,7 @@ def fetch_geofabrik(bounds: tuple[float, float, float, float]) -> dict:
     return {"elements": elements}
 
 
-def element_intersects_bounds(element: dict, bounds: tuple[float, float, float, float]) -> bool:
-    south, west, north, east = bounds
+def _element_bbox(element: dict) -> tuple[float, float, float, float] | None:
     points: list[tuple[float, float]] = []
     if element.get("type") == "node":
         if "lon" in element and "lat" in element:
@@ -249,12 +248,25 @@ def element_intersects_bounds(element: dict, bounds: tuple[float, float, float, 
             if isinstance(point, dict) and "lon" in point and "lat" in point:
                 points.append((float(point["lon"]), float(point["lat"])))
     if not points:
-        return False
+        return None
     min_lon = min(point[0] for point in points)
     max_lon = max(point[0] for point in points)
     min_lat = min(point[1] for point in points)
     max_lat = max(point[1] for point in points)
+    return min_lat, min_lon, max_lat, max_lon
+
+
+def _bbox_intersects(element_bbox: tuple[float, float, float, float],
+                     bounds: tuple[float, float, float, float]) -> bool:
+    min_lat, min_lon, max_lat, max_lon = element_bbox
+    south, west, north, east = bounds
     return max_lon >= west and min_lon <= east and max_lat >= south and min_lat <= north
+
+
+def element_intersects_bounds(element: dict, bounds: tuple[float, float, float, float]) -> bool:
+    """Return whether an OSM node/way bounding box overlaps a lat/lon cell."""
+    bbox = _element_bbox(element)
+    return bbox is not None and _bbox_intersects(bbox, bounds)
 
 
 def main() -> int:
@@ -312,6 +324,9 @@ def main() -> int:
     try:
         city_response = fetch_geofabrik(city_bounds)
         print(f"Regional OSM extract ready for grid: {len(city_response['elements'])} elements")
+        # Calculate each geometry's bounding box once; reusing it across all cells
+        # avoids rescanning hundreds of thousands of OSM coordinate arrays 169 times.
+        city_index = [(element, _element_bbox(element)) for element in city_response["elements"]]
     except Exception as pbf_exc:
         print(f"WARNING: regional PBF extraction unavailable: {pbf_exc}; per-cell Overpass fallback will be used")
         city_response = {"elements": []}
@@ -324,8 +339,8 @@ def main() -> int:
                       center_lon - CITY_CELL_DEGREES / 2,
                       center_lat + CITY_CELL_DEGREES / 2,
                       center_lon + CITY_CELL_DEGREES / 2)
-            cell_elements = [element for element in city_response["elements"]
-                             if element_intersects_bounds(element, bounds)]
+            cell_elements = [element for element, bbox in city_index
+                             if bbox is not None and _bbox_intersects(bbox, bounds)]
             chunk_response = {"elements": cell_elements}
             if not cell_elements:
                 print(f"WARNING: regional extract has no features in {chunk_name}; trying Overpass")
