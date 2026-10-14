@@ -195,7 +195,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-dev
-          name: World Sandbox: Bangladesh — Android Development Build
+          name: "World Sandbox: Bangladesh — Android Development Build"
           body: |
             Automatically generated Android development build from the canonical main branch.
             This is a direct APK download, not a GitHub Actions artifact ZIP.
