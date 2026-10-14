@@ -306,13 +306,14 @@ func _import_building(raw_coords: Variant, kind: String, properties: Dictionary)
 
 func _add_facade_details(parent: StaticBody3D, width: float, depth: float, height: float, properties: Dictionary) -> void:
     var tagged_levels := str(properties.get("building:levels", ""))
-    var floors := clampi(int(round(float(tagged_levels))) if tagged_levels.is_valid_float() else int(round(height / 3.2)), 1, 15)
+    # Limit decorative mesh count for Android: detailed facade art must not exhaust GPU RIDs.
+    var floors := clampi(int(round(float(tagged_levels))) if tagged_levels.is_valid_float() else int(round(height / 3.2)), 1, 6)
     var window_material := StandardMaterial3D.new()
     window_material.albedo_color = Color("#83b8c7")
     window_material.metallic = 0.08
     window_material.roughness = 0.24
-    var columns := clampi(int(floor(width / 3.0)), 1, 8)
-    var side_columns := clampi(int(floor(depth / 3.0)), 1, 8)
+    var columns := clampi(int(floor(width / 3.0)), 1, 4)
+    var side_columns := clampi(int(floor(depth / 3.0)), 1, 3)
     var window_w := minf(1.15, maxf(0.45, width / float(columns + 1) * 0.48))
     var side_window_w := minf(1.15, maxf(0.45, depth / float(side_columns + 1) * 0.48))
     var window_h := 1.05
@@ -324,13 +325,9 @@ func _add_facade_details(parent: StaticBody3D, width: float, depth: float, heigh
             var x := -width * 0.5 + width * float(column + 1) / float(columns + 1)
             _add_facade_box(parent, "FrontWindow", Vector3(x, y, -depth * 0.5 - 0.035),
                 Vector3(window_w, window_h, 0.07), window_material)
-            _add_facade_box(parent, "RearWindow", Vector3(x, y, depth * 0.5 + 0.035),
-                Vector3(window_w, window_h, 0.07), window_material)
         for column in range(side_columns):
             var z := -depth * 0.5 + depth * float(column + 1) / float(side_columns + 1)
             _add_facade_box(parent, "RightWindow", Vector3(width * 0.5 + 0.035, y, z),
-                Vector3(0.07, window_h, side_window_w), window_material)
-            _add_facade_box(parent, "LeftWindow", Vector3(-width * 0.5 - 0.035, y, z),
                 Vector3(0.07, window_h, side_window_w), window_material)
 
     # A visible street-level doorway makes the exterior read as an entrance.

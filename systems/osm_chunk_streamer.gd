@@ -74,7 +74,7 @@ func _process(delta: float) -> void:
   world.add_child(chunk_root)
   var importer := OSMRealWorldImporter.new()
   importer.name = "OSMChunkImporter_" + chunk_id
-  importer.max_features = 4500
+  importer.max_features = 1800
   chunk_root.add_child(importer)
   if importer.import_geojson(chunk_root, path, world):
    loaded_chunks[chunk_id] = chunk_root

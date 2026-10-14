@@ -27,8 +27,8 @@ CITY_CELL_DEGREES = 0.03
 CITY_GRID_RADIUS = 3
 MAX_FEATURES = 1800
 ROAD_LIMIT = 400
-CHUNK_MAX_FEATURES = 4500
-CHUNK_ROAD_LIMIT = 800
+CHUNK_MAX_FEATURES = 1800
+CHUNK_ROAD_LIMIT = 300
 OVERPASS_ENDPOINTS = (
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
