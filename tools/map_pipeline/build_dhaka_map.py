@@ -313,6 +313,16 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     if (scene_bounds[0][0] < -width / 2 - 1 or scene_bounds[1][0] > width / 2 + 1 or
             scene_bounds[0][1] < -depth / 2 - 1 or scene_bounds[1][1] > depth / 2 + 1):
         raise RuntimeError("Export geometry extends beyond the requested tile; refusing to publish an oversized map.")
+    # Convert the internal Z-up extrusion coordinates (X=east, Y=north, Z=up)
+    # to glTF/Godot coordinates (X=east, Y=up, Z=south). Without this transform,
+    # the imported city can stand on its side despite having valid GLB geometry.
+    gltf_axes = [
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, -1.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
+    scene.apply_transform(gltf_axes)
     glb_path = output_dir / "Dhaka_Explorable_Map.glb"
     glb_path.write_bytes(scene.export(file_type="glb"))
     (output_dir / "Dhaka_OSM_Source.geojson").write_text(
