@@ -26,15 +26,15 @@ var road_z := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 
 func _ready():
  rng.randomize()
+ pbr_surface_factory = load("res://pbr_surface_factory.gd").new()
+ pbr_surface_factory.name = "PBRSurfaceFactory"
+ add_child(pbr_surface_factory)
+ pbr_surface_factory.configure(self)
  build_environment()
  city_asset_factory = load("res://city_asset_factory.gd").new()
  city_asset_factory.name = "CityAssetFactory"
  add_child(city_asset_factory)
  city_asset_factory.configure(self)
- pbr_surface_factory = load("res://pbr_surface_factory.gd").new()
- pbr_surface_factory.name = "PBRSurfaceFactory"
- add_child(pbr_surface_factory)
- pbr_surface_factory.configure(self)
  build_city()
  build_landmarks()
  var street_life = load("res://street_life_factory.gd").new()
