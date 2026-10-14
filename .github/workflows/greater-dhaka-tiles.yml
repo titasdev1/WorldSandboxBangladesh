@@ -12,6 +12,13 @@ on:
           - "0.01"
           - "0.02"
           - "0.03"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "tools/map_pipeline/**"
+      - ".github/workflows/greater-dhaka-tiles.yml"
+      - "tests/test_dhaka_map_pipeline.py"
   push:
     branches:
       - main
