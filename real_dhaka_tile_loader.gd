@@ -189,5 +189,18 @@ func _add_walkable_collisions(root: Node) -> void:
 			pending.append(child)
 		if current is MeshInstance3D:
 			var mesh_instance := current as MeshInstance3D
-			if mesh_instance.name.begins_with("terrain_base") or mesh_instance.name.begins_with("building_"):
+			if mesh_instance.name.begins_with("terrain_base"):
 				mesh_instance.create_trimesh_collision()
+			elif mesh_instance.name.begins_with("building_"):
+				# Use a light box collider for each building shell rather than a
+				# heavy concave collider per mesh; this is safer for Android physics.
+				var bounds := mesh_instance.get_aabb()
+				var static_body := StaticBody3D.new()
+				static_body.name = "BuildingCollision"
+				var collision := CollisionShape3D.new()
+				var shape := BoxShape3D.new()
+				shape.size = Vector3(maxf(bounds.size.x, 0.5), maxf(bounds.size.y, 1.0), maxf(bounds.size.z, 0.5))
+				collision.shape = shape
+				collision.position = bounds.position + bounds.size * 0.5
+				static_body.add_child(collision)
+				mesh_instance.add_child(static_body)
