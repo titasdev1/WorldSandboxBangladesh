@@ -98,3 +98,18 @@ Development batches are measured by integrated playable capability, not workflow
 - Fixed analog-stick drag coordinate handling to use the event's local position consistently. Previously the drag path subtracted the control's global position a second time, which could pull the virtual thumb in the wrong direction and contribute to reversed/unresponsive movement.
 - Added player-facing movement orientation so the avatar rotates into the direction of travel.
 - This batch is pending the canonical Godot startup/import and Android export workflow; touch feel and mode behavior still require physical-device testing.
+
+
+## Major navigation/map-learning upgrade (in validation)
+- Added a custom vector-drawn city atlas with a readable road grid, six named districts, discovery coloring, player direction marker, and active story objective marker.
+- Added a CITY MAP / CLOSE MAP control to switch between a compact navigation display and a larger atlas. The map uses world coordinates, not a static screenshot, and updates against the live player and mission state.
+- HUD now shows the current district and live distance to the active story target.
+- This remains a fictional starter city map, not real Bangladesh cartography. Real geospatial data needs a licensed data/provider integration and must obey provider attribution and caching terms.
+- Next: verify the generated map script and HUD on Godot 4.4.1; inspect imported CC0 asset inclusion and expand actual mission/content systems after validation.
+
+
+## Expanded navigation and mission feedback batch
+- The city atlas now checks the active MissionFactory side-job target before falling back to the three-stage story objective, so its yellow target marker follows the side mission when one is active.
+- The HUD now surfaces side-job name/reward, current named district, and live target distance, joining mission selection, map marker, and player position into one feedback loop.
+- Canonical project archive workflow now fetches the official Kenney CC0 car and city packs before staging the single project ZIP. It reports included asset-file counts; this addresses the previous mismatch where CI builds could download models but a source-only archive would omit them.
+- Archive size remains a measured outcome of legitimate source and licensed content, never generated filler. The archive workflow still requires finalization state to be marked ready.
