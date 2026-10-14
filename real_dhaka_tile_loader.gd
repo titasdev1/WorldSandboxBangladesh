@@ -107,6 +107,9 @@ func _load_road_routes(record: Dictionary) -> void:
 		var properties: Variant = feature.get("properties", {})
 		if not (properties is Dictionary) or not properties.has("highway"):
 			continue
+		var highway_type := str(properties.get("highway", ""))
+		if highway_type in ["footway", "path", "steps", "pedestrian", "cycleway", "bridleway", "corridor", "platform"]:
+			continue
 		var geometry: Variant = feature.get("geometry", {})
 		if not (geometry is Dictionary):
 			continue
