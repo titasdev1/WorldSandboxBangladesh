@@ -251,13 +251,6 @@ def main() -> int:
     boundary, boundary_properties = load_dhaka_boundary(args.boundary)
     min_lon, min_lat, max_lon, max_lat = boundary.bounds
     bounds = (min_lat, min_lon, max_lat, max_lon)
-    download(PBF_URL, args.pbf, 100_000_000)
-    handler = RegionHandler(bounds)
-    print("Extracting OSM features inside the Dhaka Division boundary envelope…", flush=True)
-    handler.apply_file(str(args.pbf), locations=True)
-    print(f"Extracted {len(handler.elements):,} source elements; invalid ways: {handler.bad_locations}", flush=True)
-    if not handler.elements:
-        raise RuntimeError("No mapped OSM features found in the Dhaka Division boundary envelope.")
     full_tiles = list(tile_bounds(bounds, args.tile_degrees))
     tiles = []
     for tile in full_tiles:
@@ -271,6 +264,22 @@ def main() -> int:
                                * math.cos(math.radians(23.8103))) ** 2)
     if args.max_tiles > 0:
         tiles = tiles[:args.max_tiles]
+    if not tiles:
+        raise RuntimeError("No tiles intersect the Dhaka Division boundary.")
+    # In bounded test mode, extract only the selected tiles instead of storing
+    # every mapped feature in the entire division in memory.
+    if args.max_tiles > 0:
+        extract_bounds = (min(t[0] for t in tiles), min(t[1] for t in tiles),
+                          max(t[2] for t in tiles), max(t[3] for t in tiles))
+    else:
+        extract_bounds = bounds
+    download(PBF_URL, args.pbf, 100_000_000)
+    handler = RegionHandler(extract_bounds)
+    print("Extracting OSM features for selected Dhaka Division tiles…", flush=True)
+    handler.apply_file(str(args.pbf), locations=True)
+    print(f"Extracted {len(handler.elements):,} source elements; invalid ways: {handler.bad_locations}", flush=True)
+    if not handler.elements:
+        raise RuntimeError("No mapped OSM features found in the selected Dhaka Division tile bounds.")
     args.out.mkdir(parents=True, exist_ok=True)
     cols = max(1, math.ceil((max_lon - min_lon) / args.tile_degrees))
     tile_index_by_grid = {}
