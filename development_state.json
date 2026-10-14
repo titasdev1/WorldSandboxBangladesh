@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "023_NAVIGATION_ATLAS_AND_LIVE_MISSION_FEEDBACK",
+  "current_milestone": "024_HIGH_RESOLUTION_PBR_SURFACE_PIPELINE",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -25,7 +25,7 @@
     "015_UI",
     "017_SAVE_LOAD"
   ],
-  "next_priority": "024_ASSET_IMPORT_QA_AND_DISTRICT_CONTENT_EXPANSION",
+  "next_priority": "025_VALIDATE_AUTHORED_ASSETS_AND_EXPAND_DISTRICT_MISSION_CONTENT",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -34,9 +34,10 @@
     "City models remain optional and procedural building fallbacks remain active if pack download/import/model-name matching fails.",
     "Frame-time/memory profiling, traffic behavior, collision tuning, and complete mission/vehicle/combat/save-load regression remain unverified on a physical device.",
     "District atlas, side-mission target binding, and district/objective HUD are awaiting canonical build validation; physical Android visual/touch QA is still required.",
-    "Final project archive workflow now fetches CC0 assets, but the archive has not been generated and its resulting size has not been measured."
+    "Final project archive workflow now fetches CC0 assets, but the archive has not been generated and its resulting size has not been measured.",
+    "Optional Poly Haven PBR downloader and runtime surface materials are newly added; CI API selection, imported texture appearance, and Android performance are not yet verified."
   ],
-  "build_status": "pending_navigation_atlas_validation",
+  "build_status": "pending_pbr_pipeline_validation",
   "latest_verified_run": 38451907227,
   "latest_verified_commit": "69be55c1b35e9209cd41607f0ae4f2033c1a6185",
   "latest_build_artifact": {
