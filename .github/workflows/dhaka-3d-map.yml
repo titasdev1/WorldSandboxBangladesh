@@ -37,7 +37,7 @@ permissions:
 
 concurrency:
   group: dhaka-division-map-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-map:
