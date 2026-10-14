@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 import trimesh
+from shapely.geometry import shape
 
 from tools.map_pipeline.build_dhaka_map import DEFAULT_BBOX, build_map, local_xy
 
@@ -63,6 +64,14 @@ class DhakaMapPipelineTests(unittest.TestCase):
             self.assertEqual(manifest["feature_counts"]["building_footprints"], 1)
             self.assertEqual(manifest["feature_counts"]["road_ways"], 1)
             self.assertTrue((out / "Dhaka_OSM_Source.geojson").exists())
+            source = json.loads((out / "Dhaka_OSM_Source.geojson").read_text())
+            south, west, north, east = DEFAULT_BBOX
+            for feature in source["features"]:
+                bounds = shape(feature["geometry"]).bounds
+                self.assertGreaterEqual(bounds[0], west - 1e-9)
+                self.assertGreaterEqual(bounds[1], south - 1e-9)
+                self.assertLessEqual(bounds[2], east + 1e-9)
+                self.assertLessEqual(bounds[3], north + 1e-9)
             self.assertTrue((out / "ATTRIBUTION.txt").exists())
             seeds = json.loads((out / "AI_Interior_Seeds.json").read_text())
             self.assertTrue(any(item["name"] == "Fixture House" for item in seeds))
