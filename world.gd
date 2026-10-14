@@ -266,12 +266,32 @@ func spawn_traffic():
   add_child(v)
 
 func spawn_npcs():
+ var osm_paths: Array = get_meta("osm_road_paths", []) if has_meta("osm_road_paths") else []
+ var usable_paths: Array = []
+ for path in osm_paths:
+  if path is Array and path.size() >= 2:
+   usable_paths.append(path)
  for i in range(45):
   var npc = CharacterBody3D.new()
   npc.name = "NPC_%02d" % i
   npc.set_script(load("res://npc.gd"))
   npc.world = self
-  npc.position = Vector3(rng.randf_range(-70, 70), 0, rng.randf_range(-70, 70))
+  if not usable_paths.is_empty():
+   var path: Array = usable_paths[rng.randi_range(0, usable_paths.size() - 1)]
+   var point_index := rng.randi_range(0, path.size() - 1)
+   var road_point: Vector3 = path[point_index]
+   var previous_point: Vector3 = path[maxi(0, point_index - 1)]
+   var next_point: Vector3 = path[mini(path.size() - 1, point_index + 1)]
+   var tangent := next_point - previous_point
+   tangent.y = 0.0
+   if tangent.length_squared() > 0.001:
+    tangent = tangent.normalized()
+    var sidewalk_side := Vector3(-tangent.z, 0.0, tangent.x)
+    var side_sign := 1.0 if rng.randi_range(0, 1) == 0 else -1.0
+    road_point += sidewalk_side * rng.randf_range(4.0, 12.0) * side_sign
+   npc.position = road_point
+  else:
+   npc.position = Vector3(rng.randf_range(-70, 70), 0, rng.randf_range(-70, 70))
   npc.walk_speed = rng.randf_range(1.0, 2.4)
   var visual := HumanoidVisual.new()
   visual.name = "HumanoidVisual"
