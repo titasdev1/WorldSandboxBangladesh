@@ -81,8 +81,8 @@ func _draw() -> void:
    var road_coord := float(i) * 24.0
    if absf(road_coord) > range_m:
     continue
-   var px := center.x + road_coord * pixels_per_m
-   var py := center.y + road_coord * pixels_per_m
+   var px := center.x + (road_coord - _player_position.x) * pixels_per_m
+   var py := center.y + (road_coord - _player_position.z) * pixels_per_m
    draw_line(Vector2(px,map_rect.position.y), Vector2(px,map_rect.end.y), Color("#56636a"), 5.0 if expanded else 3.0, true)
    draw_line(Vector2(map_rect.position.x,py), Vector2(map_rect.end.x,py), Color("#56636a"), 5.0 if expanded else 3.0, true)
    draw_line(Vector2(px,map_rect.position.y), Vector2(px,map_rect.end.y), Color("#c6b98d",0.8), 1.0, true)
@@ -115,7 +115,7 @@ func _draw() -> void:
   draw_string(ThemeDB.fallback_font, Vector2(margin+4, margin+17), map_title, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("#50d7e9"))
 
 func _world_to_panel(point: Vector2, center: Vector2, scale_value: float) -> Vector2:
- return center + point * scale_value
+ return center + Vector2(point.x - _player_position.x, point.y - _player_position.z) * scale_value
 
 func set_expanded(value: bool) -> void:
  expanded = value
