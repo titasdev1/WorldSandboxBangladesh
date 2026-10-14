@@ -162,17 +162,20 @@ def make_geojson(elements: list[dict[str, Any]], origin_lat: float, origin_lon: 
     for el in elements:
         tags = el.get("tags", {})
         geom = el.get("geometry", [])
-        if not tags or not geom:
+        if not tags:
             continue
-        coords = [[float(p["lon"]), float(p["lat"])] for p in geom if "lon" in p and "lat" in p]
-        if not coords:
-            continue
-        if el.get("type") == "way" and tags.get("building") and len(coords) >= 4 and coords[0] == coords[-1]:
-            geometry = {"type": "Polygon", "coordinates": [coords]}
-        elif el.get("type") == "way" and tags.get("highway") and len(coords) >= 2:
-            geometry = {"type": "LineString", "coordinates": coords}
+        if el.get("type") == "node" and "lat" in el and "lon" in el:
+            geometry = {"type": "Point", "coordinates": [float(el["lon"]), float(el["lat"])]}
         else:
-            geometry = {"type": "Point", "coordinates": coords[0]}
+            coords = [[float(p["lon"]), float(p["lat"])] for p in geom if "lon" in p and "lat" in p]
+            if not coords:
+                continue
+            if el.get("type") == "way" and tags.get("building") and len(coords) >= 4 and coords[0] == coords[-1]:
+                geometry = {"type": "Polygon", "coordinates": [coords]}
+            elif el.get("type") == "way" and tags.get("highway") and len(coords) >= 2:
+                geometry = {"type": "LineString", "coordinates": coords}
+            else:
+                geometry = {"type": "Point", "coordinates": coords[0]}
         features.append({
             "type": "Feature",
             "id": f"{el.get('type', 'element')}/{el.get('id', 0)}",
