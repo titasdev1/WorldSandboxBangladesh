@@ -130,7 +130,8 @@ func build_environment():
  sun.light_energy = 1.2
  sun.shadow_enabled = true
  add_child(sun)
- box(Vector3(0, -0.5, 0), Vector3(180, 1, 180), Color("#58714b"), true, "ground")
+ var world_ground = box(Vector3(0, -0.5, 0), Vector3(180, 1, 180), Color("#58714b"), true, "ground")
+ world_ground.name = "WorldGround"
 
 func build_city():
  for x in road_x:
@@ -524,6 +525,17 @@ func _load_optional_real_world_map() -> bool:
     importer.name = "OSMRealWorldImporter"
     add_child(importer)
     if importer.import_geojson(self, data_path):
+        # The downloaded starter district is roughly 2 km wide; the synthetic
+        # prototype floor was only 180 m wide. Expand both render surface and
+        # collision so mapped buildings outside the tiny center patch have ground.
+        var ground := get_node_or_null("WorldGround")
+        if ground:
+            var ground_collision := ground.get_node_or_null("CollisionShape3D") as CollisionShape3D
+            if ground_collision and ground_collision.shape is BoxShape3D:
+                (ground_collision.shape as BoxShape3D).size = Vector3(2500, 1, 2500)
+            var ground_mesh := ground.get_node_or_null("MeshInstance3D") as MeshInstance3D
+            if ground_mesh and ground_mesh.mesh is BoxMesh:
+                (ground_mesh.mesh as BoxMesh).size = Vector3(2500, 1, 2500)
         event_text = "REAL-WORLD MAP DATA LOADED"
         event_time_left = 6.0
         return true
