@@ -21,6 +21,13 @@ var material_cache: Dictionary = {}
 var city_asset_factory
 var pbr_surface_factory
 var combat_controller
+var interior_active := false
+var interior_return_position := Vector3.ZERO
+var interior_shop_name := "Local Shop"
+var interior_shop_type := "general"
+var shop_interior_root: Node3D
+var shop_counter_position := Vector3(0, 120, 2)
+var shop_exit_position := Vector3(0, 120, -4.8)
 
 var road_x := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 var road_z := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
@@ -36,11 +43,18 @@ func _ready():
  city_asset_factory.name = "CityAssetFactory"
  add_child(city_asset_factory)
  city_asset_factory.configure(self)
- build_city()
- build_landmarks()
+ var has_real_world_map := _load_optional_real_world_map()
+ if not has_real_world_map:
+  build_city()
+  build_landmarks()
  var street_life = load("res://street_life_factory.gd").new()
  street_life.build(self)
  spawn_player()
+ if has_real_world_map:
+  var chunk_streamer = load("res://systems/osm_chunk_streamer.gd").new()
+  chunk_streamer.name = "OSMChunkStreamer"
+  add_child(chunk_streamer)
+  chunk_streamer.configure(self, player)
  spawn_traffic()
  spawn_npcs()
  spawn_police()
@@ -128,7 +142,8 @@ func build_environment():
  sun.light_energy = 1.2
  sun.shadow_enabled = true
  add_child(sun)
- box(Vector3(0, -0.5, 0), Vector3(180, 1, 180), Color("#58714b"), true, "ground")
+ var world_ground = box(Vector3(0, -0.5, 0), Vector3(180, 1, 180), Color("#58714b"), true, "ground")
+ world_ground.name = "WorldGround"
 
 func build_city():
  for x in road_x:
@@ -230,6 +245,11 @@ func spawn_traffic():
   {"name":"Bus","size":Vector3(2.5, 2.6, 7.0), "speed":3.8, "color":Color("#d5a629")},
   {"name":"Motorcycle","size":Vector3(1.0, 1.2, 2.1), "speed":7.0, "color":Color("#3d4248")}
  ]
+ var osm_paths: Array = get_meta("osm_road_paths", []) if has_meta("osm_road_paths") else []
+ var usable_paths: Array = []
+ for path in osm_paths:
+  if path is Array and path.size() >= 2:
+   usable_paths.append(path)
  for i in range(30):
   var t = types[rng.randi_range(0, types.size() - 1)]
   var v = CharacterBody3D.new()
@@ -237,23 +257,53 @@ func spawn_traffic():
   v.world = self
   v.vehicle_type = t.name
   v.speed = t.speed * rng.randf_range(0.8, 1.2)
-  v.lane_axis = "z" if rng.randi_range(0, 1) == 0 else "x"
-  var lane = road_x[rng.randi_range(0, road_x.size() - 1)] if v.lane_axis == "z" else road_z[rng.randi_range(0, road_z.size() - 1)]
-  if v.lane_axis == "z":
-   v.position = Vector3(lane + (1.8 if i % 2 == 0 else -1.8), 0, rng.randf_range(-78, 78))
-  else:
-   v.position = Vector3(rng.randf_range(-78, 78), 0, lane + (1.8 if i % 2 == 0 else -1.8))
   v.body_size = t.size
   v.body_color = t.color
+  if not usable_paths.is_empty():
+   var selected_path: Array = usable_paths[rng.randi_range(0, usable_paths.size() - 1)]
+   v.road_route = selected_path.duplicate()
+   v.road_route_index = rng.randi_range(0, v.road_route.size() - 1)
+   v.road_route_direction = 1 if rng.randi_range(0, 1) == 0 else -1
+   v.road_route_lane_offset = (1.0 if i % 2 == 0 else -1.0) * v.road_route_direction
+   v.position = v.call("_road_route_point", v.road_route_index)
+   v.lane_axis = "osm"
+  else:
+   # Synthetic traffic remains the reliable fallback if OSM is unavailable.
+   v.lane_axis = "z" if rng.randi_range(0, 1) == 0 else "x"
+   var lane = road_x[rng.randi_range(0, road_x.size() - 1)] if v.lane_axis == "z" else road_z[rng.randi_range(0, road_z.size() - 1)]
+   if v.lane_axis == "z":
+    v.position = Vector3(lane + (1.8 if i % 2 == 0 else -1.8), 0, rng.randf_range(-78, 78))
+   else:
+    v.position = Vector3(rng.randf_range(-78, 78), 0, lane + (1.8 if i % 2 == 0 else -1.8))
   add_child(v)
 
 func spawn_npcs():
+ var osm_paths: Array = get_meta("osm_road_paths", []) if has_meta("osm_road_paths") else []
+ var usable_paths: Array = []
+ for path in osm_paths:
+  if path is Array and path.size() >= 2:
+   usable_paths.append(path)
  for i in range(45):
   var npc = CharacterBody3D.new()
   npc.name = "NPC_%02d" % i
   npc.set_script(load("res://npc.gd"))
   npc.world = self
-  npc.position = Vector3(rng.randf_range(-70, 70), 0, rng.randf_range(-70, 70))
+  if not usable_paths.is_empty():
+   var path: Array = usable_paths[rng.randi_range(0, usable_paths.size() - 1)]
+   var point_index := rng.randi_range(0, path.size() - 1)
+   var road_point: Vector3 = path[point_index]
+   var previous_point: Vector3 = path[maxi(0, point_index - 1)]
+   var next_point: Vector3 = path[mini(path.size() - 1, point_index + 1)]
+   var tangent := next_point - previous_point
+   tangent.y = 0.0
+   if tangent.length_squared() > 0.001:
+    tangent = tangent.normalized()
+    var sidewalk_side := Vector3(-tangent.z, 0.0, tangent.x)
+    var side_sign := 1.0 if rng.randi_range(0, 1) == 0 else -1.0
+    road_point += sidewalk_side * rng.randf_range(4.0, 12.0) * side_sign
+   npc.position = road_point
+  else:
+   npc.position = Vector3(rng.randf_range(-70, 70), 0, rng.randf_range(-70, 70))
   npc.walk_speed = rng.randf_range(1.0, 2.4)
   var visual := HumanoidVisual.new()
   visual.name = "HumanoidVisual"
@@ -272,6 +322,11 @@ func spawn_npcs():
   add_child(npc)
 
 func spawn_police():
+ var osm_paths: Array = get_meta("osm_road_paths", []) if has_meta("osm_road_paths") else []
+ var usable_paths: Array = []
+ for path in osm_paths:
+  if path is Array and path.size() >= 2:
+   usable_paths.append(path)
  for i in range(3):
   var v = CharacterBody3D.new()
   v.set_script(load("res://vehicle.gd"))
@@ -282,7 +337,16 @@ func spawn_police():
   v.body_size = Vector3(2.1, 1.0, 4.0)
   v.body_color = Color("#263d8f")
   v.is_police = true
-  v.position = Vector3(road_x[i * 2], 0, -70.0 - i * 8.0)
+  if not usable_paths.is_empty():
+   var selected_path: Array = usable_paths[rng.randi_range(0, usable_paths.size() - 1)]
+   v.road_route = selected_path.duplicate()
+   v.road_route_index = rng.randi_range(0, v.road_route.size() - 1)
+   v.road_route_direction = 1 if i % 2 == 0 else -1
+   v.road_route_lane_offset = 1.0 * v.road_route_direction
+   v.position = v.call("_road_route_point", v.road_route_index)
+   v.lane_axis = "osm"
+  else:
+   v.position = Vector3(road_x[i * 2], 0, -70.0 - i * 8.0)
   add_child(v)
 
 func create_mission_marker():
@@ -435,3 +499,236 @@ func try_street_vendor(at: Vector3) -> bool:
         event_text = "STREET SNACK: -৳20  +HEALTH"
         event_time_left = 4.0
     return true
+
+
+# OSM-tagged storefronts are enterable and use the existing in-game economy.
+func try_osm_shop_interaction(at: Vector3) -> bool:
+    if interior_active:
+        var exit_distance := Vector2(at.x - shop_exit_position.x, at.z - shop_exit_position.z).length()
+        if exit_distance < 1.8:
+            exit_osm_shop()
+            return true
+        var counter_distance := Vector2(at.x - shop_counter_position.x, at.z - shop_counter_position.z).length()
+        if counter_distance < 2.6:
+            _purchase_shop_item()
+            return true
+        event_text = "SHOP: WALK TO THE COUNTER OR THE EXIT"
+        event_time_left = 3.0
+        return true
+
+    var nearest_shop: StaticBody3D
+    var nearest_distance := 6.0
+    for node in get_children():
+        if not node is StaticBody3D or not node.has_meta("is_shop"):
+            continue
+        var distance := Vector2(at.x - node.global_position.x, at.z - node.global_position.z).length()
+        if distance < nearest_distance:
+            nearest_distance = distance
+            nearest_shop = node
+    if not is_instance_valid(nearest_shop):
+        return false
+    enter_osm_shop(nearest_shop)
+    return true
+
+
+func enter_osm_shop(shop: StaticBody3D) -> void:
+    if not is_instance_valid(shop) or not player:
+        return
+    interior_return_position = player.global_position
+    interior_shop_type = str(shop.get_meta("shop_type", "general")).to_lower()
+    interior_shop_name = str(shop.get_meta("shop_name", "Local Shop"))
+    if is_instance_valid(shop_interior_root):
+        shop_interior_root.queue_free()
+    shop_interior_root = Node3D.new()
+    shop_interior_root.name = "GeneratedShopInterior"
+    add_child(shop_interior_root)
+    _build_shop_interior()
+    interior_active = true
+    player.velocity = Vector3.ZERO
+    player.global_position = Vector3(0, 120, -2.5)
+    event_text = "ENTERED: " + interior_shop_name
+    event_time_left = 4.0
+
+
+func exit_osm_shop() -> void:
+    if not interior_active:
+        return
+    interior_active = false
+    if player:
+        player.velocity = Vector3.ZERO
+        player.global_position = interior_return_position + Vector3(0, 0.1, 0)
+    if is_instance_valid(shop_interior_root):
+        shop_interior_root.queue_free()
+    shop_interior_root = null
+    event_text = "LEFT: " + interior_shop_name
+    event_time_left = 3.0
+
+
+func _build_shop_interior() -> void:
+    # A reusable generated shop shell is placed in a separate vertical layer so
+    # mapped exterior geometry stays intact while the player can walk indoors.
+    _interior_box("ShopFloor", Vector3(0, 119.5, 0), Vector3(12, 1, 12), Color("#75634f"), true)
+    _interior_box("BackWall", Vector3(0, 125, 5.9), Vector3(12, 10, 0.35), Color("#d2c3a7"), true)
+    _interior_box("LeftWall", Vector3(-5.9, 125, 0), Vector3(0.35, 10, 12), Color("#c4b49a"), true)
+    _interior_box("RightWall", Vector3(5.9, 125, 0), Vector3(0.35, 10, 12), Color("#c4b49a"), true)
+    # Split the front wall around an open doorway.
+    _interior_box("FrontWallLeft", Vector3(-4.3, 125, -5.9), Vector3(3.2, 10, 0.35), Color("#c4b49a"), true)
+    _interior_box("FrontWallRight", Vector3(4.3, 125, -5.9), Vector3(3.2, 10, 0.35), Color("#c4b49a"), true)
+    _interior_box("Ceiling", Vector3(0, 130.1, 0), Vector3(12, 0.25, 12), Color("#b7ad9d"), false)
+    _interior_box("ShopCounter", shop_counter_position, Vector3(5, 1.1, 0.9), Color("#80543a"), true)
+    _interior_box("ProductShelf", Vector3(0, 122.4, 4.7), Vector3(7, 2.6, 0.45), Color("#5c4635"), true)
+    _interior_box("ShelfProductsA", Vector3(-2.0, 123.0, 4.35), Vector3(0.75, 0.6, 0.35), Color("#d89e39"), false)
+    _interior_box("ShelfProductsB", Vector3(-0.65, 123.0, 4.35), Vector3(0.75, 0.6, 0.35), Color("#529a6b"), false)
+    _interior_box("ShelfProductsC", Vector3(0.7, 123.0, 4.35), Vector3(0.75, 0.6, 0.35), Color("#4e8ab8"), false)
+    _interior_box("ShelfProductsD", Vector3(2.05, 123.0, 4.35), Vector3(0.75, 0.6, 0.35), Color("#b45b50"), false)
+
+    # Generate a layout that matches the mapped storefront type instead of
+    # giving every real-world shop the same generic shelf arrangement.
+    if interior_shop_type in ["pharmacy", "chemist", "medical_supply", "healthcare"]:
+        _interior_box("MedicineRackLeft", Vector3(-4.8, 122.6, 1.4), Vector3(0.35, 2.2, 6.0), Color("#e8e4d8"), true)
+        _interior_box("MedicineRackRight", Vector3(4.8, 122.6, 1.4), Vector3(0.35, 2.2, 6.0), Color("#e8e4d8"), true)
+        for row in range(3):
+            for column in range(4):
+                var medicine_color: Color = [Color("#f4f0df"), Color("#4c9e91"), Color("#d86c64"), Color("#e0b54f")][(row + column) % 4]
+                _interior_box("MedicinePack_%d_%d" % [row, column], Vector3(-4.55 + float(column) * 0.12, 121.9 + float(row) * 0.62, -1.0 + float(column) * 1.25), Vector3(0.22, 0.34, 0.72), medicine_color, false)
+        _interior_box("PharmacyCross", Vector3(0, 127.8, 5.55), Vector3(1.1, 1.1, 0.12), Color("#2f9a70"), false)
+    elif interior_shop_type in ["restaurant", "fast_food", "food", "cafe", "bakery"]:
+        _interior_box("DiningTableA", Vector3(-3.2, 121.1, -1.0), Vector3(2.0, 0.16, 1.4), Color("#80543a"), true)
+        _interior_box("DiningTableB", Vector3(3.1, 121.1, -1.0), Vector3(2.0, 0.16, 1.4), Color("#80543a"), true)
+        for stool_x in [-3.8, -2.6, 2.5, 3.7]:
+            _interior_box("DiningStool", Vector3(stool_x, 120.45, -1.0), Vector3(0.55, 0.75, 0.55), Color("#343b3d"), true)
+        _interior_box("MenuBoard", Vector3(0, 127.7, 5.58), Vector3(4.6, 1.4, 0.12), Color("#2e3830"), false)
+        _interior_box("ServingCounter", Vector3(0, 121.0, 2.7), Vector3(5.8, 0.28, 1.0), Color("#a16b42"), false)
+    elif interior_shop_type in ["supermarket", "convenience", "grocery", "general", "variety_store"]:
+        _interior_box("AisleRackLeft", Vector3(-2.9, 122.2, 0.8), Vector3(0.65, 2.0, 4.8), Color("#6b5542"), true)
+        _interior_box("AisleRackRight", Vector3(2.9, 122.2, 0.8), Vector3(0.65, 2.0, 4.8), Color("#6b5542"), true)
+        for row in range(3):
+            for column in range(3):
+                var pack_color: Color = [Color("#dfb84d"), Color("#4f9b68"), Color("#d56d55"), Color("#578bb5"), Color("#e4d8c2")][(row * 2 + column) % 5]
+                _interior_box("AisleGoods_%d_%d" % [row, column], Vector3(-3.28 + float(column) * 0.08, 121.6 + float(row) * 0.58, -1.0 + float(column) * 1.45), Vector3(0.2, 0.32, 0.68), pack_color, false)
+    elif interior_shop_type in ["mobile_phone", "electronics", "computer", "electrical"]:
+        _interior_box("ElectronicsDisplay", Vector3(0, 121.0, -1.2), Vector3(4.8, 0.3, 1.0), Color("#303d49"), false)
+        for phone_index in range(5):
+            _interior_box("PhoneDisplay_%d" % phone_index, Vector3(-1.8 + float(phone_index) * 0.9, 121.25, -1.2), Vector3(0.35, 0.08, 0.62), [Color("#171c22"), Color("#647c8b"), Color("#222222")][phone_index % 3], false)
+        _interior_box("AccessoryWall", Vector3(0, 124.4, 5.5), Vector3(6.0, 2.4, 0.18), Color("#414b54"), false)
+    else:
+        _interior_box("WallPoster", Vector3(-4.9, 124.5, 3.2), Vector3(0.12, 1.8, 1.3), Color("#c5ad72"), false)
+        _interior_box("CustomerBench", Vector3(3.5, 120.8, -2.8), Vector3(2.0, 0.7, 0.65), Color("#80543a"), true)
+    var sign := Label3D.new()
+    sign.name = "InteriorShopSign"
+    sign.text = interior_shop_name
+    sign.font_size = 32
+    sign.pixel_size = 0.006
+    sign.position = Vector3(0, 129.0, 5.65)
+    sign.modulate = Color("#30251c")
+    shop_interior_root.add_child(sign)
+    var keeper := Node3D.new()
+    keeper.name = "Shopkeeper"
+    keeper.position = Vector3(0, 120, 3.0)
+    var keeper_visual := HumanoidVisual.new()
+    keeper_visual.name = "HumanoidVisual"
+    keeper_visual.outfit_color = Color("#3c7869")
+    keeper_visual.skin_color = Color("#b97850")
+    keeper_visual.hair_color = Color("#24201f")
+    keeper.add_child(keeper_visual)
+    shop_interior_root.add_child(keeper)
+    var light := OmniLight3D.new()
+    light.name = "InteriorLight"
+    light.position = Vector3(0, 129.2, 0)
+    light.light_color = Color("#ffe3b2")
+    light.light_energy = 1.4
+    light.omni_range = 22.0
+    shop_interior_root.add_child(light)
+    shop_counter_position = Vector3(0, 120, 2.0)
+    shop_exit_position = Vector3(0, 120, -4.8)
+
+
+func _interior_box(node_name: String, pos: Vector3, size: Vector3, color: Color, collision: bool) -> void:
+    var holder: Node3D
+    if collision:
+        holder = StaticBody3D.new()
+        var shape_node := CollisionShape3D.new()
+        var shape := BoxShape3D.new()
+        shape.size = size
+        shape_node.shape = shape
+        holder.add_child(shape_node)
+    else:
+        holder = Node3D.new()
+    holder.name = node_name
+    var visual := MeshInstance3D.new()
+    var mesh := BoxMesh.new()
+    mesh.size = size
+    visual.mesh = mesh
+    visual.material_override = make_mat(color, 0.82)
+    holder.add_child(visual)
+    holder.position = pos
+    shop_interior_root.add_child(holder)
+
+
+func _purchase_shop_item() -> void:
+    if not player:
+        return
+    var price := 35
+    var product := "snack"
+    var health_gain := 18
+    if interior_shop_type in ["pharmacy", "chemist", "medical_supply"]:
+        price = 90
+        product = "first-aid medicine"
+        health_gain = 45
+    elif interior_shop_type in ["restaurant", "fast_food", "food", "cafe", "bakery"]:
+        price = 45
+        product = "meal"
+        health_gain = 25
+    elif interior_shop_type in ["supermarket", "convenience", "grocery"]:
+        price = 30
+        product = "packed food"
+        health_gain = 15
+
+    if player.health >= 100:
+        event_text = interior_shop_name + ": YOU DON'T NEED A RECOVERY ITEM"
+        event_time_left = 3.5
+    elif cash < price:
+        event_text = "%s: NEED ৳%d FOR %s" % [interior_shop_name, price, product.to_upper()]
+        event_time_left = 3.5
+    else:
+        cash -= price
+        player.health = mini(100, player.health + health_gain)
+        event_text = "%s: BOUGHT %s  -৳%d  +%d HEALTH" % [interior_shop_name, product.to_upper(), price, health_gain]
+        event_time_left = 4.5
+
+
+# Real-world GeoJSON replaces the synthetic grid when data is available.
+# Never stack the procedural test city on top of the imported real street network.
+func _load_optional_real_world_map() -> bool:
+    # When the full streaming manifest exists, let the chunk streamer own the
+    # central cell too. Loading area.geojson as well would duplicate the city.
+    var manifest_path := "res://content/realworld/chunks_manifest.json"
+    if FileAccess.file_exists(manifest_path):
+        event_text = "REAL DHAKA GRID: STREAMING WORLD READY"
+        event_time_left = 6.0
+        return true
+    var data_path := "res://content/realworld/area.geojson"
+    if not FileAccess.file_exists(data_path):
+        return false
+    var importer = load("res://systems/osm_real_world_importer.gd").new()
+    importer.name = "OSMRealWorldImporter"
+    add_child(importer)
+    if importer.import_geojson(self, data_path):
+        # The downloaded starter district is roughly 2 km wide; the synthetic
+        # prototype floor was only 180 m wide. Expand both render surface and
+        # collision so mapped buildings outside the tiny center patch have ground.
+        var ground := get_node_or_null("WorldGround")
+        if ground:
+            var ground_collision := ground.get_node_or_null("CollisionShape3D") as CollisionShape3D
+            if ground_collision and ground_collision.shape is BoxShape3D:
+                (ground_collision.shape as BoxShape3D).size = Vector3(2500, 1, 2500)
+            var ground_mesh := ground.get_node_or_null("MeshInstance3D") as MeshInstance3D
+            if ground_mesh and ground_mesh.mesh is BoxMesh:
+                (ground_mesh.mesh as BoxMesh).size = Vector3(2500, 1, 2500)
+        var imported_road_count := int(get_meta("osm_import_roads", 0))
+        var imported_building_count := int(get_meta("osm_import_buildings", 0))
+        event_text = "CENTRAL DHAKA MAP: %d ROAD WAYS / %d BUILDINGS" % [imported_road_count, imported_building_count]
+        event_time_left = 6.0
+        return true
+    importer.queue_free()
+    return false

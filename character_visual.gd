@@ -12,9 +12,86 @@ var right_arm: Node3D
 var left_leg: Node3D
 var right_leg: Node3D
 var gait_time := 0.0
+var _rigged_model: Node3D
+var _rigged_skeleton: Skeleton3D
+var _rigged_bone_ids: Dictionary = {}
+const RIGGED_MODEL_PATH := "res://external_content/quaternius_ubc/male.gltf"
 
 func _ready() -> void:
-    _build_body()
+    if not _build_rigged_model():
+        _build_body()
+
+func _build_rigged_model() -> bool:
+    # Prefer a real skinned, textured humanoid when the pinned CC0 asset was
+    # fetched by CI. Keep the procedural body as a safe offline fallback.
+    if not FileAccess.file_exists(RIGGED_MODEL_PATH):
+        return false
+    var packed := load(RIGGED_MODEL_PATH) as PackedScene
+    if packed == null:
+        push_warning("Rigged character scene could not be imported; using procedural fallback.")
+        return false
+    _rigged_model = packed.instantiate() as Node3D
+    if _rigged_model == null:
+        push_warning("Rigged character scene did not contain a Node3D root; using procedural fallback.")
+        return false
+    _rigged_model.name = "RiggedHumanoidModel"
+    # The source model faces +Z; the player controller's forward is -Z.
+    _rigged_model.rotation.y = PI
+    add_child(_rigged_model)
+    _rigged_skeleton = _find_skeleton(_rigged_model)
+    if _rigged_skeleton == null:
+        _rigged_model.queue_free()
+        _rigged_model = null
+        push_warning("Rigged character has no Skeleton3D; using procedural fallback.")
+        return false
+    for bone_name in ["thigh_l", "thigh_r", "calf_l", "calf_r",
+            "upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r"]:
+        var bone_id := _rigged_skeleton.find_bone(bone_name)
+        if bone_id >= 0:
+            _rigged_bone_ids[bone_name] = bone_id
+    if not _rigged_bone_ids.has("thigh_l") or not _rigged_bone_ids.has("upperarm_l"):
+        _rigged_model.queue_free()
+        _rigged_model = null
+        _rigged_skeleton = null
+        _rigged_bone_ids.clear()
+        push_warning("Rigged character skeleton names were not compatible; using procedural fallback.")
+        return false
+    set_meta("character_visual_source", "Quaternius Universal Base Characters (CC0)")
+    return true
+
+func _find_skeleton(node: Node) -> Skeleton3D:
+    if node is Skeleton3D:
+        return node as Skeleton3D
+    for child in node.get_children():
+        var found := _find_skeleton(child)
+        if found != null:
+            return found
+    return null
+
+func _pose_rigged_bone(bone_name: String, skeleton_space_rotation: Quaternion) -> void:
+    if _rigged_skeleton == null:
+        return
+    var idx: int = int(_rigged_bone_ids.get(bone_name, -1))
+    if idx < 0:
+        return
+    var parent_idx := _rigged_skeleton.get_bone_parent(idx)
+    var parent_rotation := _rigged_skeleton.get_bone_global_rest(parent_idx).basis.get_rotation_quaternion() if parent_idx >= 0 else Quaternion.IDENTITY
+    var rest_rotation := _rigged_skeleton.get_bone_rest(idx).basis.get_rotation_quaternion()
+    _rigged_skeleton.set_bone_pose_rotation(idx, parent_rotation.inverse() * skeleton_space_rotation * parent_rotation * rest_rotation)
+
+func _animate_rigged(swing: float, moving: bool) -> void:
+    var leg_swing := swing if moving else 0.0
+    var arm_swing := -swing * 0.72 if moving else 0.0
+    _pose_rigged_bone("thigh_l", Quaternion(Vector3.RIGHT, leg_swing))
+    _pose_rigged_bone("thigh_r", Quaternion(Vector3.RIGHT, -leg_swing))
+    _pose_rigged_bone("calf_l", Quaternion(Vector3.RIGHT, maxf(0.0, -leg_swing) * 0.85))
+    _pose_rigged_bone("calf_r", Quaternion(Vector3.RIGHT, maxf(0.0, leg_swing) * 0.85))
+    # The source is authored in a T-pose; rotate upper arms down, then swing
+    # opposite the legs. Poses are computed from rest each frame, not accumulated.
+    _pose_rigged_bone("upperarm_l", Quaternion(Vector3.RIGHT, -arm_swing) * Quaternion(Vector3.BACK, -1.45))
+    _pose_rigged_bone("upperarm_r", Quaternion(Vector3.RIGHT, arm_swing) * Quaternion(Vector3.BACK, 1.45))
+    _pose_rigged_bone("lowerarm_l", Quaternion(Vector3.RIGHT, -0.12))
+    _pose_rigged_bone("lowerarm_r", Quaternion(Vector3.RIGHT, -0.12))
 
 func _material(color: Color, roughness := 0.78) -> StandardMaterial3D:
     var key := color.to_html(false)
@@ -119,16 +196,21 @@ func _process(delta: float) -> void:
         return
     var body := actor as CharacterBody3D
     var planar_speed := Vector2(body.velocity.x, body.velocity.z).length()
-    if planar_speed > 0.15:
+    var moving := planar_speed > 0.15
+    var swing := 0.0
+    if moving:
         gait_time += delta * clampf(planar_speed * 1.8, 2.0, 14.0)
-        var swing := sin(gait_time) * 0.58
-        left_leg.rotation.x = swing
-        right_leg.rotation.x = -swing
-        left_arm.rotation.x = -swing * 0.8
-        right_arm.rotation.x = swing * 0.8
+        swing = sin(gait_time) * 0.58
+        if _rigged_skeleton == null:
+            left_leg.rotation.x = swing
+            right_leg.rotation.x = -swing
+            left_arm.rotation.x = -swing * 0.8
+            right_arm.rotation.x = swing * 0.8
         rotation.y = lerp_angle(rotation.y, atan2(-body.velocity.x, -body.velocity.z), minf(delta * 9.0, 1.0))
-    else:
+    elif _rigged_skeleton == null:
         left_leg.rotation.x = move_toward(left_leg.rotation.x, 0.0, delta * 2.5)
         right_leg.rotation.x = move_toward(right_leg.rotation.x, 0.0, delta * 2.5)
         left_arm.rotation.x = move_toward(left_arm.rotation.x, 0.0, delta * 2.5)
         right_arm.rotation.x = move_toward(right_arm.rotation.x, 0.0, delta * 2.5)
+    if _rigged_skeleton != null:
+        _animate_rigged(swing, moving)

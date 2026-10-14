@@ -31,17 +31,20 @@ func update_world(target_world: Node) -> void:
  if is_instance_valid(player):
   _player_position = player.global_position
   _player_yaw = player.global_rotation.y
-  var best_name := "Noborongo City"
-  var best_distance := INF
-  for district in DISTRICTS:
-   var point: Vector2 = district.pos
-   var distance := Vector2(_player_position.x, _player_position.z).distance_to(point)
-   if distance < best_distance:
-    best_distance = distance
-    best_name = str(district.name)
-   if distance < 28.0:
-    discovered[str(district.name)] = true
-  current_district = best_name
+  if world.has_meta("osm_road_paths"):
+   current_district = "Central Dhaka"
+  else:
+   var best_name := "Noborongo City"
+   var best_distance := INF
+   for district in DISTRICTS:
+    var point: Vector2 = district.pos
+    var distance := Vector2(_player_position.x, _player_position.z).distance_to(point)
+    if distance < best_distance:
+     best_distance = distance
+     best_name = str(district.name)
+    if distance < 28.0:
+     discovered[str(district.name)] = true
+   current_district = best_name
  var active: bool = bool(world.get("mission_active"))
  _has_target = active
  if active:
@@ -63,25 +66,47 @@ func _draw() -> void:
  var range_m := 300.0 if expanded else 105.0
  var center := map_rect.position + map_rect.size * 0.5
  var pixels_per_m := minf(map_rect.size.x, map_rect.size.y) / (range_m * 2.0)
- for i in range(-3,4):
-  var road_coord := float(i) * 24.0
-  if absf(road_coord) > range_m:
-   continue
-  var px := center.x + road_coord * pixels_per_m
-  var py := center.y + road_coord * pixels_per_m
-  draw_line(Vector2(px,map_rect.position.y), Vector2(px,map_rect.end.y), Color("#56636a"), 5.0 if expanded else 3.0, true)
-  draw_line(Vector2(map_rect.position.x,py), Vector2(map_rect.end.x,py), Color("#56636a"), 5.0 if expanded else 3.0, true)
-  draw_line(Vector2(px,map_rect.position.y), Vector2(px,map_rect.end.y), Color("#c6b98d",0.8), 1.0, true)
-  draw_line(Vector2(map_rect.position.x,py), Vector2(map_rect.end.x,py), Color("#c6b98d",0.8), 1.0, true)
- # Landmark zones use named, color-coded district anchors to reinforce spatial memory.
- for district in DISTRICTS:
-  var p := _world_to_panel(district.pos, center, pixels_per_m)
-  if map_rect.has_point(p):
-   var discovered_now: bool = discovered.has(str(district.name))
-   var c: Color = district.color if (expanded or discovered_now) else Color("#65727a")
-   draw_circle(p, 5.5 if expanded else 3.5, c)
-   if expanded:
-    draw_string(ThemeDB.fallback_font, p + Vector2(8,-7), str(district.name), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("#e8f2f8") if discovered_now else Color("#9cabb5"))
+ var has_osm_roads := is_instance_valid(world) and world.has_meta("osm_road_paths")
+ if has_osm_roads:
+  var paths: Array = world.get_meta("osm_road_paths")
+  var drawn_segments := 0
+  for path in paths:
+   if not path is Array or path.size() < 2:
+    continue
+   for i in range(path.size() - 1):
+    var a_world: Vector3 = path[i]
+    var b_world: Vector3 = path[i + 1]
+    var midpoint := (Vector2(a_world.x, a_world.z) + Vector2(b_world.x, b_world.z)) * 0.5
+    if midpoint.distance_to(Vector2(_player_position.x, _player_position.z)) > range_m * 1.7:
+     continue
+    var a_panel := _world_to_panel(Vector2(a_world.x, a_world.z), center, pixels_per_m)
+    var b_panel := _world_to_panel(Vector2(b_world.x, b_world.z), center, pixels_per_m)
+    draw_line(a_panel, b_panel, Color("#67767d"), 4.0 if expanded else 2.0, true)
+    drawn_segments += 1
+    if drawn_segments >= 1800:
+     break
+   if drawn_segments >= 1800:
+    break
+ else:
+  for i in range(-3,4):
+   var road_coord := float(i) * 24.0
+   if absf(road_coord) > range_m:
+    continue
+   var px := center.x + road_coord * pixels_per_m
+   var py := center.y + road_coord * pixels_per_m
+   draw_line(Vector2(px,map_rect.position.y), Vector2(px,map_rect.end.y), Color("#56636a"), 5.0 if expanded else 3.0, true)
+   draw_line(Vector2(map_rect.position.x,py), Vector2(map_rect.end.x,py), Color("#56636a"), 5.0 if expanded else 3.0, true)
+   draw_line(Vector2(px,map_rect.position.y), Vector2(px,map_rect.end.y), Color("#c6b98d",0.8), 1.0, true)
+   draw_line(Vector2(map_rect.position.x,py), Vector2(map_rect.end.x,py), Color("#c6b98d",0.8), 1.0, true)
+  # Fictional landmarks are shown only on the synthetic fallback map.
+  for district in DISTRICTS:
+   var p := _world_to_panel(district.pos, center, pixels_per_m)
+   if map_rect.has_point(p):
+    var discovered_now: bool = discovered.has(str(district.name))
+    var district_color: Color = district.color if (expanded or discovered_now) else Color("#65727a")
+    draw_circle(p, 5.5 if expanded else 3.5, district_color)
+    if expanded:
+     draw_string(ThemeDB.fallback_font, p + Vector2(8,-7), str(district.name), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("#e8f2f8") if discovered_now else Color("#9cabb5"))
  if _has_target:
   var target := _world_to_panel(Vector2(_target_position.x,_target_position.z), center, pixels_per_m)
   if map_rect.has_point(target):
@@ -98,7 +123,8 @@ func _draw() -> void:
  var label_size := 16 if expanded else 12
  draw_string(ThemeDB.fallback_font, Vector2(margin+4, size.y-margin-5), "N  ↑   •   " + current_district, HORIZONTAL_ALIGNMENT_LEFT, -1, label_size, Color("#d9f2fb"))
  if expanded:
-  draw_string(ThemeDB.fallback_font, Vector2(margin+4, margin+17), "NOBORONGO CITY  /  DISTRICT ATLAS", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("#50d7e9"))
+  var map_title := "CENTRAL DHAKA  /  OPENSTREETMAP" if has_osm_roads else "NOBORONGO CITY  /  DISTRICT ATLAS"
+  draw_string(ThemeDB.fallback_font, Vector2(margin+4, margin+17), map_title, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("#50d7e9"))
 
 func _world_to_panel(point: Vector2, center: Vector2, scale_value: float) -> Vector2:
  return center + point * scale_value

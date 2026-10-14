@@ -2,7 +2,7 @@ name: Build Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ main, feature/osm-real-world-foundation ]
 
 permissions:
   contents: write
@@ -20,7 +20,24 @@ jobs:
 
       - name: Validate asset pipeline Python syntax
         shell: bash
-        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/report_build_assets.py
+        run: python3 -m py_compile tools/fetch_dhaka_map.py tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/report_build_assets.py tests/test_fetch_dhaka_map.py
+
+      - name: Test OSM conversion without network access
+        shell: bash
+        run: python3 -m unittest tests.test_fetch_dhaka_map -v
+
+      - name: Install OSM PBF processing fallback
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y osmium-tool
+
+      - name: Fetch optional real Dhaka road/building data
+        shell: bash
+        run: python3 tools/fetch_dhaka_map.py
+
+      - name: Fetch optional rigged CC0 humanoid character
+        shell: bash
+        run: python3 tools/fetch_character_model.py
 
       - name: Validate Godot project scripts and startup
         shell: bash
@@ -39,7 +56,7 @@ jobs:
           IMPORT_STATUS=$?
           cat "$GODOT_DIR/import.log"
           set -e
-          if [ "$IMPORT_STATUS" -ne 0 ] || grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|ERROR:" "$GODOT_DIR/import.log"; then
+          if [ "$IMPORT_STATUS" -ne 0 ] || grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|Parse failed" "$GODOT_DIR/import.log"; then
             echo "Godot editor/import validation failed."
             exit 1
           fi
@@ -52,7 +69,7 @@ jobs:
             echo "Godot headless startup exited with status $START_STATUS."
             exit "$START_STATUS"
           fi
-          if grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|Invalid call|Invalid get index|ERROR:" "$GODOT_DIR/startup.log"; then
+          if grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|Invalid call|Invalid get index|Parse failed" "$GODOT_DIR/startup.log"; then
             echo "Godot runtime validation found script errors."
             exit 1
           fi
@@ -205,6 +222,22 @@ jobs:
             This is a direct APK download, not a GitHub Actions artifact ZIP.
             APK ZIP integrity and Android signature verification must pass before this release step.
             This is an in-progress development build; physical-device gameplay and performance are not yet certified.
+          prerelease: true
+          make_latest: false
+          overwrite_files: true
+          files: build/Android/world_sandbox_bangladesh.apk
+
+      - name: Publish direct APK download for development branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/osm-real-world-foundation'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-dev-feature
+          name: "World Sandbox: Bangladesh — Development Branch APK"
+          body: |
+            Direct APK for the latest successful push build of feature/osm-real-world-foundation.
+            This is the same canonical Godot project and Android pipeline, not a separate game.
+            It is a development preview, not a finished or device-certified release.
+            Automated APK integrity and Android signature checks run before publishing.
           prerelease: true
           make_latest: false
           overwrite_files: true

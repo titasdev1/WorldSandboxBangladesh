@@ -7,6 +7,7 @@ var w
 var settings_panel: PanelContainer
 var quality_option: OptionButton
 var fps_option: OptionButton
+var filter_option: OptionButton
 var settings_config := ConfigFile.new()
 var _world_quality_applied := false
 var lobby_overlay: ColorRect
@@ -14,6 +15,7 @@ var selected_mode := "deshi_story"
 var mode_buttons: Array[Button] = []
 var district_map: Control
 var map_button: Button
+var map_attribution: Label
 
 func _ready():
  w = get_parent()
@@ -22,6 +24,18 @@ func _ready():
  title.position = Vector2(28, 20)
  title.add_theme_font_size_override("font_size", 28)
  add_child(title)
+
+ map_attribution = Label.new()
+ map_attribution.name = "OpenStreetMapAttribution"
+ map_attribution.text = "Map data © OpenStreetMap contributors • ODbL"
+ map_attribution.position = Vector2(720, 700)
+ map_attribution.add_theme_font_size_override("font_size", 12)
+ map_attribution.add_theme_color_override("font_color", Color("#e6e6e6"))
+ map_attribution.add_theme_color_override("font_shadow_color", Color("#101010"))
+ map_attribution.add_theme_constant_override("shadow_offset_x", 1)
+ map_attribution.add_theme_constant_override("shadow_offset_y", 1)
+ map_attribution.visible = false
+ add_child(map_attribution)
 
  stats = Label.new()
  stats.position = Vector2(28, 62)
@@ -53,6 +67,8 @@ func _ready():
  stick.add_to_group("movement_stick")
  add_child(stick)
  add_touch_button("SPRINT", Vector2(35, 645), Vector2(150, 45), "sprint")
+ add_touch_button("JUMP", Vector2(1080, 470), Vector2(150, 58), "jump")
+ add_touch_button("CROUCH", Vector2(900, 560), Vector2(150, 55), "crouch")
  add_touch_button("FIRE", Vector2(1080, 560), Vector2(150, 75), "fire")
  add_touch_button("BARGAIN", Vector2(900, 650), Vector2(150, 55), "interact")
  add_touch_button("RAIN", Vector2(1060, 650), Vector2(150, 55), "rain")
@@ -96,8 +112,8 @@ func _build_settings_ui() -> void:
  settings_panel = PanelContainer.new()
  settings_panel.name = "GraphicsSettingsPanel"
  settings_panel.position = Vector2(850, 72)
- settings_panel.size = Vector2(400, 340)
- settings_panel.custom_minimum_size = Vector2(400, 340)
+ settings_panel.size = Vector2(400, 420)
+ settings_panel.custom_minimum_size = Vector2(400, 420)
  settings_panel.visible = false
  settings_panel.z_index = 30
  add_child(settings_panel)
@@ -133,6 +149,16 @@ func _build_settings_ui() -> void:
  fps_option.item_selected.connect(_on_fps_selected)
  column.add_child(fps_option)
 
+ var filter_label := Label.new()
+ filter_label.text = "World colour grade / visual filter"
+ column.add_child(filter_label)
+ filter_option = OptionButton.new()
+ for filter_name in ["Natural", "Dhaka Warm", "Cinematic Teal", "Night Neon"]:
+  filter_option.add_item(filter_name)
+ filter_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ filter_option.item_selected.connect(_on_filter_selected)
+ column.add_child(filter_option)
+
  var note := Label.new()
  note.text = "Higher FPS / resolution needs capable hardware.\nThis limit cannot force unsupported refresh rates."
  note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -153,13 +179,17 @@ func _load_graphics_settings() -> void:
  var err := settings_config.load("user://graphics_settings.cfg")
  var quality_index := 2
  var fps_index := 1
+ var filter_index := 0
  if err == OK:
   quality_index = clampi(int(settings_config.get_value("graphics", "quality", 2)), 0, 3)
   fps_index = clampi(int(settings_config.get_value("graphics", "fps_index", 1)), 0, 5)
+  filter_index = clampi(int(settings_config.get_value("graphics", "filter_index", 0)), 0, 3)
  quality_option.select(quality_index)
  fps_option.select(fps_index)
+ filter_option.select(filter_index)
  _apply_quality(quality_index)
  _apply_fps(fps_index)
+ _apply_filter(filter_index)
 
 func _on_quality_selected(index: int) -> void:
  _apply_quality(index)
@@ -168,6 +198,28 @@ func _on_quality_selected(index: int) -> void:
 func _on_fps_selected(index: int) -> void:
  _apply_fps(index)
  _save_graphics_settings()
+
+func _on_filter_selected(index: int) -> void:
+ _apply_filter(index)
+ _save_graphics_settings()
+
+func _apply_filter(index: int) -> void:
+ # Colour grading is applied to the real 3D world, not just the HUD.
+ var grades := [
+  Vector3(1.0, 1.0, 1.0),
+  Vector3(1.08, 1.12, 1.02),
+  Vector3(1.18, 0.82, 0.98),
+  Vector3(1.25, 1.28, 0.88)
+ ]
+ var grade: Vector3 = grades[clampi(index, 0, grades.size() - 1)]
+ if not w:
+  return
+ for child in w.get_children():
+  if child is WorldEnvironment and child.environment:
+   child.environment.adjustment_enabled = index != 0
+   child.environment.adjustment_contrast = grade.x
+   child.environment.adjustment_saturation = grade.y
+   child.environment.adjustment_brightness = grade.z
 
 func _apply_quality(index: int) -> void:
  # These settings change real runtime render scale and the world sun/fog.
@@ -189,6 +241,7 @@ func _apply_fps(index: int) -> void:
 func _save_graphics_settings() -> void:
  settings_config.set_value("graphics", "quality", quality_option.selected)
  settings_config.set_value("graphics", "fps_index", fps_option.selected)
+ settings_config.set_value("graphics", "filter_index", filter_option.selected)
  settings_config.save("user://graphics_settings.cfg")
 
 
@@ -209,11 +262,15 @@ func _process(_delta):
  # Apply the saved preset once those world nodes actually exist.
  if not _world_quality_applied and w.get_node_or_null("Sun"):
   _apply_quality(quality_option.selected)
+  _apply_filter(filter_option.selected)
   _world_quality_applied = true
  if district_map:
   district_map.call("update_world", w)
+ if map_attribution:
+  map_attribution.visible = w.has_meta("osm_import_roads") or w.has_meta("osm_import_buildings")
  var health_value: int = w.player.health if w.player else 100
- stats.text = "৳ %d    Health: %d    Wanted: %d/5    Weather: %s" % [w.cash, health_value, w.wanted, "RAIN" if w.rain else "CLEAR"]
+ var stamina_value: int = int(w.player.stamina) if w.player else 100
+ stats.text = "৳ %d    Health: %d    Stamina: %d%%    Wanted: %d/5    Weather: %s" % [w.cash, health_value, stamina_value, w.wanted, "RAIN" if w.rain else "CLEAR"]
  var mission_factory = w.get_node_or_null("MissionFactory")
  if is_instance_valid(mission_factory) and int(mission_factory.get("active_index")) >= 0:
   var active_index: int = int(mission_factory.get("active_index"))
@@ -233,6 +290,8 @@ func _process(_delta):
  var district_name := "Noborongo City"
  if w.district_factory and w.district_factory.has_method("current_district") and w.player:
   district_name = w.district_factory.current_district(w.player)
+ if w.has_meta("osm_road_paths"):
+  district_name = "Central Dhaka • OpenStreetMap"
  var active_target_position: Vector3 = w.mission_target
  var has_live_target: bool = w.mission_active
  var active_factory = w.get_node_or_null("MissionFactory")

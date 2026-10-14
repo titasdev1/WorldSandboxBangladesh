@@ -4,15 +4,25 @@ var world
 var speed := 7.0
 var sprint_speed := 11.0
 var gravity := 20.0
+var jump_velocity := 7.2
 var health := 100
+var stamina := 100.0
+var max_stamina := 100.0
+var stamina_drain := 28.0
+var stamina_recovery := 19.0
 var ammo := 30
 var reserve_ammo := 120
 var reload_time := 0.0
 var camera: Camera3D
 var camera_yaw := 0.0
 var camera_pitch := -28.0
+var _collision_shape: CollisionShape3D
+var _humanoid_visual: Node3D
+var _is_crouching := false
 
 func _ready():
+ _collision_shape = get_node_or_null("CollisionShape3D") as CollisionShape3D
+ _humanoid_visual = get_node_or_null("HumanoidVisual") as Node3D
  camera = Camera3D.new()
  camera.name = "ThirdPersonCamera"
  camera.position = Vector3(0, 6.2, 9.5)
@@ -38,12 +48,27 @@ func _update_camera():
   return
  var yaw := deg_to_rad(camera_yaw)
  var pitch := deg_to_rad(camera_pitch)
- var target := global_position + Vector3(0, 1.0, 0)
- # Camera stays behind the player. Its horizontal offset and movement basis
- # must use opposite signs: forward movement points from camera toward target.
+ var target := global_position + Vector3(0, 1.0 if not _is_crouching else 0.72, 0)
  var offset := Vector3(sin(yaw) * cos(pitch) * 9.5, -sin(pitch) * 9.5 + 1.0, cos(yaw) * cos(pitch) * 9.5)
- camera.global_position = target + offset
+ var desired_position := target + offset
+ # Keep the third-person camera outside walls and building interiors.
+ var query := PhysicsRayQueryParameters3D.create(target, desired_position, 1, [get_rid()])
+ var hit := get_world_3d().direct_space_state.intersect_ray(query)
+ if not hit.is_empty():
+  desired_position = hit.position + hit.normal * 0.22
+ camera.global_position = desired_position
  camera.look_at(target, Vector3.UP)
+
+func _set_crouching(should_crouch: bool) -> void:
+ if _is_crouching == should_crouch:
+  return
+ _is_crouching = should_crouch
+ if _collision_shape and _collision_shape.shape is CapsuleShape3D:
+  var capsule := _collision_shape.shape as CapsuleShape3D
+  capsule.height = 1.22 if _is_crouching else 1.8
+  _collision_shape.position.y = capsule.height * 0.5
+ if _humanoid_visual:
+  _humanoid_visual.scale.y = 0.78 if _is_crouching else 1.0
 
 func _physics_process(delta):
  if reload_time > 0.0:
@@ -53,30 +78,39 @@ func _physics_process(delta):
    ammo += loaded
    reserve_ammo -= loaded
 
- # Four-button movement is camera-relative. Godot's get_vector returns
- # negative Y for "forward"; convert it to a positive forward amount here.
  var input_vec: Vector2 = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
  var yaw := deg_to_rad(camera_yaw)
- # The camera is positioned at (+sin(yaw), +cos(yaw)) behind the player.
- # Forward therefore points away from that offset, not toward it.
  var forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
  var right := Vector3(cos(yaw), 0.0, -sin(yaw))
  var dir := (right * input_vec.x + forward * -input_vec.y).normalized()
- var current_speed: float = sprint_speed if Input.is_action_pressed("sprint") else speed
- velocity.x = dir.x * current_speed
- velocity.z = dir.z * current_speed
- # Rotate the avatar to face travel direction; -Z is the character forward axis.
+
+ _set_crouching(Input.is_action_pressed("crouch"))
+ var wants_sprint := Input.is_action_pressed("sprint") and not _is_crouching and input_vec.length_squared() > 0.02 and stamina > 0.0
+ if wants_sprint:
+  stamina = maxf(0.0, stamina - stamina_drain * delta)
+ else:
+  stamina = minf(max_stamina, stamina + stamina_recovery * delta)
+ var current_speed: float = 3.1 if _is_crouching else (sprint_speed if wants_sprint else speed)
+ var acceleration: float = 28.0 if dir.length_squared() > 0.001 else 34.0
+ velocity.x = move_toward(velocity.x, dir.x * current_speed, acceleration * delta)
+ velocity.z = move_toward(velocity.z, dir.z * current_speed, acceleration * delta)
+
  if dir.length_squared() > 0.001:
   rotation.y = lerp_angle(rotation.y, atan2(-dir.x, -dir.z), minf(1.0, delta * 12.0))
+
  if not is_on_floor():
   velocity.y -= gravity * delta
  else:
   velocity.y = -0.5
+  if Input.is_action_just_pressed("jump") and not _is_crouching:
+   velocity.y = jump_velocity
+
  move_and_slide()
- # The playable world now extends to the 600 m outer districts.
- position.x = clamp(position.x, -285.0, 285.0)
- position.z = clamp(position.z, -285.0, 285.0)
+ var movement_bound := 1100.0 if world and world.has_meta("osm_road_paths") else 285.0
+ position.x = clamp(position.x, -movement_bound, movement_bound)
+ position.z = clamp(position.z, -movement_bound, movement_bound)
  _update_camera()
+
  if Input.is_action_just_pressed("fire") and world and ammo > 0 and reload_time <= 0.0:
   ammo -= 1
   world.try_fire()
@@ -89,6 +123,8 @@ func interact():
  if not world:
   return
  if world.has_method("try_street_vendor") and world.try_street_vendor(global_position):
+  return
+ if world.has_method("try_osm_shop_interaction") and world.try_osm_shop_interaction(global_position):
   return
  if position.distance_to(Vector3(42, 0, 42)) < 15:
   world.cash = max(0, world.cash - world.bargain_offer)
