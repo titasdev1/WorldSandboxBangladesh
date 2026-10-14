@@ -2,9 +2,7 @@ name: Build Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches: [ main, feature/osm-real-world-foundation ]
 
 permissions:
   contents: write
