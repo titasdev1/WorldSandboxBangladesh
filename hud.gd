@@ -212,7 +212,8 @@ func _process(_delta):
   _world_quality_applied = true
  if district_map:
   district_map.call("update_world", w)
- stats.text = "৳ %d    Wanted: %d/5    Weather: %s" % [w.cash, w.wanted, "RAIN" if w.rain else "CLEAR"]
+ var health_value: int = w.player.health if w.player else 100
+ stats.text = "৳ %d    Health: %d    Wanted: %d/5    Weather: %s" % [w.cash, health_value, w.wanted, "RAIN" if w.rain else "CLEAR"]
  var mission_factory = w.get_node_or_null("MissionFactory")
  if is_instance_valid(mission_factory) and int(mission_factory.get("active_index")) >= 0:
   var active_index: int = int(mission_factory.get("active_index"))
@@ -225,6 +226,8 @@ func _process(_delta):
   mission.text = "STORY %d/3: %s    Rickshaw fare ৳%d → offer ৳%d" % [w.mission_stage + 1, stage_names[w.mission_stage], w.fare_requested, w.bargain_offer]
  else:
   mission.text = "STORY COMPLETE  +৳1000   FREE ROAM"
+ if w.combat_controller and w.combat_controller.active_mode in ["survival", "arena_training"]:
+  mission.text = w.combat_controller.get_status_text()
  var ammo_text = "%d/%d" % [w.player.ammo, w.player.reserve_ammo] if w.player else "30/120"
  var reload_text = " • RELOADING" if w.player and w.player.reload_time > 0.0 else ""
  var district_name := "Noborongo City"
@@ -280,7 +283,7 @@ func _build_lobby_ui() -> void:
  column.add_child(heading)
 
  var subheading := Label.new()
- subheading.text = "One city. Five ways to play. Touch controls and graphics settings are available in-game."
+ subheading.text = "One city. Six ways to play. Touch controls and graphics settings are available in-game."
  subheading.add_theme_color_override("font_color", Color("#b6c8d9"))
  subheading.add_theme_font_size_override("font_size", 16)
  column.add_child(subheading)
@@ -408,6 +411,8 @@ func _enter_selected_mode() -> void:
   else:
    w.mission_active = false
    w.event_text = "OFFLINE ARENA TRAINING • ONLINE MATCHES NOT AVAILABLE"
+  if w.combat_controller:
+   w.combat_controller.start_mode(selected_mode)
   w.event_time_left = 8.0
  if lobby_overlay:
   lobby_overlay.visible = false
