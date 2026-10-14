@@ -259,15 +259,15 @@ def element_intersects_bounds(element: dict, bounds: tuple[float, float, float, 
 
 def main() -> int:
     try:
-        # The central district is required for a real-Dhaka build. Give each mirror
-        # one retry before refusing the build rather than publishing the fictional fallback.
-        response = fetch_overpass(timeout_seconds=35, attempts_per_endpoint=2)
+        # Prefer the regional PBF extract: one dependable source serves both the
+        # central district and the city-scale grid without waiting on busy mirrors.
+        response = fetch_geofabrik((SOUTH, WEST, NORTH, EAST))
     except Exception as exc:
-        print(f"WARNING: Overpass unavailable for central Dhaka: {exc}")
+        print(f"WARNING: regional PBF unavailable for central Dhaka: {exc}; trying Overpass")
         try:
-            response = fetch_geofabrik((SOUTH, WEST, NORTH, EAST))
+            response = fetch_overpass(timeout_seconds=25, attempts_per_endpoint=1)
         except Exception as fallback_exc:
-            print(f"ERROR: both Overpass and Geofabrik/osmium sources failed; refusing fallback-only map: {fallback_exc}")
+            print(f"ERROR: both Geofabrik/osmium and Overpass sources failed; refusing fallback-only map: {fallback_exc}")
             return 1
 
     features, road_count, building_count = prepare_features(response, MAX_FEATURES, ROAD_LIMIT)
