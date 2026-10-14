@@ -21,6 +21,13 @@ var material_cache: Dictionary = {}
 var city_asset_factory
 var pbr_surface_factory
 var combat_controller
+var interior_active := false
+var interior_return_position := Vector3.ZERO
+var interior_shop_name := "Local Shop"
+var interior_shop_type := "general"
+var shop_interior_root: Node3D
+var shop_counter_position := Vector3(0, 120, 2)
+var shop_exit_position := Vector3(0, 120, -4.8)
 
 var road_x := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 var road_z := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
@@ -489,8 +496,21 @@ func try_street_vendor(at: Vector3) -> bool:
     return true
 
 
-# OSM-tagged storefronts become usable economy interactions, not just decorative signs.
+# OSM-tagged storefronts are enterable and use the existing in-game economy.
 func try_osm_shop_interaction(at: Vector3) -> bool:
+    if interior_active:
+        var exit_distance := Vector2(at.x - shop_exit_position.x, at.z - shop_exit_position.z).length()
+        if exit_distance < 1.8:
+            exit_osm_shop()
+            return true
+        var counter_distance := Vector2(at.x - shop_counter_position.x, at.z - shop_counter_position.z).length()
+        if counter_distance < 2.6:
+            _purchase_shop_item()
+            return true
+        event_text = "SHOP: WALK TO THE COUNTER OR THE EXIT"
+        event_time_left = 3.0
+        return true
+
     var nearest_shop: StaticBody3D
     var nearest_distance := 6.0
     for node in get_children():
@@ -502,37 +522,141 @@ func try_osm_shop_interaction(at: Vector3) -> bool:
             nearest_shop = node
     if not is_instance_valid(nearest_shop):
         return false
+    enter_osm_shop(nearest_shop)
+    return true
 
-    var shop_type := str(nearest_shop.get_meta("shop_type", "general")).to_lower()
-    var shop_name := str(nearest_shop.get_meta("shop_name", "Local Shop"))
+
+func enter_osm_shop(shop: StaticBody3D) -> void:
+    if not is_instance_valid(shop) or not player:
+        return
+    interior_return_position = player.global_position
+    interior_shop_type = str(shop.get_meta("shop_type", "general")).to_lower()
+    interior_shop_name = str(shop.get_meta("shop_name", "Local Shop"))
+    if is_instance_valid(shop_interior_root):
+        shop_interior_root.queue_free()
+    shop_interior_root = Node3D.new()
+    shop_interior_root.name = "GeneratedShopInterior"
+    add_child(shop_interior_root)
+    _build_shop_interior()
+    interior_active = true
+    player.velocity = Vector3.ZERO
+    player.global_position = Vector3(0, 120, -2.5)
+    event_text = "ENTERED: " + interior_shop_name
+    event_time_left = 4.0
+
+
+func exit_osm_shop() -> void:
+    if not interior_active:
+        return
+    interior_active = false
+    if player:
+        player.velocity = Vector3.ZERO
+        player.global_position = interior_return_position + Vector3(0, 0.1, 0)
+    if is_instance_valid(shop_interior_root):
+        shop_interior_root.queue_free()
+    shop_interior_root = null
+    event_text = "LEFT: " + interior_shop_name
+    event_time_left = 3.0
+
+
+func _build_shop_interior() -> void:
+    # A reusable generated shop shell is placed in a separate vertical layer so
+    # mapped exterior geometry stays intact while the player can walk indoors.
+    _interior_box("ShopFloor", Vector3(0, 119.5, 0), Vector3(12, 1, 12), Color("#75634f"), true)
+    _interior_box("BackWall", Vector3(0, 123, 5.9), Vector3(12, 6, 0.35), Color("#d2c3a7"), true)
+    _interior_box("LeftWall", Vector3(-5.9, 123, 0), Vector3(0.35, 6, 12), Color("#c4b49a"), true)
+    _interior_box("RightWall", Vector3(5.9, 123, 0), Vector3(0.35, 6, 12), Color("#c4b49a"), true)
+    # Split the front wall around an open doorway.
+    _interior_box("FrontWallLeft", Vector3(-4.3, 123, -5.9), Vector3(3.2, 6, 0.35), Color("#c4b49a"), true)
+    _interior_box("FrontWallRight", Vector3(4.3, 123, -5.9), Vector3(3.2, 6, 0.35), Color("#c4b49a"), true)
+    _interior_box("Ceiling", Vector3(0, 126.1, 0), Vector3(12, 0.25, 12), Color("#b7ad9d"), false)
+    _interior_box("ShopCounter", shop_counter_position, Vector3(5, 1.1, 0.9), Color("#80543a"), true)
+    _interior_box("ProductShelf", Vector3(0, 122.4, 4.7), Vector3(7, 2.6, 0.45), Color("#5c4635"), true)
+    _interior_box("ShelfProductsA", Vector3(-2.0, 123.0, 4.35), Vector3(0.75, 0.6, 0.35), Color("#d89e39"), false)
+    _interior_box("ShelfProductsB", Vector3(-0.65, 123.0, 4.35), Vector3(0.75, 0.6, 0.35), Color("#529a6b"), false)
+    _interior_box("ShelfProductsC", Vector3(0.7, 123.0, 4.35), Vector3(0.75, 0.6, 0.35), Color("#4e8ab8"), false)
+    _interior_box("ShelfProductsD", Vector3(2.05, 123.0, 4.35), Vector3(0.75, 0.6, 0.35), Color("#b45b50"), false)
+    var sign := Label3D.new()
+    sign.name = "InteriorShopSign"
+    sign.text = interior_shop_name
+    sign.font_size = 32
+    sign.pixel_size = 0.006
+    sign.position = Vector3(0, 125.0, 5.65)
+    sign.modulate = Color("#30251c")
+    shop_interior_root.add_child(sign)
+    var keeper := Node3D.new()
+    keeper.name = "Shopkeeper"
+    keeper.position = Vector3(0, 120, 3.0)
+    var keeper_visual := HumanoidVisual.new()
+    keeper_visual.name = "HumanoidVisual"
+    keeper_visual.outfit_color = Color("#3c7869")
+    keeper_visual.skin_color = Color("#b97850")
+    keeper_visual.hair_color = Color("#24201f")
+    keeper.add_child(keeper_visual)
+    shop_interior_root.add_child(keeper)
+    var light := OmniLight3D.new()
+    light.name = "InteriorLight"
+    light.position = Vector3(0, 125.2, 0)
+    light.light_color = Color("#ffe3b2")
+    light.light_energy = 1.4
+    light.omni_range = 22.0
+    shop_interior_root.add_child(light)
+    shop_counter_position = Vector3(0, 120, 2.0)
+    shop_exit_position = Vector3(0, 120, -4.8)
+
+
+func _interior_box(node_name: String, pos: Vector3, size: Vector3, color: Color, collision: bool) -> void:
+    var holder: Node3D
+    if collision:
+        holder = StaticBody3D.new()
+        var shape_node := CollisionShape3D.new()
+        var shape := BoxShape3D.new()
+        shape.size = size
+        shape_node.shape = shape
+        holder.add_child(shape_node)
+    else:
+        holder = Node3D.new()
+    holder.name = node_name
+    var visual := MeshInstance3D.new()
+    var mesh := BoxMesh.new()
+    mesh.size = size
+    visual.mesh = mesh
+    visual.material_override = make_mat(color, 0.82)
+    holder.add_child(visual)
+    holder.position = pos
+    shop_interior_root.add_child(holder)
+
+
+func _purchase_shop_item() -> void:
+    if not player:
+        return
     var price := 35
     var product := "snack"
     var health_gain := 18
-    if shop_type in ["pharmacy", "chemist", "medical_supply"]:
+    if interior_shop_type in ["pharmacy", "chemist", "medical_supply"]:
         price = 90
         product = "first-aid medicine"
         health_gain = 45
-    elif shop_type in ["restaurant", "fast_food", "food", "cafe", "bakery"]:
+    elif interior_shop_type in ["restaurant", "fast_food", "food", "cafe", "bakery"]:
         price = 45
         product = "meal"
         health_gain = 25
-    elif shop_type in ["supermarket", "convenience", "grocery"]:
+    elif interior_shop_type in ["supermarket", "convenience", "grocery"]:
         price = 30
         product = "packed food"
         health_gain = 15
 
-    if player and player.health >= 100:
-        event_text = "%s: YOU DON'T NEED A RECOVERY ITEM" % shop_name
+    if player.health >= 100:
+        event_text = interior_shop_name + ": YOU DON'T NEED A RECOVERY ITEM"
         event_time_left = 3.5
     elif cash < price:
-        event_text = "%s: NEED ৳%d FOR %s" % [shop_name, price, product.to_upper()]
+        event_text = "%s: NEED ৳%d FOR %s" % [interior_shop_name, price, product.to_upper()]
         event_time_left = 3.5
-    elif player:
+    else:
         cash -= price
         player.health = mini(100, player.health + health_gain)
-        event_text = "%s: BOUGHT %s  -৳%d  +%d HEALTH" % [shop_name, product.to_upper(), price, health_gain]
+        event_text = "%s: BOUGHT %s  -৳%d  +%d HEALTH" % [interior_shop_name, product.to_upper(), price, health_gain]
         event_time_left = 4.5
-    return true
 
 
 # Real-world GeoJSON replaces the synthetic grid when data is available.
