@@ -72,6 +72,10 @@ class DhakaDivisionPipelineTests(unittest.TestCase):
             data = glb.read_bytes()
             self.assertEqual(data[:4], b"glTF")
             self.assertGreater(len(data), 1000)
+            import trimesh
+            scene = trimesh.load(glb, force="scene")
+            self.assertTrue(any(name.startswith("terrain_base") for name in scene.geometry),
+                            "Division-clipped ground must retain the name used by the game's collision builder")
 
 
 if __name__ == "__main__":
