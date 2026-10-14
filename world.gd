@@ -251,7 +251,7 @@ func spawn_traffic():
    v.road_route = selected_path.duplicate()
    v.road_route_index = rng.randi_range(0, v.road_route.size() - 1)
    v.road_route_direction = 1 if rng.randi_range(0, 1) == 0 else -1
-   v.road_route_lane_offset = 1.0 if i % 2 == 0 else -1.0
+   v.road_route_lane_offset = (1.0 if i % 2 == 0 else -1.0) * v.road_route_direction
    v.position = v.call("_road_route_point", v.road_route_index)
    v.lane_axis = "osm"
   else:
@@ -289,6 +289,11 @@ func spawn_npcs():
   add_child(npc)
 
 func spawn_police():
+ var osm_paths: Array = get_meta("osm_road_paths", []) if has_meta("osm_road_paths") else []
+ var usable_paths: Array = []
+ for path in osm_paths:
+  if path is Array and path.size() >= 2:
+   usable_paths.append(path)
  for i in range(3):
   var v = CharacterBody3D.new()
   v.set_script(load("res://vehicle.gd"))
@@ -299,7 +304,16 @@ func spawn_police():
   v.body_size = Vector3(2.1, 1.0, 4.0)
   v.body_color = Color("#263d8f")
   v.is_police = true
-  v.position = Vector3(road_x[i * 2], 0, -70.0 - i * 8.0)
+  if not usable_paths.is_empty():
+   var selected_path: Array = usable_paths[rng.randi_range(0, usable_paths.size() - 1)]
+   v.road_route = selected_path.duplicate()
+   v.road_route_index = rng.randi_range(0, v.road_route.size() - 1)
+   v.road_route_direction = 1 if i % 2 == 0 else -1
+   v.road_route_lane_offset = 1.0 * v.road_route_direction
+   v.position = v.call("_road_route_point", v.road_route_index)
+   v.lane_axis = "osm"
+  else:
+   v.position = Vector3(road_x[i * 2], 0, -70.0 - i * 8.0)
   add_child(v)
 
 func create_mission_marker():
