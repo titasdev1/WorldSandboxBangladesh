@@ -19,13 +19,16 @@ import urllib.request
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "content" / "realworld" / "area.geojson"
 CHUNK_DIR = ROOT / "content" / "realworld" / "chunks"
-# Approximately a 1.3 km x 1.2 km central-Dhaka starter district; neighboring chunks extend exploration.
+# Central Dhaka anchor. Runtime chunks cover a roughly 23 km x 23 km real-map
+# region around it, with 3.3 km cells clipped from the Bangladesh OSM PBF extract.
 SOUTH, WEST, NORTH, EAST = 23.8043, 90.4065, 23.8163, 90.4185
+ORIGIN_LAT, ORIGIN_LON = 23.8103, 90.4125
+CITY_CELL_DEGREES = 0.03
+CITY_GRID_RADIUS = 3
 MAX_FEATURES = 1800
 ROAD_LIMIT = 400
-CHUNK_MAX_FEATURES = 1000
-CHUNK_ROAD_LIMIT = 180
-CHUNK_OFFSETS = {"north": (0.0120, 0.0), "south": (-0.0120, 0.0), "east": (0.0, 0.0120), "west": (0.0, -0.0120)}
+CHUNK_MAX_FEATURES = 4500
+CHUNK_ROAD_LIMIT = 800
 OVERPASS_ENDPOINTS = (
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
@@ -264,43 +267,67 @@ def main() -> int:
     print(f"Dhaka OSM district prepared: {len(features)} features "
           f"({document['metadata']['roads']} roads, {document['metadata']['buildings']} buildings)")
 
-    # Four contiguous neighboring chunks expand the playable map beyond the starter district.
+    # Build a city-scale streaming grid from a free regional OSM PBF source.
+    # 7x7 cells at 0.03 degrees each cover roughly 23 km around central Dhaka.
     CHUNK_DIR.mkdir(parents=True, exist_ok=True)
     for stale in CHUNK_DIR.glob("*.geojson"):
         stale.unlink()
-    for chunk_name, (lat_shift, lon_shift) in CHUNK_OFFSETS.items():
-        bounds = (SOUTH + lat_shift, WEST + lon_shift, NORTH + lat_shift, EAST + lon_shift)
-        try:
-            chunk_response = fetch_overpass(bounds, timeout_seconds=25, attempts_per_endpoint=1, endpoints=OVERPASS_ENDPOINTS)
+    manifest = {"source": "OpenStreetMap contributors", "license": "ODbL-1.0",
+                "attribution": "© OpenStreetMap contributors", "grid": []}
+    for row in range(-CITY_GRID_RADIUS, CITY_GRID_RADIUS + 1):
+        for col in range(-CITY_GRID_RADIUS, CITY_GRID_RADIUS + 1):
+            chunk_name = f"grid_{row + CITY_GRID_RADIUS:02d}_{col + CITY_GRID_RADIUS:02d}"
+            center_lat = ORIGIN_LAT + row * CITY_CELL_DEGREES
+            center_lon = ORIGIN_LON + col * CITY_CELL_DEGREES
+            bounds = (center_lat - CITY_CELL_DEGREES / 2,
+                      center_lon - CITY_CELL_DEGREES / 2,
+                      center_lat + CITY_CELL_DEGREES / 2,
+                      center_lon + CITY_CELL_DEGREES / 2)
+            try:
+                chunk_response = fetch_geofabrik(bounds)
+            except Exception as pbf_exc:
+                print(f"WARNING: PBF clip failed for {chunk_name}: {pbf_exc}; trying Overpass")
+                try:
+                    chunk_response = fetch_overpass(bounds, timeout_seconds=25, attempts_per_endpoint=1,
+                                                    endpoints=OVERPASS_ENDPOINTS)
+                except Exception as exc:
+                    print(f"ERROR: required real Dhaka grid cell {chunk_name} unavailable: {exc}")
+                    return 1
             chunk_features, chunk_roads, chunk_buildings = prepare_features(
                 chunk_response, CHUNK_MAX_FEATURES, CHUNK_ROAD_LIMIT
             )
-        except Exception as exc:
-            print(f"WARNING: optional Dhaka chunk '{chunk_name}' unavailable: {exc}")
-            continue
-        if not chunk_features:
-            print(f"WARNING: optional Dhaka chunk '{chunk_name}' returned no usable features")
-            continue
-        chunk_output = CHUNK_DIR / f"{chunk_name}.geojson"
-        chunk_document = {
-            "type": "FeatureCollection",
-            "name": f"Dhaka {chunk_name} district chunk",
-            "metadata": {
-                "source": "OpenStreetMap contributors",
-                "license": "ODbL-1.0",
-                "attribution": "© OpenStreetMap contributors",
-                "bbox": [bounds[1], bounds[0], bounds[3], bounds[2]],
-                "district_scope": f"Adjacent Dhaka exploration chunk: {chunk_name}",
-                "feature_count": len(chunk_features),
-                "roads": chunk_roads,
-                "buildings": chunk_buildings,
-                "named_places": sum(1 for f in chunk_features if f["geometry"]["type"] == "Point"),
-            },
-            "features": chunk_features,
-        }
-        chunk_output.write_text(json.dumps(chunk_document, separators=(",", ":")) + "\n", encoding="utf-8")
-        print(f"Dhaka OSM chunk '{chunk_name}': {len(chunk_features)} features")
-
+            if not chunk_features:
+                print(f"ERROR: required real Dhaka grid cell {chunk_name} has no usable features")
+                return 1
+            chunk_output = CHUNK_DIR / f"{chunk_name}.geojson"
+            chunk_document = {
+                "type": "FeatureCollection",
+                "name": f"Dhaka real-world grid {row},{col}",
+                "metadata": {
+                    "source": "OpenStreetMap contributors", "license": "ODbL-1.0",
+                    "attribution": "© OpenStreetMap contributors",
+                    "bbox": [bounds[1], bounds[0], bounds[3], bounds[2]],
+                    "district_scope": "Real OSM city-scale streaming grid cell",
+                    "feature_count": len(chunk_features), "roads": chunk_roads,
+                    "buildings": chunk_buildings,
+                    "named_places": sum(1 for f in chunk_features if f["geometry"]["type"] == "Point"),
+                },
+                "features": chunk_features,
+            }
+            chunk_output.write_text(json.dumps(chunk_document, separators=(",", ":")) + "\\n", encoding="utf-8")
+            import math
+            meters_lon = 111320.0 * math.cos(math.radians(ORIGIN_LAT))
+            manifest["grid"].append({
+                "id": chunk_name, "path": f"res://content/realworld/chunks/{chunk_name}.geojson",
+                "latitude": center_lat, "longitude": center_lon,
+                "x": (center_lon - ORIGIN_LON) * meters_lon,
+                "z": -(center_lat - ORIGIN_LAT) * 111132.0,
+                "features": len(chunk_features), "roads": chunk_roads, "buildings": chunk_buildings,
+            })
+            print(f"Dhaka grid {chunk_name}: {len(chunk_features)} features")
+    manifest_path = ROOT / "content" / "realworld" / "chunks_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, separators=(",", ":")) + "\\n", encoding="utf-8")
+    print(f"City-scale grid generated: {len(manifest['grid'])} real OSM chunks; manifest: {manifest_path.relative_to(ROOT)}")
     print(f"Source: © OpenStreetMap contributors; ODbL-1.0. Output: {OUTPUT.relative_to(ROOT)}")
     return 0
 

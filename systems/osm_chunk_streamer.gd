@@ -9,6 +9,7 @@ var world: Node3D
 var player: Node3D
 var loaded_chunks: Dictionary = {}
 var check_timer := 0.0
+var chunks: Array = []
 
 const CHUNKS := [
  {"id": "north", "center": Vector3(0.0, 0.0, -1334.0), "path": "res://content/realworld/chunks/north.geojson"},
@@ -20,8 +21,29 @@ const CHUNKS := [
 func configure(target_world: Node3D, target_player: Node3D) -> void:
  world = target_world
  player = target_player
+ _load_chunk_manifest()
  _expand_ground()
  set_process(true)
+
+func _load_chunk_manifest() -> void:
+ chunks.clear()
+ var manifest_path := "res://content/realworld/chunks_manifest.json"
+ if FileAccess.file_exists(manifest_path):
+  var file := FileAccess.open(manifest_path, FileAccess.READ)
+  if file:
+   var parsed: Variant = JSON.parse_string(file.get_as_text())
+   file.close()
+   if parsed is Dictionary and parsed.get("grid", null) is Array:
+    for item in parsed["grid"]:
+     if item is Dictionary and item.has("id") and item.has("path"):
+      chunks.append({
+       "id": str(item["id"]),
+       "center": Vector3(float(item.get("x", 0.0)), 0.0, float(item.get("z", 0.0))),
+       "path": str(item["path"])
+      })
+ if chunks.is_empty():
+  chunks = CHUNKS.duplicate(true)
+ print("OSM streaming grid loaded: ", chunks.size(), " chunks")
 
 func _process(delta: float) -> void:
  check_timer += delta
@@ -30,7 +52,7 @@ func _process(delta: float) -> void:
  check_timer = 0.0
  if not is_instance_valid(world) or not is_instance_valid(player):
   return
- for chunk in CHUNKS:
+ for chunk in chunks:
   var chunk_id := str(chunk["id"])
   var center: Vector3 = chunk["center"]
   var distance := player.global_position.distance_to(center)
