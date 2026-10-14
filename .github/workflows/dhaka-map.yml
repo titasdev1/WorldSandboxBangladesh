@@ -47,8 +47,13 @@ jobs:
 
       - name: Validate existing central-tile pipeline
         run: |
-          python -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_region.py
+          python -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_region.py tools/map_pipeline/audit_dhaka_imagery.py
           python -m unittest discover -s tests -p 'test_dhaka_map_pipeline.py' -v
+
+      - name: Audit openly licensed aerial imagery catalog for Greater Dhaka
+        continue-on-error: true
+        run: |
+          python tools/map_pipeline/audit_dhaka_imagery.py --out build/dhaka-imagery-audit.json
 
       - name: Bake mapped Greater Dhaka into independently positioned GLB tiles
         run: |
