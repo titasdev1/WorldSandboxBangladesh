@@ -73,9 +73,14 @@ func _physics_process(delta):
  else:
   velocity.y = -0.5
  move_and_slide()
- # The playable world now extends to the 600 m outer districts.
- position.x = clamp(position.x, -285.0, 285.0)
- position.z = clamp(position.z, -285.0, 285.0)
+ # The real-data Greater Dhaka map streams geographically positioned tiles.
+ # Keep the smaller bounds only for the fictional fallback city.
+ if world and bool(world.get("real_dhaka_loaded")):
+  position.x = clamp(position.x, -12000.0, 12000.0)
+  position.z = clamp(position.z, -14000.0, 14000.0)
+ else:
+  position.x = clamp(position.x, -285.0, 285.0)
+  position.z = clamp(position.z, -285.0, 285.0)
  _update_camera()
  if Input.is_action_just_pressed("fire") and world and ammo > 0 and reload_time <= 0.0:
   ammo -= 1
