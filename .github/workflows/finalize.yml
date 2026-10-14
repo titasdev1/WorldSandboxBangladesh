@@ -12,6 +12,17 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Fetch licensed CC0 vehicle and city assets into the deliverable
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py
+          python3 tools/fetch_free_assets.py
+          python3 tools/fetch_city_assets.py
+          echo "Licensed authored asset payload included in the project archive:"
+          du -sh external_content || true
+          find external_content -type f | wc -l
+
       - name: Verify finalization state
         shell: bash
         run: |
@@ -35,6 +46,15 @@ jobs:
           cd ..
           sha256sum FINAL_GAME_PROJECT.zip
           du -h FINAL_GAME_PROJECT.zip
+          python3 - <<'PY'
+          import json, pathlib, zipfile
+          archive = pathlib.Path("FINAL_GAME_PROJECT.zip")
+          with zipfile.ZipFile(archive) as z:
+              assets = [n for n in z.namelist() if n.startswith("external_content/")]
+          report = {"archive_bytes": archive.stat().st_size, "licensed_asset_files": len(assets), "asset_paths_sample": assets[:12]}
+          pathlib.Path("archive_manifest.json").write_text(json.dumps(report, indent=2) + "\n")
+          print(json.dumps(report, indent=2))
+          PY
 
       - name: Upload final ZIP as a single file
         uses: actions/upload-artifact@v4
