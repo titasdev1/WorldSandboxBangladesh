@@ -18,6 +18,7 @@ var shopkeeper_base := Vector3.ZERO
 var animation_clock := 0.0
 var status_label: Label3D
 var interior_active := false
+var interior_built := false
 var _materials: Dictionary = {}
 
 func _ready() -> void:
@@ -25,7 +26,6 @@ func _ready() -> void:
     if not is_instance_valid(host):
         return
     host_collision = host.get_node_or_null("CollisionShape3D") as CollisionShape3D
-    _build_interior()
     _build_entry_trigger()
     set_process(true)
 
@@ -69,6 +69,9 @@ func _on_door_body_entered(body: Node3D) -> void:
 func _enter_shop() -> void:
     if not is_instance_valid(player_inside) or not is_instance_valid(host):
         return
+    if not interior_built:
+        _build_interior()
+        interior_built = true
     interior_active = true
     if is_instance_valid(host_collision):
         host_collision.set_deferred("disabled", true)
@@ -89,7 +92,8 @@ func _leave_shop() -> void:
         host_collision.set_deferred("disabled", false)
     _set_exterior_visible(true)
     interior_active = false
-    _show_status(shop_name + " — welcome back!")
+    set_meta("shop_status", "left")
+    _clear_interior()
 
 func _set_exterior_visible(enabled: bool) -> void:
     if not is_instance_valid(host):
@@ -98,6 +102,16 @@ func _set_exterior_visible(enabled: bool) -> void:
     for child in host.get_children():
         if child != self and child is VisualInstance3D:
             (child as VisualInstance3D).visible = enabled
+
+func _clear_interior() -> void:
+    # Only keep the lightweight entrance trigger. Furnishings and the rigged
+    # shopkeeper are created on entry and released on exit for mobile memory.
+    for child in get_children():
+        if child != door_area:
+            child.queue_free()
+    shopkeeper = null
+    status_label = null
+    interior_built = false
 
 func _build_interior() -> void:
     var floor_mesh := BoxMesh.new()
