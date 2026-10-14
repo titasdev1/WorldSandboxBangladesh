@@ -463,6 +463,25 @@ func _configure_real_missions() -> void:
         return
     var routes: Array = real_dhaka_loader.get_road_routes()
     var candidates: Array[Vector3] = []
+    var nearest_point := Vector3.ZERO
+    var nearest_distance := INF
+    var nearest_route: Array = []
+    var nearest_route_index := 0
+    for route in routes:
+        for point_index in range(route.size()):
+            var road_point: Vector3 = route[point_index]
+            var road_distance := Vector2(road_point.x - player.position.x, road_point.z - player.position.z).length()
+            if road_distance < nearest_distance:
+                nearest_distance = road_distance
+                nearest_point = road_point
+                nearest_route = route
+                nearest_route_index = point_index
+    if nearest_distance < INF:
+        var before: Vector3 = nearest_route[maxi(0, nearest_route_index - 1)]
+        var after: Vector3 = nearest_route[mini(nearest_route.size() - 1, nearest_route_index + 1)]
+        var road_direction := (after - before).normalized()
+        var sidewalk_offset := Vector3(-road_direction.z, 0, road_direction.x) * 2.5
+        player.position = nearest_point + sidewalk_offset + Vector3(0, 0.2, 0)
     for route in routes:
         for point in route:
             var p: Vector3 = point
