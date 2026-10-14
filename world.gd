@@ -251,7 +251,8 @@ func spawn_traffic():
    v.road_route = selected_path.duplicate()
    v.road_route_index = rng.randi_range(0, v.road_route.size() - 1)
    v.road_route_direction = 1 if rng.randi_range(0, 1) == 0 else -1
-   v.position = v.road_route[v.road_route_index]
+   v.road_route_lane_offset = 1.0 if i % 2 == 0 else -1.0
+   v.position = v.call("_road_route_point", v.road_route_index)
    v.lane_axis = "osm"
   else:
    # Synthetic traffic remains the reliable fallback if OSM is unavailable.
