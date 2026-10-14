@@ -20,7 +20,11 @@ jobs:
 
       - name: Validate asset pipeline Python syntax
         shell: bash
-        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/report_build_assets.py
+        run: python3 -m py_compile tools/fetch_dhaka_map.py tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/report_build_assets.py
+
+      - name: Fetch optional real Dhaka road/building data
+        shell: bash
+        run: python3 tools/fetch_dhaka_map.py
 
       - name: Validate Godot project scripts and startup
         shell: bash
