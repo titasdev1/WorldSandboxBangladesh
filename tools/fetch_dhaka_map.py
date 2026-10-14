@@ -333,14 +333,19 @@ def main() -> int:
                     chunk_response = fetch_overpass(bounds, timeout_seconds=25, attempts_per_endpoint=1,
                                                     endpoints=OVERPASS_ENDPOINTS)
                 except Exception as exc:
-                    print(f"ERROR: required real Dhaka grid cell {chunk_name} unavailable: {exc}")
-                    return 1
+                    if row == 0 and col == 0:
+                        print(f"ERROR: central real Dhaka grid cell {chunk_name} unavailable: {exc}")
+                        return 1
+                    print(f"WARNING: unmapped outer cell {chunk_name}; preserving it as an empty streaming cell: {exc}")
+                    chunk_response = {"elements": []}
             chunk_features, chunk_roads, chunk_buildings = prepare_features(
                 chunk_response, CHUNK_MAX_FEATURES, CHUNK_ROAD_LIMIT
             )
-            if not chunk_features:
-                print(f"ERROR: required real Dhaka grid cell {chunk_name} has no usable features")
+            if not chunk_features and row == 0 and col == 0:
+                print(f"ERROR: central real Dhaka grid cell {chunk_name} has no usable features")
                 return 1
+            if not chunk_features:
+                print(f"INFO: grid cell {chunk_name} contains no mapped OSM features; writing empty cell")
             chunk_output = CHUNK_DIR / f"{chunk_name}.geojson"
             chunk_document = {
                 "type": "FeatureCollection",
