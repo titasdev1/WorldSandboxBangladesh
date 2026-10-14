@@ -563,13 +563,13 @@ func _build_shop_interior() -> void:
     # A reusable generated shop shell is placed in a separate vertical layer so
     # mapped exterior geometry stays intact while the player can walk indoors.
     _interior_box("ShopFloor", Vector3(0, 119.5, 0), Vector3(12, 1, 12), Color("#75634f"), true)
-    _interior_box("BackWall", Vector3(0, 123, 5.9), Vector3(12, 6, 0.35), Color("#d2c3a7"), true)
-    _interior_box("LeftWall", Vector3(-5.9, 123, 0), Vector3(0.35, 6, 12), Color("#c4b49a"), true)
-    _interior_box("RightWall", Vector3(5.9, 123, 0), Vector3(0.35, 6, 12), Color("#c4b49a"), true)
+    _interior_box("BackWall", Vector3(0, 125, 5.9), Vector3(12, 10, 0.35), Color("#d2c3a7"), true)
+    _interior_box("LeftWall", Vector3(-5.9, 125, 0), Vector3(0.35, 10, 12), Color("#c4b49a"), true)
+    _interior_box("RightWall", Vector3(5.9, 125, 0), Vector3(0.35, 10, 12), Color("#c4b49a"), true)
     # Split the front wall around an open doorway.
-    _interior_box("FrontWallLeft", Vector3(-4.3, 123, -5.9), Vector3(3.2, 6, 0.35), Color("#c4b49a"), true)
-    _interior_box("FrontWallRight", Vector3(4.3, 123, -5.9), Vector3(3.2, 6, 0.35), Color("#c4b49a"), true)
-    _interior_box("Ceiling", Vector3(0, 126.1, 0), Vector3(12, 0.25, 12), Color("#b7ad9d"), false)
+    _interior_box("FrontWallLeft", Vector3(-4.3, 125, -5.9), Vector3(3.2, 10, 0.35), Color("#c4b49a"), true)
+    _interior_box("FrontWallRight", Vector3(4.3, 125, -5.9), Vector3(3.2, 10, 0.35), Color("#c4b49a"), true)
+    _interior_box("Ceiling", Vector3(0, 130.1, 0), Vector3(12, 0.25, 12), Color("#b7ad9d"), false)
     _interior_box("ShopCounter", shop_counter_position, Vector3(5, 1.1, 0.9), Color("#80543a"), true)
     _interior_box("ProductShelf", Vector3(0, 122.4, 4.7), Vector3(7, 2.6, 0.45), Color("#5c4635"), true)
     _interior_box("ShelfProductsA", Vector3(-2.0, 123.0, 4.35), Vector3(0.75, 0.6, 0.35), Color("#d89e39"), false)
@@ -581,7 +581,7 @@ func _build_shop_interior() -> void:
     sign.text = interior_shop_name
     sign.font_size = 32
     sign.pixel_size = 0.006
-    sign.position = Vector3(0, 125.0, 5.65)
+    sign.position = Vector3(0, 129.0, 5.65)
     sign.modulate = Color("#30251c")
     shop_interior_root.add_child(sign)
     var keeper := Node3D.new()
@@ -596,7 +596,7 @@ func _build_shop_interior() -> void:
     shop_interior_root.add_child(keeper)
     var light := OmniLight3D.new()
     light.name = "InteriorLight"
-    light.position = Vector3(0, 125.2, 0)
+    light.position = Vector3(0, 129.2, 0)
     light.light_color = Color("#ffe3b2")
     light.light_energy = 1.4
     light.omni_range = 22.0
