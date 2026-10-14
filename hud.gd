@@ -14,6 +14,7 @@ var selected_mode := "deshi_story"
 var mode_buttons: Array[Button] = []
 var district_map: Control
 var map_button: Button
+var map_attribution: Label
 
 func _ready():
  w = get_parent()
@@ -22,6 +23,18 @@ func _ready():
  title.position = Vector2(28, 20)
  title.add_theme_font_size_override("font_size", 28)
  add_child(title)
+
+ map_attribution = Label.new()
+ map_attribution.name = "OpenStreetMapAttribution"
+ map_attribution.text = "Map data © OpenStreetMap contributors • ODbL"
+ map_attribution.position = Vector2(720, 700)
+ map_attribution.add_theme_font_size_override("font_size", 12)
+ map_attribution.add_theme_color_override("font_color", Color("#e6e6e6"))
+ map_attribution.add_theme_color_override("font_shadow_color", Color("#101010"))
+ map_attribution.add_theme_constant_override("shadow_offset_x", 1)
+ map_attribution.add_theme_constant_override("shadow_offset_y", 1)
+ map_attribution.visible = false
+ add_child(map_attribution)
 
  stats = Label.new()
  stats.position = Vector2(28, 62)
@@ -212,6 +225,8 @@ func _process(_delta):
   _world_quality_applied = true
  if district_map:
   district_map.call("update_world", w)
+ if map_attribution:
+  map_attribution.visible = w.has_meta("osm_import_roads") or w.has_meta("osm_import_buildings")
  var health_value: int = w.player.health if w.player else 100
  stats.text = "৳ %d    Health: %d    Wanted: %d/5    Weather: %s" % [w.cash, health_value, w.wanted, "RAIN" if w.rain else "CLEAR"]
  var mission_factory = w.get_node_or_null("MissionFactory")
