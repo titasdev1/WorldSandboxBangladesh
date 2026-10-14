@@ -19,6 +19,7 @@ var event_text := "CITY LIFE ACTIVE"
 var event_time_left := 0.0
 var material_cache: Dictionary = {}
 var city_asset_factory
+var pbr_surface_factory
 
 var road_x := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 var road_z := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
@@ -30,6 +31,10 @@ func _ready():
  city_asset_factory.name = "CityAssetFactory"
  add_child(city_asset_factory)
  city_asset_factory.configure(self)
+ pbr_surface_factory = load("res://pbr_surface_factory.gd").new()
+ pbr_surface_factory.name = "PBRSurfaceFactory"
+ add_child(pbr_surface_factory)
+ pbr_surface_factory.configure(self)
  build_city()
  build_landmarks()
  var street_life = load("res://street_life_factory.gd").new()
@@ -52,7 +57,7 @@ func make_mat(c: Color, roughness := 0.8, metallic := 0.0) -> StandardMaterial3D
  material_cache[key] = m
  return m
 
-func box(pos: Vector3, size: Vector3, c: Color, collision := true):
+func box(pos: Vector3, size: Vector3, c: Color, collision := true, surface_id := ""):
  var body: Node3D
  if collision:
   var static_body = StaticBody3D.new()
@@ -68,7 +73,10 @@ func box(pos: Vector3, size: Vector3, c: Color, collision := true):
  var bm = BoxMesh.new()
  bm.size = size
  mesh.mesh = bm
- mesh.material_override = make_mat(c)
+ var material := make_mat(c)
+ if pbr_surface_factory and not surface_id.is_empty() and pbr_surface_factory.has_method("material_for"):
+  material = pbr_surface_factory.material_for(surface_id, material)
+ mesh.material_override = material
  body.add_child(mesh)
  body.position = pos
  add_child(body)
@@ -115,15 +123,15 @@ func build_environment():
  sun.light_energy = 1.2
  sun.shadow_enabled = true
  add_child(sun)
- box(Vector3(0, -0.5, 0), Vector3(180, 1, 180), Color("#58714b"), true)
+ box(Vector3(0, -0.5, 0), Vector3(180, 1, 180), Color("#58714b"), true, "ground")
 
 func build_city():
  for x in road_x:
-  box(Vector3(x, 0.02, 0), Vector3(8.5, 0.14, 170), Color("#303438"), false)
+  box(Vector3(x, 0.02, 0), Vector3(8.5, 0.14, 170), Color("#303438"), false, "road")
   for z in range(-78, 79, 8):
    box(Vector3(x, 0.11, z), Vector3(0.16, 0.035, 3.4), Color("#d8cfa7"), false)
  for z in road_z:
-  box(Vector3(0, 0.03, z), Vector3(170, 0.14, 8.5), Color("#303438"), false)
+  box(Vector3(0, 0.03, z), Vector3(170, 0.14, 8.5), Color("#303438"), false, "road")
   for x in range(-78, 79, 8):
    box(Vector3(x, 0.12, z), Vector3(3.4, 0.035, 0.16), Color("#d8cfa7"), false)
  for x in range(-72, 73, 12):
@@ -147,7 +155,7 @@ func build_city():
    if city_asset_factory and city_asset_factory.has_method("spawn_building"):
     authored = city_asset_factory.spawn_building(Vector3(x, 0, z), Vector3(w, h, d))
    if not authored:
-    box(Vector3(x, h / 2.0, z), Vector3(w, h, d), c, true)
+    box(Vector3(x, h / 2.0, z), Vector3(w, h, d), c, true, "plaster")
     _add_building_facade_details(x, h, z, w, d)
     if h > 14:
      cylinder(Vector3(x, h + 1.2, z), 1.1, 2.2, Color("#6b747a"))
