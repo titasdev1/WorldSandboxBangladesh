@@ -23,6 +23,8 @@ func configure(target_world: Node3D, target_player: Node3D) -> void:
  player = target_player
  _load_chunk_manifest()
  _expand_ground()
+ # Load the starting cell immediately so road routes exist before traffic spawns.
+ _process(check_interval)
  set_process(true)
 
 func _load_chunk_manifest() -> void:

@@ -700,6 +700,13 @@ func _purchase_shop_item() -> void:
 # Real-world GeoJSON replaces the synthetic grid when data is available.
 # Never stack the procedural test city on top of the imported real street network.
 func _load_optional_real_world_map() -> bool:
+    # When the full streaming manifest exists, let the chunk streamer own the
+    # central cell too. Loading area.geojson as well would duplicate the city.
+    var manifest_path := "res://content/realworld/chunks_manifest.json"
+    if FileAccess.file_exists(manifest_path):
+        event_text = "REAL DHAKA GRID: STREAMING WORLD READY"
+        event_time_left = 6.0
+        return true
     var data_path := "res://content/realworld/area.geojson"
     if not FileAccess.file_exists(data_path):
         return false
