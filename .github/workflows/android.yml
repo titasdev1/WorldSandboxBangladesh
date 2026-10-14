@@ -131,6 +131,30 @@ jobs:
           export_debug: true
           verbose: true
 
+      - name: Verify exported APK integrity and record checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find build -type f -name '*.apk' ! -path 'build/canonical_release/*' -print -quit)"
+          test -n "$APK"
+          echo "APK_PATH=$APK"
+          echo "APK_BYTES=$(stat -c '%s' "$APK")"
+          sha256sum "$APK" | tee build/apk-sha256.txt
+          unzip -t "$APK" > build/apk-zip-test.txt
+          cat build/apk-zip-test.txt
+          APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee build/apk-signature-verification.txt
+          {
+            echo "## APK integrity verification"
+            echo
+            echo "- File: `$(basename "$APK")`"
+            echo "- Size (bytes): `$(stat -c '%s' "$APK")`"
+            echo "- SHA-256: `$(sha256sum "$APK" | cut -d ' ' -f 1)`"
+            echo "- ZIP structure test: PASS"
+            echo "- Android signature verification: PASS"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Report exact APK and included asset sizes
         shell: bash
         run: python3 tools/report_build_assets.py
@@ -143,17 +167,33 @@ jobs:
           find build -type f -name '*.apk' ! -path 'build/canonical_release/*' -exec cp {} build/canonical_release/ \;
           test -n "$(find build/canonical_release -maxdepth 1 -type f -name '*.apk' -print -quit)"
           cp build/asset_build_report.json build/canonical_release/ASSET_BUILD_REPORT.json
+          cp build/apk-sha256.txt build/canonical_release/APK_SHA256.txt
+          cp build/apk-zip-test.txt build/canonical_release/APK_ZIP_TEST.txt
+          cp build/apk-signature-verification.txt build/canonical_release/APK_SIGNATURE_VERIFICATION.txt
           cat > build/canonical_release/README.txt <<'EOF'
           World Sandbox: Bangladesh / Project A-Square
-          This single artifact contains the Android APK and its exact size/asset audit.
+          This artifact contains the Android APK and verification reports.
+          Before publishing, CI tests the APK ZIP structure and Android signature.
+          Compare the extracted APK SHA-256 against APK_SHA256.txt.
           The JSON report is build metadata, not a second game.
           Artifact-container size and APK file size are different measurements.
           EOF
           ls -lh build/canonical_release
 
-      - name: Upload one canonical game artifact (APK + audit)
+      - name: Upload canonical game artifact (APK + verification reports)
         uses: actions/upload-artifact@v4
         with:
           name: WorldSandboxBangladesh-Canonical-Build
           path: build/canonical_release/*
+          if-no-files-found: error
+
+      - name: Upload small verification reports separately
+        uses: actions/upload-artifact@v4
+        with:
+          name: WorldSandboxBangladesh-Verification-Reports
+          path: |
+            build/apk-sha256.txt
+            build/apk-zip-test.txt
+            build/apk-signature-verification.txt
+            build/asset_build_report.json
           if-no-files-found: error
