@@ -285,7 +285,9 @@ func _import_building(raw_coords: Variant, kind: String, properties: Dictionary)
     body.set_meta("osm_building_type", str(properties.get("building", "yes")))
     if properties.has("shop") or properties.get("amenity", "") in ["restaurant", "cafe", "pharmacy", "bank", "fast_food"]:
         var shop_kind := str(properties.get("shop", properties.get("amenity", "general")))
-        var shop_name := str(properties.get("name:bn", properties.get("name", "Local Shop")))
+        var shop_name := str(properties.get("name:bn", "")).strip_edges()
+        if shop_name.is_empty():
+            shop_name = str(properties.get("name", properties.get("brand", "Local Shop"))).strip_edges()
         body.set_meta("is_shop", true)
         body.set_meta("shop_type", shop_kind)
         body.set_meta("shop_name", shop_name)
@@ -297,6 +299,7 @@ func _import_building(raw_coords: Variant, kind: String, properties: Dictionary)
         interior.set("shop_kind", shop_kind)
         interior.set("interior_width", clampf(width * 0.78, 5.0, 12.0))
         interior.set("interior_depth", clampf(depth * 0.78, 5.0, 10.0))
+        interior.set("building_depth", depth)
         body.add_child(interior)
     world.add_child(body)
     imported_buildings += 1
