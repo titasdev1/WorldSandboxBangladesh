@@ -312,4 +312,7 @@ func _building_material(building_type: String) -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
     material.albedo_color = palette[index]
     material.roughness = 0.88
+    # OSM rings can have either winding in source extracts; render both sides
+    # so a valid footprint never disappears because of triangle orientation.
+    material.cull_mode = BaseMaterial3D.CULL_DISABLED
     return material
