@@ -1,0 +1,88 @@
+name: Build Real Dhaka Map Tiles
+
+on:
+  workflow_dispatch:
+    inputs:
+      tile_degrees:
+        description: "Tile edge in degrees (0.02 is roughly 2 km)"
+        required: true
+        default: "0.02"
+        type: choice
+        options:
+          - "0.01"
+          - "0.02"
+          - "0.03"
+  push:
+    branches:
+      - feature/dhaka-real-map-pipeline
+    paths:
+      - "tools/map_pipeline/**"
+      - ".github/workflows/dhaka-map.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: real-dhaka-map-\${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout canonical project
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install geospatial build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install osmium shapely trimesh mapbox-earcut
+
+      - name: Validate existing central-tile pipeline
+        run: |
+          python -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_region.py
+          python -m unittest discover -s tests -p 'test_dhaka_map_pipeline.py' -v
+
+      - name: Bake mapped Greater Dhaka into independently positioned GLB tiles
+        run: |
+          python tools/map_pipeline/build_dhaka_region.py \
+            --tile-degrees "\${{ inputs.tile_degrees || '0.02' }}" \
+            --out build/dhaka-region-map
+
+      - name: Verify map package is nonempty and has provenance
+        run: |
+          test -s build/dhaka-region-map/map_tiles_manifest.json
+          test -s build/dhaka-region-map/ATTRIBUTION.txt
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("build/dhaka-region-map")
+          manifest = json.loads((root / "map_tiles_manifest.json").read_text())
+          glbs = list(root.rglob("Dhaka_Explorable_Map.glb"))
+          if not glbs:
+              raise SystemExit("No GLB map tiles were generated")
+          if manifest["tile_count_with_geometry"] != len(glbs):
+              raise SystemExit("Manifest GLB count does not match generated files")
+          print(json.dumps({
+              "region": manifest["region_south_west_north_east"],
+              "tiles_with_geometry": len(glbs),
+              "source_elements": manifest["source_elements_in_region"],
+              "glb_bytes": sum(p.stat().st_size for p in glbs),
+          }, indent=2))
+          PY
+
+      - name: Upload standalone real-Dhaka map package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project-A-Square-Real-Dhaka-Map-\${{ github.run_number }}
+          path: build/dhaka-region-map/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 1
