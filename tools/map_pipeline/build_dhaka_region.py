@@ -14,6 +14,7 @@ import argparse
 import json
 import math
 import pathlib
+import shutil
 import sys
 import urllib.request
 from typing import Any
@@ -189,7 +190,10 @@ def main() -> int:
         manifest = build_map(candidates, tile_dir, bbox)
         counts = manifest.get("feature_counts", {})
         if counts.get("building_footprints", 0) == 0 and counts.get("road_ways", 0) == 0:
-            # Keep empty-tile metadata for coverage transparency, but don't list a GLB as playable.
+            # build_map writes a ground-only GLB even for an empty source tile.
+            # Remove those files so artifact GLB counts match the manifest and
+            # the game never streams fake "empty" tiles as real mapped coverage.
+            shutil.rmtree(tile_dir, ignore_errors=True)
             tile_records.append({
                 "tile_id": tile_id, "bbox_south_west_north_east": list(bbox),
                 "status": "NO_MAPPED_ROADS_OR_BUILDINGS", "feature_counts": counts,
