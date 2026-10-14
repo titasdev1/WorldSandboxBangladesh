@@ -23,7 +23,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: real-dhaka-map-\${{ github.ref }}
+  group: real-dhaka-map-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -58,7 +58,7 @@ jobs:
       - name: Bake mapped Greater Dhaka into independently positioned GLB tiles
         run: |
           python tools/map_pipeline/build_dhaka_region.py \
-            --tile-degrees "\${{ inputs.tile_degrees || '0.02' }}" \
+            --tile-degrees "${{ inputs.tile_degrees || '0.02' }}" \
             --out build/dhaka-region-map
 
       - name: Verify map package is nonempty and has provenance
@@ -86,7 +86,7 @@ jobs:
       - name: Upload standalone real-Dhaka map package
         uses: actions/upload-artifact@v4
         with:
-          name: Project-A-Square-Real-Dhaka-Map-\${{ github.run_number }}
+          name: Project-A-Square-Real-Dhaka-Map-${{ github.run_number }}
           path: build/dhaka-region-map/
           if-no-files-found: error
           retention-days: 30
