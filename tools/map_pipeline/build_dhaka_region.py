@@ -147,29 +147,42 @@ def main() -> int:
     tiles = list(tile_bounds((south, west, north, east), args.tile_degrees))
     if args.max_tiles > 0:
         tiles = tiles[:args.max_tiles]
-    tile_records = []
-    for index, bbox in enumerate(tiles, start=1):
-        tile_s, tile_w, tile_n, tile_e = bbox
-        # Only pass candidate elements touching this tile; build_map clips actual geometry.
-        candidates = []
-        tile_box = box(tile_w, tile_s, tile_e, tile_n)
-        for element in handler.elements:
-            if element["type"] == "node":
-                if tile_w <= element["lon"] <= tile_e and tile_s <= element["lat"] <= tile_n:
-                    candidates.append(element)
-                continue
+    # Assign each extracted feature to only the tiles touched by its cached bbox.
+    # The old nested scan tested every OSM way against every tile, which becomes
+    # prohibitively expensive for Greater Dhaka's 100k+ mapped features.
+    candidates_by_tile: list[list[dict[str, Any]]] = [[] for _ in tiles]
+    rows = max(1, math.ceil((north - south) / args.tile_degrees))
+    cols = max(1, math.ceil((east - west) / args.tile_degrees))
+    for element in handler.elements:
+        if element["type"] == "node":
+            min_lon = max_lon = float(element["lon"])
+            min_lat = max_lat = float(element["lat"])
+        else:
             geom = element.get("geometry", [])
             if not geom:
                 continue
             bounds = element.get("_bbox")
             if bounds is None:
-                # Compatibility for hand-built fixtures or older extracted records.
                 bounds = [
                     min(p["lon"] for p in geom), min(p["lat"] for p in geom),
                     max(p["lon"] for p in geom), max(p["lat"] for p in geom),
                 ]
-            if box(*bounds).intersects(tile_box):
-                candidates.append(element)
+            min_lon, min_lat, max_lon, max_lat = map(float, bounds)
+        first_col = max(0, min(cols - 1, int(math.floor((min_lon - west) / args.tile_degrees))))
+        last_col = max(0, min(cols - 1, int(math.floor((max_lon - west) / args.tile_degrees))))
+        first_row = max(0, min(rows - 1, int(math.floor((min_lat - south) / args.tile_degrees))))
+        last_row = max(0, min(rows - 1, int(math.floor((max_lat - south) / args.tile_degrees))))
+        for row in range(first_row, last_row + 1):
+            for col in range(first_col, last_col + 1):
+                tile_index = row * cols + col
+                if tile_index < len(candidates_by_tile):
+                    candidates_by_tile[tile_index].append(element)
+
+    tile_records = []
+    for index, bbox in enumerate(tiles, start=1):
+        tile_s, tile_w, tile_n, tile_e = bbox
+        # build_map clips actual feature geometry to this tile's boundary.
+        candidates = candidates_by_tile[index - 1]
         tile_id = f"tile_{tile_s:.4f}_{tile_w:.4f}".replace(".", "p")
         tile_dir = args.out / tile_id
         print(f"[{index}/{len(tiles)}] {tile_id}: {len(candidates):,} candidate features", flush=True)
