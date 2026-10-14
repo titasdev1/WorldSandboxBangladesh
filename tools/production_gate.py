@@ -23,6 +23,7 @@ REQUIRED = [
     "hud.gd",
     "vehicle.gd",
     "character_visual.gd",
+    "tools/fetch_dhaka_map.py",
     "tools/fetch_free_assets.py",
     "tools/fetch_city_assets.py",
     "city_asset_factory.gd",
