@@ -57,7 +57,7 @@ func _ready():
  add_touch_button("SPRINT", Vector2(35, 645), Vector2(150, 45), "sprint")
  add_touch_button("FIRE", Vector2(1080, 560), Vector2(150, 75), "fire")
  interaction_button = add_touch_button("INTERACT", Vector2(900, 650), Vector2(170, 55), "interact")
-	_build_driving_status()
+ _build_driving_status()
  add_touch_button("RAIN", Vector2(1060, 650), Vector2(150, 55), "rain")
  _build_settings_ui()
  _load_graphics_settings()
@@ -408,7 +408,7 @@ func _update_interaction_prompt() -> void:
  if is_instance_valid(occupied_vehicle):
   interaction_button.text = "EXIT VEHICLE"
   var speed_mps := absf(float(occupied_vehicle.get("speed")))
-  driving_status.text = "DRIVING  %03d km/h\\nJOYSTICK: STEER / ACCELERATE" % int(speed_mps * 3.6)
+  driving_status.text = "DRIVING  %03d km/h\nJOYSTICK: STEER / ACCELERATE" % int(speed_mps * 3.6)
   driving_status.visible = true
  elif is_instance_valid(nearby_vehicle):
   interaction_button.text = "DRIVE"
