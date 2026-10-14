@@ -12,6 +12,8 @@ var _world_quality_applied := false
 var lobby_overlay: ColorRect
 var selected_mode := "deshi_story"
 var mode_buttons: Array[Button] = []
+var district_map: Control
+var map_button: Button
 
 func _ready():
  w = get_parent()
@@ -56,7 +58,31 @@ func _ready():
  add_touch_button("RAIN", Vector2(1060, 650), Vector2(150, 55), "rain")
  _build_settings_ui()
  _load_graphics_settings()
+ _build_navigation_map()
  _build_lobby_ui()
+
+func _build_navigation_map() -> void:
+ district_map = Control.new()
+ district_map.set_script(load("res://district_map_display.gd"))
+ district_map.name = "DistrictMapDisplay"
+ district_map.position = Vector2(1015, 78)
+ district_map.size = Vector2(230, 230)
+ district_map.z_index = 5
+ add_child(district_map)
+ map_button = Button.new()
+ map_button.text = "CITY MAP"
+ map_button.position = Vector2(955, 18)
+ map_button.size = Vector2(140, 44)
+ map_button.add_theme_font_size_override("font_size", 17)
+ map_button.pressed.connect(_toggle_map)
+ add_child(map_button)
+
+func _toggle_map() -> void:
+ if not district_map:
+  return
+ var next_expanded: bool = not bool(district_map.get("expanded"))
+ district_map.call("set_expanded", next_expanded)
+ map_button.text = "CLOSE MAP" if next_expanded else "CITY MAP"
 
 func _build_settings_ui() -> void:
  var settings_button := Button.new()
@@ -184,6 +210,8 @@ func _process(_delta):
  if not _world_quality_applied and w.get_node_or_null("Sun"):
   _apply_quality(quality_option.selected)
   _world_quality_applied = true
+ if district_map:
+  district_map.call("update_world", w)
  stats.text = "৳ %d    Wanted: %d/5    Weather: %s" % [w.cash, w.wanted, "RAIN" if w.rain else "CLEAR"]
  if w.mission_active:
   var stage_names = ["Market delivery", "Tower pickup", "Bus terminal drop"]
