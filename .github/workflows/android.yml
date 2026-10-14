@@ -32,6 +32,7 @@ jobs:
           "$RUNNER_TEMP/map-venv/bin/python" -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_region.py
           "$RUNNER_TEMP/map-venv/bin/python" -m unittest discover -s tests -p 'test_dhaka_map_pipeline.py' -v
           "$RUNNER_TEMP/map-venv/bin/python" tools/map_pipeline/build_dhaka_region.py --tile-degrees 0.02 --out build/greater-dhaka
+          python3 tools/map_pipeline/audit_dhaka_imagery.py --out build/greater-dhaka/dhaka-imagery-audit.json || true
           test -s build/greater-dhaka/map_tiles_manifest.json
           test -s build/greater-dhaka/ATTRIBUTION.txt
           mkdir -p assets/world/dhaka_tiles
