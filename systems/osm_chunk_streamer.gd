@@ -1,8 +1,8 @@
 extends Node
 class_name OSMChunkStreamer
 
-@export var load_radius := 1250.0
-@export var unload_radius := 1900.0
+@export var load_radius := 800.0
+@export var unload_radius := 1200.0
 @export var check_interval := 0.75
 
 var world: Node3D
@@ -11,9 +11,9 @@ var loaded_chunks: Dictionary = {}
 var check_timer := 0.0
 
 const CHUNKS := [
- {"id": "north", "center": Vector3(0.0, 0.0, -2223.0), "path": "res://content/realworld/chunks/north.geojson"},
- {"id": "south", "center": Vector3(0.0, 0.0, 2223.0), "path": "res://content/realworld/chunks/south.geojson"},
- {"id": "east", "center": Vector3(2020.0, 0.0, 0.0), "path": "res://content/realworld/chunks/east.geojson"},
+ {"id": "north", "center": Vector3(0.0, 0.0, -1334.0), "path": "res://content/realworld/chunks/north.geojson"},
+ {"id": "south", "center": Vector3(0.0, 0.0, 1334.0), "path": "res://content/realworld/chunks/south.geojson"},
+ {"id": "east", "center": Vector3(1212.0, 0.0, 0.0), "path": "res://content/realworld/chunks/east.geojson"},
  {"id": "west", "center": Vector3(-2020.0, 0.0, 0.0), "path": "res://content/realworld/chunks/west.geojson"}
 ]
 

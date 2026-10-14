@@ -18,12 +18,12 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "content" / "realworld" / "area.geojson"
 CHUNK_DIR = ROOT / "content" / "realworld" / "chunks"
 # Approximately a 2 km x 2 km central-Dhaka starter district.
-SOUTH, WEST, NORTH, EAST = 23.8003, 90.4025, 23.8203, 90.4225
-MAX_FEATURES = 1800
-ROAD_LIMIT = 500
-CHUNK_MAX_FEATURES = 900
-CHUNK_ROAD_LIMIT = 250
-CHUNK_OFFSETS = {"north": (0.0200, 0.0), "south": (-0.0200, 0.0), "east": (0.0, 0.0200), "west": (0.0, -0.0200)}
+SOUTH, WEST, NORTH, EAST = 23.8043, 90.4065, 23.8163, 90.4185
+MAX_FEATURES = 1400
+ROAD_LIMIT = 400
+CHUNK_MAX_FEATURES = 600
+CHUNK_ROAD_LIMIT = 180
+CHUNK_OFFSETS = {"north": (0.0120, 0.0), "south": (-0.0120, 0.0), "east": (0.0, 0.0120), "west": (0.0, -0.0120)}
 OVERPASS_ENDPOINTS = (
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
