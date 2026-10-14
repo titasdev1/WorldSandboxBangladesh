@@ -77,7 +77,7 @@ func _physics_process(delta):
  # Keep the smaller bounds only for the fictional fallback city.
  if world and bool(world.get("real_dhaka_loaded")):
   position.x = clamp(position.x, -12000.0, 12000.0)
-  position.z = clamp(position.z, -14000.0, 14000.0)
+  position.z = clamp(position.z, -10000.0, 16800.0)
  else:
   position.x = clamp(position.x, -285.0, 285.0)
   position.z = clamp(position.z, -285.0, 285.0)
