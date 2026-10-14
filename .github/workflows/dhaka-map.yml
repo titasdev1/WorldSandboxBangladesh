@@ -53,7 +53,7 @@ jobs:
       - name: Audit openly licensed aerial imagery catalog for Greater Dhaka
         continue-on-error: true
         run: |
-          python tools/map_pipeline/audit_dhaka_imagery.py --out build/dhaka-imagery-audit.json
+          python tools/map_pipeline/audit_dhaka_imagery.py --out build/dhaka-region-map/dhaka-imagery-audit.json
 
       - name: Bake mapped Greater Dhaka into independently positioned GLB tiles
         run: |
