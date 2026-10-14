@@ -3,6 +3,9 @@ extends CharacterBody3D
 var world
 var speed := 4.0
 var lane_axis := "z"
+var road_route: Array = []
+var road_route_index := 0
+var road_route_direction := 1
 var vehicle_type := "Car"
 var body_size := Vector3(2.0, 1.0, 4.0)
 var body_color := Color("#d94a45")
@@ -252,6 +255,15 @@ func _physics_process(delta: float) -> void:
         _animate_wheels(delta)
         return
 
+    if not road_route.is_empty() and road_route.size() >= 2:
+        _drive_osm_route(delta)
+        if is_police and world and world.wanted > 0 and world.player:
+            var route_distance: float = global_position.distance_to(world.player.global_position)
+            if route_distance < 18:
+                world.wanted = mini(5, world.wanted + 1)
+        _animate_wheels(delta)
+        return
+
     if world and not is_police and world.is_red_for_axis(lane_axis, global_position):
         velocity = Vector3.ZERO
         return
@@ -278,6 +290,32 @@ func _physics_process(delta: float) -> void:
         if distance < 18:
             world.wanted = mini(5, world.wanted + 1)
     _animate_wheels(delta)
+
+func _drive_osm_route(delta: float) -> void:
+    if road_route.size() < 2:
+        return
+    road_route_index = clampi(road_route_index, 0, road_route.size() - 1)
+    var target: Vector3 = road_route[road_route_index]
+    var to_target := target - global_position
+    to_target.y = 0.0
+    if to_target.length() < maxf(2.0, speed * delta * 1.4):
+        var next_index := road_route_index + road_route_direction
+        if next_index < 0 or next_index >= road_route.size():
+            road_route_direction *= -1
+            next_index = road_route_index + road_route_direction
+        road_route_index = clampi(next_index, 0, road_route.size() - 1)
+        target = road_route[road_route_index]
+        to_target = target - global_position
+        to_target.y = 0.0
+    if to_target.length_squared() < 0.001:
+        velocity = Vector3.ZERO
+        return
+    var direction := to_target.normalized()
+    velocity = direction * speed
+    var desired_yaw := atan2(-direction.x, -direction.z)
+    rotation.y = lerp_angle(rotation.y, desired_yaw, minf(1.0, delta * 3.5))
+    move_and_slide()
+
 
 func _animate_wheels(delta: float) -> void:
     var roll: float = speed * delta * 1.8
