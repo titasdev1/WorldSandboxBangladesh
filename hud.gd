@@ -66,6 +66,8 @@ func _ready():
  stick.add_to_group("movement_stick")
  add_child(stick)
  add_touch_button("SPRINT", Vector2(35, 645), Vector2(150, 45), "sprint")
+ add_touch_button("JUMP", Vector2(1080, 470), Vector2(150, 58), "jump")
+ add_touch_button("CROUCH", Vector2(900, 560), Vector2(150, 55), "crouch")
  add_touch_button("FIRE", Vector2(1080, 560), Vector2(150, 75), "fire")
  add_touch_button("BARGAIN", Vector2(900, 650), Vector2(150, 55), "interact")
  add_touch_button("RAIN", Vector2(1060, 650), Vector2(150, 55), "rain")
@@ -228,7 +230,8 @@ func _process(_delta):
  if map_attribution:
   map_attribution.visible = w.has_meta("osm_import_roads") or w.has_meta("osm_import_buildings")
  var health_value: int = w.player.health if w.player else 100
- stats.text = "৳ %d    Health: %d    Wanted: %d/5    Weather: %s" % [w.cash, health_value, w.wanted, "RAIN" if w.rain else "CLEAR"]
+ var stamina_value: int = int(w.player.stamina) if w.player else 100
+ stats.text = "৳ %d    Health: %d    Stamina: %d%%    Wanted: %d/5    Weather: %s" % [w.cash, health_value, stamina_value, w.wanted, "RAIN" if w.rain else "CLEAR"]
  var mission_factory = w.get_node_or_null("MissionFactory")
  if is_instance_valid(mission_factory) and int(mission_factory.get("active_index")) >= 0:
   var active_index: int = int(mission_factory.get("active_index"))
