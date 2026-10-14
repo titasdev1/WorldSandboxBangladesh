@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 import pathlib
+import shutil
+import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -165,15 +167,76 @@ def prepare_features(response: dict, max_features: int, road_limit: int) -> tupl
     selected = roads[:road_limit] + buildings[:building_limit] + places[:place_limit]
     return selected[:max_features], min(len(roads), road_limit), min(len(buildings), building_limit)
 
+def fetch_geofabrik(bounds: tuple[float, float, float, float]) -> dict:
+    """Reliable regional fallback: clip the free Bangladesh OSM PBF locally with osmium."""
+    osmium = shutil.which("osmium")
+    if not osmium:
+        raise RuntimeError("osmium-tool is unavailable; cannot process Geofabrik PBF fallback")
+    cache_dir = pathlib.Path("/tmp/world-sandbox-osm-cache")
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    pbf_path = cache_dir / "bangladesh-latest.osm.pbf"
+    if not pbf_path.exists() or pbf_path.stat().st_size < 10_000_000:
+        partial = pbf_path.with_suffix(".download")
+        request = urllib.request.Request(
+            "https://download.geofabrik.de/asia/bangladesh-latest.osm.pbf",
+            headers={"User-Agent": USER_AGENT},
+        )
+        print("Downloading free Bangladesh OSM regional extract from Geofabrik (PBF)…")
+        with urllib.request.urlopen(request, timeout=600) as response, partial.open("wb") as output:
+            shutil.copyfileobj(response, output)
+        if partial.stat().st_size < 10_000_000:
+            raise RuntimeError("Geofabrik PBF download was unexpectedly small")
+        partial.replace(pbf_path)
+    south, west, north, east = bounds
+    extract = cache_dir / f"dhaka-{south:.4f}-{west:.4f}-{north:.4f}-{east:.4f}.pbf"
+    exported = extract.with_suffix(".geojson")
+    subprocess.run(
+        [osmium, "extract", "-b", f"{west},{south},{east},{north}", "--strategy=complete_ways",
+         str(pbf_path), "-o", str(extract), "--overwrite"],
+        check=True, timeout=240,
+    )
+    subprocess.run([osmium, "export", str(extract), "-o", str(exported), "--overwrite"],
+                   check=True, timeout=240)
+    document = json.loads(exported.read_text(encoding="utf-8"))
+    elements = []
+    for feature in document.get("features", []):
+        geometry = feature.get("geometry") or {}
+        props = feature.get("properties") or {}
+        raw_id = str(props.get("@id", feature.get("id", "")))
+        element_type, _, element_id = raw_id.partition("/")
+        if not element_id.isdigit():
+            element_id = str(feature.get("id", "0")).split("/")[-1]
+        tags = {str(k): v for k, v in props.items() if not str(k).startswith("@") and v is not None}
+        coords = geometry.get("coordinates")
+        kind = geometry.get("type")
+        if kind == "Point" and isinstance(coords, list) and len(coords) >= 2:
+            elements.append({"type": "node", "id": int(element_id) if element_id.isdigit() else 0,
+                             "lon": coords[0], "lat": coords[1], "tags": tags})
+        elif kind == "LineString" and isinstance(coords, list):
+            elements.append({"type": "way", "id": int(element_id) if element_id.isdigit() else 0,
+                             "geometry": [{"lon": p[0], "lat": p[1]} for p in coords], "tags": tags})
+        elif kind == "Polygon" and isinstance(coords, list) and coords:
+            outer = coords[0]
+            elements.append({"type": "way", "id": int(element_id) if element_id.isdigit() else 0,
+                             "geometry": [{"lon": p[0], "lat": p[1]} for p in outer], "tags": tags})
+    if not elements:
+        raise RuntimeError("Geofabrik extract produced no usable OSM features for requested bounds")
+    print(f"Geofabrik/osmium fallback: {len(elements)} mapped elements clipped to {bounds}")
+    return {"elements": elements}
+
+
 def main() -> int:
     try:
         # The central district is required for a real-Dhaka build. Give each mirror
         # one retry before refusing the build rather than publishing the fictional fallback.
         response = fetch_overpass(timeout_seconds=35, attempts_per_endpoint=2)
     except Exception as exc:
-        # Optional source: do not make a release impossible during an Overpass outage.
-        print(f"ERROR: required central-Dhaka OSM download unavailable; refusing to publish a fallback-only map: {exc}")
-        return 1
+        print(f"WARNING: Overpass unavailable for central Dhaka: {exc}")
+        try:
+            response = fetch_geofabrik((SOUTH, WEST, NORTH, EAST))
+        except Exception as fallback_exc:
+            print(f"ERROR: both Overpass and Geofabrik/osmium sources failed; refusing fallback-only map: {fallback_exc}")
+            return 1
 
     features, road_count, building_count = prepare_features(response, MAX_FEATURES, ROAD_LIMIT)
     if not features:

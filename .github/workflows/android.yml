@@ -26,6 +26,11 @@ jobs:
         shell: bash
         run: python3 -m unittest tests.test_fetch_dhaka_map -v
 
+      - name: Install OSM PBF processing fallback
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y osmium-tool
+
       - name: Fetch optional real Dhaka road/building data
         shell: bash
         run: python3 tools/fetch_dhaka_map.py
