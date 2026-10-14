@@ -107,44 +107,92 @@ func _import_building(raw_coords: Variant, kind: String, properties: Dictionary)
     if ring.size() < 4:
         skipped_features += 1
         return
-    var points: Array[Vector3] = []
+
+    # Preserve the actual OSM footprint instead of replacing every building
+    # with an axis-aligned box. Geometry2D triangulates the roof; each ring
+    # edge becomes two wall triangles. A convex hull collider is used for
+    # dependable mobile collision, while the rendered exterior follows the
+    # mapped footprint. Holes and additional MultiPolygon parts are not yet
+    # represented, so this remains a useful first-pass building importer.
+    var points_2d := PackedVector2Array()
     var min_x := INF
     var max_x := -INF
     var min_z := INF
     var max_z := -INF
     for coord in ring:
         var p := _to_local(coord)
-        points.append(p)
+        points_2d.append(Vector2(p.x, p.z))
         min_x = minf(min_x, p.x)
         max_x = maxf(max_x, p.x)
         min_z = minf(min_z, p.z)
         max_z = maxf(max_z, p.z)
-    var width := max_x - min_x
-    var depth := max_z - min_z
-    if width < 2.0 or depth < 2.0 or width > 90.0 or depth > 90.0:
+
+    # OSM polygon rings repeat their first coordinate at the end. Drop that
+    # duplicate for triangulation and wall generation.
+    if points_2d.size() > 3 and points_2d[0].distance_to(points_2d[points_2d.size() - 1]) < 0.01:
+        points_2d.remove_at(points_2d.size() - 1)
+    if points_2d.size() < 3:
         skipped_features += 1
         return
+
+    var width := max_x - min_x
+    var depth := max_z - min_z
+    if width < 2.0 or depth < 2.0 or width > 250.0 or depth > 250.0:
+        skipped_features += 1
+        return
+
     var height := _building_height(properties)
+    var center_x := (min_x + max_x) * 0.5
+    var center_z := (min_z + max_z) * 0.5
+    var local_points := PackedVector2Array()
+    for p in points_2d:
+        local_points.append(Vector2(p.x - center_x, p.y - center_z))
+
     var body := StaticBody3D.new()
-    body.name = "OSMBuilding"
+    body.name = "OSMBuilding_" + str(properties.get("osm_id", imported_buildings))
+    var collider := ConvexPolygonShape3D.new()
+    var collision_points := PackedVector3Array()
+    for p in local_points:
+        collision_points.append(Vector3(p.x, 0.0, p.y))
+        collision_points.append(Vector3(p.x, height, p.y))
+    collider.points = collision_points
     var collision := CollisionShape3D.new()
-    var shape := BoxShape3D.new()
-    shape.size = Vector3(width, height, depth)
-    collision.shape = shape
-    collision.position.y = height * 0.5
+    collision.shape = collider
     body.add_child(collision)
+
+    var surface := SurfaceTool.new()
+    surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+    var roof_indices := Geometry2D.triangulate_polygon(local_points)
+    for i in range(0, roof_indices.size(), 3):
+        var a: Vector2 = local_points[roof_indices[i]]
+        var b: Vector2 = local_points[roof_indices[i + 1]]
+        var c: Vector2 = local_points[roof_indices[i + 2]]
+        surface.add_vertex(Vector3(a.x, height, a.y))
+        surface.add_vertex(Vector3(b.x, height, b.y))
+        surface.add_vertex(Vector3(c.x, height, c.y))
+    for i in range(local_points.size()):
+        var a: Vector2 = local_points[i]
+        var b: Vector2 = local_points[(i + 1) % local_points.size()]
+        var a_bottom := Vector3(a.x, 0.0, a.y)
+        var b_bottom := Vector3(b.x, 0.0, b.y)
+        var a_top := Vector3(a.x, height, a.y)
+        var b_top := Vector3(b.x, height, b.y)
+        surface.add_vertex(a_bottom)
+        surface.add_vertex(a_top)
+        surface.add_vertex(b_top)
+        surface.add_vertex(a_bottom)
+        surface.add_vertex(b_top)
+        surface.add_vertex(b_bottom)
+    surface.generate_normals()
     var mesh_instance := MeshInstance3D.new()
-    var mesh := BoxMesh.new()
-    mesh.size = Vector3(width, height, depth)
-    mesh_instance.mesh = mesh
-    mesh_instance.position.y = height * 0.5
+    mesh_instance.name = "OSMFootprintMesh"
+    mesh_instance.mesh = surface.commit()
     mesh_instance.material_override = _building_material(str(properties.get("building", "yes")))
     body.add_child(mesh_instance)
-    body.position = Vector3((min_x + max_x) * 0.5, 0.0, (min_z + max_z) * 0.5)
+    body.position = Vector3(center_x, 0.0, center_z)
 
-    # Procedural facade pass: consistent floor rhythm, windows, ground-floor
-    # entrance and a shop sign where OSM tags identify a commercial property.
-    # These are lightweight meshes, not high-resolution filler textures.
+    # Facade accents are a separate pass. They use the footprint's bounds as
+    # a guide; the building shell and roof themselves now follow the OSM ring.
     _add_facade_details(body, width, depth, height, properties)
     body.set_meta("osm_properties", properties.duplicate(true))
     body.set_meta("osm_building_type", str(properties.get("building", "yes")))
