@@ -3,6 +3,8 @@ extends CharacterBody3D
 var world
 var speed := 7.0
 var sprint_speed := 11.0
+var extreme_speed := 55.0 # 198 km/h in game-world units; optional free-roam boost
+var extreme_speed_enabled := false
 var gravity := 20.0
 var jump_velocity := 7.2
 var health := 100
@@ -25,7 +27,7 @@ func _ready():
  _humanoid_visual = get_node_or_null("HumanoidVisual") as Node3D
  camera = Camera3D.new()
  camera.name = "ThirdPersonCamera"
- camera.position = Vector3(0, 6.2, 9.5)
+ camera.position = Vector3(0, 5.2, 7.4)
  camera.rotation_degrees = Vector3(-28, 180, 0)
  camera.fov = 68.0
  camera.near = 0.05
@@ -49,7 +51,7 @@ func _update_camera():
  var yaw := deg_to_rad(camera_yaw)
  var pitch := deg_to_rad(camera_pitch)
  var target := global_position + Vector3(0, 1.0 if not _is_crouching else 0.72, 0)
- var offset := Vector3(sin(yaw) * cos(pitch) * 9.5, -sin(pitch) * 9.5 + 1.0, cos(yaw) * cos(pitch) * 9.5)
+ var offset := Vector3(sin(yaw) * cos(pitch) * 7.4, -sin(pitch) * 7.4 + 0.8, cos(yaw) * cos(pitch) * 7.4)
  var desired_position := target + offset
  # Keep the third-person camera outside walls and building interiors.
  var query := PhysicsRayQueryParameters3D.create(target, desired_position, 1, [get_rid()])
@@ -90,8 +92,8 @@ func _physics_process(delta):
   stamina = maxf(0.0, stamina - stamina_drain * delta)
  else:
   stamina = minf(max_stamina, stamina + stamina_recovery * delta)
- var current_speed: float = 3.1 if _is_crouching else (sprint_speed if wants_sprint else speed)
- var acceleration: float = 28.0 if dir.length_squared() > 0.001 else 34.0
+ var current_speed: float = 3.1 if _is_crouching else (extreme_speed if extreme_speed_enabled else (sprint_speed if wants_sprint else speed))
+ var acceleration: float = (100.0 if extreme_speed_enabled else (28.0 if dir.length_squared() > 0.001 else 34.0))
  velocity.x = move_toward(velocity.x, dir.x * current_speed, acceleration * delta)
  velocity.z = move_toward(velocity.z, dir.z * current_speed, acceleration * delta)
 
@@ -118,6 +120,9 @@ func _physics_process(delta):
   if ammo < 30 and reserve_ammo > 0:
    reload_time = 1.35
   interact()
+
+func set_extreme_speed_enabled(enabled: bool) -> void:
+ extreme_speed_enabled = enabled
 
 func interact():
  if not world:
