@@ -23,7 +23,7 @@ from shapely.ops import unary_union
 
 # First map slice: central Dhaka. Small enough for responsible Overpass use and
 # useful for validating the complete export/import pipeline before scaling out.
-DEFAULT_BBOX = (23.7680, 90.3930, 23.7900, 90.4200)  # south, west, north, east
+DEFAULT_BBOX = (23.8043, 90.4065, 23.8163, 90.4185)  # south, west, north, east
 OVERPASS_ENDPOINTS = (
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
@@ -192,7 +192,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     width, depth = max_xy[0] - min_xy[0], max_xy[1] - min_xy[1]
     scene = trimesh.Scene()
     ground = trimesh.creation.box(extents=(width, depth, 0.20))
-    ground.apply_translation((0.0, 0.0, -0.12))
+    ground.apply_translation((0.0, 0.0, -0.10))
     color_mesh(ground, (104, 119, 91, 255))
     scene.add_geometry(ground, node_name="terrain_base", geom_name="terrain_base")
 
