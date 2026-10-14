@@ -4,7 +4,7 @@ This is a **map-asset pipeline**, separate from the Android APK workflow. It wri
 
 ## First target
 
-The default central-Dhaka tile is bounded by latitude 23.7680–23.7900 and longitude 90.3930–90.4200 (roughly a few square kilometres). The output uses a local metric coordinate system with the origin recorded in `map_manifest.json`, making it practical to import into Godot and later stitch to adjacent tiles.
+The default central-Dhaka tile is bounded by latitude 23.8043–23.8163 and longitude 90.4065–90.4185 (roughly a few square kilometres). The output uses a local metric coordinate system with the origin recorded in `map_manifest.json`, making it practical to import into Godot and later stitch to adjacent tiles.
 
 ## What is real vs generated
 
