@@ -234,7 +234,7 @@ def _replace_ground_with_boundary(path: pathlib.Path, boundary_tile: Any, bbox: 
             axes = [[1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0],
                     [0.0, -1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
             mesh.apply_transform(axes)
-            scene.add_geometry(mesh, node_name=f"division_ground_{i}_{j}", geom_name=f"division_ground_{i}_{j}")
+            scene.add_geometry(mesh, node_name=f"terrain_base_division_ground_{i}_{j}", geom_name=f"terrain_base_division_ground_{i}_{j}")
     path.write_bytes(scene.export(file_type="glb"))
 
 
