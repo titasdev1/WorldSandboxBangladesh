@@ -248,6 +248,8 @@ func _process(_delta):
  var district_name := "Noborongo City"
  if w.district_factory and w.district_factory.has_method("current_district") and w.player:
   district_name = w.district_factory.current_district(w.player)
+ if w.has_meta("osm_road_paths"):
+  district_name = "Central Dhaka • OpenStreetMap"
  var active_target_position: Vector3 = w.mission_target
  var has_live_target: bool = w.mission_active
  var active_factory = w.get_node_or_null("MissionFactory")
