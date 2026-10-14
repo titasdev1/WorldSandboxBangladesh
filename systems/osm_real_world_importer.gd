@@ -18,6 +18,7 @@ var imported_buildings := 0
 var imported_places := 0
 var skipped_features := 0
 var imported_road_paths: Array = []
+var pending_shop_points: Array[Dictionary] = []
 
 func import_geojson(target_world: Node3D, path := "res://content/realworld/area.geojson", target_metadata_world: Node3D = null) -> bool:
     world = target_world
@@ -27,6 +28,7 @@ func import_geojson(target_world: Node3D, path := "res://content/realworld/area.
     imported_places = 0
     skipped_features = 0
     imported_road_paths.clear()
+    pending_shop_points.clear()
     if not is_instance_valid(world) or not FileAccess.file_exists(path):
         return false
     var file := FileAccess.open(path, FileAccess.READ)
@@ -62,6 +64,7 @@ func import_geojson(target_world: Node3D, path := "res://content/realworld/area.
             skipped_features += 1
     if features.size() > max_features:
         skipped_features += features.size() - max_features
+    _attach_shop_points_to_buildings()
     world.set_meta("osm_chunk_road_paths", imported_road_paths.duplicate(true))
     world.set_meta("osm_chunk_road_count", imported_roads)
     world.set_meta("osm_chunk_building_count", imported_buildings)
@@ -94,7 +97,47 @@ func _import_place(coords: Array, properties: Dictionary) -> void:
     label.set_meta("osm_properties", properties.duplicate(true))
     label.set_meta("place_category", category)
     world.add_child(label)
+    if properties.has("shop") or str(properties.get("amenity", "")) in ["restaurant", "cafe", "pharmacy", "bank", "fast_food"]:
+        pending_shop_points.append({"position": _to_local(coords), "properties": properties.duplicate(true)})
     imported_places += 1
+
+func _attach_shop_points_to_buildings() -> void:
+    for shop_point in pending_shop_points:
+        var point_position: Vector3 = shop_point.get("position", Vector3.ZERO)
+        var props: Dictionary = shop_point.get("properties", {})
+        var nearest: StaticBody3D
+        var nearest_distance := 40.0
+        for child in world.get_children():
+            if not child is StaticBody3D or not child.has_meta("osm_properties"):
+                continue
+            var building := child as StaticBody3D
+            var distance := building.position.distance_to(point_position)
+            if distance < nearest_distance:
+                nearest = building
+                nearest_distance = distance
+        if not is_instance_valid(nearest):
+            continue
+        var shop_kind := str(props.get("shop", props.get("amenity", "general")))
+        var shop_name := str(props.get("name:bn", "")).strip_edges()
+        if shop_name.is_empty():
+            shop_name = str(props.get("name", props.get("brand", "Local Shop"))).strip_edges()
+        nearest.set_meta("is_shop", true)
+        nearest.set_meta("shop_type", shop_kind)
+        if str(nearest.get_meta("shop_name", "")).strip_edges().is_empty():
+            nearest.set_meta("shop_name", shop_name)
+        if nearest.get_node_or_null("PlayableShopInterior") != null:
+            continue
+        var width := float(nearest.get_meta("osm_building_width", 8.0))
+        var depth := float(nearest.get_meta("osm_building_depth", 7.0))
+        var interior := Node3D.new()
+        interior.name = "PlayableShopInterior"
+        interior.set_script(preload("res://systems/shop_interior_controller.gd"))
+        interior.set("shop_name", shop_name)
+        interior.set("shop_kind", shop_kind)
+        interior.set("interior_width", clampf(width * 0.78, 5.0, 12.0))
+        interior.set("interior_depth", clampf(depth * 0.78, 5.0, 10.0))
+        interior.set("building_depth", depth)
+        nearest.add_child(interior)
 
 func _to_local(coord: Variant) -> Vector3:
     if not coord is Array or coord.size() < 2:
@@ -283,6 +326,8 @@ func _import_building(raw_coords: Variant, kind: String, properties: Dictionary)
     _add_facade_details(body, width, depth, height, properties)
     body.set_meta("osm_properties", properties.duplicate(true))
     body.set_meta("osm_building_type", str(properties.get("building", "yes")))
+    body.set_meta("osm_building_width", width)
+    body.set_meta("osm_building_depth", depth)
     if properties.has("shop") or properties.get("amenity", "") in ["restaurant", "cafe", "pharmacy", "bank", "fast_food"]:
         var shop_kind := str(properties.get("shop", properties.get("amenity", "general")))
         var shop_name := str(properties.get("name:bn", "")).strip_edges()
