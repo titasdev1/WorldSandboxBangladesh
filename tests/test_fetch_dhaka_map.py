@@ -77,7 +77,7 @@ class DhakaFeatureConversionTests(unittest.TestCase):
 
     def test_grid_manifest_dimensions_cover_city_scale_area(self) -> None:
         from tools.fetch_dhaka_map import CITY_CELL_DEGREES, CITY_GRID_RADIUS
-        self.assertEqual(2 * CITY_GRID_RADIUS + 1, 7)
+        self.assertEqual(2 * CITY_GRID_RADIUS + 1, 13)
         self.assertGreater((2 * CITY_GRID_RADIUS + 1) * CITY_CELL_DEGREES, 0.20)
 
     def test_unclosed_building_ring_is_ignored(self) -> None:

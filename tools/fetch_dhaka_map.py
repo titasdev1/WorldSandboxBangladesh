@@ -23,8 +23,8 @@ CHUNK_DIR = ROOT / "content" / "realworld" / "chunks"
 # region around it, with 3.3 km cells clipped from the Bangladesh OSM PBF extract.
 SOUTH, WEST, NORTH, EAST = 23.8043, 90.4065, 23.8163, 90.4185
 ORIGIN_LAT, ORIGIN_LON = 23.8103, 90.4125
-CITY_CELL_DEGREES = 0.03
-CITY_GRID_RADIUS = 3
+CITY_CELL_DEGREES = 0.016
+CITY_GRID_RADIUS = 6
 MAX_FEATURES = 1800
 ROAD_LIMIT = 400
 CHUNK_MAX_FEATURES = 1800
@@ -297,7 +297,7 @@ def main() -> int:
           f"({document['metadata']['roads']} roads, {document['metadata']['buildings']} buildings)")
 
     # Build a city-scale streaming grid from a free regional OSM PBF source.
-    # 7x7 cells at 0.03 degrees each cover roughly 23 km around central Dhaka.
+    # 13x13 cells at 0.016 degrees each cover roughly 23 km around central Dhaka.
     CHUNK_DIR.mkdir(parents=True, exist_ok=True)
     for stale in CHUNK_DIR.glob("*.geojson"):
         stale.unlink()

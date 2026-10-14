@@ -1,8 +1,8 @@
 extends Node
 class_name OSMChunkStreamer
 
-@export var load_radius := 2500.0
-@export var unload_radius := 3300.0
+@export var load_radius := 1400.0
+@export var unload_radius := 2050.0
 @export var check_interval := 0.75
 
 var world: Node3D
