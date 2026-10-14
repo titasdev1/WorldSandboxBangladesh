@@ -84,12 +84,13 @@ func _import_road(raw_coords: Variant, highway_type: String) -> void:
         width = road_width * 0.35
 
     var current_path: Array[Vector3] = []
+    var is_drivable := highway_type not in ["footway", "path", "pedestrian", "cycleway", "steps"]
     for i in range(raw_coords.size() - 1):
         var a := _to_local(raw_coords[i])
         var b := _to_local(raw_coords[i + 1])
         var length := Vector2(b.x - a.x, b.z - a.z).length()
         if length < 0.5 or length > 250.0:
-            if current_path.size() > 1:
+            if is_drivable and current_path.size() > 1:
                 imported_road_paths.append(current_path.duplicate())
             current_path.clear()
             continue
@@ -107,13 +108,13 @@ func _import_road(raw_coords: Variant, highway_type: String) -> void:
         if current_path.is_empty():
             current_path.append(a)
         elif current_path[current_path.size() - 1].distance_to(a) > 1.0:
-            if current_path.size() > 1:
+            if is_drivable and current_path.size() > 1:
                 imported_road_paths.append(current_path.duplicate())
             current_path.clear()
             current_path.append(a)
         current_path.append(b)
 
-    if current_path.size() > 1:
+    if is_drivable and current_path.size() > 1:
         imported_road_paths.append(current_path.duplicate())
     imported_roads += 1
 
