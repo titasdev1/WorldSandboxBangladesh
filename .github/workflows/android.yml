@@ -2,7 +2,7 @@ name: Build Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ main, feature/osm-real-world-foundation ]
   pull_request:
     branches: [ main ]
 
@@ -205,6 +205,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish direct APK download (no artifact ZIP wrapper)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-dev
