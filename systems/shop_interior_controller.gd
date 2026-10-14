@@ -7,6 +7,7 @@ class_name ShopInteriorController
 @export var shop_kind := "convenience"
 @export var interior_width := 8.0
 @export var interior_depth := 7.0
+@export var building_depth := 7.0
 
 var host: StaticBody3D
 var player_inside: Node3D
@@ -39,7 +40,7 @@ func _process(delta: float) -> void:
 func _build_entry_trigger() -> void:
     door_area = Area3D.new()
     door_area.name = "ShopEntryTrigger"
-    door_area.position = Vector3(0, 1.0, -interior_depth * 0.5 - 1.0)
+    door_area.position = Vector3(0, 1.0, -building_depth * 0.5 - 1.0)
     var shape_node := CollisionShape3D.new()
     var shape := BoxShape3D.new()
     shape.size = Vector3(2.2, 2.4, 2.2)
@@ -60,6 +61,7 @@ func _enter_shop() -> void:
     interior_active = true
     if is_instance_valid(host_collision):
         host_collision.set_deferred("disabled", true)
+    _set_exterior_visible(false)
     player_inside.global_position = host.to_global(Vector3(0, 0.15, 0))
     if player_inside is CharacterBody3D:
         (player_inside as CharacterBody3D).velocity = Vector3.ZERO
@@ -69,13 +71,22 @@ func _leave_shop() -> void:
     if not is_instance_valid(player_inside) or not is_instance_valid(host):
         interior_active = false
         return
-    player_inside.global_position = host.to_global(Vector3(0, 0.15, -interior_depth * 0.5 - 2.0))
+    player_inside.global_position = host.to_global(Vector3(0, 0.15, -building_depth * 0.5 - 2.0))
     if player_inside is CharacterBody3D:
         (player_inside as CharacterBody3D).velocity = Vector3.ZERO
     if is_instance_valid(host_collision):
         host_collision.set_deferred("disabled", false)
+    _set_exterior_visible(true)
     interior_active = false
     _show_status(shop_name + " — welcome back!")
+
+func _set_exterior_visible(enabled: bool) -> void:
+    if not is_instance_valid(host):
+        return
+    # Hide the opaque shell while the player is inside so the furnished room is visible.
+    for child in host.get_children():
+        if child != self and child is VisualInstance3D:
+            (child as VisualInstance3D).visible = enabled
 
 func _build_interior() -> void:
     var floor_mesh := BoxMesh.new()
