@@ -90,6 +90,8 @@ func interact():
   return
  if world.has_method("try_street_vendor") and world.try_street_vendor(global_position):
   return
+ if world.has_method("try_osm_shop_interaction") and world.try_osm_shop_interaction(global_position):
+  return
  if position.distance_to(Vector3(42, 0, 42)) < 15:
   world.cash = max(0, world.cash - world.bargain_offer)
   world.bargain_offer = min(world.fare_requested, world.bargain_offer + 10)
