@@ -466,7 +466,8 @@ func _configure_real_missions() -> void:
     for route in routes:
         for point in route:
             var p: Vector3 = point
-            if Vector2(p.x - player.position.x, p.z - player.position.z).length() <= 220.0:
+            var distance_from_player := Vector2(p.x - player.position.x, p.z - player.position.z).length()
+            if distance_from_player >= 25.0 and distance_from_player <= 220.0:
                 var unique := true
                 for existing in candidates:
                     if existing.distance_to(p) < 18.0:
