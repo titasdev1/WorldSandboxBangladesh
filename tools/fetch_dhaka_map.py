@@ -23,26 +23,26 @@ MAX_FEATURES = 1800
 ROAD_LIMIT = 500
 CHUNK_MAX_FEATURES = 900
 CHUNK_ROAD_LIMIT = 250
-CHUNK_OFFSETS = {"north": (0.0203, 0.0), "south": (-0.0203, 0.0), "east": (0.0, 0.0200), "west": (0.0, -0.0200)}
+CHUNK_OFFSETS = {"north": (0.0200, 0.0), "south": (-0.0200, 0.0), "east": (0.0, 0.0200), "west": (0.0, -0.0200)}
 OVERPASS_ENDPOINTS = (
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
 )
 USER_AGENT = "WorldSandboxBangladesh/1.0 (open-source game prototype; OSM attribution preserved)"
 
-def fetch_overpass(bounds: tuple[float, float, float, float] | None = None) -> dict:
+def fetch_overpass(bounds: tuple[float, float, float, float] | None = None, timeout_seconds: int = 45, attempts_per_endpoint: int = 1, endpoints: tuple[str, ...] = OVERPASS_ENDPOINTS) -> dict:
     south, west, north, east = bounds or (SOUTH, WEST, NORTH, EAST)
     bbox = f"{south},{west},{north},{east}"
     query = (
-        "[out:json][timeout:60];("
+        f"[out:json][timeout:{timeout_seconds}];("
         f'way["highway"]({bbox});'
         f'way["building"]({bbox});'
         ");out tags geom;"
     )
     payload = query.encode("utf-8")
     last_error: Exception | None = None
-    for endpoint in OVERPASS_ENDPOINTS:
-        for attempt in range(2):
+    for endpoint in endpoints:
+        for attempt in range(attempts_per_endpoint):
             try:
                 request = urllib.request.Request(
                     endpoint,
@@ -54,7 +54,7 @@ def fetch_overpass(bounds: tuple[float, float, float, float] | None = None) -> d
                     },
                     method="POST",
                 )
-                with urllib.request.urlopen(request, timeout=90) as response:
+                with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
                     data = json.loads(response.read().decode("utf-8"))
                 if not isinstance(data, dict) or not isinstance(data.get("elements"), list):
                     raise ValueError("Overpass response did not contain an elements array")
@@ -168,7 +168,7 @@ def main() -> int:
     for chunk_name, (lat_shift, lon_shift) in CHUNK_OFFSETS.items():
         bounds = (SOUTH + lat_shift, WEST + lon_shift, NORTH + lat_shift, EAST + lon_shift)
         try:
-            chunk_response = fetch_overpass(bounds)
+            chunk_response = fetch_overpass(bounds, timeout_seconds=30, attempts_per_endpoint=1, endpoints=OVERPASS_ENDPOINTS[:1])
             chunk_features, chunk_roads, chunk_buildings = prepare_features(
                 chunk_response, CHUNK_MAX_FEATURES, CHUNK_ROAD_LIMIT
             )

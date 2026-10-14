@@ -12,13 +12,15 @@ class_name OSMRealWorldImporter
 @export var max_building_height := 48.0
 
 var world: Node3D
+var metadata_world: Node3D
 var imported_roads := 0
 var imported_buildings := 0
 var skipped_features := 0
 var imported_road_paths: Array = []
 
-func import_geojson(target_world: Node3D, path := "res://content/realworld/area.geojson") -> bool:
+func import_geojson(target_world: Node3D, path := "res://content/realworld/area.geojson", target_metadata_world: Node3D = null) -> bool:
     world = target_world
+    metadata_world = target_metadata_world if is_instance_valid(target_metadata_world) else target_world
     imported_roads = 0
     imported_buildings = 0
     skipped_features = 0
@@ -56,12 +58,15 @@ func import_geojson(target_world: Node3D, path := "res://content/realworld/area.
             skipped_features += 1
     if features.size() > max_features:
         skipped_features += features.size() - max_features
-    var combined_paths: Array = world.get_meta("osm_road_paths", [])
+    world.set_meta("osm_chunk_road_paths", imported_road_paths.duplicate(true))
+    world.set_meta("osm_chunk_road_count", imported_roads)
+    world.set_meta("osm_chunk_building_count", imported_buildings)
+    var combined_paths: Array = metadata_world.get_meta("osm_road_paths", [])
     combined_paths.append_array(imported_road_paths)
-    world.set_meta("osm_road_paths", combined_paths)
-    world.set_meta("osm_import_roads", int(world.get_meta("osm_import_roads", 0)) + imported_roads)
-    world.set_meta("osm_import_buildings", int(world.get_meta("osm_import_buildings", 0)) + imported_buildings)
-    world.set_meta("osm_import_skipped", int(world.get_meta("osm_import_skipped", 0)) + skipped_features)
+    metadata_world.set_meta("osm_road_paths", combined_paths)
+    metadata_world.set_meta("osm_import_roads", int(metadata_world.get_meta("osm_import_roads", 0)) + imported_roads)
+    metadata_world.set_meta("osm_import_buildings", int(metadata_world.get_meta("osm_import_buildings", 0)) + imported_buildings)
+    metadata_world.set_meta("osm_import_skipped", int(metadata_world.get_meta("osm_import_skipped", 0)) + skipped_features)
     return imported_roads > 0 or imported_buildings > 0
 
 func _to_local(coord: Variant) -> Vector3:
