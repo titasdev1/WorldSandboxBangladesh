@@ -108,7 +108,9 @@ func _physics_process(delta):
    velocity.y = jump_velocity
 
  move_and_slide()
- var movement_bound := 1100.0 if world and world.has_meta("osm_road_paths") else 285.0
+ # The streamed OSM grid spans roughly 23 km across; the old 1.1 km clamp
+ # trapped the player near the origin and prevented real city exploration.
+ var movement_bound := 11200.0 if world and world.has_meta("osm_road_paths") else 285.0
  position.x = clamp(position.x, -movement_bound, movement_bound)
  position.z = clamp(position.z, -movement_bound, movement_bound)
  _update_camera()
