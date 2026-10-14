@@ -3,6 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import trimesh
+
 from tools.map_pipeline.build_dhaka_map import DEFAULT_BBOX, build_map, local_xy
 
 
@@ -49,6 +51,15 @@ class DhakaMapPipelineTests(unittest.TestCase):
             glb = (out / "Dhaka_Explorable_Map.glb").read_bytes()
             self.assertEqual(glb[:4], b"glTF")
             self.assertGreater(len(glb), 1000)
+            scene = trimesh.load(out / "Dhaka_Explorable_Map.glb", force="scene")
+            origin_lat, origin_lon = (south + north) / 2, (west + east) / 2
+            min_xy = local_xy(south, west, origin_lat, origin_lon)
+            max_xy = local_xy(north, east, origin_lat, origin_lon)
+            width, depth = max_xy[0] - min_xy[0], max_xy[1] - min_xy[1]
+            self.assertGreaterEqual(scene.bounds[0][0], -width / 2 - 1)
+            self.assertLessEqual(scene.bounds[1][0], width / 2 + 1)
+            self.assertGreaterEqual(scene.bounds[0][1], -depth / 2 - 1)
+            self.assertLessEqual(scene.bounds[1][1], depth / 2 + 1)
             self.assertEqual(manifest["feature_counts"]["building_footprints"], 1)
             self.assertEqual(manifest["feature_counts"]["road_ways"], 1)
             self.assertTrue((out / "Dhaka_OSM_Source.geojson").exists())
