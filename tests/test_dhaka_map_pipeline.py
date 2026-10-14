@@ -20,23 +20,23 @@ class DhakaMapPipelineTests(unittest.TestCase):
                 "type": "way", "id": 1001,
                 "tags": {"building": "yes", "building:levels": "3", "name": "Fixture House"},
                 "geometry": [
-                    {"lat": 23.7798, "lon": 90.4068},
-                    {"lat": 23.7798, "lon": 90.4070},
-                    {"lat": 23.7800, "lon": 90.4070},
-                    {"lat": 23.7800, "lon": 90.4068},
-                    {"lat": 23.7798, "lon": 90.4068},
+                    {"lat": 23.8098, "lon": 90.4123},
+                    {"lat": 23.8098, "lon": 90.4125},
+                    {"lat": 23.8100, "lon": 90.4125},
+                    {"lat": 23.8100, "lon": 90.4123},
+                    {"lat": 23.8098, "lon": 90.4123},
                 ],
             },
             {
                 "type": "way", "id": 1002,
                 "tags": {"highway": "residential", "name": "Fixture Road"},
                 "geometry": [
-                    {"lat": 23.7797, "lon": 90.4065},
-                    {"lat": 23.7801, "lon": 90.4073},
+                    {"lat": 23.8097, "lon": 90.4120},
+                    {"lat": 23.8101, "lon": 90.4128},
                 ],
             },
             {
-                "type": "node", "id": 1003, "lat": 23.7799, "lon": 90.4069,
+                "type": "node", "id": 1003, "lat": 23.8099, "lon": 90.4124,
                 "tags": {"shop": "convenience", "name": "Fixture Shop"},
             },
         ]
