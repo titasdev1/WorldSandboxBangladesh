@@ -23,6 +23,12 @@ func start_mode(mode_id: String) -> void:
     alive_enemies = 0
     intermission = 0.0
     run_over = false
+    if is_instance_valid(world) and is_instance_valid(world.player):
+        world.player.health = 100
+        world.player.ammo = 30
+        world.player.reserve_ammo = 120
+        world.player.reload_time = 0.0
+        world.wanted = 0
     if not active:
         return
     if mode_id == "arena_training":
