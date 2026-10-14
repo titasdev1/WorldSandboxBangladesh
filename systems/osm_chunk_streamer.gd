@@ -1,8 +1,8 @@
 extends Node
 class_name OSMChunkStreamer
 
-@export var load_radius := 800.0
-@export var unload_radius := 1200.0
+@export var load_radius := 2500.0
+@export var unload_radius := 3300.0
 @export var check_interval := 0.75
 
 var world: Node3D
@@ -72,6 +72,7 @@ func _process(delta: float) -> void:
   world.add_child(chunk_root)
   var importer := OSMRealWorldImporter.new()
   importer.name = "OSMChunkImporter_" + chunk_id
+  importer.max_features = 4500
   chunk_root.add_child(importer)
   if importer.import_geojson(chunk_root, path, world):
    loaded_chunks[chunk_id] = chunk_root
@@ -88,10 +89,10 @@ func _expand_ground() -> void:
  if ground:
   var collision := ground.get_node_or_null("CollisionShape3D") as CollisionShape3D
   if collision and collision.shape is BoxShape3D:
-   (collision.shape as BoxShape3D).size = Vector3(7000.0, 1.0, 7000.0)
+   (collision.shape as BoxShape3D).size = Vector3(30000.0, 1.0, 30000.0)
   var mesh := ground.get_node_or_null("MeshInstance3D") as MeshInstance3D
   if mesh and mesh.mesh is BoxMesh:
-   (mesh.mesh as BoxMesh).size = Vector3(7000.0, 1.0, 7000.0)
+   (mesh.mesh as BoxMesh).size = Vector3(30000.0, 1.0, 30000.0)
 
 func _unload_chunk(chunk_id: String, chunk_root: Node3D) -> void:
  var paths: Array = chunk_root.get_meta("osm_chunk_road_paths", [])

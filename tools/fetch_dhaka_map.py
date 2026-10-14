@@ -314,7 +314,7 @@ def main() -> int:
                 },
                 "features": chunk_features,
             }
-            chunk_output.write_text(json.dumps(chunk_document, separators=(",", ":")) + "\\n", encoding="utf-8")
+            chunk_output.write_text(json.dumps(chunk_document, separators=(",", ":")) + "\n", encoding="utf-8")
             import math
             meters_lon = 111320.0 * math.cos(math.radians(ORIGIN_LAT))
             manifest["grid"].append({
@@ -326,7 +326,7 @@ def main() -> int:
             })
             print(f"Dhaka grid {chunk_name}: {len(chunk_features)} features")
     manifest_path = ROOT / "content" / "realworld" / "chunks_manifest.json"
-    manifest_path.write_text(json.dumps(manifest, separators=(",", ":")) + "\\n", encoding="utf-8")
+    manifest_path.write_text(json.dumps(manifest, separators=(",", ":")) + "\n", encoding="utf-8")
     print(f"City-scale grid generated: {len(manifest['grid'])} real OSM chunks; manifest: {manifest_path.relative_to(ROOT)}")
     print(f"Source: © OpenStreetMap contributors; ODbL-1.0. Output: {OUTPUT.relative_to(ROOT)}")
     return 0
