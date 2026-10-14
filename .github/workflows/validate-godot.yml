@@ -2,6 +2,20 @@ name: Validate Godot Project Runtime
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "world.gd"
+      - "player.gd"
+      - "vehicle.gd"
+      - "hud.gd"
+      - "district_map_display.gd"
+      - "real_dhaka_tile_loader.gd"
+      - "Main.tscn"
+      - "project.godot"
+      - "tests/test_dhaka_map_pipeline.py"
+      - ".github/workflows/validate-godot.yml"
   pull_request:
     branches:
       - main
