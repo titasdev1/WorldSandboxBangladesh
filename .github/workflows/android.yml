@@ -6,17 +6,30 @@ on:
   pull_request:
     branches: [ main ]
     paths:
-      - "world.gd"
-      - "player.gd"
-      - "vehicle.gd"
-      - "hud.gd"
-      - "district_map_display.gd"
-      - "real_dhaka_tile_loader.gd"
-      - "tools/map_pipeline/**"
-      - "tests/test_dhaka_map_pipeline.py"
+      - "**.gd"
+      - "Main.tscn"
+      - "project.godot"
+      - "content/**"
+      - "tools/fetch_*.py"
+      - "tools/report_build_assets.py"
+      - "tools/production_gate.py"
+      - "development_state.json"
+      - ".github/workflows/android.yml"
+  push:
+    branches: [ main ]
+    paths:
+      - "**.gd"
+      - "Main.tscn"
+      - "project.godot"
+      - "content/**"
+      - "tools/fetch_*.py"
+      - "tools/report_build_assets.py"
+      - "tools/production_gate.py"
+      - "development_state.json"
       - ".github/workflows/android.yml"
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
@@ -26,6 +39,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 330
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -38,17 +52,22 @@ jobs:
         shell: bash
         run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/report_build_assets.py
 
-      - name: Build and bundle the real Greater Dhaka map tiles
+      # Pin the current map package so game-only builds do not rebuild or
+      # silently replace the world. Update this run ID only after a separately
+      # verified map release is intentionally promoted.
+      - name: Download the pinned existing Greater Dhaka map package
+        uses: actions/download-artifact@v4
+        with:
+          name: Project-A-Square-Greater-Dhaka-3D-Tiles
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 38618204090
+          path: build/greater-dhaka
+
+      - name: Install the unchanged map package into the game
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m venv "$RUNNER_TEMP/map-venv"
-          "$RUNNER_TEMP/map-venv/bin/python" -m pip install --upgrade pip
-          "$RUNNER_TEMP/map-venv/bin/python" -m pip install osmium shapely trimesh mapbox-earcut
-          "$RUNNER_TEMP/map-venv/bin/python" -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_region.py
-          "$RUNNER_TEMP/map-venv/bin/python" -m unittest discover -s tests -p 'test_dhaka_map_pipeline.py' -v
-          "$RUNNER_TEMP/map-venv/bin/python" tools/map_pipeline/build_dhaka_region.py --tile-degrees 0.02 --out build/greater-dhaka
-          python3 tools/map_pipeline/audit_dhaka_imagery.py --out build/greater-dhaka/dhaka-imagery-audit.json || true
           test -s build/greater-dhaka/map_tiles_manifest.json
           test -s build/greater-dhaka/ATTRIBUTION.txt
           mkdir -p assets/world/dhaka_tiles
@@ -60,18 +79,10 @@ jobs:
           manifest = json.loads((root / "map_tiles_manifest.json").read_text())
           glbs = list(root.rglob("Dhaka_Explorable_Map.glb"))
           if not glbs or len(glbs) != manifest["tile_count_with_geometry"]:
-              raise SystemExit("Greater Dhaka tile package failed integrity verification")
-          print(f"Bundled {len(glbs)} real-data GLB tiles; {sum(p.stat().st_size for p in glbs):,} bytes")
+              raise SystemExit("Pinned Greater Dhaka map package failed integrity verification")
+          print(f"Preserved pinned map package: {len(glbs)} GLB tiles; {sum(p.stat().st_size for p in glbs):,} bytes")
+          print(f"Coverage: {manifest['region_south_west_north_east']}")
           PY
-
-      - name: Upload standalone Greater Dhaka 3D map package
-        uses: actions/upload-artifact@v4
-        with:
-          name: Project-A-Square-Greater-Dhaka-3D-Map
-          path: build/greater-dhaka/
-          if-no-files-found: error
-          retention-days: 30
-          compression-level: 1
 
       - name: Validate Godot project scripts and startup
         shell: bash
