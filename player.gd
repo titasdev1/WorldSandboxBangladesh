@@ -76,8 +76,16 @@ func _physics_process(delta):
  # The real-data Greater Dhaka map streams geographically positioned tiles.
  # Keep the smaller bounds only for the fictional fallback city.
  if world and bool(world.get("real_dhaka_loaded")):
-  position.x = clamp(position.x, -12000.0, 12000.0)
-  position.z = clamp(position.z, -10000.0, 16800.0)
+  var bounds: Dictionary = {}
+  var map_loader: Node = world.get("real_dhaka_loader")
+  if is_instance_valid(map_loader) and map_loader.has_method("get_world_bounds"):
+   bounds = map_loader.get_world_bounds()
+  if not bounds.is_empty():
+   position.x = clamp(position.x, float(bounds.get("min_x", -12000.0)), float(bounds.get("max_x", 12000.0)))
+   position.z = clamp(position.z, float(bounds.get("min_z", -10000.0)), float(bounds.get("max_z", 16800.0)))
+  else:
+   position.x = clamp(position.x, -12000.0, 12000.0)
+   position.z = clamp(position.z, -10000.0, 16800.0)
  else:
   position.x = clamp(position.x, -285.0, 285.0)
   position.z = clamp(position.z, -285.0, 285.0)
@@ -92,6 +100,8 @@ func _physics_process(delta):
 
 func interact():
  if not world:
+  return
+ if world.has_method("try_interior_interaction") and world.try_interior_interaction(global_position):
   return
  if world.has_method("try_street_vendor") and world.try_street_vendor(global_position):
   return
