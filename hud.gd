@@ -246,7 +246,10 @@ func _process(_delta):
     var step_now: int = int(mission_factory_node.get("target_step")) + 1
     if step_total > 0:
      mission_step_text = "    STOP %d/%d" % [step_now, step_total]
-   mission.text = "DESHI JOB %04d/4000: %s    REWARD +৳%d%s\n%s" % [int(active_mission.get("id", 0)) + 1, active_mission.get("title", "Local job"), int(active_mission.get("reward", 0)), mission_step_text, mission_brief]
+   var chapter_title := String(active_mission.get("chapter_title", "Deshi Stories"))
+   if chapter_title.length() > 48:
+    chapter_title = chapter_title.substr(0, 45) + "..."
+   mission.text = "CHAPTER %02d/40 • %s\nDESHI JOB %04d/4000: %s    REWARD +৳%d%s\n%s" % [int(active_mission.get("chapter", 1)), chapter_title, int(active_mission.get("id", 0)) + 1, active_mission.get("title", "Local job"), int(active_mission.get("reward", 0)), mission_step_text, mission_brief]
  elif w.mission_active:
   var stage_names = ["Market delivery", "Tower pickup", "Bus terminal drop"]
   mission.text = "STORY %d/3: %s    Rickshaw fare ৳%d → offer ৳%d" % [w.mission_stage + 1, stage_names[w.mission_stage], w.fare_requested, w.bargain_offer]
