@@ -22,7 +22,7 @@ var material_cache: Dictionary = {}
 var city_asset_factory
 var pbr_surface_factory
 var combat_controller
-var interior_factory: Node
+var interior_factory
 var real_dhaka_loader
 var real_dhaka_loaded := false
 
