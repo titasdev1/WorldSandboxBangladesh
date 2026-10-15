@@ -34,6 +34,7 @@ on:
       - "tools/map_pipeline/**"
       - "tests/test_dhaka_map_pipeline.py"
       - "tests/test_dhaka_division_pipeline.py"
+      - "tests/test_merge_dhaka_division_batches.py"
       - ".github/workflows/dhaka-3d-map.yml"
       - ".github/workflows/dhaka-division-map.yml"
       - "MAP_PIPELINE.md"
@@ -158,7 +159,7 @@ jobs:
           name: Project-A-Square-Dhaka-Division-${{ inputs.sequence_id || github.run_id }}-batch-${{ inputs.tile_offset || '0' }}
           path: build/dhaka-division/
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 7
           compression-level: 1
 
   continue-map:
