@@ -472,6 +472,8 @@ def main() -> int:
                                 "district_boundary_source": "geoBoundaries gbOpen BGD ADM2",
                                 "district_boundary_properties": shariatpur_properties.get("feature_properties", {}),
                                 "district_boundary_license": shariatpur_properties.get("boundary_license", "See geoBoundaries metadata"),
+                                "district_boundary_license_source": shariatpur_properties.get("boundary_license_source", ""),
+                                "district_boundary_id": shariatpur_properties.get("boundary_id", ""),
                                 "tiles_intersecting_shariatpur_district": shariatpur_tile_count,
                                 "note": "All Shariatpur-intersecting tiles are emitted first; later offsets continue through every remaining Dhaka Division tile."},
         "tile_count_with_geometry": valid,
@@ -487,7 +489,11 @@ def main() -> int:
     (args.out / "ATTRIBUTION.txt").write_text(
         OSM_ATTRIBUTION + "\n" + BOUNDARY_ATTRIBUTION + "\n"
         + "OSM data license: ODbL 1.0.\n"
-        + f"geoBoundaries boundary license (from downloaded API metadata): {boundary_license_text}.\n",
+        + f"geoBoundaries Dhaka Division boundary license: {boundary_license_text}.\n"
+        + f"Shariatpur District boundary used for tile ordering only: geoBoundaries gbOpen BGD ADM2, "
+        + f"boundary ID {shariatpur_properties.get('boundary_id', 'unspecified')}.\n"
+        + f"Shariatpur district-boundary license: {shariatpur_properties.get('boundary_license', 'See geoBoundaries metadata')}. "
+        + f"License source: {shariatpur_properties.get('boundary_license_source', 'See manifest')}.\n",
         encoding="utf-8",
     )
     print(json.dumps({"output": str(args.out), "tiles": len(tiles), "tiles_with_geometry": valid,
