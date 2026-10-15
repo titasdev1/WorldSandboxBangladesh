@@ -22,6 +22,7 @@ var material_cache: Dictionary = {}
 var city_asset_factory
 var pbr_surface_factory
 var combat_controller
+var interior_factory: Node
 var real_dhaka_loader
 var real_dhaka_loaded := false
 
@@ -39,6 +40,10 @@ func _ready():
  city_asset_factory.name = "CityAssetFactory"
  add_child(city_asset_factory)
  city_asset_factory.configure(self)
+ interior_factory = load("res://systems/interior_factory.gd").new()
+ interior_factory.name = "InteriorFactory"
+ add_child(interior_factory)
+ interior_factory.configure(self)
  # Prefer the streamed, georeferenced Dhaka package when the complete licensed
  # OSM tile package is installed. Keep the existing city as a safe fallback.
  real_dhaka_loader = load("res://real_dhaka_tile_loader.gd").new()
@@ -531,6 +536,55 @@ func notify_gameplay_event(event_name: String, value := 1):
     if gameplay_director and gameplay_director.has_method("event"):
         gameplay_director.event(event_name, value)
 
+
+
+func get_interior_interaction_label(at: Vector3) -> String:
+ if interior_factory and interior_factory.has_method("is_inside") and interior_factory.is_inside():
+  return interior_factory.get_interaction_label(at)
+ var nearest: Node3D = null
+ var nearest_distance := 3.5
+ for node in get_tree().get_nodes_in_group("real_building_entry"):
+  if not node is Node3D:
+   continue
+  var distance: float = at.distance_to((node as Node3D).global_position)
+  if distance < nearest_distance:
+   nearest_distance = distance
+   nearest = node as Node3D
+ if not is_instance_valid(nearest):
+  return ""
+ var seed: Dictionary = nearest.get_meta("interior_seed", {})
+ var category := str(seed.get("category", "")).to_lower()
+ if category.contains("shop") or category.contains("retail") or category.contains("convenience"):
+  return "ENTER SHOP"
+ if category.contains("house") or category.contains("residential") or category.contains("home"):
+  return "ENTER HOME"
+ return "ENTER BUILDING"
+
+func try_interior_interaction(at: Vector3) -> bool:
+ if not interior_factory:
+  return false
+ if interior_factory.has_method("is_inside") and interior_factory.is_inside():
+  return interior_factory.try_interact(at)
+ var nearest: Node3D = null
+ var nearest_distance := 3.5
+ for node in get_tree().get_nodes_in_group("real_building_entry"):
+  if not node is Node3D:
+   continue
+  var distance: float = at.distance_to((node as Node3D).global_position)
+  if distance < nearest_distance:
+   nearest_distance = distance
+   nearest = node as Node3D
+ if not is_instance_valid(nearest):
+  return false
+ var seed: Dictionary = nearest.get_meta("interior_seed", {})
+ var direction: Vector3 = nearest.get_meta("exit_direction", Vector3(0, 0, 1))
+ var tile_id := str(nearest.get_meta("tile_id", ""))
+ interior_factory.open_interior(seed, nearest.global_position, direction, tile_id)
+ return true
+
+func open_generated_interior(seed: Dictionary, exterior_position: Vector3, exit_direction: Vector3, tile_id: String) -> void:
+ if interior_factory:
+  interior_factory.open_interior(seed, exterior_position, exit_direction, tile_id)
 
 # Interactable market stalls: spend a little cash to recover health.
 func try_street_vendor(at: Vector3) -> bool:
