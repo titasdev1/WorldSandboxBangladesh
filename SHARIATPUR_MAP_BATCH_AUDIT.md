@@ -29,6 +29,7 @@ Each tile includes `AI_Interior_Seeds.json`; those files are interaction anchors
 
 - Map features: © OpenStreetMap contributors, ODbL 1.0.
 - Dhaka Division administrative boundary: geoBoundaries gbOpen BGD ADM1, CC0 1.0 as recorded in the manifest.
-- Shariatpur District boundary used only to prioritize tile order: geoBoundaries gbOpen BGD ADM2; the manifest reports CC BY 3.0 IGO. Attribution must be retained in the package.
+- Shariatpur District boundary used only to prioritize tile order: geoBoundaries gbOpen BGD ADM2; the manifest reports CC BY 3.0 IGO.
+- **Attribution correction:** this initial smoke artifact's `ATTRIBUTION.txt` records OSM and the ADM1 boundary but omits the ADM2 tile-ordering source. The production-pipeline change in this PR adds the ADM2 source, boundary ID, and license to `ATTRIBUTION.txt` before the full map sequence runs.
 
 This artifact is proof of a successful two-tile Shariatpur-first map build. It is **not** proof that the complete Dhaka Division map has been assembled or integrated into the Android game.
