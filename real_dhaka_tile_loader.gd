@@ -240,8 +240,9 @@ func _load_interior_anchors(record: Dictionary) -> Array[Node3D]:
 	)
 	var tile_position: Vector3 = record.get("world_position", Vector3.ZERO)
 	var tile_id := str(record.get("tile_id", "tile"))
+	var road_routes := get_road_routes()
 	for seed in seeds.slice(0, mini(MAX_INTERIOR_ANCHORS_PER_TILE, seeds.size())):
-		var placement := _interior_anchor_placement(seed, tile_position)
+		var placement := _interior_anchor_placement(seed, tile_position, road_routes)
 		var anchor := Node3D.new()
 		anchor.name = "InteriorAnchor_" + str(seed.get("osm_id", anchors.size()))
 		anchor.position = placement["position"]
@@ -289,7 +290,7 @@ func _interior_anchor_placement(seed: Dictionary, tile_position: Vector3, road_r
 			var outward := (best_vertex - centroid).normalized()
 			if outward.length_squared() < 0.01:
 				outward = Vector2(0, -1)
-			var local_anchor := best_vertex + outward * 2.8
+			var local_anchor := best_vertex + outward * 1.8
 			return {
 				"position": tile_position + Vector3(local_anchor.x, 0.15, -local_anchor.y),
 				"direction": Vector3(outward.x, 0.0, -outward.y).normalized(),
