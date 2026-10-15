@@ -96,6 +96,40 @@ def has_feature(tags: Any) -> bool:
     return any(key in tags for key in INTERESTING_KEYS)
 
 
+SHARIATPUR_PRIORITY_LAT_LON = (23.2167, 90.3500)
+
+
+def order_tiles_shariatpur_first(
+    tiles: list[tuple[float, float, float, float]],
+    priority_lat_lon: tuple[float, float] = SHARIATPUR_PRIORITY_LAT_LON,
+) -> list[tuple[float, float, float, float]]:
+    """Order the complete division tile list from Shariatpur outward.
+
+    The priority point is a sequencing seed, not a substitute for official
+    district polygons or a claim that the tile set stops at Shariatpur.
+    """
+    priority_lat, priority_lon = priority_lat_lon
+    return sorted(
+        tiles,
+        key=lambda t: (
+            ((t[0] + t[2]) * 0.5 - priority_lat) ** 2
+            + (((t[1] + t[3]) * 0.5 - priority_lon)
+               * math.cos(math.radians(priority_lat))) ** 2
+        ),
+    )
+
+
+def select_tile_batch(
+    ordered_tiles: list[tuple[float, float, float, float]],
+    offset: int,
+    limit: int,
+) -> list[tuple[float, float, float, float]]:
+    """Select a bounded, deterministic slice without dropping later division tiles."""
+    if offset < 0 or limit < 1:
+        raise ValueError("offset must be >= 0 and limit must be >= 1")
+    return ordered_tiles[offset:offset + limit]
+
+
 class RegionHandler(osmium.SimpleHandler):
     def __init__(self, bounds: tuple[float, float, float, float]):
         super().__init__()
@@ -265,17 +299,11 @@ def main() -> int:
         if boundary.intersects(box(w, s, e, n)):
             tiles.append(tile)
     total_tiles = len(tiles)
-    # Prioritize the user's home district first, but retain every tile in the
-    # division-wide tile list. Later offsets continue across all other districts.
-    # Shariatpur town is used as the geographic seed, not as a district boundary.
-    priority_lat, priority_lon = 23.2167, 90.3500
-    tiles.sort(key=lambda t: (
-        ((t[0] + t[2]) * 0.5 - priority_lat) ** 2
-        + (((t[1] + t[3]) * 0.5 - priority_lon)
-           * math.cos(math.radians(priority_lat))) ** 2
-    ))
-    ordered_tiles = tiles
-    tiles = ordered_tiles[args.tile_offset:args.tile_offset + args.max_tiles]
+    # Shariatpur is first in the sequence; the remaining offsets still span
+    # every tile intersecting the entire Dhaka Division boundary.
+    priority_lat, priority_lon = SHARIATPUR_PRIORITY_LAT_LON
+    ordered_tiles = order_tiles_shariatpur_first(tiles)
+    tiles = select_tile_batch(ordered_tiles, args.tile_offset, args.max_tiles)
     if not tiles:
         raise RuntimeError(
             f"No tiles remain at offset {args.tile_offset}; total intersecting tiles: {total_tiles}."
