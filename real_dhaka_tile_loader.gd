@@ -266,7 +266,7 @@ func _interior_seed_priority(seed: Dictionary) -> int:
 		score += 1
 	return score
 
-func _interior_anchor_placement(seed: Dictionary, tile_position: Vector3) -> Dictionary:
+func _interior_anchor_placement(seed: Dictionary, tile_position: Vector3, road_routes: Array) -> Dictionary:
 	var footprint: Array = seed.get("footprint_local_m", [])
 	if footprint.size() >= 3:
 		var points: Array[Vector2] = []
@@ -282,7 +282,7 @@ func _interior_anchor_placement(seed: Dictionary, tile_position: Vector3) -> Dic
 			var best_distance := INF
 			for point in points:
 				var world_point := tile_position + Vector3(point.x, 0.0, -point.y)
-				for route in get_road_routes():
+				for route in road_routes:
 					for road_point in route:
 						var distance := Vector2(world_point.x - road_point.x, world_point.z - road_point.z).length()
 						if distance < best_distance:
