@@ -44,3 +44,9 @@ To keep a single build below six hours:
 The Bangladesh-wide OSM PBF is reduced to a reusable rectangular extract of the Dhaka Division envelope using `osmium-tool`. The extract is cached under `dhaka-division-osm-pbf-v1` so later batches don't repeatedly scan the whole country. Bump that cache key only when deliberately refreshing the OSM source data. Final feature and terrain geometry remains clipped to the actual Dhaka Division polygon.
 
 The first tile batch is not a standalone Shariatpur deliverable. It is the beginning of the same full-division tile sequence, and the existing game's map remains unchanged until a complete, verified replacement package is intentionally promoted.
+
+## Automatic full-division continuation
+
+When the full-division pipeline is merged and runs on `main`, it automatically dispatches the next tile batch after each successful batch. Every map-building run is limited to 300 minutes; the final assembly job is limited to 50 minutes, keeping each workflow run under six hours. Pull-request validation deliberately does not start the full chain.
+
+Each batch artifact is tagged with one sequence ID and its tile offset. The final run downloads only artifacts from that sequence, verifies every offset from zero through the full tile count is present exactly once, merges all GLBs/GeoJSON/interior seeds, and publishes a separate `Project-A-Square-Dhaka-Division-Full-Map-<sequence>` artifact. Missing batches, duplicate tile IDs, mixed tile sizes, missing attribution, or GLB/manifest count mismatches fail the assembly instead of being presented as a complete map.
