@@ -57,6 +57,14 @@ func _ready():
  add_touch_button("SPRINT", Vector2(35, 645), Vector2(150, 45), "sprint")
  add_touch_button("FIRE", Vector2(1080, 560), Vector2(150, 75), "fire")
  interaction_button = add_touch_button("INTERACT", Vector2(900, 650), Vector2(170, 55), "interact")
+ var camera_view_button := Button.new()
+ camera_view_button.name = "CameraViewToggle"
+ camera_view_button.text = "VIEW: TPP"
+ camera_view_button.position = Vector2(870, 555)
+ camera_view_button.size = Vector2(170, 48)
+ camera_view_button.add_theme_font_size_override("font_size", 17)
+ camera_view_button.pressed.connect(_toggle_camera_view)
+ add_child(camera_view_button)
  _build_driving_status()
  add_touch_button("RAIN", Vector2(1060, 650), Vector2(150, 55), "rain")
  _build_settings_ui()
@@ -151,6 +159,14 @@ func _build_settings_ui() -> void:
 func _toggle_settings() -> void:
  if settings_panel:
   settings_panel.visible = not settings_panel.visible
+
+func _toggle_camera_view() -> void:
+ if not is_instance_valid(w) or not is_instance_valid(w.player):
+  return
+ var mode: String = w.player.toggle_camera_view_mode()
+ var button := get_node_or_null("CameraViewToggle") as Button
+ if button:
+  button.text = "VIEW: FPP" if mode == "first_person" else "VIEW: TPP"
 
 func _load_graphics_settings() -> void:
  var err := settings_config.load("user://graphics_settings.cfg")
