@@ -380,7 +380,15 @@ def main() -> int:
                           max(t[2] for t in tiles), max(t[3] for t in tiles))
     else:
         extract_bounds = bounds
-    download(PBF_URL, args.pbf, 100_000_000)
+    if args.pbf.name == "dhaka-division-envelope.osm.pbf":
+        if not args.pbf.is_file() or args.pbf.stat().st_size < 10_000_000:
+            raise RuntimeError(
+                "Prepared Dhaka Division PBF is missing or too small. Run "
+                "tools/map_pipeline/prepare_dhaka_division_pbf.py first."
+            )
+        print(f"Using cached regional OSM extract {args.pbf} ({args.pbf.stat().st_size:,} bytes)", flush=True)
+    else:
+        download(PBF_URL, args.pbf, 100_000_000)
     handler = RegionHandler(extract_bounds)
     print("Extracting OSM features for selected Dhaka Division tiles…", flush=True)
     handler.apply_file(str(args.pbf), locations=True)
