@@ -15,9 +15,19 @@ on:
         default: "0"
         type: string
       max_tiles:
-        description: "Tiles in this batch; default 8 with the cached regional PBF to stay below six hours"
+        description: "Tiles per batch; each batch has its own under-six-hour workflow run"
         required: true
         default: "8"
+        type: string
+      continue_full_division:
+        description: "Automatically dispatch the next batch and assemble the full division map"
+        required: true
+        default: true
+        type: boolean
+      sequence_id:
+        description: "Internal ID that ties sequential batch artifacts together"
+        required: false
+        default: ""
         type: string
   pull_request:
     paths:
@@ -38,6 +48,7 @@ on:
       - "MAP_PIPELINE.md"
 
 permissions:
+  actions: write
   contents: read
 
 concurrency:
@@ -47,7 +58,13 @@ concurrency:
 jobs:
   build-map:
     runs-on: ubuntu-latest
-    timeout-minutes: 330
+    timeout-minutes: 300
+    outputs:
+      next_offset: ${{ steps.batch-meta.outputs.next_offset }}
+      total_tiles: ${{ steps.batch-meta.outputs.total_tiles }}
+      sequence_id: ${{ inputs.sequence_id || github.run_id }}
+      tile_degrees: ${{ inputs.tile_degrees || '0.05' }}
+      max_tiles: ${{ inputs.max_tiles || (github.event_name == 'pull_request' && '2' || '8') }}
     steps:
       - name: Checkout canonical repository
         uses: actions/checkout@v5
@@ -88,7 +105,7 @@ jobs:
         run: |
           python tools/map_pipeline/build_dhaka_division.py \
             --pbf build/osm/dhaka-division-envelope.osm.pbf \
-            --tile-degrees "${{ inputs.tile_degrees || '0.08' }}" \
+            --tile-degrees "${{ inputs.tile_degrees || '0.05' }}" \
             --tile-offset "${{ inputs.tile_offset || '0' }}" \
             --max-tiles "${{ inputs.max_tiles || (github.event_name == 'pull_request' && '2' || '8') }}" \
             --out build/dhaka-division
@@ -119,11 +136,95 @@ jobs:
           }, indent=2))
           PY
 
-      - name: Upload Dhaka Division map package
+      - name: Record batch metadata
+        id: batch-meta
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("build/dhaka-division/map_tiles_manifest.json").read_text())
+          offset = int(manifest["tile_batch_offset"])
+          count = int(manifest["tile_batch_count"])
+          total = int(manifest["tile_count_intersecting_boundary"])
+          next_offset = offset + count if offset + count < total else -1
+          print(f"next_offset={next_offset}")
+          print(f"total_tiles={total}")
+          PY
+
+      - name: Upload Dhaka Division map batch
         uses: actions/upload-artifact@v4
         with:
-          name: Project-A-Square-Dhaka-Division-3D-Map
+          name: Project-A-Square-Dhaka-Division-${{ inputs.sequence_id || github.run_id }}-batch-${{ inputs.tile_offset || '0' }}
           path: build/dhaka-division/
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
+          compression-level: 1
+
+  continue-map:
+    needs: build-map
+    if: success() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.continue_full_division))
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Dispatch the next bounded tile batch
+        if: needs.build-map.outputs.next_offset != '-1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT_OFFSET: ${{ needs.build-map.outputs.next_offset }}
+          TILE_DEGREES: ${{ needs.build-map.outputs.tile_degrees }}
+          MAX_TILES: ${{ needs.build-map.outputs.max_tiles }}
+          SEQUENCE_ID: ${{ needs.build-map.outputs.sequence_id }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/dispatches" --input - <<EOF
+          {
+            "ref": "main",
+            "inputs": {
+              "tile_degrees": "${TILE_DEGREES}",
+              "tile_offset": "${NEXT_OFFSET}",
+              "max_tiles": "${MAX_TILES}",
+              "continue_full_division": "true",
+              "sequence_id": "${SEQUENCE_ID}"
+            }
+          }
+          EOF
+
+      - name: Assemble all batches into one complete Dhaka Division map
+        if: needs.build-map.outputs.next_offset == '-1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SEQUENCE_ID: ${{ needs.build-map.outputs.sequence_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/complete/batches
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/runs?branch=main&per_page=100" \
+            --jq '.workflow_runs[] | [.id, .head_branch, (.conclusion // "")] | @tsv' > /tmp/map-runs.tsv
+          if ! grep -q "^${GITHUB_RUN_ID}[[:space:]]" /tmp/map-runs.tsv; then
+            printf '%s\tmain\tsuccess\n' "${GITHUB_RUN_ID}" >> /tmp/map-runs.tsv
+          fi
+          prefix="Project-A-Square-Dhaka-Division-${SEQUENCE_ID}-batch-"
+          while IFS=
+\t' read -r run_id branch conclusion; do
+            [[ "${branch}" == "main" ]] || continue
+            [[ "${conclusion}" == "success" || "${run_id}" == "${GITHUB_RUN_ID}" ]] || continue
+            while IFS= read -r artifact_name; do
+              [[ "${artifact_name}" == "${prefix}"* ]] || continue
+              offset="${artifact_name##*-batch-}"
+              destination="build/complete/batches/${offset}"
+              mkdir -p "${destination}"
+              gh run download "${run_id}" --repo "${GITHUB_REPOSITORY}" --name "${artifact_name}" --dir "${destination}"
+            done < <(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts" --jq '.artifacts[] | select(.expired == false) | .name')
+          done < /tmp/map-runs.tsv
+          python tools/map_pipeline/merge_dhaka_division_batches.py \
+            --batches-dir build/complete/batches \
+            --out build/dhaka-division-full
+
+      - name: Upload complete Dhaka Division map
+        if: needs.build-map.outputs.next_offset == '-1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project-A-Square-Dhaka-Division-Full-Map-${{ needs.build-map.outputs.sequence_id }}
+          path: build/dhaka-division-full/
+          if-no-files-found: error
+          retention-days: 90
           compression-level: 1
