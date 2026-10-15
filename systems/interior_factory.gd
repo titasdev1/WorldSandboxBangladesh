@@ -121,6 +121,7 @@ func _build_furniture(category: String) -> void:
 
 func _add_resident(category: String) -> void:
     resident = CharacterBody3D.new()
+    resident.set_script(load("res://systems/interior_resident.gd"))
     resident.name = "FictionalInteriorResident"
     var shape := CollisionShape3D.new()
     var capsule := CapsuleShape3D.new()
@@ -151,6 +152,11 @@ func _add_resident(category: String) -> void:
     resident.add_child(visual)
     resident.position = Vector3(0, 0, -0.5)
     active_root.add_child(resident)
+    var roam_points: Array[Vector3] = [
+        Vector3(-4.2, 0.0, -4.0), Vector3(4.0, 0.0, -4.0),
+        Vector3(4.0, 0.0, 3.5), Vector3(-4.0, 0.0, 3.5)
+    ]
+    resident.call("configure", world, active_root, roam_points)
     resident_name = _fictional_name()
     var label := Label3D.new()
     label.name = "ResidentName"
