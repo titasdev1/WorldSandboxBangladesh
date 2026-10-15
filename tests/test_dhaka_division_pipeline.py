@@ -3,7 +3,10 @@ import unittest
 from pathlib import Path
 
 from shapely.geometry import Polygon, box, shape
-from tools.map_pipeline.build_dhaka_division import (\n    _clip_elements, _source_geometry, _replace_ground_with_boundary,\n    order_tiles_shariatpur_first, select_tile_batch, SHARIATPUR_PRIORITY_LAT_LON,\n)
+from tools.map_pipeline.build_dhaka_division import (
+    _clip_elements, _source_geometry, _replace_ground_with_boundary,
+    order_tiles_shariatpur_first, select_tile_batch, SHARIATPUR_PRIORITY_LAT_LON,
+)
 from tools.map_pipeline.build_dhaka_map import build_map
 
 
