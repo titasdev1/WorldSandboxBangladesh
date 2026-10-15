@@ -3,7 +3,7 @@ class_name InteriorFactory
 
 # Game-authored, fictional interiors generated from real OSM place/building anchors.
 # These are not scans of actual private homes and do not claim to show real occupants.
-var world: Node3D
+var world: Node
 var active_root: Node3D
 var active_seed: Dictionary = {}
 var active_tile_id := ""
@@ -18,11 +18,16 @@ var dialogue_index := 0
 func configure(target: Node3D) -> void:
     world = target
 
+func _player() -> CharacterBody3D:
+    if not is_instance_valid(world):
+        return null
+    return world.get("player") as CharacterBody3D
+
 func is_inside() -> bool:
     return is_instance_valid(active_root)
 
 func open_interior(seed: Dictionary, exterior_position: Vector3, direction: Vector3, tile_id: String) -> void:
-    if is_inside() or not is_instance_valid(world) or not is_instance_valid(world.player):
+    if is_inside() or not is_instance_valid(world) or not is_instance_valid(_player()):
         return
     active_seed = seed.duplicate(true)
     active_tile_id = tile_id
@@ -36,10 +41,11 @@ func open_interior(seed: Dictionary, exterior_position: Vector3, direction: Vect
     active_root.position = interior_origin
     world.add_child(active_root)
     _build_room()
-    world.player.global_position = interior_origin + Vector3(0, 0.25, 2.0)
-    world.player.velocity = Vector3.ZERO
-    world.event_text = "ENTERED %s • FICTIONAL GAME INTERIOR" % _display_name()
-    world.event_time_left = 5.0
+    var player := _player()
+    player.global_position = interior_origin + Vector3(0, 0.25, 2.0)
+    player.velocity = Vector3.ZERO
+    world.set("event_text", "ENTERED %s • FICTIONAL GAME INTERIOR" % _display_name())
+    world.set("event_time_left", 5.0)
 
 func _build_room() -> void:
     var category := String(active_seed.get("category", "building")).to_lower()
@@ -183,8 +189,8 @@ func try_interact(player_position: Vector3) -> bool:
     if is_instance_valid(resident) and player_position.distance_to(resident.global_position) <= 3.6:
         _talk_to_resident()
         return true
-    world.event_text = "EXPLORE THE ROOM • FIND THE LOCAL RESIDENT OR EXIT"
-    world.event_time_left = 3.0
+    world.set("event_text", "EXPLORE THE ROOM • FIND THE LOCAL RESIDENT OR EXIT")
+    world.set("event_time_left", 3.0)
     return true
 
 func _talk_to_resident() -> void:
@@ -198,15 +204,17 @@ func _talk_to_resident() -> void:
     var line: String = lines[dialogue_index % lines.size()]
     dialogue_index += 1
     if category.contains("shop") or category in ["retail", "convenience", "supermarket"]:
-        if world.player.health < 100 and world.cash >= 20:
-            world.cash -= 20
-            world.player.health = mini(100, world.player.health + 15)
-            world.event_text = "%s: SNACK / FIRST AID • -৳20 • +HEALTH" % resident_name
+        var player := _player()
+        var cash := int(world.get("cash"))
+        if is_instance_valid(player) and player.health < 100 and cash >= 20:
+            world.set("cash", cash - 20)
+            player.health = mini(100, player.health + 15)
+            world.set("event_text", "%s: SNACK / FIRST AID • -৳20 • +HEALTH" % resident_name)
         else:
-            world.event_text = "%s: %s" % [resident_name, line]
+            world.set("event_text", "%s: %s" % [resident_name, line])
     else:
-        world.event_text = "%s (%s): %s" % [resident_name, resident_role, line]
-    world.event_time_left = 5.0
+        world.set("event_text", "%s (%s): %s" % [resident_name, resident_role, line])
+    world.set("event_time_left", 5.0)
 
 func _close_interior() -> void:
     if is_instance_valid(active_root):
@@ -215,11 +223,12 @@ func _close_interior() -> void:
     resident = null
     active_seed.clear()
     active_tile_id = ""
-    if is_instance_valid(world) and is_instance_valid(world.player):
-        world.player.global_position = exterior_return_position
-        world.player.velocity = Vector3.ZERO
-    world.event_text = "EXITED BUILDING • BACK TO THE REAL-WORLD STREET"
-    world.event_time_left = 4.0
+    var player := _player()
+    if is_instance_valid(player):
+        player.global_position = exterior_return_position
+        player.velocity = Vector3.ZERO
+    world.set("event_text", "EXITED BUILDING • BACK TO THE REAL-WORLD STREET")
+    world.set("event_time_left", 4.0)
 
 func _solid_box(parent: Node3D, part_name: String, pos: Vector3, size: Vector3, color: Color) -> void:
     var body := StaticBody3D.new()
