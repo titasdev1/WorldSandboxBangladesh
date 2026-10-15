@@ -240,9 +240,9 @@ func _process(_delta):
    if mission_brief.length() > 112:
     mission_brief = mission_brief.substr(0, 109) + "..."
    var mission_step_text := ""
-   var mission_factory_node := w.get_node_or_null("MissionFactory")
+   var mission_factory_node: Node = w.get_node_or_null("MissionFactory")
    if is_instance_valid(mission_factory_node):
-    var step_total: int = (mission_factory_node.get("target_positions") as Array).size()
+    var step_total: int = mission_factory_node.get("target_positions").size()
     var step_now: int = int(mission_factory_node.get("target_step")) + 1
     if step_total > 0:
      mission_step_text = "    STOP %d/%d" % [step_now, step_total]
