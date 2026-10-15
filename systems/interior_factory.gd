@@ -42,7 +42,7 @@ func open_interior(seed: Dictionary, exterior_position: Vector3, direction: Vect
     world.add_child(active_root)
     _build_room()
     var player := _player()
-    player.global_position = interior_origin + Vector3(0, 0.25, 2.0)
+    player.global_position = interior_origin + Vector3(0, 0.25, 1.5)
     player.velocity = Vector3.ZERO
     world.set("event_text", "ENTERED %s • FICTIONAL GAME INTERIOR" % _display_name())
     world.set("event_time_left", 5.0)
@@ -75,16 +75,16 @@ func _build_room() -> void:
     light.light_energy = 1.15
     light.light_color = Color("#ffe5bd")
     active_root.add_child(light)
-    exit_world_position = active_root.global_position + Vector3(0, 0.25, 5.2)
+    exit_world_position = active_root.global_position + Vector3(0, 0.25, 5.8)
 
-    var sign := Label3D.new()
-    sign.name = "InteriorNameSign"
-    sign.text = _display_name().to_upper()
-    sign.font_size = 30
-    sign.pixel_size = 0.009
-    sign.modulate = Color("#f3e7d0")
-    sign.position = Vector3(0, 3.2, -6.75)
-    active_root.add_child(sign)
+    var name_sign := Label3D.new()
+    name_sign.name = "InteriorNameSign"
+    name_sign.text = _display_name().to_upper()
+    name_sign.font_size = 30
+    name_sign.pixel_size = 0.009
+    name_sign.modulate = Color("#f3e7d0")
+    name_sign.position = Vector3(0, 3.2, -6.75)
+    active_root.add_child(name_sign)
 
 func _build_furniture(category: String) -> void:
     if category.contains("shop") or category in ["retail", "convenience", "supermarket"] or category.contains("office"):
@@ -174,7 +174,7 @@ func _display_name() -> String:
 func get_interaction_label(player_position: Vector3) -> String:
     if not is_inside():
         return ""
-    if player_position.distance_to(exit_world_position) <= 3.4:
+    if player_position.distance_to(exit_world_position) <= 3.0:
         return "EXIT BUILDING"
     if is_instance_valid(resident) and player_position.distance_to(resident.global_position) <= 3.6:
         return "TALK / INTERACT"
