@@ -396,6 +396,12 @@ func _build_lobby_ui() -> void:
 func _update_interaction_prompt() -> void:
  if not w or not w.player or not interaction_button or not driving_status:
   return
+ if w.has_method("get_interior_interaction_label"):
+  var interior_label: String = w.get_interior_interaction_label(w.player.global_position)
+  if not interior_label.is_empty():
+   interaction_button.text = interior_label
+   driving_status.visible = false
+   return
  var occupied_vehicle: Node3D = null
  var nearby_vehicle: Node3D = null
  var nearest_distance := 4.0
