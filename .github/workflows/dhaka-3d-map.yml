@@ -98,8 +98,9 @@ jobs:
 
       - name: Validate Python syntax and offline fixtures
         run: |
-          python -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_division.py tools/map_pipeline/prepare_dhaka_division_pbf.py tools/map_pipeline/tile_grid.py
+          python -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_division.py tools/map_pipeline/prepare_dhaka_division_pbf.py tools/map_pipeline/merge_dhaka_division_batches.py tools/map_pipeline/tile_grid.py
           python -m unittest discover -s tests -p 'test_dhaka*_pipeline.py' -v
+          python -m unittest discover -s tests -p 'test_merge_dhaka_division_batches.py' -v
 
       - name: Build boundary-clipped Dhaka Division tiles
         run: |
