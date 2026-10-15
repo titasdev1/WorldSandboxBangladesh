@@ -204,8 +204,7 @@ jobs:
             printf '%s\tmain\tsuccess\n' "${GITHUB_RUN_ID}" >> /tmp/map-runs.tsv
           fi
           prefix="Project-A-Square-Dhaka-Division-${SEQUENCE_ID}-batch-"
-          while IFS=
-\t' read -r run_id branch conclusion; do
+          while read -r run_id branch conclusion; do
             [[ "${branch}" == "main" ]] || continue
             [[ "${conclusion}" == "success" || "${run_id}" == "${GITHUB_RUN_ID}" ]] || continue
             while IFS= read -r artifact_name; do
