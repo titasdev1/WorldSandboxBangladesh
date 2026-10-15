@@ -39,9 +39,14 @@ func _update_camera():
  var yaw := deg_to_rad(camera_yaw)
  var pitch := deg_to_rad(camera_pitch)
  var target := global_position + Vector3(0, 1.0, 0)
+ var camera_distance := 9.5
+ if world:
+  var interior_node: Node = world.get("interior_factory")
+  if is_instance_valid(interior_node) and interior_node.has_method("is_inside") and bool(interior_node.call("is_inside")):
+   camera_distance = 4.2
  # Camera stays behind the player. Its horizontal offset and movement basis
  # must use opposite signs: forward movement points from camera toward target.
- var offset := Vector3(sin(yaw) * cos(pitch) * 9.5, -sin(pitch) * 9.5 + 1.0, cos(yaw) * cos(pitch) * 9.5)
+ var offset := Vector3(sin(yaw) * cos(pitch) * camera_distance, -sin(pitch) * camera_distance + 1.0, cos(yaw) * cos(pitch) * camera_distance)
  camera.global_position = target + offset
  camera.look_at(target, Vector3.UP)
 
