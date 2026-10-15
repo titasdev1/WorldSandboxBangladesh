@@ -9,10 +9,15 @@ on:
         default: "0.05"
         type: choice
         options: ["0.03", "0.05", "0.08"]
-      max_tiles:
-        description: "Test limit (0 builds all boundary-intersecting tiles)"
+      tile_offset:
+        description: "Batch offset in the complete Dhaka Division tile order (0 starts near Shariatpur)"
         required: true
         default: "0"
+        type: string
+      max_tiles:
+        description: "Tiles in this batch; keep at 2 so each workflow run stays below six hours"
+        required: true
+        default: "2"
         type: string
   pull_request:
     paths:
@@ -42,7 +47,7 @@ concurrency:
 jobs:
   build-map:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 330
     steps:
       - name: Checkout canonical repository
         uses: actions/checkout@v5
@@ -66,7 +71,8 @@ jobs:
         run: |
           python tools/map_pipeline/build_dhaka_division.py \
             --tile-degrees "${{ inputs.tile_degrees || '0.05' }}" \
-            --max-tiles "${{ inputs.max_tiles || (github.event_name == 'pull_request' && '3' || '0') }}" \
+            --tile-offset "${{ inputs.tile_offset || '0' }}" \
+            --max-tiles "${{ inputs.max_tiles || '2' }}" \
             --out build/dhaka-division
 
       - name: Verify map package and geographic provenance
