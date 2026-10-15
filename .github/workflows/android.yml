@@ -14,6 +14,7 @@ on:
       - "real_dhaka_tile_loader.gd"
       - "tools/map_pipeline/**"
       - "tests/test_dhaka_map_pipeline.py"
+      - "tests/test_dhaka_division_pipeline.py"
       - ".github/workflows/android.yml"
 
 permissions:
@@ -38,21 +39,20 @@ jobs:
         shell: bash
         run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/report_build_assets.py
 
-      - name: Build and bundle the real Greater Dhaka map tiles
+      - name: Build and bundle the real Dhaka Division map tiles
         shell: bash
         run: |
           set -euo pipefail
           python3 -m venv "$RUNNER_TEMP/map-venv"
           "$RUNNER_TEMP/map-venv/bin/python" -m pip install --upgrade pip
           "$RUNNER_TEMP/map-venv/bin/python" -m pip install osmium shapely trimesh mapbox-earcut
-          "$RUNNER_TEMP/map-venv/bin/python" -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_region.py
-          "$RUNNER_TEMP/map-venv/bin/python" -m unittest discover -s tests -p 'test_dhaka_map_pipeline.py' -v
-          "$RUNNER_TEMP/map-venv/bin/python" tools/map_pipeline/build_dhaka_region.py --tile-degrees 0.02 --out build/greater-dhaka
-          python3 tools/map_pipeline/audit_dhaka_imagery.py --out build/greater-dhaka/dhaka-imagery-audit.json || true
-          test -s build/greater-dhaka/map_tiles_manifest.json
-          test -s build/greater-dhaka/ATTRIBUTION.txt
+          "$RUNNER_TEMP/map-venv/bin/python" -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_division.py tools/map_pipeline/tile_grid.py
+          "$RUNNER_TEMP/map-venv/bin/python" -m unittest discover -s tests -p 'test_dhaka*_pipeline.py' -v
+          "$RUNNER_TEMP/map-venv/bin/python" tools/map_pipeline/build_dhaka_division.py --tile-degrees 0.05 --out build/dhaka-division
+          test -s build/dhaka-division/map_tiles_manifest.json
+          test -s build/dhaka-division/ATTRIBUTION.txt
           mkdir -p assets/world/dhaka_tiles
-          cp -a build/greater-dhaka/. assets/world/dhaka_tiles/
+          cp -a build/dhaka-division/. assets/world/dhaka_tiles/
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -60,15 +60,17 @@ jobs:
           manifest = json.loads((root / "map_tiles_manifest.json").read_text())
           glbs = list(root.rglob("Dhaka_Explorable_Map.glb"))
           if not glbs or len(glbs) != manifest["tile_count_with_geometry"]:
-              raise SystemExit("Greater Dhaka tile package failed integrity verification")
-          print(f"Bundled {len(glbs)} real-data GLB tiles; {sum(p.stat().st_size for p in glbs):,} bytes")
+              raise SystemExit("Dhaka Division tile package failed integrity verification")
+          if manifest.get("administrative_boundary", {}).get("name") != "Dhaka Division":
+              raise SystemExit("Bundled map is not identified as Dhaka Division")
+          print(f"Bundled {len(glbs)} boundary-clipped Dhaka Division GLB tiles; {sum(p.stat().st_size for p in glbs):,} bytes")
           PY
 
-      - name: Upload standalone Greater Dhaka 3D map package
+      - name: Upload standalone Dhaka Division 3D map package
         uses: actions/upload-artifact@v4
         with:
-          name: Project-A-Square-Greater-Dhaka-3D-Map
-          path: build/greater-dhaka/
+          name: Project-A-Square-Dhaka-Division-3D-Map
+          path: build/dhaka-division/
           if-no-files-found: error
           retention-days: 30
           compression-level: 1

@@ -1,45 +1,48 @@
-name: Build Dhaka 3D Map Package
+name: Build Dhaka Division Real-World 3D Map
 
 on:
   workflow_dispatch:
     inputs:
-      south:
-        description: "South latitude"
-        required: false
-        default: "23.8043"
-      west:
-        description: "West longitude"
-        required: false
-        default: "90.4065"
-      north:
-        description: "North latitude"
-        required: false
-        default: "23.8163"
-      east:
-        description: "East longitude"
-        required: false
-        default: "90.4185"
+      tile_degrees:
+        description: "Tile edge in degrees (larger tiles build faster)"
+        required: true
+        default: "0.05"
+        type: choice
+        options: ["0.03", "0.05", "0.08"]
+      max_tiles:
+        description: "Test limit (0 builds all boundary-intersecting tiles)"
+        required: true
+        default: "0"
+        type: string
   pull_request:
     paths:
       - "tools/map_pipeline/**"
       - "tests/test_dhaka_map_pipeline.py"
+      - "tests/test_dhaka_division_pipeline.py"
       - ".github/workflows/dhaka-3d-map.yml"
+      - ".github/workflows/dhaka-division-map.yml"
       - "MAP_PIPELINE.md"
   push:
     branches: [main]
     paths:
       - "tools/map_pipeline/**"
       - "tests/test_dhaka_map_pipeline.py"
+      - "tests/test_dhaka_division_pipeline.py"
       - ".github/workflows/dhaka-3d-map.yml"
+      - ".github/workflows/dhaka-division-map.yml"
       - "MAP_PIPELINE.md"
 
 permissions:
   contents: read
 
+concurrency:
+  group: dhaka-division-map-v2-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-map:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 360
     steps:
       - name: Checkout canonical repository
         uses: actions/checkout@v5
@@ -49,45 +52,54 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install geometry and GLB export dependencies
-        run: python -m pip install --upgrade pip shapely trimesh mapbox-earcut
-
-      - name: Run offline fixture tests
-        run: python -m unittest tests.test_dhaka_map_pipeline -v
-
-      - name: Fetch OSM data and build the real Dhaka map tile
-        shell: bash
-        env:
-          INPUT_SOUTH: ${{ inputs.south || '23.8043' }}
-          INPUT_WEST: ${{ inputs.west || '90.4065' }}
-          INPUT_NORTH: ${{ inputs.north || '23.8163' }}
-          INPUT_EAST: ${{ inputs.east || '90.4185' }}
+      - name: Install geometry and OSM dependencies
         run: |
-          python tools/map_pipeline/build_dhaka_map.py \
-            --bbox "$INPUT_SOUTH" "$INPUT_WEST" "$INPUT_NORTH" "$INPUT_EAST" \
-            --out build/dhaka-map
+          python -m pip install --upgrade pip
+          python -m pip install osmium shapely trimesh mapbox-earcut
+
+      - name: Validate Python syntax and offline fixtures
+        run: |
+          python -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_division.py tools/map_pipeline/tile_grid.py
+          python -m unittest discover -s tests -p 'test_dhaka*_pipeline.py' -v
+
+      - name: Build boundary-clipped Dhaka Division tiles
+        run: |
+          python tools/map_pipeline/build_dhaka_division.py \
+            --tile-degrees "${{ inputs.tile_degrees || '0.05' }}" \
+            --max-tiles "${{ inputs.max_tiles || (github.event_name == 'pull_request' && '3' || '0') }}" \
+            --out build/dhaka-division
+
+      - name: Verify map package and geographic provenance
+        run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          m = json.loads(Path("build/dhaka-map/map_manifest.json").read_text())
-          glb = Path("build/dhaka-map/Dhaka_Explorable_Map.glb")
-          assert glb.exists() and glb.stat().st_size > 1000, "GLB export missing or empty"
-          assert m["feature_counts"]["building_footprints"] > 0, "No building footprints in output"
-          assert m["feature_counts"]["road_ways"] > 0, "No roads in output"
-          print(f"GLB bytes: {glb.stat().st_size}")
-          print(json.dumps(m["feature_counts"], indent=2))
+          root = Path("build/dhaka-division")
+          manifest = json.loads((root / "map_tiles_manifest.json").read_text())
+          glbs = list(root.rglob("Dhaka_Explorable_Map.glb"))
+          if not glbs:
+              raise SystemExit("No GLB tiles were produced")
+          if len(glbs) != manifest["tile_count_with_geometry"]:
+              raise SystemExit("Manifest GLB count mismatch")
+          if manifest.get("administrative_boundary", {}).get("name") != "Dhaka Division":
+              raise SystemExit("Administrative boundary metadata is missing")
+          if not (root / "ATTRIBUTION.txt").is_file():
+              raise SystemExit("Required attribution is missing")
+          print(json.dumps({
+            "boundary": manifest["administrative_boundary"]["name"],
+            "boundary_bbox": manifest["region_south_west_north_east"],
+            "tiles_intersecting_boundary": manifest["tile_count_intersecting_boundary"],
+            "tiles_with_geometry": len(glbs),
+            "source_elements_in_boundary_envelope": manifest["source_elements_in_boundary_envelope"],
+            "glb_bytes": sum(p.stat().st_size for p in glbs),
+          }, indent=2))
           PY
 
-      - name: Upload standalone map package
+      - name: Upload Dhaka Division map package
         uses: actions/upload-artifact@v4
         with:
-          name: Dhaka-Explorable-3D-Map
-          path: |
-            build/dhaka-map/Dhaka_Explorable_Map.glb
-            build/dhaka-map/Dhaka_OSM_Source.geojson
-            build/dhaka-map/AI_Interior_Seeds.json
-            build/dhaka-map/map_manifest.json
-            build/dhaka-map/ATTRIBUTION.txt
+          name: Project-A-Square-Dhaka-Division-3D-Map
+          path: build/dhaka-division/
           if-no-files-found: error
-          compression-level: 0
           retention-days: 30
+          compression-level: 1
