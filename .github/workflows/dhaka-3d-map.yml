@@ -6,7 +6,7 @@ on:
       tile_degrees:
         description: "Tile edge in degrees (larger tiles build faster)"
         required: true
-        default: "0.08"
+        default: "0.05"
         type: choice
         options: ["0.03", "0.05", "0.08"]
       tile_offset:
