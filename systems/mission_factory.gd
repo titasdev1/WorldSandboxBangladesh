@@ -53,6 +53,8 @@ var active_target: Area3D
 var marker_node: MeshInstance3D
 var cooldown := 0.0
 var missions: Array[Dictionary] = []
+var target_positions: Array[Vector3] = []
+var target_step := 0
 
 func _ready() -> void:
     call_deferred("_bootstrap")
@@ -133,27 +135,91 @@ func _start_mission() -> void:
     var m: Dictionary = missions[active_index]
     if is_instance_valid(active_target):
         active_target.queue_free()
+    target_positions = _make_target_positions(m)
+    target_step = 0
+    active_target = _create_target_area()
+    active_target.position = target_positions[0]
+    active_target.body_entered.connect(_on_target_entered)
+    add_child(active_target)
+    _set_marker(active_target.position, Color("#4de3ff"))
+    world.set("event_text", "%s • %s: %s" % [
+        m.title, _objective_for_step(m, target_step), m.brief
+    ])
+    world.set("event_time_left", 10.0)
+
+func _create_target_area() -> Area3D:
     var target := Area3D.new()
-    target.name = "MissionTarget_%04d" % int(m.id)
+    target.name = "MissionTarget"
     var shape := CollisionShape3D.new()
     var sphere := SphereShape3D.new()
     sphere.radius = 4.5
     shape.shape = sphere
     target.add_child(shape)
-    var angle := rng.randf_range(0.0, TAU)
-    var radius := rng.randf_range(TARGET_RADIUS_MIN, TARGET_RADIUS_MAX)
-    target.position = Vector3(cos(angle) * radius, 0, sin(angle) * radius)
-    target.body_entered.connect(_on_target_entered)
-    add_child(target)
-    active_target = target
-    _set_marker(target.position, Color("#4de3ff"))
-    world.set("event_text", "%s: %s" % [m.title, m.brief])
-    world.set("event_time_left", 10.0)
+    return target
+
+func _make_target_positions(mission: Dictionary) -> Array[Vector3]:
+    var positions: Array[Vector3] = []
+    var kind := String(mission.get("kind", "delivery"))
+    var count := 2
+    if kind in ["rescue", "escort"]:
+        count = 3
+    # On the real map, use actual OSM-derived road positions supplied by the
+    # existing georeferenced loader. The fictional fallback uses local city space.
+    if bool(world.get("real_dhaka_loaded")):
+        var mapped_targets: Array = world.get("real_mission_targets")
+        if not mapped_targets.is_empty():
+            var first := int(mission.get("id", 0)) % mapped_targets.size()
+            for i in range(mini(count, mapped_targets.size())):
+                var point: Variant = mapped_targets[(first + i) % mapped_targets.size()]
+                if point is Vector3:
+                    positions.append(point)
+    while positions.size() < count:
+        var angle := rng.randf_range(0.0, TAU)
+        var radius := rng.randf_range(TARGET_RADIUS_MIN, TARGET_RADIUS_MAX)
+        var point := Vector3(cos(angle) * radius, 0, sin(angle) * radius)
+        var too_close := false
+        for existing in positions:
+            if existing.distance_to(point) < 35.0:
+                too_close = true
+                break
+        if not too_close:
+            positions.append(point)
+    return positions
+
+func _objective_for_step(mission: Dictionary, step: int) -> String:
+    var kind := String(mission.get("kind", "delivery"))
+    var steps: Array[String]
+    match kind:
+        "transport":
+            steps = ["PICK UP PASSENGER", "DROP OFF PASSENGER"]
+        "courier":
+            steps = ["COLLECT PARCEL", "DELIVER PARCEL"]
+        "rescue":
+            steps = ["REACH INCIDENT", "TAKE SUPPLIES TO CLINIC", "RETURN TO SAFE POINT"]
+        "repair":
+            steps = ["COLLECT TOOLS", "REACH REPAIR SITE"]
+        "help":
+            steps = ["FIND THE OWNER", "RETURN THE LOST ITEM"]
+        "escort":
+            steps = ["MEET THE LOCAL", "CROSS THE CHECKPOINT", "REACH THE SAFE DESTINATION"]
+        _:
+            steps = ["PICK UP THE JOB", "DELIVER TO THE DESTINATION"]
+    return steps[clampi(step, 0, steps.size() - 1)]
 
 func _on_target_entered(body: Node3D) -> void:
     if body != player or active_index < 0:
         return
     var m: Dictionary = missions[active_index]
+    if target_step < target_positions.size() - 1:
+        target_step += 1
+        active_target.position = target_positions[target_step]
+        _set_marker(active_target.position, Color("#4de3ff"))
+        world.set("event_text", "%s • STOP %d/%d: %s" % [
+            m.title, target_step + 1, target_positions.size(),
+            _objective_for_step(m, target_step)
+        ])
+        world.set("event_time_left", 6.0)
+        return
     var cash := int(world.get("cash"))
     world.set("cash", cash + int(m.reward))
     world.set("event_text", "%s COMPLETE • +৳%d • JOB %04d/4000" % [
@@ -162,6 +228,8 @@ func _on_target_entered(body: Node3D) -> void:
     world.set("event_time_left", 8.0)
     cooldown = 3.0
     active_index = -1
+    target_positions.clear()
+    target_step = 0
     if is_instance_valid(active_target):
         active_target.queue_free()
         active_target = null
