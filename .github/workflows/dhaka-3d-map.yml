@@ -214,6 +214,14 @@ jobs:
               destination="build/complete/batches/${offset}"
               mkdir -p "${destination}"
               gh run download "${run_id}" --repo "${GITHUB_REPOSITORY}" --name "${artifact_name}" --dir "${destination}"
+              if [[ ! -f "${destination}/map_tiles_manifest.json" ]]; then
+                nested_manifest="$(find "${destination}" -mindepth 2 -name map_tiles_manifest.json -print -quit)"
+                if [[ -n "${nested_manifest}" ]]; then
+                  nested_root="$(dirname "${nested_manifest}")"
+                  find "${nested_root}" -mindepth 1 -maxdepth 1 -exec mv -t "${destination}" {} +
+                  rm -rf "${nested_root}"
+                fi
+              fi
             done < <(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts" --jq '.artifacts[] | select(.expired == false) | .name')
           done < /tmp/map-runs.tsv
           python tools/map_pipeline/merge_dhaka_division_batches.py \
