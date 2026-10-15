@@ -236,7 +236,10 @@ func _process(_delta):
   var side_missions: Array = mission_factory.get("missions")
   if active_index < side_missions.size():
    var active_mission: Dictionary = side_missions[active_index]
-   mission.text = "SIDE JOB: %s    REWARD +৳%d    FARE ৳%d → OFFER ৳%d" % [active_mission.get("title", "Local job"), int(active_mission.get("reward", 0)), w.fare_requested, w.bargain_offer]
+   var mission_brief := String(active_mission.get("brief", "Reach the blue marker."))
+   if mission_brief.length() > 112:
+    mission_brief = mission_brief.substr(0, 109) + "..."
+   mission.text = "DESHI JOB %04d/4000: %s    REWARD +৳%d\n%s" % [int(active_mission.get("id", 0)) + 1, active_mission.get("title", "Local job"), int(active_mission.get("reward", 0)), mission_brief]
  elif w.mission_active:
   var stage_names = ["Market delivery", "Tower pickup", "Bus terminal drop"]
   mission.text = "STORY %d/3: %s    Rickshaw fare ৳%d → offer ৳%d" % [w.mission_stage + 1, stage_names[w.mission_stage], w.fare_requested, w.bargain_offer]
