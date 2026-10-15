@@ -33,14 +33,32 @@ func _input(event):
   camera_yaw -= event.relative.x * 0.12
   camera_pitch = clamp(camera_pitch - event.relative.y * 0.12, -55.0, 15.0)
 
+var camera_view_mode := "third_person"
+
+func set_camera_view_mode(mode: String) -> void:
+ camera_view_mode = "first_person" if mode == "first_person" else "third_person"
+ var visual := get_node_or_null("HumanoidVisual")
+ if visual:
+  visual.visible = camera_view_mode != "first_person"
+ _update_camera()
+
+func toggle_camera_view_mode() -> String:
+ set_camera_view_mode("first_person" if camera_view_mode == "third_person" else "third_person")
+ return camera_view_mode
+
 func _update_camera():
  if not camera:
   return
  var yaw := deg_to_rad(camera_yaw)
  var pitch := deg_to_rad(camera_pitch)
  var target := global_position + Vector3(0, 1.0, 0)
- # Camera stays behind the player. Its horizontal offset and movement basis
- # must use opposite signs: forward movement points from camera toward target.
+ if camera_view_mode == "first_person":
+  # Eye-height camera; use the same yaw/pitch basis as the third-person orbit.
+  var eye := global_position + Vector3(0, 1.58, 0)
+  camera.global_position = eye
+  camera.global_rotation = Vector3(deg_to_rad(-camera_pitch), yaw, 0.0)
+  return
+ # Third-person orbit. Forward movement points away from this camera offset.
  var offset := Vector3(sin(yaw) * cos(pitch) * 9.5, -sin(pitch) * 9.5 + 1.0, cos(yaw) * cos(pitch) * 9.5)
  camera.global_position = target + offset
  camera.look_at(target, Vector3.UP)
