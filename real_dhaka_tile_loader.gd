@@ -12,6 +12,9 @@ const GAME_ORIGIN_LON := 90.4125
 const LOAD_RADIUS_M := 2450.0
 const UNLOAD_RADIUS_M := 3150.0
 const STREAM_INTERVAL := 0.5
+const MAX_INTERIOR_ANCHORS_PER_TILE := 24
+const DEFAULT_LOAD_RADIUS_M := 2450.0
+const DEFAULT_UNLOAD_RADIUS_M := 3150.0
 
 var _world: Node3D
 var _records: Array[Dictionary] = []
@@ -21,6 +24,9 @@ var _manifest_origin_lat := GAME_ORIGIN_LAT
 var _manifest_origin_lon := GAME_ORIGIN_LON
 var _stream_clock := 0.0
 var _ready_for_streaming := false
+var _load_radius_m := DEFAULT_LOAD_RADIUS_M
+var _unload_radius_m := DEFAULT_UNLOAD_RADIUS_M
+var _world_bounds := {"min_x": -12000.0, "max_x": 12000.0, "min_z": -10000.0, "max_z": 16800.0}
 
 func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.json") -> bool:
 	_world = world
@@ -35,6 +41,9 @@ func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.j
 	var manifest: Dictionary = parsed
 	var region: Variant = manifest.get("region_south_west_north_east", [])
 	var tiles: Variant = manifest.get("tiles", [])
+	if region is Array and region.size() == 4:
+		_configure_world_bounds(region)
+		_configure_streaming_radius(float(manifest.get("tile_edge_degrees", 0.02)))
 	if not (region is Array and region.size() == 4 and tiles is Array and not tiles.is_empty()):
 		return false
 	# Keep the game origin fixed at central Dhaka so missions/player spawn remain
@@ -150,16 +159,20 @@ func _stream_tiles(player_position: Vector3) -> void:
 	for record in _records:
 		var tile_position: Vector3 = record["world_position"]
 		var distance := Vector2(player_position.x - tile_position.x, player_position.z - tile_position.z).length()
-		if distance <= LOAD_RADIUS_M:
+		if distance <= _load_radius_m:
 			desired[str(record["tile_id"])] = record
 	for key in _loaded.keys():
 		var record: Dictionary = _loaded[key]
 		var tile_position: Vector3 = record["world_position"]
 		var distance := Vector2(player_position.x - tile_position.x, player_position.z - tile_position.z).length()
-		if distance > UNLOAD_RADIUS_M or not desired.has(key):
+		if distance > _unload_radius_m or not desired.has(key):
 			var instance: Node = record.get("instance") as Node
 			if instance != null and is_instance_valid(instance):
 				instance.queue_free()
+			var anchors: Array = record.get("interior_anchors", [])
+			for anchor in anchors:
+				if is_instance_valid(anchor):
+					anchor.queue_free()
 			_loaded.erase(key)
 			_road_routes_by_tile.erase(key)
 	for key in desired.keys():
@@ -178,8 +191,118 @@ func _stream_tiles(player_position: Vector3) -> void:
 		_world.add_child(instance)
 		_add_walkable_collisions(instance)
 		_load_road_routes(record)
+		record["interior_anchors"] = _load_interior_anchors(record)
 		record["instance"] = instance
 		_loaded[key] = record
+
+func get_world_bounds() -> Dictionary:
+	return _world_bounds.duplicate(true)
+
+func _configure_world_bounds(region: Array) -> void:
+	var south := float(region[0])
+	var west := float(region[1])
+	var north := float(region[2])
+	var east := float(region[3])
+	var west_point := _geo_to_world((south + north) * 0.5, west)
+	var east_point := _geo_to_world((south + north) * 0.5, east)
+	var north_point := _geo_to_world(north, (west + east) * 0.5)
+	var south_point := _geo_to_world(south, (west + east) * 0.5)
+	_world_bounds = {
+		"min_x": minf(west_point.x, east_point.x) - 250.0,
+		"max_x": maxf(west_point.x, east_point.x) + 250.0,
+		"min_z": minf(north_point.z, south_point.z) - 250.0,
+		"max_z": maxf(north_point.z, south_point.z) + 250.0,
+	}
+
+func _configure_streaming_radius(tile_degrees: float) -> void:
+	var edge_north_south := deg_to_rad(tile_degrees) * EARTH_RADIUS_M
+	var edge_east_west := deg_to_rad(tile_degrees) * EARTH_RADIUS_M * cos(deg_to_rad((GAME_ORIGIN_LAT)))
+	var half_diagonal := sqrt(edge_north_south * edge_north_south + edge_east_west * edge_east_west) * 0.5
+	# Always include the nearest tile center even when a larger map tile is used.
+	_load_radius_m = maxf(DEFAULT_LOAD_RADIUS_M, half_diagonal + 900.0)
+	_unload_radius_m = maxf(DEFAULT_UNLOAD_RADIUS_M, _load_radius_m + maxf(700.0, tile_degrees * 100000.0 * 0.12))
+
+func _load_interior_anchors(record: Dictionary) -> Array[Node3D]:
+	var anchors: Array[Node3D] = []
+	var relative_path := str(record.get("interior_seeds", ""))
+	if relative_path.is_empty():
+		return anchors
+	var path := MAP_ROOT + "/" + relative_path
+	if not FileAccess.file_exists(path):
+		return anchors
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (parsed is Array):
+		return anchors
+	var seeds: Array[Dictionary] = []
+	for seed in parsed:
+		if seed is Dictionary and (seed.has("footprint_local_m") or seed.has("anchor_local_m")):
+			seeds.append(seed)
+	seeds.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return _interior_seed_priority(a) > _interior_seed_priority(b)
+	)
+	var tile_position: Vector3 = record.get("world_position", Vector3.ZERO)
+	var tile_id := str(record.get("tile_id", "tile"))
+	for seed in seeds.slice(0, mini(MAX_INTERIOR_ANCHORS_PER_TILE, seeds.size())):
+		var placement := _interior_anchor_placement(seed, tile_position)
+		var anchor := Node3D.new()
+		anchor.name = "InteriorAnchor_" + str(seed.get("osm_id", anchors.size()))
+		anchor.position = placement["position"]
+		anchor.add_to_group("real_building_entry")
+		anchor.set_meta("interior_seed", seed.duplicate(true))
+		anchor.set_meta("exit_direction", placement["direction"])
+		anchor.set_meta("tile_id", tile_id)
+		_world.add_child(anchor)
+		anchors.append(anchor)
+	return anchors
+
+func _interior_seed_priority(seed: Dictionary) -> int:
+	var category := str(seed.get("category", "")).to_lower()
+	var score := 0
+	if category.contains("shop") or category.contains("retail") or category.contains("amenity") or category.contains("healthcare") or category.contains("tourism"):
+		score += 10
+	if not str(seed.get("name", "")).is_empty():
+		score += 3
+	if seed.has("footprint_local_m"):
+		score += 1
+	return score
+
+func _interior_anchor_placement(seed: Dictionary, tile_position: Vector3) -> Dictionary:
+	var footprint: Array = seed.get("footprint_local_m", [])
+	if footprint.size() >= 3:
+		var points: Array[Vector2] = []
+		var centroid := Vector2.ZERO
+		for item in footprint:
+			if item is Array and item.size() >= 2:
+				var point := Vector2(float(item[0]), float(item[1]))
+				points.append(point)
+				centroid += point
+		if not points.is_empty():
+			centroid /= float(points.size())
+			var best_vertex := points[0]
+			var best_distance := INF
+			for point in points:
+				var world_point := tile_position + Vector3(point.x, 0.0, -point.y)
+				for route in get_road_routes():
+					for road_point in route:
+						var distance := Vector2(world_point.x - road_point.x, world_point.z - road_point.z).length()
+						if distance < best_distance:
+							best_distance = distance
+							best_vertex = point
+			var outward := (best_vertex - centroid).normalized()
+			if outward.length_squared() < 0.01:
+				outward = Vector2(0, -1)
+			var local_anchor := best_vertex + outward * 2.8
+			return {
+				"position": tile_position + Vector3(local_anchor.x, 0.15, -local_anchor.y),
+				"direction": Vector3(outward.x, 0.0, -outward.y).normalized(),
+			}
+	var local_point: Array = seed.get("anchor_local_m", [])
+	if local_point.size() >= 2:
+		return {
+			"position": tile_position + Vector3(float(local_point[0]), 0.15, -float(local_point[1])),
+			"direction": Vector3(0, 0, 1),
+		}
+	return {"position": tile_position, "direction": Vector3(0, 0, 1)}
 
 func _add_walkable_collisions(root: Node) -> void:
 	var pending: Array[Node] = [root]
