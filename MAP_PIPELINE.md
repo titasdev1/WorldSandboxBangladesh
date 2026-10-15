@@ -30,3 +30,17 @@ OpenStreetMap data is © OpenStreetMap contributors and licensed under ODbL. Inc
 ## Scaling
 
 Expand with adjacent bounded tiles rather than one huge Overpass request. Preserve the origin and tile bounds for each output; deduplicate ways/buildings at tile borders. Later stages can add DEM terrain, authored/licensed façade assets, building interiors, NPC schedules/dialogue, and an explicitly licensed photorealistic streaming adapter.
+
+## Full Dhaka Division build order and time budget
+
+The separate **Build Dhaka Division Real-World 3D Map** workflow targets the complete administrative polygon. Shariatpur is a priority, not the final map boundary: the workflow obtains the actual Shariatpur District polygon from geoBoundaries ADM2, emits every tile intersecting that district first, and then continues through every remaining tile in Dhaka Division.
+
+To keep a single build below six hours:
+- The workflow job timeout is 330 minutes.
+- Pull-request CI builds only two tiles to validate the pipeline without starting a full-division bake.
+- Manual runs default to eight tiles at 0.08 degrees per tile; use the `tile_offset` input to continue through the ordered tile list (for example 0, 8, 16, 24, ...).
+- The output manifest distinguishes the total number of tiles intersecting Dhaka Division from the current batch offset/count. One artifact is a batch, not proof that the whole division is complete.
+
+The Bangladesh-wide OSM PBF is reduced to a reusable rectangular extract of the Dhaka Division envelope using `osmium-tool`. The extract is cached under `dhaka-division-osm-pbf-v1` so later batches don't repeatedly scan the whole country. Bump that cache key only when deliberately refreshing the OSM source data. Final feature and terrain geometry remains clipped to the actual Dhaka Division polygon.
+
+The first tile batch is not a standalone Shariatpur deliverable. It is the beginning of the same full-division tile sequence, and the existing game's map remains unchanged until a complete, verified replacement package is intentionally promoted.

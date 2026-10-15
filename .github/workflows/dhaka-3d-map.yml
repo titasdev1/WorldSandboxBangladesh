@@ -9,10 +9,15 @@ on:
         default: "0.05"
         type: choice
         options: ["0.03", "0.05", "0.08"]
-      max_tiles:
-        description: "Test limit (0 builds all boundary-intersecting tiles)"
+      tile_offset:
+        description: "Batch offset in the complete Dhaka Division tile order (0 starts near Shariatpur)"
         required: true
         default: "0"
+        type: string
+      max_tiles:
+        description: "Tiles in this batch; default 8 with the cached regional PBF to stay below six hours"
+        required: true
+        default: "8"
         type: string
   pull_request:
     paths:
@@ -42,7 +47,7 @@ concurrency:
 jobs:
   build-map:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 330
     steps:
       - name: Checkout canonical repository
         uses: actions/checkout@v5
@@ -54,19 +59,38 @@ jobs:
 
       - name: Install geometry and OSM dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y osmium-tool
           python -m pip install --upgrade pip
           python -m pip install osmium shapely trimesh mapbox-earcut
 
+      # Cache a regional extract, not the full country PBF. This prevents each
+      # tile batch from scanning the entire Bangladesh extract from scratch.
+      # Bump the v1 key only when intentionally refreshing the source map data.
+      - name: Restore cached Dhaka Division OSM extract
+        id: regional-pbf-cache
+        uses: actions/cache@v4
+        with:
+          path: build/osm/dhaka-division-envelope.osm.pbf
+          key: dhaka-division-osm-pbf-v1
+
+      - name: Prepare regional OSM extract on cache miss
+        if: steps.regional-pbf-cache.outputs.cache-hit != 'true'
+        run: |
+          python tools/map_pipeline/prepare_dhaka_division_pbf.py --out build/osm/dhaka-division-envelope.osm.pbf
+
       - name: Validate Python syntax and offline fixtures
         run: |
-          python -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_division.py tools/map_pipeline/tile_grid.py
+          python -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_division.py tools/map_pipeline/prepare_dhaka_division_pbf.py tools/map_pipeline/tile_grid.py
           python -m unittest discover -s tests -p 'test_dhaka*_pipeline.py' -v
 
       - name: Build boundary-clipped Dhaka Division tiles
         run: |
           python tools/map_pipeline/build_dhaka_division.py \
-            --tile-degrees "${{ inputs.tile_degrees || '0.05' }}" \
-            --max-tiles "${{ inputs.max_tiles || (github.event_name == 'pull_request' && '3' || '0') }}" \
+            --pbf build/osm/dhaka-division-envelope.osm.pbf \
+            --tile-degrees "${{ inputs.tile_degrees || '0.08' }}" \
+            --tile-offset "${{ inputs.tile_offset || '0' }}" \
+            --max-tiles "${{ inputs.max_tiles || (github.event_name == 'pull_request' && '2' || '8') }}" \
             --out build/dhaka-division
 
       - name: Verify map package and geographic provenance

@@ -31,6 +31,7 @@ from tools.map_pipeline.tile_grid import tile_bounds
 
 PBF_URL = "https://download.geofabrik.de/asia/bangladesh-latest.osm.pbf"
 BOUNDARY_API = "https://www.geoboundaries.org/api/current/gbOpen/BGD/ADM1/"
+DISTRICT_BOUNDARY_API = "https://www.geoboundaries.org/api/current/gbOpen/BGD/ADM2/"
 INTERESTING_KEYS = {
     "building", "highway", "shop", "amenity", "tourism", "historic",
     "leisure", "office", "healthcare", "public_transport", "landuse",
@@ -94,6 +95,92 @@ def load_dhaka_boundary(path: pathlib.Path) -> tuple[Any, dict[str, Any]]:
 
 def has_feature(tags: Any) -> bool:
     return any(key in tags for key in INTERESTING_KEYS)
+
+
+def load_shariatpur_boundary(path: pathlib.Path) -> tuple[Any, dict[str, Any]]:
+    """Load the actual Shariatpur District polygon from geoBoundaries ADM2."""
+    request = urllib.request.Request(
+        DISTRICT_BOUNDARY_API,
+        headers={"User-Agent": "Project-A-Square-MapPipeline/1.0"},
+    )
+    with urllib.request.urlopen(request, timeout=60) as response:
+        metadata = json.loads(response.read().decode("utf-8"))
+    if isinstance(metadata, list):
+        record = next((r for r in metadata if r.get("boundaryISO") == "BGD" and r.get("boundaryType") == "ADM2"), None)
+    else:
+        record = metadata
+    if not record or not record.get("gjDownloadURL"):
+        raise RuntimeError("geoBoundaries API did not return the Bangladesh ADM2 district GeoJSON URL.")
+    if not path.exists():
+        download(str(record["gjDownloadURL"]), path, 1000)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    features = payload.get("features", [])
+    feature = next(
+        (f for f in features if any(
+            str(v).strip().lower() in {"shariatpur", "shariatpur district"}
+            for v in f.get("properties", {}).values()
+        )),
+        None,
+    )
+    if feature is None:
+        feature = next(
+            (f for f in features if "shariatpur" in json.dumps(f.get("properties", {})).lower()),
+            None,
+        )
+    if feature is None:
+        raise RuntimeError("Shariatpur District was not found in the Bangladesh ADM2 boundary dataset.")
+    geom = shape(feature["geometry"])
+    if geom.is_empty or not geom.is_valid:
+        geom = geom.buffer(0)
+    if geom.is_empty or geom.geom_type not in {"Polygon", "MultiPolygon"}:
+        raise RuntimeError("Shariatpur District boundary is not a valid polygon.")
+    details = {
+        "feature_properties": feature.get("properties", {}),
+        "boundary_source": record.get("boundarySource", "geoBoundaries"),
+        "boundary_year_represented": record.get("boundaryYearRepresented", "unspecified"),
+        "boundary_license": record.get("boundaryLicense", "See geoBoundaries metadata"),
+        "boundary_license_source": record.get("licenseSource", ""),
+        "boundary_id": record.get("boundaryID", ""),
+    }
+    return geom, details
+
+
+SHARIATPUR_PRIORITY_LAT_LON = (23.2167, 90.3500)
+
+
+def order_tiles_shariatpur_first(
+    tiles: list[tuple[float, float, float, float]],
+    shariatpur_boundary: Any,
+    priority_lat_lon: tuple[float, float] = SHARIATPUR_PRIORITY_LAT_LON,
+) -> list[tuple[float, float, float, float]]:
+    """Order Shariatpur District-intersecting tiles first, then the full division."""
+    priority_lat, priority_lon = priority_lat_lon
+
+    def distance(tile: tuple[float, float, float, float]) -> float:
+        south, west, north, east = tile
+        return (
+            ((south + north) * 0.5 - priority_lat) ** 2
+            + (((west + east) * 0.5 - priority_lon)
+               * math.cos(math.radians(priority_lat))) ** 2
+        )
+
+    district_tiles = [
+        tile for tile in tiles
+        if shariatpur_boundary.intersects(box(tile[1], tile[0], tile[3], tile[2]))
+    ]
+    other_tiles = [tile for tile in tiles if tile not in district_tiles]
+    return sorted(district_tiles, key=distance) + sorted(other_tiles, key=distance)
+
+
+def select_tile_batch(
+    ordered_tiles: list[tuple[float, float, float, float]],
+    offset: int,
+    limit: int,
+) -> list[tuple[float, float, float, float]]:
+    """Select a bounded, deterministic slice without dropping later division tiles."""
+    if offset < 0 or limit < 1:
+        raise ValueError("offset must be >= 0 and limit must be >= 1")
+    return ordered_tiles[offset:offset + limit]
 
 
 class RegionHandler(osmium.SimpleHandler):
@@ -242,13 +329,22 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--pbf", type=pathlib.Path, default=pathlib.Path("build/osm/bangladesh-latest.osm.pbf"))
     parser.add_argument("--boundary", type=pathlib.Path, default=pathlib.Path("build/boundaries/dhaka-division.geojson"))
+    parser.add_argument("--district-boundary", type=pathlib.Path, default=pathlib.Path("build/boundaries/bangladesh-districts.geojson"))
     parser.add_argument("--out", type=pathlib.Path, default=pathlib.Path("build/dhaka-division"))
     parser.add_argument("--tile-degrees", type=float, default=0.05)
-    parser.add_argument("--max-tiles", type=int, default=0, help="Optional test limit; 0 builds every intersecting tile")
+    parser.add_argument("--tile-offset", type=int, default=0,
+                        help="Zero-based offset in the Shariatpur-first, full-division tile order")
+    parser.add_argument("--max-tiles", type=int, default=2,
+                        help="Maximum tiles in this bounded batch; use 2 to keep each run below six hours")
     args = parser.parse_args()
     if not 0.01 <= args.tile_degrees <= 0.08:
         parser.error("--tile-degrees must be between 0.01 and 0.08 degrees")
+    if args.tile_offset < 0:
+        parser.error("--tile-offset must be zero or greater")
+    if args.max_tiles < 1:
+        parser.error("--max-tiles must be at least 1; build the division as sequential batches")
     boundary, boundary_properties = load_dhaka_boundary(args.boundary)
+    shariatpur_boundary, shariatpur_properties = load_shariatpur_boundary(args.district_boundary)
     min_lon, min_lat, max_lon, max_lat = boundary.bounds
     bounds = (min_lat, min_lon, max_lat, max_lon)
     full_tiles = list(tile_bounds(bounds, args.tile_degrees))
@@ -257,15 +353,26 @@ def main() -> int:
         s, w, n, e = tile
         if boundary.intersects(box(w, s, e, n)):
             tiles.append(tile)
-    # Build the central Dhaka core first. This makes bounded test builds and
-    # interrupted development runs produce the most useful playable area first.
-    tiles.sort(key=lambda t: ((t[0] + t[2]) * 0.5 - 23.8103) ** 2
-                            + (((t[1] + t[3]) * 0.5 - 90.4125)
-                               * math.cos(math.radians(23.8103))) ** 2)
-    if args.max_tiles > 0:
-        tiles = tiles[:args.max_tiles]
+    total_tiles = len(tiles)
+    # Shariatpur is first in the sequence; the remaining offsets still span
+    # every tile intersecting the entire Dhaka Division boundary.
+    priority_lat, priority_lon = SHARIATPUR_PRIORITY_LAT_LON
+    shariatpur_tile_count = sum(
+        1 for tile in tiles
+        if shariatpur_boundary.intersects(box(tile[1], tile[0], tile[3], tile[2]))
+    )
+    ordered_tiles = order_tiles_shariatpur_first(tiles, shariatpur_boundary)
+    tiles = select_tile_batch(ordered_tiles, args.tile_offset, args.max_tiles)
     if not tiles:
-        raise RuntimeError("No tiles intersect the Dhaka Division boundary.")
+        raise RuntimeError(
+            f"No tiles remain at offset {args.tile_offset}; total intersecting tiles: {total_tiles}."
+        )
+    print(
+        f"Full Dhaka Division intersects {total_tiles} tiles at {args.tile_degrees}°; "
+        f"building batch offsets {args.tile_offset}–{args.tile_offset + len(tiles) - 1} "
+        f"({len(tiles)} tiles); {shariatpur_tile_count} tiles intersect Shariatpur District and are first.",
+        flush=True,
+    )
     # In bounded test mode, extract only the selected tiles instead of storing
     # every mapped feature in the entire division in memory.
     if args.max_tiles > 0:
@@ -273,7 +380,15 @@ def main() -> int:
                           max(t[2] for t in tiles), max(t[3] for t in tiles))
     else:
         extract_bounds = bounds
-    download(PBF_URL, args.pbf, 100_000_000)
+    if args.pbf.name == "dhaka-division-envelope.osm.pbf":
+        if not args.pbf.is_file() or args.pbf.stat().st_size < 10_000_000:
+            raise RuntimeError(
+                "Prepared Dhaka Division PBF is missing or too small. Run "
+                "tools/map_pipeline/prepare_dhaka_division_pbf.py first."
+            )
+        print(f"Using cached regional OSM extract {args.pbf} ({args.pbf.stat().st_size:,} bytes)", flush=True)
+    else:
+        download(PBF_URL, args.pbf, 100_000_000)
     handler = RegionHandler(extract_bounds)
     print("Extracting OSM features for selected Dhaka Division tiles…", flush=True)
     handler.apply_file(str(args.pbf), locations=True)
@@ -339,7 +454,7 @@ def main() -> int:
         })
     valid = sum(t["status"] == "BAKED_FROM_OSM" for t in tile_records)
     output_manifest = {
-        "product": "Project A-Square — Dhaka Division boundary-clipped 3D map",
+        "product": "Project A-Square — Dhaka Division boundary-clipped 3D map tile batch",
         "source": "Geofabrik Bangladesh OpenStreetMap PBF",
         "source_url": PBF_URL,
         "attribution": OSM_ATTRIBUTION,
@@ -349,13 +464,22 @@ def main() -> int:
                                    "attribution": BOUNDARY_ATTRIBUTION},
         "region_south_west_north_east": list(bounds),
         "tile_edge_degrees": args.tile_degrees,
-        "tile_count_intersecting_boundary": len(tiles),
+        "tile_count_intersecting_boundary": total_tiles,
+        "tile_batch_offset": args.tile_offset,
+        "tile_batch_count": len(tiles),
+        "tile_batch_tile_ids": [r["tile_id"] for r in tile_records],
+        "tile_order_priority": {"name": "Shariatpur District first", "seed_lat_lon": [priority_lat, priority_lon],
+                                "district_boundary_source": "geoBoundaries gbOpen BGD ADM2",
+                                "district_boundary_properties": shariatpur_properties.get("feature_properties", {}),
+                                "district_boundary_license": shariatpur_properties.get("boundary_license", "See geoBoundaries metadata"),
+                                "tiles_intersecting_shariatpur_district": shariatpur_tile_count,
+                                "note": "All Shariatpur-intersecting tiles are emitted first; later offsets continue through every remaining Dhaka Division tile."},
         "tile_count_with_geometry": valid,
         "source_elements_in_boundary_envelope": len(handler.elements),
         "missing_way_locations": handler.bad_locations,
         "generated_utc": datetime.now(timezone.utc).isoformat(),
         "coordinate_note": "Each GLB has its own geographic origin; use manifest origins for streaming. Tiles and ground are clipped to the selected administrative boundary.",
-        "completeness_note": "OSM mapped features only. Not proof every real-world feature is mapped; facades, heights, interiors, and imagery remain incomplete unless source data provides them.",
+        "completeness_note": "This artifact is one bounded batch from the complete Dhaka Division tile order. Collect all batch offsets to cover the full division. OSM mapped features only; not proof every real-world feature is mapped. Facades, heights, interiors, and imagery remain incomplete unless source data provides them.",
         "tiles": tile_records,
     }
     (args.out / "map_tiles_manifest.json").write_text(json.dumps(output_manifest, ensure_ascii=False, indent=2), encoding="utf-8")
