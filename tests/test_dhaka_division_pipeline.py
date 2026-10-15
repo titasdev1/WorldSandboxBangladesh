@@ -3,11 +3,30 @@ import unittest
 from pathlib import Path
 
 from shapely.geometry import Polygon, box, shape
-from tools.map_pipeline.build_dhaka_division import _clip_elements, _source_geometry, _replace_ground_with_boundary
+from tools.map_pipeline.build_dhaka_division import (\n    _clip_elements, _source_geometry, _replace_ground_with_boundary,\n    order_tiles_shariatpur_first, select_tile_batch, SHARIATPUR_PRIORITY_LAT_LON,\n)
 from tools.map_pipeline.build_dhaka_map import build_map
 
 
 class DhakaDivisionPipelineTests(unittest.TestCase):
+    def test_shariatpur_is_first_but_all_division_tiles_remain_in_order(self):
+        tiles = [
+            (23.80, 90.40, 23.85, 90.45),  # central Dhaka
+            (23.20, 90.325, 23.25, 90.375),  # Shariatpur town
+            (24.00, 90.50, 24.05, 90.55),  # farther division tile
+        ]
+        ordered = order_tiles_shariatpur_first(tiles)
+        self.assertEqual(ordered[0], tiles[1])
+        self.assertEqual(set(ordered), set(tiles))
+        self.assertEqual(len(select_tile_batch(ordered, 0, 2)), 2)
+        self.assertEqual(select_tile_batch(ordered, 2, 2), [tiles[2]])
+        self.assertEqual(SHARIATPUR_PRIORITY_LAT_LON, (23.2167, 90.3500))
+
+    def test_tile_batches_reject_invalid_limits(self):
+        with self.assertRaises(ValueError):
+            select_tile_batch([], -1, 2)
+        with self.assertRaises(ValueError):
+            select_tile_batch([], 0, 0)
+
     def test_boundary_clip_removes_outside_nodes_and_clips_crossing_road(self):
         boundary = box(90.0, 23.0, 90.1, 23.1)
         elements = [
