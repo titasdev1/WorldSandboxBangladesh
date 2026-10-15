@@ -79,7 +79,7 @@ func _physics_process(delta):
   var bounds: Dictionary = {}
   var map_loader: Node = world.get("real_dhaka_loader")
   if is_instance_valid(map_loader) and map_loader.has_method("get_world_bounds"):
-   bounds = map_loader.get_world_bounds()
+   bounds = map_loader.call("get_world_bounds")
   if not bounds.is_empty():
    position.x = clamp(position.x, float(bounds.get("min_x", -12000.0)), float(bounds.get("max_x", 12000.0)))
    position.z = clamp(position.z, float(bounds.get("min_z", -10000.0)), float(bounds.get("max_z", 16800.0)))
