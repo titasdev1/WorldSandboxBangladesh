@@ -75,35 +75,46 @@ func _bootstrap() -> void:
 
 func _generate_catalogue() -> void:
     missions.clear()
-    var mission_id := 0
-    for client_index in range(CLIENTS.size()):
+    for mission_id in range(MISSIONS_PER_CATALOGUE):
+        # 40 connected chapter arcs x 100 jobs per arc. Each chapter focuses on
+        # one local place archetype and a story beat; its 100 jobs cover every
+        # client/job pairing. Across the catalogue every 4D combination appears once.
+        var chapter_index := int(mission_id / 100)
+        var episode_index := mission_id % 100
+        var client_index := episode_index % CLIENTS.size()
+        var job_index := int(episode_index / CLIENTS.size()) % JOBS.size()
+        var place_index := chapter_index % PLACES.size()
+        var beat_index := int(chapter_index / PLACES.size()) % STORY_BEATS.size()
         var client: Dictionary = CLIENTS[client_index]
-        for job_index in range(JOBS.size()):
-            var job: Dictionary = JOBS[job_index]
-            for place_index in range(PLACES.size()):
-                var place: String = PLACES[place_index]
-                for beat_index in range(STORY_BEATS.size()):
-                    var beat: Dictionary = STORY_BEATS[beat_index]
-                    var title := "%s • %s" % [job.title, place]
-                    var brief := "%s, a local %s, asks you to %s %s to the %s. %s %s" % [
-                        client.name, client.role, job.verb, job.object, place,
-                        beat.hook, beat.turn
-                    ]
-                    missions.append({
-                        "id": mission_id,
-                        "title": title,
-                        "client": client.name,
-                        "client_role": client.role,
-                        "place": place,
-                        "kind": job.kind,
-                        "object": job.object,
-                        "brief": brief,
-                        "story_beat": beat_index + 1,
-                        "chapter": int(mission_id / 100) + 1,
-                        "episode": mission_id % 100 + 1,
-                        "reward": int(job.reward) + client_index * 4 + place_index * 3 + beat_index * 25
-                    })
-                    mission_id += 1
+        var job: Dictionary = JOBS[job_index]
+        var place: String = PLACES[place_index]
+        var beat: Dictionary = STORY_BEATS[beat_index]
+        var chapter_number := chapter_index + 1
+        var chapter_title := "%s • %s" % [place, beat.hook]
+        var chapter_story := "Chapter %02d: %s. %s" % [
+            chapter_number, place, beat.turn
+        ]
+        var title := "%s • %s" % [job.title, place]
+        var brief := "%s, a local %s, asks you to %s %s to the %s. %s %s Arc: %s" % [
+            client.name, client.role, job.verb, job.object, place,
+            beat.hook, beat.turn, chapter_story
+        ]
+        missions.append({
+            "id": mission_id,
+            "title": title,
+            "client": client.name,
+            "client_role": client.role,
+            "place": place,
+            "kind": job.kind,
+            "object": job.object,
+            "brief": brief,
+            "chapter": chapter_number,
+            "chapter_title": chapter_title,
+            "chapter_story": chapter_story,
+            "episode": episode_index + 1,
+            "story_beat": beat_index + 1,
+            "reward": int(job.reward) + client_index * 4 + place_index * 3 + beat_index * 25
+        })
     if missions.size() != MISSIONS_PER_CATALOGUE:
         push_error("Deshi mission catalogue expected %d records, generated %d." % [
             MISSIONS_PER_CATALOGUE, missions.size()
