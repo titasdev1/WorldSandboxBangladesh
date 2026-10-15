@@ -182,3 +182,43 @@ The user's staged ambition is: **a meaningful first content-rich project around 
 ## 10. Definition of success
 
 Success is not “a huge ZIP,” “many commits,” “a successful compile,” or a polished menu alone. Success is one continuously improved Android game where the player can enter a recognizable, lively city; control the character and camera naturally; use local transport and bargain fares; explore and discover districts; complete varied missions; interact with markets and NPCs; play real combat modes; save progress; and eventually join other players or download new map regions. All of this must remain in one canonical project, with measurable build evidence and no silent loss of earlier working features.
+
+## 12. Parallel production tracks — effective 2026-10-16
+
+The game and the real-world Dhaka map are two coordinated workstreams with separate acceptance gates. They must not become two competing games.
+
+### Track A — The game, independent of the temporary map
+
+- Keep one canonical Godot project, one Android release workflow, and the existing working boot path.
+- Use a minimal, inexpensive-to-load temporary test world while the real map is built separately. Keep it clearly marked as a development fallback; it must be replaceable through a world-provider/manifest boundary, not hard-coded into player, mission, UI, or gameplay logic.
+- “Tiny map” means minimizing map-specific storage and startup/loading cost, not pretending the whole app uses zero storage. Do not strip high-quality assets or graphics options simply to make the package small.
+- First audit the running build and asset manifest to find why the visuals are primitive despite the package footprint. Measure APK bytes separately from workflow artifact-container bytes and from install size.
+- Build a complete first-launch experience: loading sequence, responsive lobby, working navigation, profile, loadout, characters, weapons, vehicles, inventory, settings, graphics/audio/control options, mode selection, pause, and save/load. Every visible control must work or be explicitly labelled unavailable; no fake mode cards.
+- Support both first-person and third-person play with a real mode switch, camera collision/sensitivity, camera-relative movement, a circular analog joystick, and correctly mapped touch controls. Four-direction buttons are not the desired movement interface.
+- Build distinct playable mode loops, not merely a menu: free roam / original Vice City-inspired story mode, missions, racing/driving, chase, combat, survival, and events. Online multiplayer must not be claimed unless networking and live sessions are implemented and tested.
+- Establish a data-driven story and mission factory that can scale toward 4,000+ original Bangladesh/deshi missions and story beats. Begin with high-quality playable mission chains and reusable validated templates. Count a mission as complete only when it has objectives, dialogue or clear story context, triggers, success/failure, rewards/consequences, retry/save behavior, and a regression test. Never claim thousands are finished based on generated titles or duplicate templates.
+- Replace crude placeholder player/vehicle/prop presentation with original or properly licensed models, rigged characters, locomotion/combat/interaction/vehicle animations, VFX, sound, local ambience, polished UI and cinematic sequences where feasible. Cinematics must be skippable, streamed/compressed appropriately, and must not block the low-end mobile profile.
+- Add performance budgets and real profiling: LODs, texture resolution/compression, batching/instancing, culling, object pooling, distance-based NPC simulation, world streaming, scalable resolution/shadows/effects, quality presets, FPS limits, memory/loading telemetry, and device-specific evidence. Preserve a high-quality graphics path alongside scalable lower settings.
+
+### Track B — The real Dhaka map
+
+- Continue independently on the existing map pipeline and use real georeferenced road/building/place data with source attribution. No generic generated city may be described as the real map.
+- Identify exact tile IDs, bounds, centers and neighborhood intersections from the actual generated manifest. Never guess neighborhoods from archive size or tile count.
+- Audit available licensed/authorized aerial, facade, terrain and street-level sources. OpenStreetMap footprints are not photorealistic facades; AI-generated details are reconstructions and must be labelled as inferred, not factual.
+- Generate detailed exteriors and fictional interiors/NPCs anchored to mapped buildings, with provenance and confidence metadata. Do not claim the real owners or indoor layouts are known unless a reliable source proves it.
+- Verify geographic alignment, roads, waterways, landmarks, clipping, tile streaming, missing assets and performance. Preserve the fallback world if the map package is incomplete.
+- Map completion and game completion are independent gates. Once the real Dhaka package meets its map-quality gate, replace the temporary map through the provider/manifest interface without rewriting the game.
+
+### Mandatory iterative quality loop
+
+After each meaningful change on either track:
+1. Inspect the current canonical implementation and identify the highest-impact gap.
+2. Make a concrete code/content change—not just a workflow, issue, or plan update.
+3. Run script/import/startup checks and relevant unit/regression tests.
+4. Run the canonical Android build for game-facing changes; run map geometry/provenance checks for map changes.
+5. Inspect logs, exact APK/artifact sizes, and generated manifests; never compare different artifact types as if equivalent.
+6. Capture in-game evidence and measure FPS/frame time, memory, load times and touch behavior on a named device or clearly labelled emulator.
+7. Ask “what still falls short of the GTA 6 / CODM reference and why?”, record specific gaps, and start the next improvement cycle.
+8. Update roadmap/state with commit, run, evidence, and unverified risks. Do not claim background work continues after the session unless a real automation/build is running.
+
+Reference games are quality targets, not permission to copy proprietary assets, branding, maps, or code. All content must be original or properly licensed.
