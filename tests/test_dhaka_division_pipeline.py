@@ -17,7 +17,8 @@ class DhakaDivisionPipelineTests(unittest.TestCase):
             (23.20, 90.325, 23.25, 90.375),  # Shariatpur town
             (24.00, 90.50, 24.05, 90.55),  # farther division tile
         ]
-        ordered = order_tiles_shariatpur_first(tiles)
+        shariatpur_boundary = box(90.30, 23.20, 90.38, 23.27)
+        ordered = order_tiles_shariatpur_first(tiles, shariatpur_boundary)
         self.assertEqual(ordered[0], tiles[1])
         self.assertEqual(set(ordered), set(tiles))
         self.assertEqual(len(select_tile_batch(ordered, 0, 2)), 2)
