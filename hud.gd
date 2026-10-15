@@ -239,7 +239,14 @@ func _process(_delta):
    var mission_brief := String(active_mission.get("brief", "Reach the blue marker."))
    if mission_brief.length() > 112:
     mission_brief = mission_brief.substr(0, 109) + "..."
-   mission.text = "DESHI JOB %04d/4000: %s    REWARD +৳%d\n%s" % [int(active_mission.get("id", 0)) + 1, active_mission.get("title", "Local job"), int(active_mission.get("reward", 0)), mission_brief]
+   var mission_step_text := ""
+   var mission_factory_node := w.get_node_or_null("MissionFactory")
+   if is_instance_valid(mission_factory_node):
+    var step_total: int = (mission_factory_node.get("target_positions") as Array).size()
+    var step_now: int = int(mission_factory_node.get("target_step")) + 1
+    if step_total > 0:
+     mission_step_text = "    STOP %d/%d" % [step_now, step_total]
+   mission.text = "DESHI JOB %04d/4000: %s    REWARD +৳%d%s\n%s" % [int(active_mission.get("id", 0)) + 1, active_mission.get("title", "Local job"), int(active_mission.get("reward", 0)), mission_step_text, mission_brief]
  elif w.mission_active:
   var stage_names = ["Market delivery", "Tower pickup", "Bus terminal drop"]
   mission.text = "STORY %d/3: %s    Rickshaw fare ৳%d → offer ৳%d" % [w.mission_stage + 1, stage_names[w.mission_stage], w.fare_requested, w.bargain_offer]
