@@ -359,7 +359,13 @@ def main() -> int:
         "tiles": tile_records,
     }
     (args.out / "map_tiles_manifest.json").write_text(json.dumps(output_manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    (args.out / "ATTRIBUTION.txt").write_text(OSM_ATTRIBUTION + "\n" + BOUNDARY_ATTRIBUTION + "\nOSM data license: ODbL 1.0. geoBoundaries license: CC BY 4.0.\n", encoding="utf-8")
+    boundary_license_text = str(boundary_properties.get("boundary_license", "See geoBoundaries metadata"))
+    (args.out / "ATTRIBUTION.txt").write_text(
+        OSM_ATTRIBUTION + "\\n" + BOUNDARY_ATTRIBUTION + "\\n"
+        + "OSM data license: ODbL 1.0.\\n"
+        + f"geoBoundaries boundary license (from downloaded API metadata): {boundary_license_text}.\\n",
+        encoding="utf-8",
+    )
     print(json.dumps({"output": str(args.out), "tiles": len(tiles), "tiles_with_geometry": valid,
                       "source_elements": len(handler.elements), "bounds": list(bounds)}, indent=2))
     if valid == 0:
