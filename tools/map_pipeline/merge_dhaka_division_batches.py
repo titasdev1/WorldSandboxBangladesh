@@ -95,7 +95,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path) -> dict[str, Any
     shutil.copy2(attribution_source, out / "ATTRIBUTION.txt")
 
     manifest = dict(first)
-    for key in ("tile_batch_offset", "tile_batch_count", "tile_batch_tile_ids"):
+    for key in ("tile_batch_offset", "tile_batch_count", "tile_batch_tile_ids", "source_elements_in_boundary_envelope"):
         manifest.pop(key, None)
     manifest.update({
         "product": "Project A-Square — complete Dhaka Division boundary-clipped 3D map",
