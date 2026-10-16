@@ -111,8 +111,8 @@ func _build_room() -> void:
         _solid_box(active_root, "LPartitionRear", Vector3(-room_width * 0.18, 1.5, -room_depth * 0.18), Vector3(room_width * 0.48, 3.0, 0.16), room_color.darkened(0.06))
         _solid_box(active_root, "LPartitionSide", Vector3(-room_width * 0.42, 1.5, -room_depth * 0.02), Vector3(0.16, 3.0, room_depth * 0.32), room_color.darkened(0.06))
 
-    _build_furniture(category)
-    _add_room_details(category)
+    _build_furniture(category, room_width, room_depth, room_height)
+    _add_room_details(category, room_width, room_depth, room_height)
     _add_building_specific_details(category, room_width, room_depth, room_height, room_rng, building_id)
     _add_resident(category)
     var light := OmniLight3D.new()
@@ -197,11 +197,15 @@ func _add_building_specific_details(category: String, room_width: float, room_de
     if room_rng.randf() > 0.5:
         _box(active_root, "ExtraCeilingLight", Vector3(0, room_height - 0.4, room_depth * 0.18), Vector3(2.0, 0.06, 0.22), Color("#fff0ce"))
 
-func _add_room_details(category: String) -> void:
+func _add_room_details(category: String, room_width: float, room_depth: float, room_height: float) -> void:
     # Game-authored Bangladeshi interior dressing. These details are generated
     # assets, not scans or claims about the actual building's private interior.
+    var half_w := room_width * 0.5
+    var half_d := room_depth * 0.5
+    var window_y := minf(3.0, room_height * 0.68)
+    var window_z := -minf(2.4, room_depth * 0.18)
     for side in [-1.0, 1.0]:
-        var window_center := Vector3(side * 6.82, 3.0, -2.4)
+        var window_center := Vector3(side * (half_w - 0.18), window_y, window_z)
         _box(active_root, "WindowGlass", window_center, Vector3(0.045, 1.35, 2.55), Color("#6b9ca8"))
         for z_offset in [-1.32, 1.32]:
             _box(active_root, "WindowFrameVertical", window_center + Vector3(-side * 0.035, 0.0, z_offset), Vector3(0.12, 1.55, 0.12), Color("#eee1c8"))
@@ -219,19 +223,21 @@ func _add_room_details(category: String) -> void:
     clock_mesh.height = 0.08
     clock.mesh = clock_mesh
     clock.rotation_degrees = Vector3(90, 0, 0)
-    clock.position = Vector3(5.0, 3.65, -6.78)
+    clock.position = Vector3(minf(5.0, half_w - 1.0), minf(3.65, room_height - 0.75), -half_d + 0.18)
     clock.material_override = _material(Color("#f1e7cf"))
     active_root.add_child(clock)
-    _box(active_root, "Noticeboard", Vector3(-4.4, 3.0, -6.78), Vector3(2.2, 1.5, 0.08), Color("#785c45"))
-    _box(active_root, "NoticeboardPaper", Vector3(-4.4, 3.0, -6.72), Vector3(1.85, 1.18, 0.035), Color("#e8d9b7"))
+    var board_x := -minf(4.4, half_w - 1.2)
+    var board_y := minf(3.0, room_height - 1.1)
+    _box(active_root, "Noticeboard", Vector3(board_x, board_y, -half_d + 0.18), Vector3(2.2, 1.5, 0.08), Color("#785c45"))
+    _box(active_root, "NoticeboardPaper", Vector3(board_x, board_y, -half_d + 0.24), Vector3(1.85, 1.18, 0.035), Color("#e8d9b7"))
 
     # Functional-looking tube light and a rotating ceiling fan provide a little
     # motion and lighting depth while remaining cheap enough for mobile.
-    _box(active_root, "TubeLightHousing", Vector3(0.0, 4.68, -1.2), Vector3(3.2, 0.12, 0.28), Color("#d8ddd7"))
-    _box(active_root, "TubeLightGlow", Vector3(0.0, 4.60, -1.2), Vector3(2.9, 0.035, 0.12), Color("#fff1c9"))
+    _box(active_root, "TubeLightHousing", Vector3(0.0, room_height - 0.22, -1.2), Vector3(3.2, 0.12, 0.28), Color("#d8ddd7"))
+    _box(active_root, "TubeLightGlow", Vector3(0.0, room_height - 0.31, -1.2), Vector3(2.9, 0.035, 0.12), Color("#fff1c9"))
     fan_pivot = Node3D.new()
     fan_pivot.name = "CeilingFanAnimated"
-    fan_pivot.position = Vector3(0.0, 4.42, 1.8)
+    fan_pivot.position = Vector3(0.0, room_height - 0.5, 1.8)
     active_root.add_child(fan_pivot)
     var hub := MeshInstance3D.new()
     var hub_mesh := SphereMesh.new()
@@ -254,13 +260,15 @@ func _add_room_details(category: String) -> void:
         _box(active_root, "ShopFridge", Vector3(-5.1, 1.35, 4.6), Vector3(1.0, 2.7, 1.2), Color("#d4dedb"))
         _box(active_root, "FridgeDoorGlass", Vector3(-5.1, 1.45, 3.96), Vector3(0.72, 1.75, 0.05), Color("#8eb8c0"))
     elif category.contains("clinic") or category.contains("hospital") or category.contains("health"):
-        _box(active_root, "ClinicWallCabinet", Vector3(4.9, 3.6, -6.78), Vector3(2.2, 1.0, 0.12), Color("#e8eee9"))
+        _box(active_root, "ClinicWallCabinet", Vector3(minf(4.9, half_w - 1.2), minf(3.6, room_height - 0.7), -half_d + 0.18), Vector3(2.2, 1.0, 0.12), Color("#e8eee9"))
     elif category.contains("school") or category.contains("education"):
-        _box(active_root, "ClassroomMapBoard", Vector3(0.0, 3.4, -6.78), Vector3(3.4, 1.0, 0.08), Color("#d8c59a"))
+        _box(active_root, "ClassroomMapBoard", Vector3(0.0, minf(3.4, room_height - 0.8), -half_d + 0.18), Vector3(3.4, 1.0, 0.08), Color("#d8c59a"))
     elif category.contains("house") or category.contains("residential") or category.contains("home"):
         _box(active_root, "LivingRoomRug", Vector3(0.0, 0.025, 1.2), Vector3(4.8, 0.035, 3.2), Color("#8b5549"))
 
-func _build_furniture(category: String) -> void:
+func _build_furniture(category: String, room_width: float, room_depth: float, room_height: float) -> void:
+    var half_w := room_width * 0.5
+    var half_d := room_depth * 0.5
     if category.contains("shop") or category in ["retail", "convenience", "supermarket"] or category.contains("office"):
         _solid_box(active_root, "ShopCounter", Vector3(0, 0.65, -2.3), Vector3(4.2, 1.3, 1.0), Color("#79543a"))
         _solid_box(active_root, "CounterTop", Vector3(0, 1.35, -2.3), Vector3(4.4, 0.12, 1.15), Color("#c8a36a"))
@@ -276,7 +284,7 @@ func _build_furniture(category: String) -> void:
         _solid_box(active_root, "MedicineCabinet", Vector3(4.7, 1.5, -2.3), Vector3(1.1, 3.0, 2.0), Color("#d9e1d8"))
         _box(active_root, "ClinicDesk", Vector3(2.8, 0.65, 2.0), Vector3(2.6, 1.3, 1.0), Color("#9b7955"))
     elif category.contains("school") or category.contains("education"):
-        _box(active_root, "ClassBoard", Vector3(0, 2.5, -6.7), Vector3(5.0, 1.6, 0.12), Color("#315447"))
+        _box(active_root, "ClassBoard", Vector3(0, minf(2.5, room_height - 1.2), -half_d + 0.18), Vector3(minf(5.0, room_width - 2.0), 1.6, 0.12), Color("#315447"))
         for row in range(2):
             for col in range(3):
                 var p := Vector3(-3.8 + float(col) * 3.8, 0.55, 0.0 + float(row) * 2.5)
