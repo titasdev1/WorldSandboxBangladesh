@@ -296,7 +296,9 @@ def surface_color(tags: dict[str, str]) -> tuple[int, int, int, int] | None:
         return (102, 137, 78, 255)
     if leisure in {"park", "garden", "playground", "pitch", "golf_course", "recreation_ground"}:
         return (86, 132, 74, 255)
-    if landuse in {"farmland", "farmyard", "orchard", "plant_nursery", "aquaculture", "allotments"}:
+    if landuse == "aquaculture":
+        return (77, 126, 139, 255)
+    if landuse in {"farmland", "farmyard", "orchard", "plant_nursery", "allotments"}:
         return (126, 139, 83, 255)
     if landuse in {"residential", "commercial", "retail"}:
         return (124, 126, 111, 255)
@@ -683,7 +685,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 "floors_source": building_floors_source(tags),
                 "height_metres": round(height, 2),
                 "height_source": building_height_source(tags),
-                "facade_status": "MAPPED_COLOUR_TAGS_IF_PRESENT; OTHERWISE_APPROXIMATE_CATEGORY_COLOUR",
+                "facade_status": "PROCEDURAL_LOW_POLY_WINDOW_PANELS; MAPPED_COLOUR_TAGS_IF_PRESENT; OTHERWISE_APPROXIMATE_CATEGORY_COLOUR",
                 "geometry_confidence": "OSM_FOOTPRINT; HEIGHT_IS_TAGGED_OR_FLAGGED_AREA_CATEGORY_ESTIMATE",
                 "building_tags": {
                     key: tags[key] for key in (
@@ -842,12 +844,12 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "road_ways": roads,
                            "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places,
                            "interior_anchors": len(interior_seeds), "mapped_trees": trees,
-                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps,
+                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows,
                             "water_polygons": water_polygons, "waterway_segments": waterway_segments,
                             "landuse_areas": landuse_areas, "railway_ways": railway_ways, "bridge_ways": bridge_ways},
         "height_note": "OSM height/building:levels tags are used when present; otherwise footprint-area/building-category estimates with deterministic floor-height variation are flagged as inferred, not surveyed facts.",
         "hydrography_note": "Mapped OSM water polygons are kept to their source outlines. River/canal centerlines without mapped widths use type-based approximate widths and are not survey-grade water boundaries.",
-         "visual_fidelity_note": "Real OSM road alignments, building footprints, mapped water and land-use surfaces, and tagged bridges are included. Explicit facade/roof colour tags are used where available, and Bangla/English names plus exterior image references are preserved per building. Untagged facades remain approximate; photorealistic street imagery requires separately licensed source data.",
+         "visual_fidelity_note": "Real OSM road alignments, building footprints, mapped water and land-use surfaces, and tagged bridges are included. Sufficiently large buildings receive lightweight procedural low-poly window panels; explicit facade/roof colour tags are used where available. Bangla/English names and exterior image references are preserved per building. This is not photorealistic street imagery; that requires separately licensed source data.",
         "interiors_and_people": "AI_Interior_Seeds.json includes anchors for every mapped building footprint plus named/tagged places; the game generates fictional interiors and residents at runtime, not actual private interiors or real people.",
         "engine_import": "Import Dhaka_Explorable_Map.glb as a Godot MeshInstance3D/scene; retain GeoJSON and manifest for labels, navigation and source attribution.",
     }
