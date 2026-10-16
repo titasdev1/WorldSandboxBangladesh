@@ -59,7 +59,8 @@ permissions:
 
 concurrency:
   group: dhaka-division-map-v2-${{ github.ref }}
-  cancel-in-progress: true
+  # Sequential batches must not cancel the previous run after dispatching the next.
+  cancel-in-progress: false
 
 jobs:
   build-map:
