@@ -386,7 +386,7 @@ def facade_window_geometry(
     for part in parts:
         if not isinstance(part, Polygon) or part.area < 20.0:
             continue
-        edges: list[tuple[float, tuple[float, float], tuple[float, float], float, float]] = []
+        edges: list[tuple[float, tuple[float, float], tuple[float, float], float, float, float]] = []
         coords = list(part.exterior.coords)
         for p1, p2 in zip(coords, coords[1:]):
             dx, dy = float(p2[0] - p1[0]), float(p2[1] - p1[1])
@@ -581,8 +581,11 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
 
     buildings = roads = inferred_heights = named_places = 0
     trees = utility_poles = street_lamps = 0
-    water_polygons = waterway_segments = landuse_areas = railway_ways = bridge_ways = 0
+    water_polygons = waterway_segments = landuse_areas = railway_ways = bridge_ways = facade_windows = 0
     surface_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
+    facade_vertices_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
+    facade_faces_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
+    facade_vertex_counts: dict[tuple[int, int, int, int], int] = {}
     interior_seeds: list[dict[str, Any]] = []
     used_ids: set[tuple[str, int]] = set()
     for el in elements:
@@ -638,6 +641,14 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             for roof_index, roof_mesh in enumerate(extruded_polygon(polygon, 0.055, roof_color(tags, osm_id), f"osm_roof_{osm_id}")):
                 roof_mesh.apply_translation((0.0, 0.0, height + 0.025))
                 scene.add_geometry(roof_mesh, node_name=f"building_roof_{osm_id}_{roof_index}", geom_name=f"building_roof_{osm_id}_{roof_index}")
+            window_geometry = facade_window_geometry(polygon, height, osm_id, tile_bounds)
+            if window_geometry is not None:
+                window_color, window_vertices, window_faces, window_count = window_geometry
+                vertex_offset = facade_vertex_counts.get(window_color, 0)
+                facade_vertices_by_color.setdefault(window_color, []).append(window_vertices)
+                facade_faces_by_color.setdefault(window_color, []).append(window_faces + vertex_offset)
+                facade_vertex_counts[window_color] = vertex_offset + len(window_vertices)
+                facade_windows += window_count
             buildings += 1
             name = tags.get("name", "")
             has_specific_place_tags = bool(name or tags.get("shop") or tags.get("amenity") or tags.get("tourism"))
@@ -784,6 +795,16 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         combined = trimesh.util.concatenate(meshes)
         color_name = "".join(f"{channel:02x}" for channel in color[:3])
         scene.add_geometry(combined, node_name=f"mapped_surface_{color_name}", geom_name=f"mapped_surface_{color_name}")
+
+    for color, vertex_chunks in facade_vertices_by_color.items():
+        if not vertex_chunks:
+            continue
+        vertices = np.concatenate(vertex_chunks, axis=0)
+        faces = np.concatenate(facade_faces_by_color[color], axis=0)
+        combined = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+        color_mesh(combined, color)
+        color_name = "".join(f"{channel:02x}" for channel in color[:3])
+        scene.add_geometry(combined, node_name=f"facade_windows_{color_name}", geom_name=f"facade_windows_{color_name}")
 
     scene_bounds = scene.bounds
     if (scene_bounds[0][0] < -width / 2 - 1 or scene_bounds[1][0] > width / 2 + 1 or
