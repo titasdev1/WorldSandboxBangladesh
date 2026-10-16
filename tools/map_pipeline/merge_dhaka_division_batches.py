@@ -129,6 +129,15 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "attribution": boundary_attribution,
     })
     manifest["administrative_boundary"] = boundary_record
+    # Shariatpur review packages must place the player and streamed tiles in the
+    # district, not tens of kilometres away at the Greater Dhaka anchor. Full
+    # division packages retain the established central-Dhaka world origin.
+    region_bounds = manifest.get("region_south_west_north_east", [])
+    if stage == "shariatpur_review" and isinstance(region_bounds, list) and len(region_bounds) == 4:
+        south, west, north, east = (float(value) for value in region_bounds)
+        manifest["game_origin_lat_lon"] = [(south + north) * 0.5, (west + east) * 0.5]
+    else:
+        manifest["game_origin_lat_lon"] = [23.8103, 90.4125]
     manifest.update({
         "product": (
             "Project A-Square — complete Shariatpur District boundary-clipped 3D map"
