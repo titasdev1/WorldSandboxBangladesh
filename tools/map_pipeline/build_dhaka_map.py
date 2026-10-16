@@ -44,6 +44,10 @@ def overpass_query(bbox: tuple[float, float, float, float]) -> str:
   way["natural"]({box});
   way["landuse"]({box});
   way["leisure"]({box});
+  relation["natural"]({box});
+  relation["landuse"]({box});
+  relation["leisure"]({box});
+  relation["water"]({box});
   way["railway"]({box});
   way["shop"]({box});
   way["amenity"]({box});
@@ -57,6 +61,78 @@ def overpass_query(bbox: tuple[float, float, float, float]) -> str:
   node["highway"="street_lamp"]({box});
 );
 out body geom;"""
+
+
+def relation_area_polygons(
+    element: dict[str, Any], origin_lat: float, origin_lon: float, tile_bounds: Polygon
+) -> list[Polygon]:
+    """Build clipped multipolygon rings from OSM relation outer/inner member ways.
+
+    OSM land-cover and water areas are often relations rather than closed ways.
+    Stitch member segments by shared endpoints, retaining inner rings as holes.
+    Incomplete or invalid rings are skipped instead of fabricating geometry.
+    """
+    members = element.get("members", [])
+    if not isinstance(members, list):
+        return []
+
+    def stitched_rings(role: str) -> list[list[tuple[float, float]]]:
+        segments: list[list[tuple[float, float]]] = []
+        for member in members:
+            if member.get("type") != "way" or member.get("role") != role:
+                continue
+            geometry = member.get("geometry", [])
+            coords = [
+                local_xy(float(point["lat"]), float(point["lon"]), origin_lat, origin_lon)
+                for point in geometry
+                if "lat" in point and "lon" in point
+            ]
+            if len(coords) >= 2:
+                segments.append(coords)
+        rings: list[list[tuple[float, float]]] = []
+        while segments:
+            ring = segments.pop(0)
+            while len(ring) >= 3 and ring[0] != ring[-1]:
+                match = None
+                reverse = False
+                for index, segment in enumerate(segments):
+                    if ring[-1] == segment[0]:
+                        match = index
+                        break
+                    if ring[-1] == segment[-1]:
+                        match = index
+                        reverse = True
+                        break
+                if match is None:
+                    break
+                segment = segments.pop(match)
+                ring.extend(reversed(segment[:-1]) if reverse else segment[1:])
+            if len(ring) >= 4 and ring[0] == ring[-1]:
+                rings.append(ring)
+        return rings
+
+    outer_rings = stitched_rings("outer")
+    inner_rings = stitched_rings("inner")
+    polygons: list[Polygon] = []
+    for outer in outer_rings:
+        shell = Polygon(outer)
+        if shell.is_empty or shell.area < 0.5:
+            continue
+        holes = []
+        for inner in inner_rings:
+            hole = Polygon(inner)
+            if not hole.is_empty and shell.contains(hole.representative_point()):
+                holes.append(inner)
+        polygon = Polygon(outer, holes)
+        if not polygon.is_valid:
+            polygon = polygon.buffer(0)
+        clipped = polygon.intersection(tile_bounds)
+        parts = list(clipped.geoms) if isinstance(clipped, MultiPolygon) else [clipped]
+        polygons.extend(
+            part for part in parts
+            if isinstance(part, Polygon) and not part.is_empty and part.area >= 0.5
+        )
+    return polygons
 
 
 def fetch_osm(bbox: tuple[float, float, float, float]) -> dict[str, Any]:
@@ -697,6 +773,26 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         tags = el.get("tags", {})
         points = geometry_xy(el, origin_lat, origin_lon)
         if not points:
+            # Multipolygon relations commonly carry mapped forest, farmland, park,
+            # wetland and water boundaries. Include them rather than leaving these
+            # large real-world surfaces as untextured ground.
+            if el_type == "relation" and any(
+                key in tags for key in ("natural", "landuse", "leisure", "water")
+            ):
+                color = surface_color(tags)
+                if color is not None:
+                    for polygon in relation_area_polygons(el, origin_lat, origin_lon, tile_bounds):
+                        for mesh in flat_surface_mesh(polygon, color, f"osm_relation_surface_{osm_id}"):
+                            surface_meshes_by_color.setdefault(color, []).append(mesh)
+                        if is_water_area(tags):
+                            water_polygons += 1
+                            blocked_vegetation_polygons.append(polygon)
+                        else:
+                            landuse_areas += 1
+                            green_kind = vegetation_kind(tags)
+                            if green_kind:
+                                vegetation_polygons.append((polygon, osm_id, green_kind))
+                continue
             # Standalone mapped nodes can provide both environment props and interaction anchors.
             if el_type == "node":
                 lat, lon = el.get("lat"), el.get("lon")
