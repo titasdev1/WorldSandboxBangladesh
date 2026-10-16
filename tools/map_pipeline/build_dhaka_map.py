@@ -629,12 +629,14 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                     if not polygon.is_valid:
                         polygon = polygon.buffer(0)
                     polygon = polygon.intersection(tile_bounds)
-                    for mesh in flat_surface_mesh(polygon, color, f"osm_surface_{osm_id}"):
+                    surface_meshes = flat_surface_mesh(polygon, color, f"osm_surface_{osm_id}")
+                    for mesh in surface_meshes:
                         surface_meshes_by_color.setdefault(color, []).append(mesh)
-                    if is_water_area(tags):
-                        water_polygons += 1
-                    else:
-                        landuse_areas += 1
+                    if surface_meshes:
+                        if is_water_area(tags):
+                            water_polygons += 1
+                        else:
+                            landuse_areas += 1
                     continue
                 except Exception:
                     pass
@@ -647,9 +649,11 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 water_polygon = line.buffer(
                     waterway_width(tags) / 2.0, cap_style="flat", join_style="round"
                 ).intersection(tile_bounds)
-                for mesh in flat_surface_mesh(water_polygon, (52, 121, 158, 255), f"osm_waterway_{osm_id}"):
+                water_meshes = flat_surface_mesh(water_polygon, (52, 121, 158, 255), f"osm_waterway_{osm_id}")
+                for mesh in water_meshes:
                     surface_meshes_by_color.setdefault((52, 121, 158, 255), []).append(mesh)
-                waterway_segments += 1
+                if water_meshes:
+                    waterway_segments += 1
             except Exception:
                 continue
             continue
@@ -661,9 +665,11 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                     continue
                 rail_bed = line.buffer(2.2 / 2.0, cap_style="flat", join_style="round").intersection(tile_bounds)
                 rail_color = (75, 78, 80, 255)
-                for mesh in flat_surface_mesh(rail_bed, rail_color, f"osm_railway_{osm_id}"):
+                rail_meshes = flat_surface_mesh(rail_bed, rail_color, f"osm_railway_{osm_id}")
+                for mesh in rail_meshes:
                     surface_meshes_by_color.setdefault(rail_color, []).append(mesh)
-                railway_ways += 1
+                if rail_meshes:
+                    railway_ways += 1
             except Exception:
                 continue
             continue
