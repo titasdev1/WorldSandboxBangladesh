@@ -52,6 +52,10 @@ func _ready():
   var street_life = load("res://street_life_factory.gd").new()
   street_life.build(self)
  spawn_player()
+ # Instantiate the cumulative Deshi mission catalogue in the canonical world.
+ var side_mission_factory = load("res://systems/mission_factory.gd").new()
+ side_mission_factory.name = "MissionFactory"
+ add_child(side_mission_factory)
  spawn_traffic()
  spawn_npcs()
  _configure_real_missions()
