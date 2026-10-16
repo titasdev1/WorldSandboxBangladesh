@@ -141,6 +141,7 @@ func _create_hub() -> void:
     board.mesh = board_mesh
     board.material_override = _mat(Color("#35584b"))
     board.position = hub.position + Vector3(0, 1.55, 0)
+    board.rotation.y = PI / 2.0
     add_child(board)
 
     var header := Label3D.new()
@@ -149,7 +150,8 @@ func _create_hub() -> void:
     header.font_size = 34
     header.pixel_size = 0.009
     header.modulate = Color("#fff0bd")
-    header.position = hub.position + Vector3(0, 2.0, -0.12)
+    header.position = hub.position + Vector3(-0.13, 2.0, 0)
+    header.rotation.y = PI / 2.0
     add_child(header)
 
     var subtitle := Label3D.new()
@@ -158,7 +160,8 @@ func _create_hub() -> void:
     subtitle.font_size = 17
     subtitle.pixel_size = 0.008
     subtitle.modulate = Color("#d8e8dd")
-    subtitle.position = hub.position + Vector3(0, 1.35, -0.13)
+    subtitle.position = hub.position + Vector3(-0.13, 1.35, 0)
+    subtitle.rotation.y = PI / 2.0
     add_child(subtitle)
 
     marker_node = _marker(hub.position, Color("#ffd34e"), Vector3(1.8, 1.0, 1.8))
