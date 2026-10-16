@@ -159,7 +159,7 @@ jobs:
           name: Project-A-Square-Dhaka-Division-${{ inputs.sequence_id || github.run_id }}-batch-${{ inputs.tile_offset || '0' }}
           path: build/dhaka-division/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 90
           compression-level: 1
 
   continue-map:
