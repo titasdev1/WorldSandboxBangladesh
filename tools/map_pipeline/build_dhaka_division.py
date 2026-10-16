@@ -35,7 +35,7 @@ DISTRICT_BOUNDARY_API = "https://www.geoboundaries.org/api/current/gbOpen/BGD/AD
 INTERESTING_KEYS = {
     "building", "highway", "shop", "amenity", "tourism", "historic",
     "leisure", "office", "healthcare", "public_transport", "landuse",
-    "natural", "waterway", "railway", "man_made",
+    "natural", "waterway", "railway", "man_made", "power",
 }
 OSM_ATTRIBUTION = "© OpenStreetMap contributors — https://www.openstreetmap.org/copyright"
 BOUNDARY_ATTRIBUTION = "Administrative boundary source: geoBoundaries (https://www.geoboundaries.org), gbOpen BGD ADM1. See manifest for the returned dataset license."
