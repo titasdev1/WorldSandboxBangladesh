@@ -37,6 +37,12 @@ on:
   pull_request:
     paths:
       - "tools/map_pipeline/**"
+      - "tools/map_pipeline/package_map_pack.gd"
+      - "tests/fixtures/map_pack/**"
+      - ".github/workflows/validate-godot.yml"
+      - "tools/map_pipeline/package_map_pack.gd"
+      - "tests/fixtures/map_pack/**"
+      - ".github/workflows/validate-godot.yml"
       - "tests/test_dhaka_map_pipeline.py"
       - "tests/test_dhaka_division_pipeline.py"
       - "tests/test_merge_dhaka_division_batches.py"
