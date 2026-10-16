@@ -7,6 +7,7 @@ extends Node3D
 
 const EARTH_RADIUS_M := 6378137.0
 const MAP_ROOT := "res://assets/world/dhaka_tiles"
+const MAP_PACK_DIR := "user://map_packs"
 const GAME_ORIGIN_LAT := 23.8103
 const GAME_ORIGIN_LON := 90.4125
 const STREAM_INTERVAL := 0.5
@@ -18,6 +19,7 @@ const DEFAULT_UNLOAD_RADIUS_M := 3150.0
 
 var _world: Node3D
 var _records: Array[Dictionary] = []
+var _mounted_map_packs: Array[String] = []
 var _loaded: Dictionary = {}
 var _road_routes_by_tile: Dictionary = {}
 var _manifest_origin_lat := GAME_ORIGIN_LAT
@@ -29,8 +31,30 @@ var _load_radius_m := DEFAULT_LOAD_RADIUS_M
 var _unload_radius_m := DEFAULT_UNLOAD_RADIUS_M
 var _world_bounds := {"min_x": -12000.0, "max_x": 12000.0, "min_z": -10000.0, "max_z": 16800.0}
 
+
+# Mount optional map patch packs before reading the manifest. Packs are sorted by
+# filename; later packs may replace earlier resources while preserving older files
+# that the patch does not contain. The manifest inside each pack must remain complete.
+func _mount_external_map_packs() -> void:
+	_mounted_map_packs.clear()
+	var directory := DirAccess.open(MAP_PACK_DIR)
+	if directory == null:
+		return
+	var pack_files := DirAccess.get_files_at(MAP_PACK_DIR)
+	pack_files.sort()
+	for filename in pack_files:
+		if filename.get_extension().to_lower() != "pck":
+			continue
+		var pack_path := MAP_PACK_DIR + "/" + filename
+		if ProjectSettings.load_resource_pack(pack_path, true):
+			_mounted_map_packs.append(pack_path)
+		else:
+			push_warning("Could not mount optional map pack: " + pack_path)
+
+
 func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.json") -> bool:
 	_world = world
+	_mount_external_map_packs()
 	if not FileAccess.file_exists(manifest_path):
 		return false
 	var file := FileAccess.open(manifest_path, FileAccess.READ)
