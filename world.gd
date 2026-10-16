@@ -18,6 +18,7 @@ var police_timer := 0.0
 var gunfire_wanted_cooldown := 0.0
 var combat_hit_marker_time := 0.0
 var combat_hit_marker_headshot := false
+const COMBAT_HEADSHOT_MIN_HEIGHT := 1.62
 var event_timer := 0.0
 var event_text := "CITY LIFE ACTIVE"
 var event_time_left := 0.0
@@ -440,7 +441,7 @@ func try_fire():
  if hit and hit.collider and hit.collider is CharacterBody3D:
   if hit.collider.is_in_group("combat_enemy") and hit.collider.has_method("on_hit"):
    var target_position: Vector3 = hit.collider.global_position
-   var is_headshot: bool = float(hit.position.y) >= target_position.y + 1.35
+   var is_headshot: bool = float(hit.position.y) >= target_position.y + COMBAT_HEADSHOT_MIN_HEIGHT
    var damage: int = 100 if is_headshot else 50
    hit.collider.call("on_hit", damage, is_headshot)
    combat_hit_marker_time = 0.18
