@@ -14,6 +14,11 @@ var camera_yaw := 0.0
 var camera_pitch := -28.0
 
 var camera_view_mode := "third_person"
+var jump_velocity := 7.2
+var crouch_speed := 3.2
+var _collision_shape: CollisionShape3D
+var _standing_capsule_height := 1.8
+var _is_crouched := false
 
 func set_camera_view_mode(mode: String) -> void:
  camera_view_mode = "first_person" if mode == "first_person" else "third_person"
@@ -27,6 +32,9 @@ func toggle_camera_view_mode() -> String:
  return camera_view_mode
 
 func _ready():
+ _collision_shape = get_node_or_null("CollisionShape3D") as CollisionShape3D
+ if _collision_shape and _collision_shape.shape is CapsuleShape3D:
+  _standing_capsule_height = (_collision_shape.shape as CapsuleShape3D).height
  camera = Camera3D.new()
  camera.name = "ThirdPersonCamera"
  camera.position = Vector3(0, 6.2, 9.5)
@@ -93,9 +101,13 @@ func _physics_process(delta):
  var forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
  var right := Vector3(cos(yaw), 0.0, -sin(yaw))
  var dir := (right * input_vec.x + forward * -input_vec.y).normalized()
- var current_speed: float = sprint_speed if Input.is_action_pressed("sprint") else speed
+ # Hold crouch to lower the profile and reduce movement speed; sprint is disabled while crouched.
+ _set_crouched(Input.is_action_pressed("crouch"))
+ var current_speed: float = crouch_speed if _is_crouched else (sprint_speed if Input.is_action_pressed("sprint") else speed)
  velocity.x = dir.x * current_speed
  velocity.z = dir.z * current_speed
+ if Input.is_action_just_pressed("jump") and is_on_floor() and not _is_crouched:
+  velocity.y = jump_velocity
  # Rotate the avatar to face travel direction; -Z is the character forward axis.
  if dir.length_squared() > 0.001:
   rotation.y = lerp_angle(rotation.y, atan2(-dir.x, -dir.z), minf(1.0, delta * 12.0))
@@ -135,6 +147,19 @@ func _physics_process(delta):
   world.event_time_left = 1.5
  if Input.is_action_just_pressed("interact") and world:
   interact()
+
+func _set_crouched(should_crouch: bool) -> void:
+ if _is_crouched == should_crouch:
+  return
+ _is_crouched = should_crouch
+ if _collision_shape and _collision_shape.shape is CapsuleShape3D:
+  var capsule := _collision_shape.shape as CapsuleShape3D
+  capsule.height = _standing_capsule_height * 0.64 if _is_crouched else _standing_capsule_height
+  _collision_shape.position.y = capsule.height * 0.5 + 0.1
+ var visual := get_node_or_null("HumanoidVisual") as Node3D
+ if visual:
+  visual.scale.y = 0.72 if _is_crouched else 1.0
+  visual.position.y = 0.0 if _is_crouched else 0.0
 
 func interact():
  if not world:
