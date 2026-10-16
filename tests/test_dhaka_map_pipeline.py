@@ -76,6 +76,18 @@ class DhakaMapPipelineTests(unittest.TestCase):
             self.assertEqual(seeds[0]["exterior_reference"]["image_tag"], "https://example.invalid/facade.jpg")
             self.assertFalse(seeds[0]["exterior_reference"]["downloaded_or_embedded"])
 
+    def test_empty_tile_still_exports_ground_geometry_instead_of_a_hole(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            manifest = build_map([], out, DEFAULT_BBOX)
+            self.assertTrue((out / "Dhaka_Explorable_Map.glb").is_file())
+            scene = trimesh.load(out / "Dhaka_Explorable_Map.glb", force="scene")
+            self.assertTrue(scene.geometry)
+            self.assertEqual(manifest["feature_counts"]["building_footprints"], 0)
+            self.assertEqual(manifest["feature_counts"]["road_ways"], 0)
+            source = json.loads((out / "Dhaka_OSM_Source.geojson").read_text(encoding="utf-8"))
+            self.assertEqual(source["features"], [])
+
     def test_mapped_water_landuse_and_bridges_are_baked_and_exported(self):
         from tools.map_pipeline.build_dhaka_map import waterway_width
 
