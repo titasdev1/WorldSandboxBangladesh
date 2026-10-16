@@ -1,6 +1,15 @@
 name: Build Dhaka Division Real-World 3D Map
 
 on:
+  # Rebuild the Shariatpur-first map sequence after map-pipeline changes are
+  # merged, rather than leaving validated code idle without a fresh map bake.
+  # The marker in the initiating commit enables the workflow's existing
+  # pinned-commit, bounded-batch continuation logic.
+  push:
+    paths:
+      - ".github/workflows/dhaka-3d-map.yml"
+      - "tools/map_pipeline/build_dhaka_map.py"
+      - "tests/test_dhaka_map_pipeline.py"
   workflow_dispatch:
     inputs:
       tile_degrees:
