@@ -42,7 +42,8 @@
     "Combat Lab / Last Stand controller merged in commit 123f84f; canonical Godot/Android validation and physical-device aiming/collision/performance QA are pending.",
     "PR #59 merged as 30bc0e3b4f353d923923dc8707475b114cfe0a0c after its exact head 7d62ad457907a72094a6cbdc072ebbdd152d0066 passed fast map tests, Godot runtime validation, bounded map validation, and canonical Android export run 38892036942. Main-branch post-merge run is not yet independently observed.",
     "Shariatpur review artifact from run 38891159212 is REVIEW_REQUIRED: 60/60 tile offsets and GLBs present, but 3 tiles are ground-only; mapped street lamps 0, trees 2, 34,782 of 34,806 building heights estimated, licensed photorealistic façade imagery absent, and Android map-package integration/device performance unverified.",
-    "Map artifact naming from run 38891159212 omitted its sequence suffix. Fix workflow metadata propagation without rebuilding tiles solely to rename the artifact."
+    "Map artifact naming from run 38891159212 omitted its sequence suffix. Fix workflow metadata propagation without rebuilding tiles solely to rename the artifact.",
+    "Canonical Android run 38892036942 used debug-fallback signing (stable release keystore secrets were unavailable). APK ZIP integrity and v2/v3 signature verification passed, but a production-signed release artifact is still required before public release. Build log also emitted a shell '491470358: command not found' during asset-audit reporting after the APK checksum was recorded; inspect/fix this reporting warning even though the workflow completed successfully."
   ],
   "build_status": "PR_59_MERGED_CANONICAL_ANDROID_EXPORT_PASSED_POST_MERGE_MAIN_RUN_PENDING",
   "latest_verified_run": 38892036942,
@@ -53,7 +54,11 @@
     "size_bytes": 483692566,
     "sha256": "sha256:1a9de0c23730e6c2dc0d361e34d32600a4de48c3281f05c56ca1b74f0d7e5416",
     "expires_at": "2027-01-14T11:10:35Z",
-    "note": "GitHub artifact container bytes for PR head 7d62ad4; not the APK's exact file size. APK integrity/checksum verification step passed in run 38892036942."
+    "note": "The 483,692,566-byte artifact is the container ZIP. Exact APK is 491,470,358 bytes with the SHA-256 above. Build was signed with the ephemeral debug fallback because stable release keystore secrets were not configured; do not distribute as a production-signed release.",
+    "apk_bytes": 491470358,
+    "apk_sha256": "db30fae41813126e4458f537b7c2595bf75eadff49f65beba845190da26cd3a0",
+    "signing_mode": "debug-fallback",
+    "signature_verification": "PASS (APK Signature Scheme v2 and v3)"
   },
   "save_system": "implemented_but_device_regression_pending",
   "finalization_status": "not_ready",
@@ -94,6 +99,18 @@
         "Licensed façade imagery absent",
         "Android integration and physical-device memory/FPS/touch QA pending"
       ]
+    },
+    "apk_verification": {
+      "run_id": 38892036942,
+      "tested_commit": "7d62ad457907a72094a6cbdc072ebbdd152d0066",
+      "apk_bytes": 491470358,
+      "apk_sha256": "db30fae41813126e4458f537b7c2595bf75eadff49f65beba845190da26cd3a0",
+      "zip_structure": "PASS",
+      "signature_v2": "PASS",
+      "signature_v3": "PASS",
+      "signing_mode": "debug-fallback",
+      "production_signing": "NOT_CONFIGURED",
+      "report_warning": "Shell emitted '491470358: command not found' during size-audit reporting; investigate."
     }
   }
 }
