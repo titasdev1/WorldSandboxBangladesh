@@ -87,6 +87,8 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
             self.assertEqual(report["status"], "REVIEW_REQUIRED")
             self.assertFalse(report["checks"]["photorealistic_facade_imagery_mapped"])
             self.assertTrue(report["checks"]["manual_visual_review_required"])
+            self.assertTrue(report["checks"]["all_glbs_parse_and_contain_geometry"])
+            self.assertGreater(report["checks"]["mesh_geometry_count"], 0)
 
     def test_refuses_missing_batches(self):
         with tempfile.TemporaryDirectory() as temp:
