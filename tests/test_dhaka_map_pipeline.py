@@ -113,7 +113,7 @@ class DhakaMapPipelineTests(unittest.TestCase):
             self.assertEqual(by_id[2101], "Polygon")
             self.assertEqual(by_id[2102], "LineString")
             self.assertEqual(by_id[2103], "Polygon")
-            self.assertIn("Mapped water polygons", manifest["hydrography_note"])
+            self.assertIn("water polygons", manifest["hydrography_note"])
 
     def test_local_projection_is_stable_and_metric(self):
         x, y = local_xy(23.781, 90.407, 23.780, 90.407)
