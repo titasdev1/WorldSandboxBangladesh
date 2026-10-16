@@ -128,12 +128,18 @@ jobs:
               raise SystemExit("Administrative boundary metadata is missing")
           if not (root / "ATTRIBUTION.txt").is_file():
               raise SystemExit("Required attribution is missing")
+          feature_counts = {}
+          for tile in manifest.get("tiles", []):
+              for key, value in tile.get("feature_counts", {}).items():
+                  if isinstance(value, (int, float)):
+                      feature_counts[key] = feature_counts.get(key, 0) + value
           print(json.dumps({
             "boundary": manifest["administrative_boundary"]["name"],
             "boundary_bbox": manifest["region_south_west_north_east"],
             "tiles_intersecting_boundary": manifest["tile_count_intersecting_boundary"],
             "tiles_with_geometry": len(glbs),
             "source_elements_in_boundary_envelope": manifest["source_elements_in_boundary_envelope"],
+            "feature_counts_in_this_batch": feature_counts,
             "glb_bytes": sum(p.stat().st_size for p in glbs),
           }, indent=2))
           PY
