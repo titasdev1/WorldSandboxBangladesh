@@ -5,9 +5,11 @@ on:
     branches: [ main ]
     paths:
       - "**.gd"
-      - "Main.tscn"
+      - "**.tscn"
       - "project.godot"
       - "content/**"
+      - "assets/**"
+      - "external_content/**"
       - "tools/fetch_*.py"
       - "tools/report_build_assets.py"
       - "tools/production_gate.py"
@@ -17,14 +19,15 @@ on:
     branches: [ main ]
     paths:
       - "**.gd"
-      - "Main.tscn"
+      - "**.tscn"
       - "project.godot"
       - "content/**"
+      - "assets/**"
+      - "external_content/**"
       - "tools/fetch_*.py"
       - "tools/report_build_assets.py"
       - "tools/production_gate.py"
       - "development_state.json"
-      - ".github/workflows/android.yml"
 
 permissions:
   actions: read
@@ -81,6 +84,17 @@ jobs:
           print(f"Preserved pinned map package: {len(glbs)} GLB tiles; {sum(p.stat().st_size for p in glbs):,} bytes")
           print(f"Coverage: {manifest['region_south_west_north_east']}")
           PY
+
+      - name: Restore Godot import cache for the pinned map assets
+        uses: actions/cache@v4
+        with:
+          path: |
+            .godot/imported
+            .godot/editor
+            .godot/uid_cache.bin
+          key: ${{ runner.os }}-godot-4.4.1-${{ hashFiles('project.godot', '**/*.import', 'assets/world/dhaka_tiles/**') }}
+          restore-keys: |
+            ${{ runner.os }}-godot-4.4.1-
 
       - name: Validate Godot project scripts and startup
         shell: bash
