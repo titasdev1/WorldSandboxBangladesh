@@ -212,6 +212,96 @@ def road_width(tags: dict[str, str]) -> float:
     return widths.get(highway, 3.5)
 
 
+def is_water_area(tags: dict[str, str]) -> bool:
+    return (
+        tags.get("natural", "").lower() == "water"
+        or tags.get("waterway", "").lower() in {"riverbank", "dock", "boatyard"}
+        or tags.get("landuse", "").lower() in {"reservoir", "basin"}
+    )
+
+
+def surface_color(tags: dict[str, str]) -> tuple[int, int, int, int] | None:
+    """Return a restrained ground-surface colour for mapped water and land-use polygons."""
+    if is_water_area(tags):
+        return (52, 121, 158, 255)
+    natural = tags.get("natural", "").lower()
+    landuse = tags.get("landuse", "").lower()
+    leisure = tags.get("leisure", "").lower()
+    if natural in {"wood", "forest"} or landuse == "forest":
+        return (62, 101, 64, 255)
+    if natural in {"wetland", "marsh", "mud", "scrub"}:
+        return (91, 119, 86, 255)
+    if natural in {"grassland", "heath"} or landuse in {"grass", "meadow", "village_green"}:
+        return (102, 137, 78, 255)
+    if leisure in {"park", "garden", "playground", "pitch", "golf_course", "recreation_ground"}:
+        return (86, 132, 74, 255)
+    if landuse in {"farmland", "farmyard", "orchard", "plant_nursery", "aquaculture", "allotments"}:
+        return (126, 139, 83, 255)
+    if landuse in {"residential", "commercial", "retail"}:
+        return (124, 126, 111, 255)
+    if landuse in {"industrial", "construction", "brownfield"}:
+        return (130, 126, 116, 255)
+    if landuse in {"cemetery", "religious"}:
+        return (96, 126, 91, 255)
+    return None
+
+
+def waterway_width(tags: dict[str, str]) -> float:
+    """Use mapped water width when available; otherwise a clearly approximate type default."""
+    for key in ("width", "width:waterway"):
+        raw = str(tags.get(key, "")).replace(" m", "").strip()
+        try:
+            width = float(raw)
+            if 0.5 <= width <= 3000.0:
+                return width
+        except (TypeError, ValueError):
+            pass
+    return {
+        "river": 180.0,
+        "tidal_channel": 20.0,
+        "canal": 12.0,
+        "stream": 2.4,
+        "drain": 1.4,
+        "ditch": 0.9,
+    }.get(tags.get("waterway", "").lower(), 2.0)
+
+
+def flat_surface_mesh(geometry: Any, color: tuple[int, int, int, int], name: str) -> list[trimesh.Trimesh]:
+    """Bake mapped water/land-use areas as thin, low-cost surfaces just above the ground."""
+    if isinstance(geometry, (MultiPolygon, GeometryCollection)):
+        parts = [part for part in geometry.geoms if isinstance(part, Polygon)]
+    else:
+        parts = [geometry] if isinstance(geometry, Polygon) else []
+    result: list[trimesh.Trimesh] = []
+    for part in parts:
+        if part.is_empty or part.area < 1.0:
+            continue
+        try:
+            mesh = trimesh.creation.extrude_polygon(part, 0.008, engine="earcut")
+            mesh.apply_translation((0.0, 0.0, 0.004))
+            mesh.visual.vertex_colors = [color] * len(mesh.vertices)
+            mesh.metadata["name"] = name
+            result.append(mesh)
+        except Exception:
+            # One malformed or overly complex land-use polygon must not abort the district bake.
+            continue
+    return result
+
+
+def road_elevation(tags: dict[str, str]) -> float:
+    """Give mapped bridges/layered roads a modest lift above water and ground surfaces."""
+    layer_raw = str(tags.get("layer", "0")).strip()
+    try:
+        layer = int(layer_raw)
+    except (TypeError, ValueError):
+        layer = 0
+    if layer > 0:
+        return 0.015 + min(3.0, float(layer) * 0.5)
+    if tags.get("bridge", "").lower() not in {"", "no", "false", "0"}:
+        return 0.65
+    return 0.015
+
+
 def make_geojson(
     elements: list[dict[str, Any]],
     origin_lat: float,
