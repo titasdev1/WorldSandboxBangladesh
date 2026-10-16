@@ -65,5 +65,61 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
                 merge_batches(batches, root / "full")
 
 
+    def test_refuses_duplicate_tile_ids_across_batches(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            batches = root / "batches"
+            batches.mkdir()
+            write_batch(batches, 0, [
+                {"tile_id": "tile_duplicate", "status": "BAKED_FROM_OSM"},
+            ], total=2, geometry_count=1)
+            write_batch(batches, 1, [
+                {"tile_id": "tile_duplicate", "status": "BAKED_FROM_OSM"},
+            ], total=2, geometry_count=1)
+            with self.assertRaisesRegex(RuntimeError, "duplicate tile ID"):
+                merge_batches(batches, root / "full")
+
+    def test_refuses_mixed_tile_sizes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            batches = root / "batches"
+            batches.mkdir()
+            write_batch(batches, 0, [
+                {"tile_id": "tile_a", "status": "BAKED_FROM_OSM"},
+            ], total=2, geometry_count=1)
+            write_batch(batches, 1, [
+                {"tile_id": "tile_b", "status": "BAKED_FROM_OSM"},
+            ], total=2, geometry_count=1)
+            manifest_path = batches / "1" / "map_tiles_manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            manifest["tile_edge_degrees"] = 0.08
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "different tile sizes"):
+                merge_batches(batches, root / "full")
+
+    def test_refuses_missing_attribution(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            batches = root / "batches"
+            batches.mkdir()
+            write_batch(batches, 0, [
+                {"tile_id": "tile_a", "status": "BAKED_FROM_OSM"},
+            ], total=1, geometry_count=1)
+            (batches / "0" / "ATTRIBUTION.txt").unlink()
+            with self.assertRaisesRegex(RuntimeError, "required attribution"):
+                merge_batches(batches, root / "full")
+
+    def test_refuses_manifest_glb_count_mismatch(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            batches = root / "batches"
+            batches.mkdir()
+            write_batch(batches, 0, [
+                {"tile_id": "tile_a", "status": "BAKED_FROM_OSM"},
+            ], total=1, geometry_count=0)
+            with self.assertRaisesRegex(RuntimeError, "GLB count mismatch"):
+                merge_batches(batches, root / "full")
+
+
 if __name__ == "__main__":
     unittest.main()
