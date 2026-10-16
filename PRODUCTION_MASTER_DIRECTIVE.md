@@ -3,6 +3,25 @@
 ## Mission
 Turn this repository into a genuinely playable, polished, content-rich Android 3D open-world action sandbox. The objective is the actual game, not a collection of workflow files, placeholder checkpoints, empty feature scripts, or artificially inflated archives.
 
+## Two inseparable project goals — highest priority
+This project has TWO deliverables that must advance together without either being forgotten:
+
+1. **Dream game:** one canonical Android open-world game with real gameplay, responsive circular mobile joystick/camera controls, vehicles, NPCs, missions, combat, local transport/economy, audio, animation, and high-quality assets. Preserve and improve the existing playable foundation; never replace it with a blank demo or a smaller disconnected prototype.
+2. **Dream map:** a standalone, explorable 3D map of Greater Dhaka / the full Dhaka Division, beginning with the ordered Shariatpur-first batches, then covering every remaining part of the division. It must use real-world geographic data and strive for building-by-building visual fidelity, not invented street layouts or a generic Bangladesh-inspired substitute.
+
+The map pipeline is an independent build product, not a second game or APK workflow. Continue map production while the Android game builds, and continue game improvements while map batches run. A running build is not a reason to stop work on the other deliverable. Keep one canonical game project, one canonical Android pipeline, and the existing independent map pipeline.
+
+### Real-world fidelity contract
+- Road geometry, building footprints, mapped waterways, names, addresses, amenities, and Bangla signage must come from real mapped sources wherever available, with attribution and license obligations preserved.
+- The exterior target is the actual real-world appearance: use properly licensed building/street imagery or photogrammetric/3D providers when available. OSM geometry alone is NOT photorealistic imagery. Never call a gray extruded footprint or a generated facade a 100% replica.
+- Use each building's own footprint, mapped tags, name, size/height evidence, facade/roof clues, and any verified licensed image reference. Guess only missing geometry and explicitly flag those guesses. Never silently substitute one generic exterior for every building.
+- Every building gets its own deterministic, building-specific inferred interior layout and fictional occupants where actual private interiors are unavailable. Do not reuse one identical room as the interior of every building. Interior guesses must reflect that building's type, footprint, name, address, visible exterior clues, and local Bangladeshi context; never claim to know private interiors or real residents.
+- Do not scrape, bulk-download, or redistribute map imagery against provider terms. Preserve imagery-provider adapters separately from OSM geometry and verify rights before embedding or redistributing photos/textures.
+- Keep the existing playable fallback during development, but do not treat a fictional fallback city as completion of the real-world map goal. Promote a new map into the game only after package completeness, geographic alignment, attribution, runtime integration, and regression checks pass.
+
+### Cross-chat continuity and progress discipline
+Before each substantial change, read this directive, `MAP_PIPELINE.md`, `development_state.json`, recent commits, open PRs, and active GitHub Actions runs. Continue the existing project instead of restarting from assumptions. After each meaningful change, record what changed, the exact commit/PR/run, what passed, what is still running, and what remains unverified. Do not invent percentages, claim device QA without a real device, or mark a feature complete because a script/file exists. Track game progress and map progress separately, with evidence-based acceptance gates.
+
 ## Non-negotiable rules
 1. Exactly ONE canonical game project.
 2. Exactly ONE canonical Android release/build pipeline.
@@ -41,31 +60,18 @@ core, player, camera, world, streaming, vehicles, traffic, npc, ai, missions, po
 Systems must be modular AND actually wired into gameplay.
 
 ## World
-Build a Bangladesh-inspired fictional city, not a copied real-world copyrighted map.
+The release target is the real-world Greater Dhaka / Dhaka Division map produced by the separate map pipeline, not a fictional replacement. Use OSM/geoBoundaries or other appropriately licensed geographic data with attribution. The current procedural/fictitious city is a development fallback only and must not be used to claim the real-world map goal is complete.
 
-Include:
-- dense central city
-- residential districts
-- markets
-- bus terminal
-- river/canal
-- bridges
-- alleys
-- main and side roads
-- shops
-- restaurants
-- garages
-- police station
-- hospital
-- schools
-- offices
-- construction zones
-- industrial zones
-- parks/open spaces
-- rooftops
-- interactable interiors where practical
+The real-world map should preserve mapped roads, footprints, water, named places, addresses, and Bangla/English tags; add building-specific inferred heights and geometry only where the source lacks data, and mark estimates as inferred. Use a legally permitted photorealistic imagery provider or verified building-specific photographs for exterior appearance. OSM footprints and colored boxes are a geographic base, not the finished visual target.
 
-Use procedural generation for scalable background content and higher-detail authored/generated assets for important landmarks. Implement chunk streaming before attempting a huge world.
+Include where the real geography/source supports them:
+- dense central city and residential districts
+- markets, bus terminals, and transport hubs
+- rivers, canals, bridges, alleys, main and side roads
+- shops, restaurants, garages, police stations, hospitals, schools, offices
+- construction, industrial zones, parks, rooftops, and interactable buildings
+
+Use streaming/chunking and LODs to scale the complete division. Each building must retain its own identity and inferred interior; no one-size-fits-all interior template may be treated as final content.
 
 ## Visual production
 Progressively replace primitive-only presentation.
