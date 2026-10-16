@@ -37,6 +37,19 @@ INTERESTING_KEYS = {
     "leisure", "office", "healthcare", "public_transport", "landuse",
     "natural", "waterway", "railway", "man_made", "power",
 }
+
+RENDERED_FEATURE_KEYS = {
+    "building_footprints", "road_ways", "water_polygons", "waterway_segments",
+    "landuse_areas", "railway_ways", "mapped_trees", "mapped_utility_poles",
+    "mapped_street_lamps", "named_or_tagged_interaction_seeds",
+}
+
+
+def tile_status_from_counts(counts: dict[str, Any]) -> str:
+    """Distinguish mapped geometry from a ground-only fallback tile."""
+    if any(int(counts.get(key, 0) or 0) > 0 for key in RENDERED_FEATURE_KEYS):
+        return "BAKED_FROM_OSM"
+    return "GROUND_ONLY_NO_RENDERABLE_FEATURES"
 OSM_ATTRIBUTION = "© OpenStreetMap contributors — https://www.openstreetmap.org/copyright"
 def boundary_attribution_for_stage(stage: str) -> str:
     """Return attribution naming the actual administrative boundary used."""
@@ -536,18 +549,12 @@ def main() -> int:
         tile_polygon = box(w, s, e, n)
         boundary_tile = build_boundary.intersection(tile_polygon)
         clipped = _clip_elements(candidates[index - 1], boundary_tile)
-        if not clipped:
-            tile_records.append({"tile_id": tile_id, "bbox_south_west_north_east": list(bbox),
-                                 "status": "NO_MAPPED_FEATURES", "feature_counts": {}})
-            continue
+        tile_dir.mkdir(parents=True, exist_ok=True)
         print(f"[{index}/{len(tiles)}] {tile_id}: {len(clipped):,} clipped features", flush=True)
+        # Always bake a ground mesh for every tile. A tile with no mapped OSM
+        # features must not become a hole in the explorable world.
         manifest = build_map(clipped, tile_dir, bbox)
         counts = manifest.get("feature_counts", {})
-        if counts.get("building_footprints", 0) == 0 and counts.get("road_ways", 0) == 0:
-            shutil.rmtree(tile_dir, ignore_errors=True)
-            tile_records.append({"tile_id": tile_id, "bbox_south_west_north_east": list(bbox),
-                                 "status": "NO_MAPPED_ROADS_OR_BUILDINGS", "feature_counts": counts})
-            continue
         glb_path = tile_dir / "Dhaka_Explorable_Map.glb"
         _replace_ground_with_boundary(glb_path, boundary_tile, bbox)
         tile_records.append({
@@ -557,9 +564,9 @@ def main() -> int:
             "glb": f"{tile_id}/Dhaka_Explorable_Map.glb",
             "geojson": f"{tile_id}/Dhaka_OSM_Source.geojson",
             "interior_seeds": f"{tile_id}/AI_Interior_Seeds.json",
-            "feature_counts": counts, "status": "BAKED_FROM_OSM",
+            "feature_counts": counts, "status": tile_status_from_counts(counts),
         })
-    valid = sum(t["status"] == "BAKED_FROM_OSM" for t in tile_records)
+    valid = sum("glb" in t for t in tile_records)
     output_manifest = {
         "product": "Project A-Square — " + build_boundary_name + " boundary-clipped 3D map tile batch",
         "source": "Geofabrik Bangladesh OpenStreetMap PBF",
