@@ -38,7 +38,21 @@ INTERESTING_KEYS = {
     "natural", "waterway", "railway", "man_made", "power",
 }
 OSM_ATTRIBUTION = "© OpenStreetMap contributors — https://www.openstreetmap.org/copyright"
-BOUNDARY_ATTRIBUTION = "Administrative boundary source: geoBoundaries (https://www.geoboundaries.org), gbOpen BGD ADM1. See manifest for the returned dataset license."
+def boundary_attribution_for_stage(stage: str) -> str:
+    """Return attribution naming the actual administrative boundary used."""
+    if stage == "shariatpur_review":
+        boundary_type = "ADM2"
+        boundary_name = "Shariatpur District"
+    elif stage == "full_division":
+        boundary_type = "ADM1"
+        boundary_name = "Dhaka Division"
+    else:
+        raise ValueError(f"Unsupported map build stage: {stage}")
+    return (
+        f"Clipping boundary: {boundary_name}; source: geoBoundaries "
+        f"(https://www.geoboundaries.org), gbOpen BGD {boundary_type}. "
+        "See manifest for the returned dataset license."
+    )
 
 
 def download(url: str, path: pathlib.Path, min_bytes: int = 1000) -> None:
@@ -396,6 +410,7 @@ def main() -> int:
     build_boundary = build_boundary_for_stage(args.stage, boundary, shariatpur_boundary)
     build_boundary_properties = shariatpur_properties if args.stage == "shariatpur_review" else boundary_properties
     build_boundary_name = "Shariatpur District" if args.stage == "shariatpur_review" else "Dhaka Division"
+    boundary_attribution = boundary_attribution_for_stage(args.stage)
     if stage_gate_reached(args.tile_offset, shariatpur_tile_count, args.stage):
         # A stale/queued dispatch from the previous workflow version must not
         # accidentally bake non-Shariatpur tiles. Emit an explicit successful
@@ -408,13 +423,14 @@ def main() -> int:
             "attribution": OSM_ATTRIBUTION,
             "license": "OSM data: ODbL 1.0. Administrative boundary licenses are recorded from geoBoundaries API metadata.",
             "administrative_boundary": {
-                "name": "Dhaka Division", "source": "geoBoundaries gbOpen BGD ADM1",
-                "properties": boundary_properties.get("feature_properties", {}),
-                "metadata": boundary_properties,
-                "license": boundary_properties.get("boundary_license", "See geoBoundaries metadata"),
-                "attribution": BOUNDARY_ATTRIBUTION,
+                "name": build_boundary_name,
+                "source": "geoBoundaries gbOpen BGD ADM2" if args.stage == "shariatpur_review" else "geoBoundaries gbOpen BGD ADM1",
+                "properties": build_boundary_properties.get("feature_properties", {}),
+                "metadata": build_boundary_properties,
+                "license": build_boundary_properties.get("boundary_license", "See geoBoundaries metadata"),
+                "attribution": boundary_attribution,
             },
-            "region_south_west_north_east": list(bounds),
+            "region_south_west_north_east": list((build_boundary.bounds[1], build_boundary.bounds[0], build_boundary.bounds[3], build_boundary.bounds[2])),
             "tile_edge_degrees": args.tile_degrees,
             "build_stage": args.stage,
             "stage_gate_reached": True,
@@ -443,7 +459,7 @@ def main() -> int:
             json.dumps(output_manifest, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         (args.out / "ATTRIBUTION.txt").write_text(
-            OSM_ATTRIBUTION + "\\n" + BOUNDARY_ATTRIBUTION + "\\n",
+            OSM_ATTRIBUTION + "\\n" + boundary_attribution + "\\n",
             encoding="utf-8",
         )
         print(json.dumps({"stage_gate_reached": True, "tile_batch_count": 0,
@@ -554,7 +570,7 @@ def main() -> int:
                                    "properties": build_boundary_properties.get("feature_properties", {}),
                                    "metadata": build_boundary_properties,
                                    "license": build_boundary_properties.get("boundary_license", "See geoBoundaries metadata"),
-                                   "attribution": BOUNDARY_ATTRIBUTION},
+                                   "attribution": boundary_attribution},
         "region_south_west_north_east": list((build_boundary.bounds[1], build_boundary.bounds[0],
                                                 build_boundary.bounds[3], build_boundary.bounds[2])),
         "tile_edge_degrees": args.tile_degrees,
@@ -584,7 +600,7 @@ def main() -> int:
     boundary_license_text = str(build_boundary_properties.get("boundary_license", "See geoBoundaries metadata"))
     boundary_type = "ADM2" if args.stage == "shariatpur_review" else "ADM1"
     (args.out / "ATTRIBUTION.txt").write_text(
-        OSM_ATTRIBUTION + "\n" + BOUNDARY_ATTRIBUTION + "\n"
+        OSM_ATTRIBUTION + "\n" + boundary_attribution + "\n"
         + "OSM data license: ODbL 1.0.\n"
         + f"Clipping boundary: {build_boundary_name} (geoBoundaries gbOpen BGD {boundary_type}).\n"
         + f"Clipping boundary ID: {build_boundary_properties.get('boundary_id', 'unspecified')}.\n"
