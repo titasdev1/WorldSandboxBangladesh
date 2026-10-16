@@ -69,9 +69,9 @@ func _spawn_enemy(at: Vector3, is_practice_target: bool) -> void:
     var shape := CollisionShape3D.new()
     var capsule := CapsuleShape3D.new()
     capsule.radius = 0.42
-    capsule.height = 1.8
+    capsule.height = 2.1
     shape.shape = capsule
-    shape.position.y = 0.9
+    shape.position.y = 1.05
     enemy.add_child(shape)
     var visual := HumanoidVisual.new()
     visual.name = "HumanoidVisual"
