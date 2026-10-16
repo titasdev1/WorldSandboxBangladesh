@@ -517,6 +517,11 @@ func _setup_a_square():
     gameplay_director.name = "GameplayDirector"
     add_child(gameplay_director)
     gameplay_director.configure(self, player, district_factory)
+    # Keep the 4,000-entry Deshi side-mission catalogue live in the canonical world.
+    # This shares the existing player, map loader, economy, HUD and save/gameplay systems.
+    var mission_factory_node = load("res://systems/mission_factory.gd").new()
+    mission_factory_node.name = "MissionFactory"
+    add_child(mission_factory_node)
 
 func _update_a_square_systems(delta):
     city_stream_timer += delta
