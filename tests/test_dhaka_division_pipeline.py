@@ -26,7 +26,7 @@ class DhakaDivisionPipelineTests(unittest.TestCase):
         selectors = command[3:3 + len(FEATURE_KEYS)]
         self.assertEqual(selectors, [f"nwr/{key}" for key in FEATURE_KEYS])
         self.assertNotIn("-R", command)
-        self.assertEqual(command[-3:], ["-o", "filtered.osm.pbf"] if False else command[-3:])
+        self.assertEqual(command[-3:], ["--overwrite", "-o", "filtered.osm.pbf"])
 
     def test_osm_extract_includes_trees_power_grid_and_street_lamps(self):
         self.assertTrue(has_feature({"natural": "tree"}))
