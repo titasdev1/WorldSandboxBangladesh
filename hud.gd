@@ -12,6 +12,7 @@ var _world_quality_applied := false
 var lobby_overlay: ColorRect
 var selected_mode := "deshi_story"
 var mode_buttons: Array[Button] = []
+var _lobby_transitioning := false
 var district_map: Control
 var map_button: Button
 var interaction_button: Button
@@ -312,6 +313,7 @@ func _process(_delta):
 # First-boot mode lobby: intentionally uses vector UI so it stays crisp at any resolution.
 func _build_lobby_ui() -> void:
  lobby_overlay = ColorRect.new()
+ lobby_overlay.modulate.a = 0.0
  lobby_overlay.name = "ModeLobby"
  lobby_overlay.color = Color(0.015, 0.035, 0.065, 0.94)
  lobby_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -330,6 +332,8 @@ func _build_lobby_ui() -> void:
  column.size_flags_vertical = Control.SIZE_EXPAND_FILL
  column.add_theme_constant_override("separation", 14)
  panel.add_child(column)
+ var panel_target_position := panel.position
+ panel.position.y += 20.0
 
  var eyebrow := Label.new()
  eyebrow.text = "PROJECT A-SQUARE  /  BANGLADESH OPEN-WORLD"
@@ -409,6 +413,7 @@ func _build_lobby_ui() -> void:
   card.toggle_mode = true
   card.button_pressed = mode.id == selected_mode
   card.pressed.connect(_select_lobby_mode.bind(mode.id, card))
+  card.modulate.a = 0.0
   cards.add_child(card)
   mode_buttons.append(card)
 
@@ -433,6 +438,17 @@ func _build_lobby_ui() -> void:
  play.add_theme_stylebox_override("hover", _lobby_style(Color("#8beafa"), Color("#ffffff"), 2, 12))
  play.pressed.connect(_enter_selected_mode)
  footer.add_child(play)
+
+ # Animated first-boot presentation: fade the overlay, lift the panel into place,
+ # and reveal each mode card in a short stagger without delaying player input.
+ var intro := create_tween().set_parallel(true)
+ intro.tween_property(lobby_overlay, "modulate:a", 1.0, 0.42).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+ intro.tween_property(panel, "position", panel_target_position, 0.48).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+ for index in range(mode_buttons.size()):
+  var card: Button = mode_buttons[index]
+  var card_tween := create_tween()
+  card_tween.tween_interval(0.055 * float(index))
+  card_tween.tween_property(card, "modulate:a", 1.0, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 
 func _update_interaction_prompt() -> void:
@@ -486,6 +502,8 @@ func _select_lobby_mode(mode_id: String, selected_button: Button) -> void:
   button.button_pressed = button == selected_button
 
 func _enter_selected_mode() -> void:
+ if _lobby_transitioning:
+  return
  if w:
   w.game_mode = selected_mode
   if selected_mode == "free_roam":
@@ -510,4 +528,11 @@ func _enter_selected_mode() -> void:
    w.combat_controller.start_mode(selected_mode)
   w.event_time_left = 8.0
  if lobby_overlay:
-  lobby_overlay.visible = false
+  _lobby_transitioning = true
+  var outro := create_tween()
+  outro.tween_property(lobby_overlay, "modulate:a", 0.0, 0.26).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+  outro.finished.connect(func():
+   lobby_overlay.visible = false
+   lobby_overlay.modulate.a = 1.0
+   _lobby_transitioning = false
+  )
