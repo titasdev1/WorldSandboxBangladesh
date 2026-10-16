@@ -206,6 +206,13 @@ def roof_color(tags: dict[str, str], osm_id: int) -> tuple[int, int, int, int]:
     return building_color(tags, osm_id)
 
 def road_width(tags: dict[str, str]) -> float:
+    raw_width = str(tags.get("width", "")).replace(" m", "").strip()
+    try:
+        mapped_width = float(raw_width)
+        if 1.0 <= mapped_width <= 50.0:
+            return mapped_width
+    except (TypeError, ValueError):
+        pass
     highway = tags.get("highway", "residential").lower()
     widths = {
         "motorway": 14.0, "motorway_link": 8.0, "trunk": 11.0, "trunk_link": 7.0,
@@ -215,6 +222,18 @@ def road_width(tags: dict[str, str]) -> float:
         "path": 1.2, "cycleway": 1.6, "steps": 1.2, "track": 2.2,
     }
     return widths.get(highway, 3.5)
+
+
+def road_color(tags: dict[str, str]) -> tuple[int, int, int, int]:
+    surface = tags.get("surface", "").lower()
+    highway = tags.get("highway", "").lower()
+    if surface in {"ground", "dirt", "earth", "gravel", "unpaved", "mud", "sand"}:
+        return (126, 112, 91, 255)
+    if surface in {"concrete", "concrete:plates", "paving_stones", "sett", "asphalt"}:
+        return (63, 67, 70, 255)
+    if highway in {"footway", "path", "steps", "cycleway", "pedestrian"}:
+        return (116, 117, 111, 255)
+    return (78, 79, 78, 255)
 
 
 def is_water_area(tags: dict[str, str]) -> bool:
@@ -442,6 +461,8 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
 
     buildings = roads = inferred_heights = named_places = 0
     trees = utility_poles = street_lamps = 0
+    water_polygons = waterway_segments = landuse_areas = railway_ways = bridge_ways = 0
+    surface_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
     interior_seeds: list[dict[str, Any]] = []
     used_ids: set[tuple[str, int]] = set()
     for el in elements:
@@ -563,6 +584,53 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             if has_specific_place_tags:
                 named_places += 1
             continue
+        if el_type == "way" and len(points) >= 4 and points[0] == points[-1]:
+            color = surface_color(tags)
+            if color is not None:
+                try:
+                    polygon = Polygon(points)
+                    if not polygon.is_valid:
+                        polygon = polygon.buffer(0)
+                    polygon = polygon.intersection(tile_bounds)
+                    for mesh in flat_surface_mesh(polygon, color, f"osm_surface_{osm_id}"):
+                        surface_meshes_by_color.setdefault(color, []).append(mesh)
+                    if is_water_area(tags):
+                        water_polygons += 1
+                    else:
+                        landuse_areas += 1
+                    continue
+                except Exception:
+                    pass
+
+        if el_type == "way" and tags.get("waterway") and len(points) >= 2:
+            try:
+                line = LineString(points).intersection(tile_bounds)
+                if line.is_empty or line.length < 1.0:
+                    continue
+                water_polygon = line.buffer(
+                    waterway_width(tags) / 2.0, cap_style="flat", join_style="round"
+                ).intersection(tile_bounds)
+                for mesh in flat_surface_mesh(water_polygon, (52, 121, 158, 255), f"osm_waterway_{osm_id}"):
+                    surface_meshes_by_color.setdefault((52, 121, 158, 255), []).append(mesh)
+                waterway_segments += 1
+            except Exception:
+                continue
+            continue
+
+        if el_type == "way" and tags.get("railway", "").lower() in {"rail", "light_rail", "tram", "narrow_gauge"} and len(points) >= 2:
+            try:
+                line = LineString(points).intersection(tile_bounds)
+                if line.is_empty or line.length < 1.0:
+                    continue
+                rail_bed = line.buffer(2.2 / 2.0, cap_style="flat", join_style="round").intersection(tile_bounds)
+                rail_color = (75, 78, 80, 255)
+                for mesh in flat_surface_mesh(rail_bed, rail_color, f"osm_railway_{osm_id}"):
+                    surface_meshes_by_color.setdefault(rail_color, []).append(mesh)
+                railway_ways += 1
+            except Exception:
+                continue
+            continue
+
         if el_type == "way" and tags.get("highway") and len(points) >= 2:
             try:
                 line = LineString(points).intersection(tile_bounds)
@@ -570,15 +638,25 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                     continue
                 road_polygon = line.buffer(road_width(tags) / 2.0, cap_style="flat", join_style="mitre").intersection(tile_bounds)
                 parts = list(road_polygon.geoms) if isinstance(road_polygon, MultiPolygon) else [road_polygon]
+                lift = road_elevation(tags)
                 for part_index, part in enumerate(parts):
                     if part.area < 0.25:
                         continue
-                    for mesh_index, mesh in enumerate(extruded_polygon(part, 0.07, (65, 68, 71, 255), f"road_{osm_id}")):
-                        mesh.apply_translation((0.0, 0.0, 0.015))
+                    for mesh_index, mesh in enumerate(extruded_polygon(part, 0.07, road_color(tags), f"road_{osm_id}")):
+                        mesh.apply_translation((0.0, 0.0, lift))
                         scene.add_geometry(mesh, node_name=f"road_{osm_id}_{part_index}_{mesh_index}", geom_name=f"road_{osm_id}_{part_index}_{mesh_index}")
                 roads += 1
+                if tags.get("bridge", "").lower() not in {"", "no", "false", "0"}:
+                    bridge_ways += 1
             except Exception:
                 continue
+
+    for color, meshes in surface_meshes_by_color.items():
+        if not meshes:
+            continue
+        combined = trimesh.util.concatenate(meshes)
+        color_name = "".join(f"{channel:02x}" for channel in color[:3])
+        scene.add_geometry(combined, node_name=f"mapped_surface_{color_name}", geom_name=f"mapped_surface_{color_name}")
 
     scene_bounds = scene.bounds
     if (scene_bounds[0][0] < -width / 2 - 1 or scene_bounds[1][0] > width / 2 + 1 or
