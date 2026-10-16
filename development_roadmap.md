@@ -141,3 +141,10 @@ Development batches are measured by integrated playable capability, not workflow
 - Added `systems/combat_mode_controller.gd`: Combat Lab starts six practice targets and reports eliminations/completion; Last Stand starts escalating waves, tracks enemies remaining, progresses through three waves, and awards a victory reward. Entering a combat mode restores player health/ammo and resets wanted level.
 - Integrated controller lifecycle into `world.gd`, mode selection in `hud.gd`, and HUD health/combat progress. Corrected lobby subtitle to accurately say six modes.
 - Merged in commit `123f84f`. Next canonical run must validate script parsing/import/startup and Android export. This is a source-level playable loop, not yet device-verified; aiming, enemy pathing around buildings, difficulty, collision, and FPS need Android QA. Online play and full battle royale remain future systems.
+
+## Release gate: Project A-Square public game identity
+- Keep the current project/app identity unchanged while the playable game base and Shariatpur-first map base are still being built and validated.
+- Only after BOTH gates pass, rename the in-game title, Godot project name, Android application label, export/artifact names, README and screenshots to **Project A-Square** in one coordinated change:
+  1. **Game-base gate:** canonical Android APK exports successfully; Godot parser/headless startup checks pass; the existing playable core, camera-relative round movement stick, camera controls, HUD, missions, vehicles, save/load and settings survive regression checks; no blank-screen or duplicate APK workflow.
+  2. **Shariatpur-map-base gate:** Shariatpur-first tile batch has a reproducible manifest and attribution; every included GLB validates; the map package loads through the canonical tile streamer without replacing the current pinned map until explicit promotion; a test APK proves in-game integration and captures a real device or emulator screenshot/log plus measured performance.
+- A successful source edit, CI run, or GLB build alone does not satisfy both gates. Do not rename early or claim the map base is complete until these checks are evidenced.
