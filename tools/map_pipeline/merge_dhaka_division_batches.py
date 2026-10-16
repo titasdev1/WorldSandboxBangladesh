@@ -9,6 +9,9 @@ import pathlib
 import shutil
 from typing import Any
 
+import numpy as np
+import trimesh
+
 
 def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "full_division") -> dict[str, Any]:
     if stage not in {"shariatpur_review", "full_division"}:
@@ -145,6 +148,19 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
     glbs = list(out.rglob("Dhaka_Explorable_Map.glb"))
     if len(glbs) != geometry_count:
         raise RuntimeError(f"Full package GLB count mismatch: manifest {geometry_count}, found {len(glbs)}")
+    mesh_geometry_count = 0
+    for glb_path in glbs:
+        try:
+            scene = trimesh.load(glb_path, force="scene")
+        except Exception as exc:
+            raise RuntimeError(f"Invalid GLB file {glb_path.relative_to(out)}: {exc}") from exc
+        if not scene.geometry:
+            raise RuntimeError(f"GLB contains no mesh geometry: {glb_path.relative_to(out)}")
+        for geometry in scene.geometry.values():
+            vertices = getattr(geometry, "vertices", None)
+            if vertices is None or len(vertices) == 0 or not np.isfinite(vertices).all():
+                raise RuntimeError(f"GLB contains empty or non-finite mesh data: {glb_path.relative_to(out)}")
+            mesh_geometry_count += 1
     quality_report = {
         "build_stage": stage,
         "status": "REVIEW_REQUIRED" if stage == "shariatpur_review" else "MAP_DATA_VALIDATED_VISUAL_QA_PENDING",
@@ -155,6 +171,8 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
             "administrative_boundary_consistent": True,
             "attribution_present": True,
             "glb_count_matches_manifest": True,
+            "all_glbs_parse_and_contain_geometry": True,
+            "mesh_geometry_count": mesh_geometry_count,
             "photorealistic_facade_imagery_mapped": False,
             "physical_android_integration_verified": False,
             "manual_visual_review_required": True,
@@ -176,6 +194,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "tile_count_intersecting_boundary": total_tiles,
         "tile_count_intersecting_division": division_total_tiles,
         "tile_count_with_geometry": len(glbs),
+        "mesh_geometry_count": mesh_geometry_count,
         "feature_counts": feature_counts,
         "quality_gate_status": quality_report["status"],
         "batch_count": len(batches),
