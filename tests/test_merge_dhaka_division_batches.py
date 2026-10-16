@@ -93,6 +93,7 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
             self.assertFalse(manifest["complete_division_map"])
             self.assertEqual(manifest["tile_count_intersecting_boundary"], 3)
             self.assertEqual(manifest["tile_count_intersecting_division"], 10)
+            self.assertEqual(manifest["game_origin_lat_lon"], [23.5, 90.5])
             self.assertEqual(len(manifest["tiles"]), 3)
             self.assertIn("BGD ADM2", manifest["administrative_boundary"]["attribution"])
             attribution = (output / "ATTRIBUTION.txt").read_text(encoding="utf-8")
