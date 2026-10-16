@@ -7,9 +7,28 @@ import trimesh
 from shapely.geometry import shape
 
 from tools.map_pipeline.build_dhaka_map import DEFAULT_BBOX, build_map, building_height, local_xy
+from tools.map_pipeline.tile_grid import tile_bounds
 
 
 class DhakaMapPipelineTests(unittest.TestCase):
+    def test_greater_dhaka_tile_grid_covers_region_without_gaps(self):
+        region = (23.66, 90.30, 23.90, 90.53)
+        tiles = list(tile_bounds(region, 0.02))
+        self.assertEqual(len(tiles), 144)
+        self.assertEqual(tiles[0], (23.66, 90.3, 23.68, 90.32))
+        self.assertEqual(tiles[-1], (23.88, 90.52, 23.9, 90.53))
+        self.assertTrue(all(south < north and west < east for south, west, north, east in tiles))
+        # Tiles are row-major; adjacent tiles share edges exactly.
+        self.assertEqual(tiles[0][1], region[1])
+        self.assertEqual(tiles[-1][3], region[3])
+        for i in range(1, len(tiles)):
+            previous = tiles[i - 1]
+            current = tiles[i]
+            if abs(previous[0] - current[0]) < 1e-9:
+                self.assertAlmostEqual(previous[3], current[1], places=6)
+            else:
+                self.assertAlmostEqual(previous[2], current[0], places=6)
+
     def test_default_tile_matches_existing_central_dhaka_anchor(self):
         self.assertEqual(DEFAULT_BBOX, (23.8043, 90.4065, 23.8163, 90.4185))
 
