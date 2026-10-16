@@ -82,17 +82,19 @@ def map_kind(path) -> str | None:
     return None
 
 def resolution_score(path, surface: str) -> int:
-    """Prefer the highest available source resolution for the HD content pack.
+    """Prefer detail within the mobile bundle budget, with lower-res fallbacks.
 
-    High-resolution maps are retained as authored content. Device performance
-    should be controlled by runtime texture filtering/render scale and quality
-    presets, not by silently removing source detail during asset collection.
+    Road maps may reach 4K; every other surface is capped at 2K. If the
+    preferred resolutions are unavailable, 1K and 512 maps remain eligible.
+    Oversized maps are ranked behind every permitted option and never bundled
+    when a permitted fallback exists.
     """
     joined = "/".join(path).lower()
+    max_rank = 1 if surface == "road" else 2  # 4K road; 2K for other surfaces
     for rank, resolution in enumerate(("8k", "4k", "2k", "1k", "512")):
         if resolution in joined:
-            return rank
-    return 9
+            return rank if rank >= max_rank else 10 + rank
+    return 99
 
 def write_manifest(surfaces: dict, note: str = "") -> None:
     OUT.mkdir(parents=True, exist_ok=True)
@@ -102,7 +104,7 @@ def write_manifest(surfaces: dict, note: str = "") -> None:
         "api": API,
         "license": "CC0-1.0",
         "attribution_required_for_downloaded_assets": False,
-        "resolution_policy": "HD content pack: retain highest available source maps (8K, then 4K, 2K, 1K). Device-specific runtime quality must be handled by graphics presets/texture filtering, not by silently excluding source detail.",
+        "resolution_policy": "Mobile bundle: road maps up to 4K; other surfaces up to 2K; fall back to 1K/512. 8K maps are excluded from the bundled Android payload.",
         "surfaces": surfaces,
         "note": note,
     }, indent=2) + "\n", encoding="utf-8")
@@ -151,7 +153,7 @@ def main() -> int:
                     print(f"Prepared {surface}: {asset_id} ({', '.join(sorted(maps))})")
             except Exception as exc:
                 print(f"WARNING: could not prepare {surface} texture: {exc}")
-        write_manifest(surfaces, "Only downloaded CC0 files are included; highest available source resolution is preferred; missing maps use procedural fallbacks.")
+        write_manifest(surfaces, "Only downloaded CC0 files are included; road maps are capped at 4K and other maps at 2K, with 1K/512 fallback; missing maps use procedural fallbacks.")
         print(f"Poly Haven CC0 PBR surfaces prepared: {len(surfaces)}")
         return 0
     except Exception as exc:
