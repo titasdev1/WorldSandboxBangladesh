@@ -55,6 +55,29 @@ class DhakaMapPipelineTests(unittest.TestCase):
                 "type": "node", "id": 1003, "lat": 23.8099, "lon": 90.4124,
                 "tags": {"shop": "convenience", "name": "Fixture Shop"},
             },
+            {
+                "type": "way", "id": 1004,
+                "tags": {"building": "yes"},
+                "geometry": [
+                    {"lat": 23.8102, "lon": 90.4126},
+                    {"lat": 23.8102, "lon": 90.4128},
+                    {"lat": 23.8104, "lon": 90.4128},
+                    {"lat": 23.8104, "lon": 90.4126},
+                    {"lat": 23.8102, "lon": 90.4126},
+                ],
+            },
+            {
+                "type": "node", "id": 1005, "lat": 23.8101, "lon": 90.4127,
+                "tags": {"natural": "tree"},
+            },
+            {
+                "type": "node", "id": 1006, "lat": 23.8101, "lon": 90.4128,
+                "tags": {"power": "pole"},
+            },
+            {
+                "type": "node", "id": 1007, "lat": 23.8101, "lon": 90.4129,
+                "tags": {"highway": "street_lamp"},
+            },
         ]
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
@@ -74,8 +97,12 @@ class DhakaMapPipelineTests(unittest.TestCase):
             self.assertLessEqual(scene.bounds[1][2], depth / 2 + 1)
             self.assertGreater(scene.bounds[1][1], scene.bounds[0][1])
             self.assertLess(scene.bounds[1][1], 260)
-            self.assertEqual(manifest["feature_counts"]["building_footprints"], 1)
+            self.assertEqual(manifest["feature_counts"]["building_footprints"], 2)
             self.assertEqual(manifest["feature_counts"]["road_ways"], 1)
+            self.assertEqual(manifest["feature_counts"]["interior_anchors"], 3)
+            self.assertEqual(manifest["feature_counts"]["mapped_trees"], 1)
+            self.assertEqual(manifest["feature_counts"]["mapped_utility_poles"], 1)
+            self.assertEqual(manifest["feature_counts"]["mapped_street_lamps"], 1)
             self.assertTrue((out / "Dhaka_OSM_Source.geojson").exists())
             source = json.loads((out / "Dhaka_OSM_Source.geojson").read_text())
             south, west, north, east = DEFAULT_BBOX
@@ -89,6 +116,9 @@ class DhakaMapPipelineTests(unittest.TestCase):
             seeds = json.loads((out / "AI_Interior_Seeds.json").read_text())
             self.assertTrue(any(item["name"] == "Fixture House" for item in seeds))
             self.assertTrue(any(item["name"] == "Fixture Shop" for item in seeds))
+            generic = next(item for item in seeds if item.get("anchor_kind") == "generic_building")
+            self.assertEqual(generic["category"], "building")
+            self.assertEqual(len(generic["footprint_local_m"]), 4)
             self.assertIn("OpenStreetMap", (out / "map_manifest.json").read_text())
 
 
