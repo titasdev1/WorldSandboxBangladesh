@@ -47,7 +47,7 @@ The first tile batch is not a standalone Shariatpur deliverable. It is the begin
 
 ## Automatic full-division continuation
 
-When the full-division pipeline is merged and runs on `main`, it automatically dispatches the next tile batch after each successful batch. Every map-building run is limited to 300 minutes; the final assembly job is limited to 50 minutes, keeping each workflow run under six hours. Pull-request validation deliberately does not start the full chain.
+A full-division sequence is started explicitly with `workflow_dispatch` on `main`; successful batches automatically dispatch the next batch. Push-triggered runs are bounded two-tile validation only, preventing a code push from launching a second full sequence while a manual sequence is already running. Every map-building run is limited to 300 minutes; the final assembly job is limited to 50 minutes, keeping each workflow run under six hours. Pull-request and push validation deliberately do not start the full chain.
 
 Each batch artifact is tagged with one sequence ID and its tile offset. The final run downloads only artifacts from that sequence, verifies every offset from zero through the full tile count is present exactly once, merges all GLBs/GeoJSON/interior seeds, and publishes a separate `Project-A-Square-Dhaka-Division-Full-Map-<sequence>` artifact. Missing batches, duplicate tile IDs, mixed tile sizes, missing attribution, or GLB/manifest count mismatches fail the assembly instead of being presented as a complete map.
 
