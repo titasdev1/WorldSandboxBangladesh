@@ -62,17 +62,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ignore-feature-push:
-    if: github.event_name == 'push' && github.ref != 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Skip full-map processing on feature branches
-        run: echo "Full-division batches start only from main; pull requests and explicit manual runs are handled separately."
-
   build-map:
-    # Only main pushes start the expensive continuous full-division batch chain.
-    # Pull-request validation and explicit manual dispatch remain available.
-    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 300
     outputs:
@@ -216,7 +206,7 @@ jobs:
 
   continue-map:
     needs: build-map
-    if: (github.event_name != 'push' || github.ref == 'refs/heads/main') && success() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.continue_full_division))
+    if: success() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.continue_full_division))
     runs-on: ubuntu-latest
     timeout-minutes: 50
     steps:
