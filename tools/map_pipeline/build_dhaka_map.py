@@ -309,6 +309,99 @@ def surface_color(tags: dict[str, str]) -> tuple[int, int, int, int] | None:
     return None
 
 
+def vegetation_kind(tags: dict[str, str]) -> str:
+    """Classify mapped green polygons for conservative, clearly procedural vegetation."""
+    natural = tags.get("natural", "").lower()
+    landuse = tags.get("landuse", "").lower()
+    leisure = tags.get("leisure", "").lower()
+    if natural in {"wood", "forest"} or landuse == "forest":
+        return "forest"
+    if landuse == "orchard":
+        return "orchard"
+    if natural in {"scrub", "wetland", "marsh"}:
+        return "scrub"
+    if leisure in {"park", "garden", "recreation_ground", "golf_course"}:
+        return "park"
+    if landuse in {"farmland", "farmyard", "plant_nursery", "allotments"}:
+        return "farmland"
+    return ""
+
+
+def procedural_tree_sites(
+    polygon: Polygon | MultiPolygon,
+    osm_id: int,
+    kind: str,
+    max_trees: int = 90,
+) -> list[tuple[float, float]]:
+    """Return deterministic low-poly tree locations constrained to a mapped green polygon."""
+    if polygon.is_empty or max_trees <= 0:
+        return []
+    spacing_by_kind = {
+        "forest": 23.0,
+        "orchard": 13.0,
+        "scrub": 34.0,
+        "park": 30.0,
+        "farmland": 58.0,
+    }
+    spacing = spacing_by_kind.get(kind, 38.0)
+    rng = np.random.default_rng(abs(int(osm_id)) % (2**32))
+    parts = list(polygon.geoms) if isinstance(polygon, MultiPolygon) else [polygon]
+    sites: list[tuple[float, float]] = []
+    for part in sorted(parts, key=lambda item: item.area, reverse=True):
+        if not isinstance(part, Polygon) or part.is_empty or part.area < 90.0:
+            continue
+        min_x, min_y, max_x, max_y = part.bounds
+        offset_x = float(rng.uniform(0.0, spacing))
+        offset_y = float(rng.uniform(0.0, spacing))
+        x_values = np.arange(min_x + offset_x, max_x, spacing)
+        y_values = np.arange(min_y + offset_y, max_y, spacing)
+        for x in x_values:
+            for y in y_values:
+                if not part.contains(Point(float(x), float(y))):
+                    continue
+                jitter_x = float(rng.uniform(-spacing * 0.16, spacing * 0.16))
+                jitter_y = float(rng.uniform(-spacing * 0.16, spacing * 0.16))
+                candidate = (float(x + jitter_x), float(y + jitter_y))
+                if part.contains(Point(candidate)):
+                    sites.append(candidate)
+                    if len(sites) >= max_trees:
+                        return sites
+    if not sites and polygon.area >= 250.0:
+        point = polygon.representative_point()
+        return [(float(point.x), float(point.y))]
+    return sites
+
+
+def make_procedural_tree_meshes(
+    x: float, y: float, osm_id: int, kind: str
+) -> list[tuple[tuple[int, int, int, int], trimesh.Trimesh]]:
+    """Create a tiny two-part tree; caller batches meshes by colour for mobile rendering."""
+    canopy_colors = {
+        "forest": (48, 91, 53, 255),
+        "orchard": (79, 119, 58, 255),
+        "scrub": (91, 117, 72, 255),
+        "park": (62, 116, 60, 255),
+        "farmland": (85, 126, 61, 255),
+    }
+    rng = np.random.default_rng(abs(int(osm_id)) % (2**32) + int(abs(x * 17 + y * 31)))
+    scale = float(rng.uniform(0.82, 1.22))
+    trunk_height = (1.35 if kind in {"scrub", "farmland"} else 1.9) * scale
+    trunk = trimesh.creation.cylinder(radius=0.11 * scale, height=trunk_height, sections=5)
+    trunk.apply_translation((x, y, trunk_height * 0.5))
+    if kind == "orchard":
+        canopy = trimesh.creation.icosphere(subdivisions=1, radius=0.82 * scale)
+        canopy.apply_translation((x, y, trunk_height + 0.62 * scale))
+    else:
+        canopy_height = (1.65 if kind == "scrub" else 2.5) * scale
+        canopy_radius = (0.75 if kind == "scrub" else 1.35) * scale
+        canopy = trimesh.creation.cone(radius=canopy_radius, height=canopy_height, sections=5)
+        canopy.apply_translation((x, y, trunk_height + canopy_height * 0.42))
+    trunk_color = (103, 77, 53, 255)
+    color_mesh(trunk, trunk_color)
+    color_mesh(canopy, canopy_colors.get(kind, canopy_colors["park"]))
+    return [(trunk_color, trunk), (canopy_colors.get(kind, canopy_colors["park"]), canopy)]
+
+
 def waterway_width(tags: dict[str, str]) -> float:
     """Use mapped water width when available; otherwise a clearly approximate type default."""
     for key in ("width", "width:waterway"):
@@ -590,6 +683,8 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     facade_vertices_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
     facade_faces_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
     facade_vertex_counts: dict[tuple[int, int, int, int], int] = {}
+    vegetation_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
+    vegetation_polygons: list[tuple[Polygon | MultiPolygon, int, str]] = []
     interior_seeds: list[dict[str, Any]] = []
     used_ids: set[tuple[str, int]] = set()
     for el in elements:
@@ -738,6 +833,9 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                             water_polygons += 1
                         else:
                             landuse_areas += 1
+                            green_kind = vegetation_kind(tags)
+                            if green_kind:
+                                vegetation_polygons.append((polygon, osm_id, green_kind))
                     continue
                 except Exception:
                     pass
@@ -794,6 +892,33 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                     bridge_ways += 1
             except Exception:
                 continue
+
+    # OSM rarely maps individual trees consistently across rural Bangladesh.
+    # Fill only mapped forest/orchard/park/scrub/farm polygons with bounded,
+    # deterministic low-poly vegetation. This adds landscape texture without
+    # inventing tree positions outside mapped green land-use areas.
+    procedural_trees = 0
+    per_tile_tree_budget = 700
+    for polygon, osm_id, kind in vegetation_polygons:
+        if procedural_trees >= per_tile_tree_budget:
+            break
+        kind_budget = {"forest": 90, "orchard": 130, "scrub": 42, "park": 48, "farmland": 22}.get(kind, 30)
+        sites = procedural_tree_sites(polygon, osm_id, kind, min(kind_budget, per_tile_tree_budget - procedural_trees))
+        for tree_index, (tree_x, tree_y) in enumerate(sites):
+            for tree_color, tree_mesh in make_procedural_tree_meshes(
+                tree_x, tree_y, osm_id * 1009 + tree_index, kind
+            ):
+                vegetation_meshes_by_color.setdefault(tree_color, []).append(tree_mesh)
+            procedural_trees += 1
+            if procedural_trees >= per_tile_tree_budget:
+                break
+
+    for color, meshes in vegetation_meshes_by_color.items():
+        if not meshes:
+            continue
+        combined = color_mesh(trimesh.util.concatenate(meshes), color)
+        color_name = "".join(f"{channel:02x}" for channel in color)
+        scene.add_geometry(combined, node_name=f"procedural_vegetation_{color_name}", geom_name=f"procedural_vegetation_{color_name}")
 
     # Batch the dominant building and roof geometry by material colour. This keeps
     # the mapped silhouettes and height variation while avoiding thousands of
@@ -865,12 +990,12 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "road_ways": roads,
                            "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places,
                            "interior_anchors": len(interior_seeds), "mapped_trees": trees,
-                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color),
+                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color), "procedural_vegetation_trees": procedural_trees, "vegetation_mesh_batches": len(vegetation_meshes_by_color),
                             "water_polygons": water_polygons, "waterway_segments": waterway_segments,
                             "landuse_areas": landuse_areas, "railway_ways": railway_ways, "bridge_ways": bridge_ways},
         "height_note": "OSM height/building:levels tags are used when present; otherwise footprint-area/building-category estimates with deterministic floor-height variation are flagged as inferred, not surveyed facts.",
         "hydrography_note": "Mapped OSM water polygons are kept to their source outlines. River/canal centerlines without mapped widths use type-based approximate widths and are not survey-grade water boundaries.",
-         "visual_fidelity_note": "Real OSM road alignments, building footprints, mapped water and land-use surfaces, and tagged bridges are included. Sufficiently large buildings receive lightweight procedural low-poly window panels; building and roof meshes are batched by material colour to reduce mobile draw calls. Explicit facade/roof colour tags are used where available. Bangla/English names and exterior image references are preserved per building. This is not photorealistic street imagery; that requires separately licensed source data.",
+         "visual_fidelity_note": "Real OSM road alignments, building footprints, mapped water and land-use surfaces, and tagged bridges are included. Mapped forest, orchard, park, scrub and farm polygons receive bounded deterministic low-poly tree props where individual OSM tree nodes are sparse; vegetation remains procedural rather than a surveyed inventory. Sufficiently large buildings receive lightweight procedural low-poly window panels; building, roof and vegetation meshes are batched by material colour to reduce mobile draw calls. Explicit facade/roof colour tags are used where available. Bangla/English names and exterior image references are preserved per building. This is not photorealistic street imagery; that requires separately licensed source data.",
         "interiors_and_people": "AI_Interior_Seeds.json includes anchors for every mapped building footprint plus named/tagged places; the game generates fictional interiors and residents at runtime, not actual private interiors or real people.",
         "engine_import": "Import Dhaka_Explorable_Map.glb as a Godot MeshInstance3D/scene; retain GeoJSON and manifest for labels, navigation and source attribution.",
     }
