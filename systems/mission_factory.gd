@@ -174,16 +174,64 @@ func _make_target_positions(mission: Dictionary) -> Array[Vector3]:
     var count := 2
     if kind in ["rescue", "escort"]:
         count = 3
-    # On the real map, use actual OSM-derived road positions supplied by the
-    # existing georeferenced loader. The fictional fallback uses local city space.
+
+    # Prefer many distinct points from all currently streamed OSM road routes.
+    # The old implementation selected only from world.real_mission_targets,
+    # which held at most three startup points and made thousands of jobs feel repetitive.
     if bool(world.get("real_dhaka_loaded")):
-        var mapped_targets: Array = world.get("real_mission_targets")
-        if not mapped_targets.is_empty():
-            var first := int(mission.get("id", 0)) % mapped_targets.size()
-            for i in range(mini(count, mapped_targets.size())):
-                var point: Variant = mapped_targets[(first + i) % mapped_targets.size()]
-                if point is Vector3:
+        var loader: Node = world.get("real_dhaka_loader") as Node
+        var candidates: Array[Vector3] = []
+        var player_position := player.global_position if is_instance_valid(player) else Vector3.ZERO
+        if is_instance_valid(loader) and loader.has_method("get_road_routes"):
+            var routes: Array = loader.get_road_routes()
+            for route in routes:
+                if not (route is Array):
+                    continue
+                for point in route:
+                    if not (point is Vector3):
+                        continue
+                    var distance := player_position.distance_to(point)
+                    if distance >= TARGET_RADIUS_MIN and distance <= 650.0:
+                        candidates.append(point)
+        # Deterministic mission-specific ordering keeps a job reproducible while
+        # selecting from the streamed road network, not just three fixed targets.
+        if not candidates.is_empty():
+            var seed_id := int(mission.get("id", 0))
+            var first := posmod(seed_id * 37 + 11, candidates.size())
+            var stride := maxi(1, int(candidates.size() / maxi(count, 1)))
+            for attempt in range(candidates.size()):
+                var point_index := posmod(first + attempt * stride, candidates.size())
+                var point: Vector3 = candidates[point_index]
+                var too_close := false
+                for existing in positions:
+                    if existing.distance_to(point) < 35.0:
+                        too_close = true
+                        break
+                if not too_close:
                     positions.append(point)
+                if positions.size() >= count:
+                    break
+
+        # Compatibility fallback for map packages with roads but no usable
+        # local route points in the current loaded radius.
+        if positions.size() < count:
+            var mapped_targets: Array = world.get("real_mission_targets")
+            if not mapped_targets.is_empty():
+                var first_legacy := int(mission.get("id", 0)) % mapped_targets.size()
+                for i in range(mapped_targets.size()):
+                    var point: Variant = mapped_targets[(first_legacy + i) % mapped_targets.size()]
+                    if not (point is Vector3):
+                        continue
+                    var too_close := false
+                    for existing in positions:
+                        if existing.distance_to(point) < 35.0:
+                            too_close = true
+                            break
+                    if not too_close:
+                        positions.append(point)
+                    if positions.size() >= count:
+                        break
+
     while positions.size() < count:
         var angle := rng.randf_range(0.0, TAU)
         var radius := rng.randf_range(TARGET_RADIUS_MIN, TARGET_RADIUS_MAX)
