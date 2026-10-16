@@ -27,6 +27,8 @@ REQUIRED = [
     "tools/fetch_free_assets.py",
     "tools/fetch_city_assets.py",
     "city_asset_factory.gd",
+    "systems/mission_factory.gd",
+    "systems/interior_factory.gd",
     "development_state.json",
     "development_roadmap.md",
     "PRODUCTION_MASTER_DIRECTIVE.md",
@@ -75,10 +77,39 @@ if "city_asset_factory.configure(self)" not in world_text or "spawn_building(Vec
     raise SystemExit("PRODUCTION GATE FAILED: authored city building factory is not integrated into the world")
 if "real_dhaka_loader.configure(self)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: real-Dhaka tile loader is not wired into the canonical world")
+
+# The mission and interior modules must be reachable from the canonical game.
+if 'load("res://systems/mission_factory.gd").new()' not in world_text or 'mission_factory_node.name = "MissionFactory"' not in world_text:
+    raise SystemExit("PRODUCTION GATE FAILED: Deshi mission factory is not instantiated in the canonical world")
+hud_text = (ROOT / "hud.gd").read_text(encoding="utf-8")
+if 'get_node_or_null("MissionFactory")' not in hud_text or "DESHI JOB %04d/4000" not in hud_text:
+    raise SystemExit("PRODUCTION GATE FAILED: Deshi mission catalogue is not visible in the HUD")
+if 'load("res://systems/interior_factory.gd").new()' not in world_text or "try_interior_interaction" not in world_text:
+    raise SystemExit("PRODUCTION GATE FAILED: generated building interiors are not wired into the canonical world")
+player_text = (ROOT / "player.gd").read_text(encoding="utf-8")
+if "func toggle_camera_view_mode()" not in player_text or 'camera_view_mode == "first_person"' not in player_text:
+    raise SystemExit("PRODUCTION GATE FAILED: first-person/third-person camera modes are not implemented")
+if "CameraViewToggle" not in hud_text or "_toggle_camera_view" not in hud_text:
+    raise SystemExit("PRODUCTION GATE FAILED: first-person/third-person toggle is not exposed in the touch HUD")
+if 'add_touch_button("AIM"' not in hud_text or 'Input.is_action_pressed("aim")' not in player_text:
+    raise SystemExit("PRODUCTION GATE FAILED: hold-to-aim zoom is not integrated into the player and touch HUD")
+if "CombatCrosshair" not in hud_text:
+    raise SystemExit("PRODUCTION GATE FAILED: combat reticle is missing from the HUD")
+if "camera.global_transform.basis.z.normalized()" not in world_text:
+    raise SystemExit("PRODUCTION GATE FAILED: firing direction is not aligned with the active camera aim")
+if 'Input.is_action_pressed("fire")' not in player_text or 'Input.is_action_just_pressed("reload")' not in player_text:
+    raise SystemExit("PRODUCTION GATE FAILED: automatic fire and manual reload controls are missing")
+if 'add_touch_button("RELOAD"' not in hud_text or 'reload={' not in (ROOT / "project.godot").read_text(encoding="utf-8"):
+    raise SystemExit("PRODUCTION GATE FAILED: reload is not available through the mobile HUD and input map")
+interior_text = (ROOT / "systems" / "interior_factory.gd").read_text(encoding="utf-8")
+if "CeilingFanAnimated" not in interior_text or "open_interior" not in interior_text:
+    raise SystemExit("PRODUCTION GATE FAILED: generated interior runtime/animated dressing is missing")
 loader_text = (ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
 for token in ("map_tiles_manifest.json", "LOAD_RADIUS_M", "UNLOAD_RADIUS_M", "_geo_to_world", "create_trimesh_collision"):
     if token not in loader_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: real-Dhaka tile streamer missing {token}")
+if "func _mount_external_map_packs()" not in loader_text or "ProjectSettings.load_resource_pack(ProjectSettings.globalize_path(pack_path), true)" not in loader_text or 'user://map_packs' not in loader_text:
+    raise SystemExit("PRODUCTION GATE FAILED: external map PCK patches are not supported by the canonical loader")
 city_factory_text = (ROOT / "city_asset_factory.gd").read_text(encoding="utf-8")
 if "MANIFESTS" not in city_factory_text or "spawn_building" not in city_factory_text:
     raise SystemExit("PRODUCTION GATE FAILED: city asset factory is missing manifest-driven building placement")

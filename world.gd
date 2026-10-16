@@ -15,6 +15,7 @@ var mission_target := Vector3(42, 0, 42)
 var real_mission_targets: Array[Vector3] = []
 var rng := RandomNumberGenerator.new()
 var police_timer := 0.0
+var gunfire_wanted_cooldown := 0.0
 var event_timer := 0.0
 var event_text := "CITY LIFE ACTIVE"
 var event_time_left := 0.0
@@ -22,6 +23,7 @@ var material_cache: Dictionary = {}
 var city_asset_factory
 var pbr_surface_factory
 var combat_controller
+var interior_factory
 var real_dhaka_loader
 var real_dhaka_loaded := false
 
@@ -39,6 +41,10 @@ func _ready():
  city_asset_factory.name = "CityAssetFactory"
  add_child(city_asset_factory)
  city_asset_factory.configure(self)
+ interior_factory = load("res://systems/interior_factory.gd").new()
+ interior_factory.name = "InteriorFactory"
+ add_child(interior_factory)
+ interior_factory.configure(self)
  # Prefer the streamed, georeferenced Dhaka package when the complete licensed
  # OSM tile package is installed. Keep the existing city as a safe fallback.
  real_dhaka_loader = load("res://real_dhaka_tile_loader.gd").new()
@@ -366,6 +372,7 @@ func create_mission_marker():
  add_child(marker)
 
 func _process(delta):
+ gunfire_wanted_cooldown = maxf(0.0, gunfire_wanted_cooldown - delta)
  day_time = fmod(day_time + delta * 0.08, 24.0)
  event_time_left = max(0.0, event_time_left - delta)
  var sun = get_node_or_null("Sun")
@@ -417,10 +424,13 @@ func update_marker():
 func try_fire():
  if not player:
   return
- wanted = min(5, wanted + 1)
- var origin = player.global_position + Vector3(0, 1.3, 0)
- var dir = -player.global_transform.basis.z
- var query = PhysicsRayQueryParameters3D.create(origin, origin + dir * 30.0)
+ if gunfire_wanted_cooldown <= 0.0:
+  wanted = min(5, wanted + 1)
+  gunfire_wanted_cooldown = 2.5
+ var camera: Camera3D = player.get("camera") as Camera3D
+ var origin: Vector3 = camera.global_position if is_instance_valid(camera) else player.global_position + Vector3(0, 1.3, 0)
+ var dir: Vector3 = -camera.global_transform.basis.z.normalized() if is_instance_valid(camera) else -player.global_transform.basis.z.normalized()
+ var query = PhysicsRayQueryParameters3D.create(origin, origin + dir * 80.0)
  query.exclude = [player]
  var hit = get_world_3d().direct_space_state.intersect_ray(query)
  if hit and hit.collider and hit.collider is CharacterBody3D:
@@ -517,6 +527,11 @@ func _setup_a_square():
     gameplay_director.name = "GameplayDirector"
     add_child(gameplay_director)
     gameplay_director.configure(self, player, district_factory)
+    # Keep the data-driven Deshi mission catalogue in this canonical world.
+    # It shares the same player, streamed map, HUD, economy, and progression.
+    var mission_factory_node = load("res://systems/mission_factory.gd").new()
+    mission_factory_node.name = "MissionFactory"
+    add_child(mission_factory_node)
 
 func _update_a_square_systems(delta):
     city_stream_timer += delta
@@ -531,6 +546,55 @@ func notify_gameplay_event(event_name: String, value := 1):
     if gameplay_director and gameplay_director.has_method("event"):
         gameplay_director.event(event_name, value)
 
+
+
+func get_interior_interaction_label(at: Vector3) -> String:
+ if interior_factory and interior_factory.has_method("is_inside") and interior_factory.is_inside():
+  return interior_factory.get_interaction_label(at)
+ var nearest: Node3D = null
+ var nearest_distance := 3.5
+ for node in get_tree().get_nodes_in_group("real_building_entry"):
+  if not node is Node3D:
+   continue
+  var distance: float = at.distance_to((node as Node3D).global_position)
+  if distance < nearest_distance:
+   nearest_distance = distance
+   nearest = node as Node3D
+ if not is_instance_valid(nearest):
+  return ""
+ var seed: Dictionary = nearest.get_meta("interior_seed", {})
+ var category := str(seed.get("category", "")).to_lower()
+ if category.contains("shop") or category.contains("retail") or category.contains("convenience"):
+  return "ENTER SHOP"
+ if category.contains("house") or category.contains("residential") or category.contains("home"):
+  return "ENTER HOME"
+ return "ENTER BUILDING"
+
+func try_interior_interaction(at: Vector3) -> bool:
+ if not interior_factory:
+  return false
+ if interior_factory.has_method("is_inside") and interior_factory.is_inside():
+  return interior_factory.try_interact(at)
+ var nearest: Node3D = null
+ var nearest_distance := 3.5
+ for node in get_tree().get_nodes_in_group("real_building_entry"):
+  if not node is Node3D:
+   continue
+  var distance: float = at.distance_to((node as Node3D).global_position)
+  if distance < nearest_distance:
+   nearest_distance = distance
+   nearest = node as Node3D
+ if not is_instance_valid(nearest):
+  return false
+ var seed: Dictionary = nearest.get_meta("interior_seed", {})
+ var direction: Vector3 = nearest.get_meta("exit_direction", Vector3(0, 0, 1))
+ var tile_id := str(nearest.get_meta("tile_id", ""))
+ interior_factory.open_interior(seed, nearest.global_position, direction, tile_id)
+ return true
+
+func open_generated_interior(seed: Dictionary, exterior_position: Vector3, exit_direction: Vector3, tile_id: String) -> void:
+ if interior_factory:
+  interior_factory.open_interior(seed, exterior_position, exit_direction, tile_id)
 
 # Interactable market stalls: spend a little cash to recover health.
 func try_street_vendor(at: Vector3) -> bool:

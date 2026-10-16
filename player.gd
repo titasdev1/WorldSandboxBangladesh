@@ -8,9 +8,23 @@ var health := 100
 var ammo := 30
 var reserve_ammo := 120
 var reload_time := 0.0
+var fire_cooldown := 0.0
 var camera: Camera3D
 var camera_yaw := 0.0
 var camera_pitch := -28.0
+
+var camera_view_mode := "third_person"
+
+func set_camera_view_mode(mode: String) -> void:
+ camera_view_mode = "first_person" if mode == "first_person" else "third_person"
+ var visual := get_node_or_null("HumanoidVisual")
+ if visual:
+  visual.visible = camera_view_mode != "first_person"
+ _update_camera()
+
+func toggle_camera_view_mode() -> String:
+ set_camera_view_mode("first_person" if camera_view_mode == "third_person" else "third_person")
+ return camera_view_mode
 
 func _ready():
  camera = Camera3D.new()
@@ -39,10 +53,23 @@ func _update_camera():
  var yaw := deg_to_rad(camera_yaw)
  var pitch := deg_to_rad(camera_pitch)
  var target := global_position + Vector3(0, 1.0, 0)
+ if camera_view_mode == "first_person":
+  # Eye-height camera shares the orbit camera's yaw/pitch and movement basis.
+  var eye := global_position + Vector3(0, 1.58, 0)
+  camera.global_position = eye
+  camera.fov = 50.0 if Input.is_action_pressed("aim") else 68.0
+  camera.global_rotation = Vector3(deg_to_rad(-camera_pitch), yaw, 0.0)
+  return
+ var camera_distance := 5.8 if Input.is_action_pressed("aim") else 9.5
+ if world:
+  var interior_node: Node = world.get("interior_factory")
+  if is_instance_valid(interior_node) and interior_node.has_method("is_inside") and bool(interior_node.call("is_inside")):
+   camera_distance = 4.2
  # Camera stays behind the player. Its horizontal offset and movement basis
  # must use opposite signs: forward movement points from camera toward target.
- var offset := Vector3(sin(yaw) * cos(pitch) * 9.5, -sin(pitch) * 9.5 + 1.0, cos(yaw) * cos(pitch) * 9.5)
+ var offset := Vector3(sin(yaw) * cos(pitch) * camera_distance, -sin(pitch) * camera_distance + 1.0, cos(yaw) * cos(pitch) * camera_distance)
  camera.global_position = target + offset
+ camera.fov = 56.0 if Input.is_action_pressed("aim") else 68.0
  camera.look_at(target, Vector3.UP)
 
 func _physics_process(delta):
@@ -52,6 +79,10 @@ func _physics_process(delta):
    var loaded: int = mini(30 - ammo, reserve_ammo)
    ammo += loaded
    reserve_ammo -= loaded
+   if world:
+    world.event_text = "RELOAD COMPLETE • %d/%d" % [ammo, reserve_ammo]
+    world.event_time_left = 1.8
+ fire_cooldown = maxf(0.0, fire_cooldown - delta)
 
  # Four-button movement is camera-relative. Godot's get_vector returns
  # negative Y for "forward"; convert it to a positive forward amount here.
@@ -76,22 +107,39 @@ func _physics_process(delta):
  # The real-data Greater Dhaka map streams geographically positioned tiles.
  # Keep the smaller bounds only for the fictional fallback city.
  if world and bool(world.get("real_dhaka_loaded")):
-  position.x = clamp(position.x, -12000.0, 12000.0)
-  position.z = clamp(position.z, -10000.0, 16800.0)
+  var bounds: Dictionary = {}
+  var map_loader: Node = world.get("real_dhaka_loader")
+  if is_instance_valid(map_loader) and map_loader.has_method("get_world_bounds"):
+   bounds = map_loader.call("get_world_bounds")
+  if not bounds.is_empty():
+   position.x = clamp(position.x, float(bounds.get("min_x", -12000.0)), float(bounds.get("max_x", 12000.0)))
+   position.z = clamp(position.z, float(bounds.get("min_z", -10000.0)), float(bounds.get("max_z", 16800.0)))
+  else:
+   position.x = clamp(position.x, -12000.0, 12000.0)
+   position.z = clamp(position.z, -10000.0, 16800.0)
  else:
   position.x = clamp(position.x, -285.0, 285.0)
   position.z = clamp(position.z, -285.0, 285.0)
  _update_camera()
- if Input.is_action_just_pressed("fire") and world and ammo > 0 and reload_time <= 0.0:
+ if Input.is_action_pressed("fire") and world and ammo > 0 and reload_time <= 0.0 and fire_cooldown <= 0.0:
   ammo -= 1
   world.try_fire()
- if Input.is_action_just_pressed("interact") and world:
-  if ammo < 30 and reserve_ammo > 0:
+  fire_cooldown = 0.13 if Input.is_action_pressed("aim") else 0.17
+  if ammo == 0 and reserve_ammo > 0:
    reload_time = 1.35
+   world.event_text = "MAGAZINE EMPTY • RELOADING"
+   world.event_time_left = 1.8
+ if Input.is_action_just_pressed("reload") and ammo < 30 and reserve_ammo > 0 and reload_time <= 0.0:
+  reload_time = 1.35
+  world.event_text = "RELOADING"
+  world.event_time_left = 1.5
+ if Input.is_action_just_pressed("interact") and world:
   interact()
 
 func interact():
  if not world:
+  return
+ if world.has_method("try_interior_interaction") and world.try_interior_interaction(global_position):
   return
  if world.has_method("try_street_vendor") and world.try_street_vendor(global_position):
   return

@@ -40,8 +40,19 @@ func _ready():
  status.add_theme_font_size_override("font_size", 16)
  add_child(status)
 
+ var crosshair := Label.new()
+ crosshair.name = "CombatCrosshair"
+ crosshair.text = "+"
+ crosshair.position = Vector2(632, 342)
+ crosshair.add_theme_font_size_override("font_size", 28)
+ crosshair.add_theme_color_override("font_color", Color("#e8f7ff"))
+ crosshair.add_theme_color_override("font_shadow_color", Color("#07111b"))
+ crosshair.add_theme_constant_override("shadow_offset_x", 1)
+ crosshair.add_theme_constant_override("shadow_offset_y", 1)
+ add_child(crosshair)
+
  var hint = Label.new()
- hint.text = "CIRCULAR MOVE • DRAG RIGHT SIDE TO LOOK • SPRINT • BARGAIN • FIRE • RAIN"
+ hint.text = "CIRCULAR MOVE • DRAG TO LOOK • AIM • AUTO FIRE • RELOAD • VIEW: FPP/TPP"
  hint.position = Vector2(28, 680)
  hint.add_theme_font_size_override("font_size", 16)
  add_child(hint)
@@ -56,7 +67,17 @@ func _ready():
  add_child(stick)
  add_touch_button("SPRINT", Vector2(35, 645), Vector2(150, 45), "sprint")
  add_touch_button("FIRE", Vector2(1080, 560), Vector2(150, 75), "fire")
+ add_touch_button("AIM", Vector2(900, 500), Vector2(130, 45), "aim")
+ add_touch_button("RELOAD", Vector2(900, 450), Vector2(130, 45), "reload")
  interaction_button = add_touch_button("INTERACT", Vector2(900, 650), Vector2(170, 55), "interact")
+ var camera_view_button := Button.new()
+ camera_view_button.name = "CameraViewToggle"
+ camera_view_button.text = "VIEW: TPP"
+ camera_view_button.position = Vector2(870, 555)
+ camera_view_button.size = Vector2(170, 48)
+ camera_view_button.add_theme_font_size_override("font_size", 17)
+ camera_view_button.pressed.connect(_toggle_camera_view)
+ add_child(camera_view_button)
  _build_driving_status()
  add_touch_button("RAIN", Vector2(1060, 650), Vector2(150, 55), "rain")
  _build_settings_ui()
@@ -148,6 +169,14 @@ func _build_settings_ui() -> void:
  close_button.pressed.connect(func(): settings_panel.visible = false)
  column.add_child(close_button)
 
+func _toggle_camera_view() -> void:
+ if not is_instance_valid(w) or not is_instance_valid(w.player):
+  return
+ var mode: String = w.player.toggle_camera_view_mode()
+ var button := get_node_or_null("CameraViewToggle") as Button
+ if button:
+  button.text = "VIEW: FPP" if mode == "first_person" else "VIEW: TPP"
+
 func _toggle_settings() -> void:
  if settings_panel:
   settings_panel.visible = not settings_panel.visible
@@ -236,7 +265,20 @@ func _process(_delta):
   var side_missions: Array = mission_factory.get("missions")
   if active_index < side_missions.size():
    var active_mission: Dictionary = side_missions[active_index]
-   mission.text = "SIDE JOB: %s    REWARD +৳%d    FARE ৳%d → OFFER ৳%d" % [active_mission.get("title", "Local job"), int(active_mission.get("reward", 0)), w.fare_requested, w.bargain_offer]
+   var mission_brief := String(active_mission.get("brief", "Reach the blue marker."))
+   if mission_brief.length() > 112:
+    mission_brief = mission_brief.substr(0, 109) + "..."
+   var mission_step_text := ""
+   var mission_factory_node: Node = w.get_node_or_null("MissionFactory")
+   if is_instance_valid(mission_factory_node):
+    var step_total: int = mission_factory_node.get("target_positions").size()
+    var step_now: int = int(mission_factory_node.get("target_step")) + 1
+    if step_total > 0:
+     mission_step_text = "    STOP %d/%d" % [step_now, step_total]
+   var chapter_title := String(active_mission.get("chapter_title", "Deshi Stories"))
+   if chapter_title.length() > 48:
+    chapter_title = chapter_title.substr(0, 45) + "..."
+   mission.text = "CHAPTER %02d/40 • %s\\nDESHI JOB %04d/4000: %s    REWARD +৳%d%s\\n%s" % [int(active_mission.get("chapter", 1)), chapter_title, int(active_mission.get("id", 0)) + 1, active_mission.get("title", "Local job"), int(active_mission.get("reward", 0)), mission_step_text, mission_brief]
  elif w.mission_active:
   var stage_names = ["Market delivery", "Tower pickup", "Bus terminal drop"]
   mission.text = "STORY %d/3: %s    Rickshaw fare ৳%d → offer ৳%d" % [w.mission_stage + 1, stage_names[w.mission_stage], w.fare_requested, w.bargain_offer]
@@ -396,6 +438,12 @@ func _build_lobby_ui() -> void:
 func _update_interaction_prompt() -> void:
  if not w or not w.player or not interaction_button or not driving_status:
   return
+ if w.has_method("get_interior_interaction_label"):
+  var interior_label: String = w.get_interior_interaction_label(w.player.global_position)
+  if not interior_label.is_empty():
+   interaction_button.text = interior_label
+   driving_status.visible = false
+   return
  var occupied_vehicle: Node3D = null
  var nearby_vehicle: Node3D = null
  var nearest_distance := 4.0
