@@ -267,7 +267,6 @@ func _add_room_details(category: String, room_width: float, room_depth: float, r
         _box(active_root, "LivingRoomRug", Vector3(0.0, 0.025, 1.2), Vector3(4.8, 0.035, 3.2), Color("#8b5549"))
 
 func _build_furniture(category: String, room_width: float, room_depth: float, room_height: float) -> void:
-    var half_w := room_width * 0.5
     var half_d := room_depth * 0.5
     if category.contains("shop") or category in ["retail", "convenience", "supermarket"] or category.contains("office"):
         _solid_box(active_root, "ShopCounter", Vector3(0, 0.65, -2.3), Vector3(4.2, 1.3, 1.0), Color("#79543a"))
