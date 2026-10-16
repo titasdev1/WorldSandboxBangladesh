@@ -68,12 +68,22 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
             batches = root / "batches"
             batches.mkdir()
             write_batch(batches, 0, [
-                {"tile_id": "sp_a", "status": "BAKED_FROM_OSM"},
+                {"tile_id": "sp_a", "status": "BAKED_FROM_OSM",
+                 "feature_counts": {"building_footprints": 3, "buildings_with_inferred_height": 2}},
                 {"tile_id": "sp_b", "status": "EMPTY"},
             ], total=3, geometry_count=1, stage="shariatpur_review", division_total=10)
             write_batch(batches, 2, [
-                {"tile_id": "sp_c", "status": "BAKED_FROM_OSM"},
+                {"tile_id": "sp_c", "status": "BAKED_FROM_OSM",
+                 "feature_counts": {"building_footprints": 1, "buildings_with_inferred_height": 1}},
             ], total=3, geometry_count=1, stage="shariatpur_review", division_total=10)
+            # Model a real in-progress sequence: earlier batches have the legacy
+            # division-wide count in tile_count_intersecting_boundary, while newer
+            # batches report district and division totals separately.
+            legacy_manifest_path = batches / "0" / "map_tiles_manifest.json"
+            legacy_manifest = json.loads(legacy_manifest_path.read_text())
+            legacy_manifest.pop("tile_count_intersecting_division")
+            legacy_manifest["tile_count_intersecting_boundary"] = 10
+            legacy_manifest_path.write_text(json.dumps(legacy_manifest), encoding="utf-8")
             output = root / "shariatpur"
             summary = merge_batches(batches, output, "shariatpur_review")
             manifest = json.loads((output / "map_tiles_manifest.json").read_text())
@@ -84,12 +94,19 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
             self.assertEqual(manifest["tile_count_intersecting_boundary"], 3)
             self.assertEqual(manifest["tile_count_intersecting_division"], 10)
             self.assertEqual(len(manifest["tiles"]), 3)
+            self.assertIn("BGD ADM2", manifest["administrative_boundary"]["attribution"])
+            attribution = (output / "ATTRIBUTION.txt").read_text(encoding="utf-8")
+            self.assertIn("BGD ADM2", attribution)
+            self.assertNotIn("BGD ADM1", attribution)
             report = json.loads((output / "quality_gate_report.json").read_text())
             self.assertEqual(report["status"], "REVIEW_REQUIRED")
             self.assertFalse(report["checks"]["photorealistic_facade_imagery_mapped"])
             self.assertTrue(report["checks"]["manual_visual_review_required"])
             self.assertTrue(report["checks"]["all_glbs_parse_and_contain_geometry"])
             self.assertGreater(report["checks"]["mesh_geometry_count"], 0)
+            self.assertFalse(report["checks"]["all_building_heights_verified_or_surveyed"])
+            self.assertEqual(report["checks"]["estimated_building_heights_count"], 3)
+            self.assertEqual(report["checks"]["estimated_building_heights_percent"], 75.0)
 
     def test_refuses_missing_batches(self):
         with tempfile.TemporaryDirectory() as temp:
