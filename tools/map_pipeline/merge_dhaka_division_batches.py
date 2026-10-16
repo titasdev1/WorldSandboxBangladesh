@@ -47,6 +47,9 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
     division_total_tiles = int(first["tile_count_intersecting_boundary"])
     tile_degrees = float(first["tile_edge_degrees"])
     boundary_name = first.get("administrative_boundary", {}).get("name")
+    expected_boundary_name = "Shariatpur District" if stage == "shariatpur_review" else "Dhaka Division"
+    if boundary_name != expected_boundary_name:
+        raise RuntimeError(f"Wrong administrative boundary for {stage}: expected {expected_boundary_name}, got {boundary_name}")
     expected_offset = 0
     all_records: list[dict[str, Any]] = []
     all_ids: set[str] = set()
