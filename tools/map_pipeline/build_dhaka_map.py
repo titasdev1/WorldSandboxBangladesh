@@ -49,6 +49,10 @@ def overpass_query(bbox: tuple[float, float, float, float]) -> str:
   node["amenity"]({box});
   node["tourism"]({box});
   node["historic"]({box});
+  node["natural"="tree"]({box});
+  node["power"~"pole|tower"]({box});
+  node["man_made"="utility_pole"]({box});
+  node["highway"="street_lamp"]({box});
 );
 out body geom;"""
 
