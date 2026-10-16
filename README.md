@@ -1,8 +1,10 @@
 # World Sandbox: Bangladesh
 
-Godot 4.4.1 Android open-world action/adventure set in a fictional Bangladesh-inspired city.
+Godot 4.4.1 Android open-world action/adventure paired with a separate real-world Greater Dhaka / Dhaka Division 3D map pipeline. The procedural Bangladesh-inspired city is a development fallback, not the final map goal.
 
-The canonical project is this repository. The game must be developed as one integrated playable product, not as disconnected workflow-generated demos.
+The canonical project is this repository. It has two linked deliverables: (1) the actual integrated playable Android game, and (2) a standalone, explorable real-world Greater Dhaka / full Dhaka Division 3D map, starting Shariatpur-first and continuing through the entire division. Map generation remains a separate artifact pipeline, not a second game or APK workflow.
+
+Read **PRODUCTION_MASTER_DIRECTIVE.md** and **MAP_PIPELINE.md** before substantial work. Real OSM geometry is not photorealistic imagery; use verified licensed imagery where available, preserve Bangla place identity, keep each building distinct, and never label a generated or inferred exterior as a 100% real-world replica.
 
 ## Production contract
 
