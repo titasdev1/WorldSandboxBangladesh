@@ -11,6 +11,8 @@ const GAME_ORIGIN_LAT := 23.8103
 const GAME_ORIGIN_LON := 90.4125
 const STREAM_INTERVAL := 0.5
 const MAX_INTERIOR_ANCHORS_PER_TILE := 24
+const INTERIOR_ANCHOR_RADIUS_M := 220.0
+const INTERIOR_ANCHOR_REFRESH_DISTANCE_M := 80.0
 const DEFAULT_LOAD_RADIUS_M := 2450.0
 const DEFAULT_UNLOAD_RADIUS_M := 3150.0
 
@@ -21,6 +23,7 @@ var _road_routes_by_tile: Dictionary = {}
 var _manifest_origin_lat := GAME_ORIGIN_LAT
 var _manifest_origin_lon := GAME_ORIGIN_LON
 var _stream_clock := 0.0
+var _last_anchor_refresh_position := Vector3(1.0e20, 0.0, 1.0e20)
 var _ready_for_streaming := false
 var _load_radius_m := DEFAULT_LOAD_RADIUS_M
 var _unload_radius_m := DEFAULT_UNLOAD_RADIUS_M
@@ -85,7 +88,15 @@ func _process(delta: float) -> void:
 	_stream_clock = 0.0
 	var player: Node3D = _world.get("player") as Node3D
 	if player != null:
-		_stream_tiles(player.global_position)
+		var player_position := player.global_position
+		_stream_tiles(player_position)
+		var horizontal_refresh_distance := Vector2(
+			player_position.x - _last_anchor_refresh_position.x,
+			player_position.z - _last_anchor_refresh_position.z
+		).length()
+		if horizontal_refresh_distance >= INTERIOR_ANCHOR_REFRESH_DISTANCE_M:
+			_refresh_loaded_interior_anchors(player_position)
+			_last_anchor_refresh_position = player_position
 
 func get_road_routes() -> Array:
 	var result: Array = []
@@ -189,7 +200,7 @@ func _stream_tiles(player_position: Vector3) -> void:
 		_world.add_child(instance)
 		_add_walkable_collisions(instance)
 		_load_road_routes(record)
-		record["interior_anchors"] = _load_interior_anchors(record)
+		record["interior_anchors"] = _load_interior_anchors(record, player_position)
 		record["instance"] = instance
 		_loaded[key] = record
 
@@ -220,28 +231,41 @@ func _configure_streaming_radius(tile_degrees: float) -> void:
 	_load_radius_m = maxf(DEFAULT_LOAD_RADIUS_M, half_diagonal + 900.0)
 	_unload_radius_m = maxf(DEFAULT_UNLOAD_RADIUS_M, _load_radius_m + maxf(700.0, tile_degrees * 100000.0 * 0.12))
 
-func _load_interior_anchors(record: Dictionary) -> Array[Node3D]:
+func _load_interior_anchors(record: Dictionary, player_position: Vector3) -> Array[Node3D]:
 	var anchors: Array[Node3D] = []
-	var relative_path := str(record.get("interior_seeds", ""))
-	if relative_path.is_empty():
-		return anchors
-	var path := MAP_ROOT + "/" + relative_path
-	if not FileAccess.file_exists(path):
-		return anchors
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
-	if not (parsed is Array):
-		return anchors
-	var seeds: Array[Dictionary] = []
-	for seed in parsed:
-		if seed is Dictionary and (seed.has("footprint_local_m") or seed.has("anchor_local_m")):
-			seeds.append(seed)
-	seeds.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		return _interior_seed_priority(a) > _interior_seed_priority(b)
-	)
+	var seeds: Array = record.get("interior_seed_records", [])
+	if seeds.is_empty():
+		var relative_path := str(record.get("interior_seeds", ""))
+		if relative_path.is_empty():
+			return anchors
+		var path := MAP_ROOT + "/" + relative_path
+		if not FileAccess.file_exists(path):
+			return anchors
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+		if not (parsed is Array):
+			return anchors
+		seeds = []
+		for seed in parsed:
+			if seed is Dictionary and (seed.has("footprint_local_m") or seed.has("anchor_local_m")):
+				seeds.append(seed)
+		record["interior_seed_records"] = seeds
+
 	var tile_position: Vector3 = record.get("world_position", Vector3.ZERO)
 	var tile_id := str(record.get("tile_id", "tile"))
+	var nearby: Array[Dictionary] = []
+	for seed in seeds:
+		var typed_seed := seed as Dictionary
+		if _interior_seed_distance(typed_seed, tile_position, player_position) <= INTERIOR_ANCHOR_RADIUS_M:
+			nearby.append(typed_seed)
+	nearby.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var distance_a := _interior_seed_distance(a, tile_position, player_position)
+		var distance_b := _interior_seed_distance(b, tile_position, player_position)
+		if absf(distance_a - distance_b) <= 2.0:
+			return _interior_seed_priority(a) > _interior_seed_priority(b)
+		return distance_a < distance_b
+	)
 	var road_routes := get_road_routes()
-	for seed in seeds.slice(0, mini(MAX_INTERIOR_ANCHORS_PER_TILE, seeds.size())):
+	for seed in nearby.slice(0, mini(MAX_INTERIOR_ANCHORS_PER_TILE, nearby.size())):
 		var placement := _interior_anchor_placement(seed, tile_position, road_routes)
 		var anchor := Node3D.new()
 		anchor.name = "InteriorAnchor_" + str(seed.get("osm_id", anchors.size()))
@@ -252,7 +276,36 @@ func _load_interior_anchors(record: Dictionary) -> Array[Node3D]:
 		anchor.set_meta("tile_id", tile_id)
 		_world.add_child(anchor)
 		anchors.append(anchor)
+	record["interior_anchor_center"] = player_position
 	return anchors
+
+func _interior_seed_distance(seed: Dictionary, tile_position: Vector3, player_position: Vector3) -> float:
+	var local_point := Vector2.ZERO
+	var local_anchor: Array = seed.get("anchor_local_m", [])
+	if local_anchor.size() >= 2:
+		local_point = Vector2(float(local_anchor[0]), float(local_anchor[1]))
+	else:
+		var footprint: Array = seed.get("footprint_local_m", [])
+		if footprint.is_empty():
+			return INF
+		for item in footprint:
+			if item is Array and item.size() >= 2:
+				local_point += Vector2(float(item[0]), float(item[1]))
+			else:
+				return INF
+		local_point /= float(footprint.size())
+	var world_point := tile_position + Vector3(local_point.x, 0.0, -local_point.y)
+	return Vector2(world_point.x - player_position.x, world_point.z - player_position.z).length()
+
+func _refresh_loaded_interior_anchors(player_position: Vector3) -> void:
+	for key in _loaded.keys():
+		var record: Dictionary = _loaded[key]
+		var old_anchors: Array = record.get("interior_anchors", [])
+		for anchor in old_anchors:
+			if is_instance_valid(anchor):
+				anchor.queue_free()
+		record["interior_anchors"] = _load_interior_anchors(record, player_position)
+		_loaded[key] = record
 
 func _interior_seed_priority(seed: Dictionary) -> int:
 	var category := str(seed.get("category", "")).to_lower()
