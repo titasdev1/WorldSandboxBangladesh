@@ -20,6 +20,7 @@ def write_batch(root: Path, offset: int, records: list[dict], total: int, geomet
         "product": "test batch",
         "administrative_boundary": {"name": "Shariatpur District" if stage == "shariatpur_review" else "Dhaka Division"},
         "tile_edge_degrees": 0.05,
+        "pipeline_commit_sha": "test-sha",
         "build_stage": stage,
         "tile_count_intersecting_boundary": total,
         "tile_count_intersecting_division": division_total if stage == "shariatpur_review" and division_total is not None else total,
@@ -149,6 +150,24 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
             manifest["tile_edge_degrees"] = 0.08
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "different tile sizes"):
+                merge_batches(batches, root / "full")
+
+    def test_refuses_mixed_pipeline_commits(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            batches = root / "batches"
+            batches.mkdir()
+            write_batch(batches, 0, [
+                {"tile_id": "tile_a", "status": "BAKED_FROM_OSM"},
+            ], total=2, geometry_count=1)
+            write_batch(batches, 1, [
+                {"tile_id": "tile_b", "status": "BAKED_FROM_OSM"},
+            ], total=2, geometry_count=1)
+            manifest_path = batches / "1" / "map_tiles_manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            manifest["pipeline_commit_sha"] = "different-test-sha"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "different pipeline commits"):
                 merge_batches(batches, root / "full")
 
     def test_refuses_missing_attribution(self):
