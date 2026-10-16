@@ -156,9 +156,9 @@ jobs:
           from pathlib import Path
           root = Path("build/dhaka-division")
           manifest = json.loads((root / "map_tiles_manifest.json").read_text())
-          if manifest.get("stage_gate_reached"):
-              print("Shariatpur review gate already reached; intentionally produced no additional tiles.")
-              raise SystemExit(0)
+          # The final Shariatpur batch still contains real tiles and must pass
+          # the same geometry/provenance checks as every earlier batch. Reaching
+          # the review gate stops further districts; it does not mean this batch is empty.
           glbs = list(root.rglob("Dhaka_Explorable_Map.glb"))
           if not glbs:
               raise SystemExit("No GLB tiles were produced")
@@ -214,7 +214,6 @@ jobs:
           PY
 
       - name: Upload Dhaka Division map batch
-        if: steps.batch-meta.outputs.stage_gate_reached != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: Project-A-Square-Dhaka-Division-${{ inputs.sequence_id || github.run_id }}-batch-${{ inputs.tile_offset || '0' }}-attempt-${{ inputs.retry_count || '0' }}
@@ -313,7 +312,7 @@ jobs:
           echo "Do not start the full Dhaka Division stage until exterior fidelity, coverage, interiors, and Android integration are reviewed."
 
       - name: Assemble complete Shariatpur District review package
-        if: ${{ inputs.assemble_only || (github.event_name == 'push' && contains(github.event.head_commit.message, '[assemble-shariatpur-review:')) || (needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'shariatpur_review' && needs.build-map.outputs.stage_gate_reached != 'true') }}
+        if: ${{ inputs.assemble_only || (github.event_name == 'push' && contains(github.event.head_commit.message, '[assemble-shariatpur-review:')) || (needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'shariatpur_review') }}
         env:
           GH_TOKEN: ${{ github.token }}
           SEQUENCE_ID: ${{ inputs.sequence_id || needs.build-map.outputs.sequence_id || github.run_id }}
