@@ -272,6 +272,52 @@ jobs:
           echo "Shariatpur-first batch sequence reached its review gate."
           echo "Do not start the full Dhaka Division stage until exterior fidelity, coverage, interiors, and Android integration are reviewed."
 
+      - name: Assemble complete Shariatpur District review package
+        if: needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'shariatpur_review' && needs.build-map.outputs.stage_gate_reached != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SEQUENCE_ID: ${{ needs.build-map.outputs.sequence_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/shariatpur/batches
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/runs?branch=main&per_page=100" \
+            --jq '.workflow_runs[] | [.id, .head_branch, (.conclusion // "")] | @tsv' > /tmp/map-runs.tsv
+          prefix="Project-A-Square-Dhaka-Division-${SEQUENCE_ID}-batch-"
+          while read -r run_id branch conclusion; do
+            [[ "${branch}" == "main" ]] || continue
+            [[ "${conclusion}" == "success" || "${run_id}" == "${GITHUB_RUN_ID}" ]] || continue
+            while IFS= read -r artifact_name; do
+              [[ "${artifact_name}" == "${prefix}"* ]] || continue
+              offset="${artifact_name##*-batch-}"
+              offset="${offset%%-attempt-*}"
+              destination="build/shariatpur/batches/${offset}"
+              mkdir -p "${destination}"
+              gh run download "${run_id}" --repo "${GITHUB_REPOSITORY}" --name "${artifact_name}" --dir "${destination}"
+              if [[ ! -f "${destination}/map_tiles_manifest.json" ]]; then
+                nested_manifest="$(find "${destination}" -mindepth 2 -name map_tiles_manifest.json -print -quit)"
+                if [[ -n "${nested_manifest}" ]]; then
+                  nested_root="$(dirname "${nested_manifest}")"
+                  find "${nested_root}" -mindepth 1 -maxdepth 1 -exec mv -t "${destination}" {} +
+                  rm -rf "${nested_root}"
+                fi
+              fi
+            done < <(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts" --jq '.artifacts[] | select(.expired == false) | .name')
+          done < /tmp/map-runs.tsv
+          python tools/map_pipeline/merge_dhaka_division_batches.py \
+            --batches-dir build/shariatpur/batches \
+            --out build/shariatpur-full \
+            --stage shariatpur_review
+
+      - name: Upload complete Shariatpur District review package
+        if: needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'shariatpur_review' && needs.build-map.outputs.stage_gate_reached != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project-A-Square-Shariatpur-Review-Map-${{ needs.build-map.outputs.sequence_id }}
+          path: build/shariatpur-full/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 1
+
       - name: Assemble all batches into one complete Dhaka Division map
         if: needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'full_division'
         env:
