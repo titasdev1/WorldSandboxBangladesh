@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -113,7 +114,10 @@ def extruded_polygon(geom: Polygon, height: float, color: tuple[int, int, int, i
     return result
 
 
-def building_height(tags: dict[str, str], osm_id: int) -> tuple[float, bool]:
+def building_height(
+    tags: dict[str, str], osm_id: int, footprint_area_m2: float | None = None
+) -> tuple[float, bool]:
+    """Prefer mapped height/levels; otherwise return a flagged footprint-based estimate."""
     raw_height = tags.get("height", "").replace(" m", "").strip()
     try:
         height = float(raw_height)
@@ -128,19 +132,49 @@ def building_height(tags: dict[str, str], osm_id: int) -> tuple[float, bool]:
             return max(3.2, levels * 3.1), False
     except (TypeError, ValueError):
         pass
-    # Do not invent a different height for every unmapped building. A low,
-    # neutral placeholder keeps geometry usable while the manifest/seed marks
-    # it as unverified; real height must come from tagged/surveyed data.
-    return 3.2, True
+    kind = str(tags.get("building", "yes")).lower()
+    area = max(0.0, float(footprint_area_m2 or 0.0))
+    if kind in {"industrial", "warehouse", "hangar", "farm"}:
+        floors = 1 if area < 900 else 2 if area < 4000 else 3
+    elif kind in {"house", "detached", "semidetached_house", "terrace", "bungalow"}:
+        floors = 1 if area < 45 else 2 if area < 140 else 3
+    elif kind in {"apartments", "commercial", "retail", "office", "hotel", "hospital", "school", "university"}:
+        floors = 2 if area < 70 else 3 if area < 180 else 5 if area < 500 else 8 if area < 1400 else 12
+    elif kind in {"mosque", "religious", "church", "temple"}:
+        floors = 1 if area < 250 else 2
+    else:
+        floors = 1 if area < 30 else 2 if area < 70 else 3 if area < 160 else 4 if area < 350 else 6 if area < 800 else 9 if area < 1800 else 12
+    floor_height = (3.0, 3.1, 3.25)[abs(int(osm_id)) % 3]
+    return min(60.0, max(3.0, floors * floor_height)), True
+
+
+def _parse_color(value: str | None) -> tuple[int, int, int, int] | None:
+    if not value:
+        return None
+    text = str(value).strip().lower()
+    if text.startswith("#"):
+        text = text[1:]
+        if len(text) == 3:
+            text = "".join(ch * 2 for ch in text)
+        if len(text) == 6 and re.fullmatch(r"[0-9a-f]{6}", text):
+            return tuple(int(text[i:i + 2], 16) for i in (0, 2, 4)) + (255,)
+    named = {
+        "white": (235, 233, 225, 255), "black": (55, 54, 52, 255),
+        "red": (166, 67, 59, 255), "blue": (78, 112, 157, 255),
+        "green": (93, 126, 91, 255), "yellow": (205, 183, 89, 255),
+        "brown": (128, 91, 66, 255), "gray": (145, 146, 143, 255),
+        "grey": (145, 146, 143, 255), "beige": (193, 179, 151, 255),
+        "orange": (194, 123, 68, 255), "pink": (194, 139, 151, 255),
+    }
+    return named.get(text)
 
 
 def building_color(tags: dict[str, str], osm_id: int) -> tuple[int, int, int, int]:
-    """Stable category color, never pseudo-random per-building facade color.
-
-    These are map-rendering placeholders, NOT claims about the real facade.
-    Exact facade appearance requires licensed street-level imagery or surveyed
-    building-specific material data.
-    """
+    """Prefer explicit mapped facade colours; category colours are fallbacks."""
+    for key in ("building:colour", "building:color", "facade:colour", "facade:color", "colour", "color"):
+        parsed = _parse_color(tags.get(key))
+        if parsed:
+            return parsed
     kind = tags.get("building", "").lower()
     if kind in {"commercial", "retail", "office", "hotel"} or "shop" in tags:
         return (177, 180, 181, 255)
@@ -150,6 +184,21 @@ def building_color(tags: dict[str, str], osm_id: int) -> tuple[int, int, int, in
         return (190, 184, 166, 255)
     return (183, 178, 171, 255)
 
+
+def roof_color(tags: dict[str, str], osm_id: int) -> tuple[int, int, int, int]:
+    """Use mapped roof colour/material where available; otherwise neutral fallback."""
+    for key in ("roof:colour", "roof:color"):
+        parsed = _parse_color(tags.get(key))
+        if parsed:
+            return parsed
+    material = str(tags.get("roof:material", "")).lower()
+    if material in {"metal", "metal_sheet", "steel", "tin"}:
+        return (112, 119, 121, 255)
+    if material in {"tile", "terracotta"}:
+        return (153, 91, 65, 255)
+    if material in {"concrete", "concrete_slab"}:
+        return (151, 150, 143, 255)
+    return building_color(tags, osm_id)
 
 def road_width(tags: dict[str, str]) -> float:
     highway = tags.get("highway", "residential").lower()
@@ -340,12 +389,16 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             polygon = polygon.intersection(tile_bounds)
             if polygon.is_empty or polygon.area < 0.5:
                 continue
-            height, inferred = building_height(tags, osm_id)
+            height, inferred = building_height(tags, osm_id, polygon.area)
             if inferred:
                 inferred_heights += 1
             for part_index, mesh in enumerate(extruded_polygon(polygon, height, building_color(tags, osm_id), f"osm_building_{osm_id}")):
                 mesh.apply_translation((0.0, 0.0, 0.02))
                 scene.add_geometry(mesh, node_name=f"building_{osm_id}_{part_index}", geom_name=f"building_{osm_id}_{part_index}")
+            # A distinct roof cap preserves mapped roof colour/material tags.
+            for roof_index, roof_mesh in enumerate(extruded_polygon(polygon, 0.055, roof_color(tags, osm_id), f"osm_roof_{osm_id}")):
+                roof_mesh.apply_translation((0.0, 0.0, height + 0.025))
+                scene.add_geometry(roof_mesh, node_name=f"building_roof_{osm_id}_{roof_index}", geom_name=f"building_roof_{osm_id}_{roof_index}")
             buildings += 1
             name = tags.get("name", "")
             has_specific_place_tags = bool(name or tags.get("shop") or tags.get("amenity") or tags.get("tourism"))
@@ -379,12 +432,35 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 "floors_estimate": None if inferred else max(1, round(height / 3.1)),
                 "height_metres": round(height, 2),
                 "height_source": "UNVERIFIED_PLACEHOLDER_3_2M" if inferred else "OSM_HEIGHT_OR_LEVELS",
-                "facade_status": "NO_VERIFIED_FACADE_TEXTURE",
-                "geometry_confidence": "OSM_FOOTPRINT; VERIFY_ON_GROUND_OR_WITH_LICENSED_IMAGERY",
+                "facade_status": "MAPPED_COLOUR_TAGS_IF_PRESENT; OTHERWISE_APPROXIMATE_CATEGORY_COLOUR",
+                "geometry_confidence": "OSM_FOOTPRINT; HEIGHT_IS_TAGGED_OR_FLAGGED_AREA_CATEGORY_ESTIMATE",
+                "building_tags": {
+                    key: tags[key] for key in (
+                        "building", "building:levels", "height", "building:material",
+                        "building:colour", "building:color", "facade:material",
+                        "facade:colour", "facade:color", "roof:shape", "roof:material",
+                        "roof:colour", "roof:color", "name", "name:bn", "name:en",
+                        "official_name", "brand", "shop", "amenity", "tourism",
+                        "addr:street", "addr:housenumber", "addr:place",
+                        "image", "wikimedia_commons", "mapillary"
+                    ) if key in tags
+                },
+                "signage_text": {
+                    key: tags[key] for key in ("name:bn", "name:en", "name", "official_name", "brand")
+                    if key in tags
+                },
+                "exterior_reference": {
+                    "image_tag": tags.get("image", ""),
+                    "wikimedia_commons": tags.get("wikimedia_commons", ""),
+                    "mapillary_reference": tags.get("mapillary", ""),
+                    "downloaded_or_embedded": False,
+                    "note": "References only; verify access and reuse rights before runtime use."
+                },
                 "footprint_local_m": footprint_for_anchor,
-                "interior_status": "FICTIONAL_GAME_INTERIOR_GENERATED_AT_RUNTIME",
-                "npc_seed": "Create fictional residents/workers appropriate to the mapped building category; never imply actual occupants.",
+                "interior_status": "FICTIONAL_BUILDING_SPECIFIC_INTERIOR_GENERATED_AT_RUNTIME",
+                "npc_seed": "Generate fictional residents/workers from this building's own mapped name, category, address and exterior tags; never imply actual occupants.",
                 "rooms_seed": ["entrance", "public_or_living_area", "counter_or_reception", "back_room"],
+                "interior_generation_key": f"osm:{el_type}/{osm_id}",
             })
             if has_specific_place_tags:
                 named_places += 1
@@ -443,8 +519,8 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                            "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places,
                            "interior_anchors": len(interior_seeds), "mapped_trees": trees,
                            "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps},
-        "height_note": "OSM height/building:levels tags are used when present; missing heights are visually inferred and flagged, not surveyed facts.",
-        "visual_fidelity_note": "Real OSM road alignments and building footprints, but not photorealistic façade imagery, surveyed heights, or street-view photography. Those require separately licensed source data.",
+        "height_note": "OSM height/building:levels tags are used when present; otherwise footprint-area/building-category estimates with deterministic floor-height variation are flagged as inferred, not surveyed facts.",
+        "visual_fidelity_note": "Real OSM road alignments and building footprints; explicit facade/roof colour tags are used where available, and Bangla/English names plus exterior image references are preserved per building. Untagged facades remain approximate; photorealistic street imagery requires separately licensed source data.",
         "interiors_and_people": "AI_Interior_Seeds.json includes anchors for every mapped building footprint plus named/tagged places; the game generates fictional interiors and residents at runtime, not actual private interiors or real people.",
         "engine_import": "Import Dhaka_Explorable_Map.glb as a Godot MeshInstance3D/scene; retain GeoJSON and manifest for labels, navigation and source attribution.",
     }
