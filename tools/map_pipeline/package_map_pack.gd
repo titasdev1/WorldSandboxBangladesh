@@ -76,7 +76,14 @@ func _initialize() -> void:
         push_error("PCK verification failed; mounted map manifest is invalid.")
         quit(1)
         return
-    print("MAP_PCK_VERIFIED files=", added, " bytes=", FileAccess.get_file_as_bytes(output_absolute).size(), " output=", output_absolute)
+    var packed_file := FileAccess.open(output_absolute, FileAccess.READ)
+    if packed_file == null:
+        push_error("PCK verification failed; output file cannot be opened.")
+        quit(1)
+        return
+    var packed_bytes := packed_file.get_length()
+    packed_file.close()
+    print("MAP_PCK_VERIFIED files=", added, " bytes=", packed_bytes, " output=", output_absolute)
     quit(0)
 
 func _add_directory(packer: PCKPacker, source_root: String, relative_dir: String) -> int:
