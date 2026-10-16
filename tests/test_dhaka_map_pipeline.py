@@ -19,6 +19,16 @@ class DhakaMapPipelineTests(unittest.TestCase):
         self.assertLessEqual(height, 3.25)
         self.assertTrue(inferred)
 
+    def test_height_provenance_does_not_label_estimates_as_placeholder_surveys(self):
+        from tools.map_pipeline.build_dhaka_map import building_height_source, building_floors_source
+
+        self.assertEqual(building_height_source({"building": "yes"}), "AREA_CATEGORY_ESTIMATE_UNVERIFIED")
+        self.assertEqual(building_floors_source({"building": "yes"}), "AREA_CATEGORY_ESTIMATE_UNVERIFIED")
+        self.assertEqual(building_height_source({"height": "18 m"}), "OSM_HEIGHT_TAG")
+        self.assertEqual(building_floors_source({"height": "18 m"}), "DERIVED_FROM_OSM_HEIGHT_TAG")
+        self.assertEqual(building_height_source({"building:levels": "5"}), "OSM_BUILDING_LEVELS_TAG")
+        self.assertEqual(building_floors_source({"building:levels": "5"}), "OSM_BUILDING_LEVELS_TAG")
+
     def test_tagged_building_levels_are_preserved_as_source_data(self):
         height, inferred = building_height({"building:levels": "5"}, 1001)
         self.assertAlmostEqual(height, 15.5)
@@ -53,11 +63,86 @@ class DhakaMapPipelineTests(unittest.TestCase):
             ],
         }]
         with tempfile.TemporaryDirectory() as tmp:
-            build_map(elements, Path(tmp), DEFAULT_BBOX)
+            manifest = build_map(elements, Path(tmp), DEFAULT_BBOX)
             seeds = json.loads((Path(tmp) / "AI_Interior_Seeds.json").read_text(encoding="utf-8"))
+            self.assertGreater(manifest["feature_counts"]["facade_window_panels"], 0)
+            scene = trimesh.load(Path(tmp) / "Dhaka_Explorable_Map.glb", force="scene")
+            self.assertTrue(any(name.startswith("facade_windows_") for name in scene.geometry))
+            self.assertIn("PROCEDURAL_LOW_POLY_WINDOW_PANELS", seeds[0]["facade_status"])
             self.assertEqual(seeds[0]["signage_text"]["name:bn"], "দোকান")
+            self.assertEqual(seeds[0]["height_source"], "AREA_CATEGORY_ESTIMATE_UNVERIFIED")
+            self.assertEqual(seeds[0]["floors_source"], "AREA_CATEGORY_ESTIMATE_UNVERIFIED")
+            self.assertIsInstance(seeds[0]["floors_estimate"], int)
             self.assertEqual(seeds[0]["exterior_reference"]["image_tag"], "https://example.invalid/facade.jpg")
             self.assertFalse(seeds[0]["exterior_reference"]["downloaded_or_embedded"])
+
+    def test_empty_tile_still_exports_ground_geometry_instead_of_a_hole(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            manifest = build_map([], out, DEFAULT_BBOX)
+            self.assertTrue((out / "Dhaka_Explorable_Map.glb").is_file())
+            scene = trimesh.load(out / "Dhaka_Explorable_Map.glb", force="scene")
+            self.assertTrue(scene.geometry)
+            self.assertEqual(manifest["feature_counts"]["building_footprints"], 0)
+            self.assertEqual(manifest["feature_counts"]["road_ways"], 0)
+            source = json.loads((out / "Dhaka_OSM_Source.geojson").read_text(encoding="utf-8"))
+            self.assertEqual(source["features"], [])
+
+    def test_mapped_water_landuse_and_bridges_are_baked_and_exported(self):
+        from tools.map_pipeline.build_dhaka_map import waterway_width
+
+        elements = [
+            {
+                "type": "way", "id": 2101,
+                "tags": {"natural": "water", "name": "Mapped Pond"},
+                "geometry": [
+                    {"lat": 23.8092, "lon": 90.4100}, {"lat": 23.8092, "lon": 90.4110},
+                    {"lat": 23.8100, "lon": 90.4110}, {"lat": 23.8100, "lon": 90.4100},
+                    {"lat": 23.8092, "lon": 90.4100},
+                ],
+            },
+            {
+                "type": "way", "id": 2102,
+                "tags": {"waterway": "river", "name": "Mapped River"},
+                "geometry": [
+                    {"lat": 23.8090, "lon": 90.4120}, {"lat": 23.8100, "lon": 90.4150},
+                ],
+            },
+            {
+                "type": "way", "id": 2103,
+                "tags": {"landuse": "farmland", "name": "Mapped Field"},
+                "geometry": [
+                    {"lat": 23.8105, "lon": 90.4100}, {"lat": 23.8105, "lon": 90.4120},
+                    {"lat": 23.8115, "lon": 90.4120}, {"lat": 23.8115, "lon": 90.4100},
+                    {"lat": 23.8105, "lon": 90.4100},
+                ],
+            },
+            {
+                "type": "way", "id": 2104,
+                "tags": {"highway": "primary", "bridge": "yes", "width": "8"},
+                "geometry": [
+                    {"lat": 23.8120, "lon": 90.4070}, {"lat": 23.8120, "lon": 90.4170},
+                ],
+            },
+        ]
+        self.assertEqual(waterway_width({"waterway": "river", "width": "35"}), 35.0)
+        self.assertEqual(waterway_width({"waterway": "river"}), 180.0)
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            manifest = build_map(elements, out, DEFAULT_BBOX)
+            counts = manifest["feature_counts"]
+            self.assertEqual(counts["water_polygons"], 1)
+            self.assertEqual(counts["waterway_segments"], 1)
+            self.assertEqual(counts["landuse_areas"], 1)
+            self.assertEqual(counts["bridge_ways"], 1)
+            scene = trimesh.load(out / "Dhaka_Explorable_Map.glb", force="scene")
+            self.assertTrue(any(name.startswith("mapped_surface_") for name in scene.geometry))
+            source = json.loads((out / "Dhaka_OSM_Source.geojson").read_text(encoding="utf-8"))
+            by_id = {feature["properties"]["osm_id"]: feature["geometry"]["type"] for feature in source["features"]}
+            self.assertEqual(by_id[2101], "Polygon")
+            self.assertEqual(by_id[2102], "LineString")
+            self.assertEqual(by_id[2103], "Polygon")
+            self.assertIn("water polygons", manifest["hydrography_note"])
 
     def test_local_projection_is_stable_and_metric(self):
         x, y = local_xy(23.781, 90.407, 23.780, 90.407)
@@ -134,6 +219,15 @@ class DhakaMapPipelineTests(unittest.TestCase):
             self.assertGreater(scene.bounds[1][1], scene.bounds[0][1])
             self.assertLess(scene.bounds[1][1], 260)
             self.assertEqual(manifest["feature_counts"]["building_footprints"], 2)
+            building_batches = [name for name in scene.geometry if name.startswith("mapped_buildings_")]
+            roof_batches = [name for name in scene.geometry if name.startswith("mapped_roofs_")]
+            self.assertGreaterEqual(len(building_batches), 1)
+            self.assertLessEqual(len(building_batches), 4)
+            self.assertGreaterEqual(len(roof_batches), 1)
+            self.assertLessEqual(len(roof_batches), 4)
+            self.assertEqual(manifest["feature_counts"]["building_mesh_batches"], len(building_batches))
+            self.assertEqual(manifest["feature_counts"]["roof_mesh_batches"], len(roof_batches))
+            self.assertFalse(any(name.startswith("building_") for name in scene.geometry))
             self.assertEqual(manifest["feature_counts"]["road_ways"], 1)
             self.assertEqual(manifest["feature_counts"]["interior_anchors"], 3)
             self.assertEqual(manifest["feature_counts"]["mapped_trees"], 1)

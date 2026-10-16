@@ -8,7 +8,7 @@ from tools.map_pipeline.build_dhaka_division import (
     _clip_elements, _source_geometry, _replace_ground_with_boundary,
     order_tiles_shariatpur_first, select_tile_batch, effective_batch_limit, stage_gate_reached,
     build_boundary_for_stage, SHARIATPUR_PRIORITY_LAT_LON, has_feature,
-    boundary_attribution_for_stage,
+    boundary_attribution_for_stage, tile_status_from_counts,
 )
 from tools.map_pipeline.build_dhaka_map import build_map
 
@@ -80,6 +80,13 @@ class DhakaDivisionPipelineTests(unittest.TestCase):
         self.assertIs(build_boundary_for_stage("full_division", division, district), division)
         with self.assertRaises(ValueError):
             build_boundary_for_stage("unknown", division, district)
+
+    def test_ground_only_tiles_are_distinguished_from_mapped_tiles(self):
+        self.assertEqual(tile_status_from_counts({"building_footprints": 1}), "BAKED_FROM_OSM")
+        self.assertEqual(tile_status_from_counts({"water_polygons": 2}), "BAKED_FROM_OSM")
+        self.assertEqual(tile_status_from_counts({"landuse_areas": 1}), "BAKED_FROM_OSM")
+        self.assertEqual(tile_status_from_counts({}), "GROUND_ONLY_NO_RENDERABLE_FEATURES")
+        self.assertEqual(tile_status_from_counts({"building_footprints": 0, "road_ways": 0}), "GROUND_ONLY_NO_RENDERABLE_FEATURES")
 
     def test_boundary_attribution_matches_selected_administrative_level(self):
         shariatpur = boundary_attribution_for_stage("shariatpur_review")

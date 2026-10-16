@@ -17,6 +17,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import trimesh
 from shapely.geometry import GeometryCollection, LineString, MultiLineString, MultiPolygon, Point, Polygon, box, mapping, shape
 from shapely.ops import unary_union
@@ -38,12 +39,21 @@ def overpass_query(bbox: tuple[float, float, float, float]) -> str:
 (
   way["highway"]({box});
   way["building"]({box});
+  way["waterway"]({box});
+  way["natural"]({box});
+  way["landuse"]({box});
+  way["leisure"]({box});
+  way["railway"]({box});
   way["shop"]({box});
   way["amenity"]({box});
   node["shop"]({box});
   node["amenity"]({box});
   node["tourism"]({box});
   node["historic"]({box});
+  node["natural"="tree"]({box});
+  node["power"~"pole|tower"]({box});
+  node["man_made"="utility_pole"]({box});
+  node["highway"="street_lamp"]({box});
 );
 out body geom;"""
 
@@ -148,6 +158,38 @@ def building_height(
     return min(60.0, max(3.0, floors * floor_height)), True
 
 
+def building_height_source(tags: dict[str, str]) -> str:
+    """Describe whether a height came from OSM tags or an unverified estimate."""
+    raw_height = str(tags.get("height", "")).replace(" m", "").strip()
+    try:
+        height = float(raw_height)
+        if 2.5 <= height <= 250:
+            return "OSM_HEIGHT_TAG"
+    except (TypeError, ValueError):
+        pass
+    raw_levels = str(tags.get("building:levels", "")).strip()
+    try:
+        levels = int(float(raw_levels))
+        if 1 <= levels <= 70:
+            return "OSM_BUILDING_LEVELS_TAG"
+    except (TypeError, ValueError):
+        pass
+    return "AREA_CATEGORY_ESTIMATE_UNVERIFIED"
+
+
+def building_floors_source(tags: dict[str, str]) -> str:
+    raw_levels = str(tags.get("building:levels", "")).strip()
+    try:
+        levels = int(float(raw_levels))
+        if 1 <= levels <= 70:
+            return "OSM_BUILDING_LEVELS_TAG"
+    except (TypeError, ValueError):
+        pass
+    if building_height_source(tags) == "OSM_HEIGHT_TAG":
+        return "DERIVED_FROM_OSM_HEIGHT_TAG"
+    return "AREA_CATEGORY_ESTIMATE_UNVERIFIED"
+
+
 def _parse_color(value: str | None) -> tuple[int, int, int, int] | None:
     if not value:
         return None
@@ -201,6 +243,13 @@ def roof_color(tags: dict[str, str], osm_id: int) -> tuple[int, int, int, int]:
     return building_color(tags, osm_id)
 
 def road_width(tags: dict[str, str]) -> float:
+    raw_width = str(tags.get("width", "")).replace(" m", "").strip()
+    try:
+        mapped_width = float(raw_width)
+        if 1.0 <= mapped_width <= 50.0:
+            return mapped_width
+    except (TypeError, ValueError):
+        pass
     highway = tags.get("highway", "residential").lower()
     widths = {
         "motorway": 14.0, "motorway_link": 8.0, "trunk": 11.0, "trunk_link": 7.0,
@@ -210,6 +259,193 @@ def road_width(tags: dict[str, str]) -> float:
         "path": 1.2, "cycleway": 1.6, "steps": 1.2, "track": 2.2,
     }
     return widths.get(highway, 3.5)
+
+
+def road_color(tags: dict[str, str]) -> tuple[int, int, int, int]:
+    surface = tags.get("surface", "").lower()
+    highway = tags.get("highway", "").lower()
+    if surface in {"ground", "dirt", "earth", "gravel", "unpaved", "mud", "sand"}:
+        return (126, 112, 91, 255)
+    if surface in {"concrete", "concrete:plates", "paving_stones", "sett", "asphalt"}:
+        return (63, 67, 70, 255)
+    if highway in {"footway", "path", "steps", "cycleway", "pedestrian"}:
+        return (116, 117, 111, 255)
+    return (78, 79, 78, 255)
+
+
+def is_water_area(tags: dict[str, str]) -> bool:
+    return (
+        tags.get("natural", "").lower() == "water"
+        or tags.get("waterway", "").lower() in {"riverbank", "dock", "boatyard"}
+        or tags.get("landuse", "").lower() in {"reservoir", "basin"}
+    )
+
+
+def surface_color(tags: dict[str, str]) -> tuple[int, int, int, int] | None:
+    """Return a restrained ground-surface colour for mapped water and land-use polygons."""
+    if is_water_area(tags):
+        return (52, 121, 158, 255)
+    natural = tags.get("natural", "").lower()
+    landuse = tags.get("landuse", "").lower()
+    leisure = tags.get("leisure", "").lower()
+    if natural in {"wood", "forest"} or landuse == "forest":
+        return (62, 101, 64, 255)
+    if natural in {"wetland", "marsh", "mud", "scrub"}:
+        return (91, 119, 86, 255)
+    if natural in {"grassland", "heath"} or landuse in {"grass", "meadow", "village_green"}:
+        return (102, 137, 78, 255)
+    if leisure in {"park", "garden", "playground", "pitch", "golf_course", "recreation_ground"}:
+        return (86, 132, 74, 255)
+    if landuse == "aquaculture":
+        return (77, 126, 139, 255)
+    if landuse in {"farmland", "farmyard", "orchard", "plant_nursery", "allotments"}:
+        return (126, 139, 83, 255)
+    if landuse in {"residential", "commercial", "retail"}:
+        return (124, 126, 111, 255)
+    if landuse in {"industrial", "construction", "brownfield"}:
+        return (130, 126, 116, 255)
+    if landuse in {"cemetery", "religious"}:
+        return (96, 126, 91, 255)
+    return None
+
+
+def waterway_width(tags: dict[str, str]) -> float:
+    """Use mapped water width when available; otherwise a clearly approximate type default."""
+    for key in ("width", "width:waterway"):
+        raw = str(tags.get(key, "")).replace(" m", "").strip()
+        try:
+            width = float(raw)
+            if 0.5 <= width <= 3000.0:
+                return width
+        except (TypeError, ValueError):
+            pass
+    return {
+        "river": 180.0,
+        "tidal_channel": 20.0,
+        "canal": 12.0,
+        "stream": 2.4,
+        "drain": 1.4,
+        "ditch": 0.9,
+    }.get(tags.get("waterway", "").lower(), 2.0)
+
+
+def flat_surface_mesh(geometry: Any, color: tuple[int, int, int, int], name: str) -> list[trimesh.Trimesh]:
+    """Bake mapped water/land-use areas as thin, low-cost surfaces just above the ground."""
+    if isinstance(geometry, (MultiPolygon, GeometryCollection)):
+        parts = [part for part in geometry.geoms if isinstance(part, Polygon)]
+    else:
+        parts = [geometry] if isinstance(geometry, Polygon) else []
+    result: list[trimesh.Trimesh] = []
+    for part in parts:
+        if part.is_empty or part.area < 1.0:
+            continue
+        try:
+            mesh = trimesh.creation.extrude_polygon(part, 0.008, engine="earcut")
+            mesh.apply_translation((0.0, 0.0, 0.004))
+            mesh.visual.vertex_colors = [color] * len(mesh.vertices)
+            mesh.metadata["name"] = name
+            result.append(mesh)
+        except Exception:
+            # One malformed or overly complex land-use polygon must not abort the district bake.
+            continue
+    return result
+
+
+def road_elevation(tags: dict[str, str]) -> float:
+    """Give mapped bridges/layered roads a modest lift above water and ground surfaces."""
+    layer_raw = str(tags.get("layer", "0")).strip()
+    try:
+        layer = int(layer_raw)
+    except (TypeError, ValueError):
+        layer = 0
+    if layer > 0:
+        return 0.015 + min(3.0, float(layer) * 0.5)
+    if tags.get("bridge", "").lower() not in {"", "no", "false", "0"}:
+        return 0.65
+    return 0.015
+
+
+_WINDOW_BOX_TEMPLATE = trimesh.creation.box(extents=(1.0, 1.0, 1.0))
+_WINDOW_GLASS_PALETTE = (
+    (49, 82, 96, 255),
+    (59, 94, 108, 255),
+    (70, 104, 116, 255),
+)
+
+
+def facade_window_geometry(
+    geometry: Any,
+    height: float,
+    osm_id: int,
+    tile_bounds: Polygon,
+) -> tuple[tuple[int, int, int, int], np.ndarray, np.ndarray, int] | None:
+    """Build capped, low-poly window panels as one mesh chunk per building."""
+    if height < 3.2 or geometry.is_empty:
+        return None
+    parts = list(geometry.geoms) if isinstance(geometry, MultiPolygon) else [geometry]
+    window_centers: list[tuple[float, float, float, float, float]] = []
+    floor_rows = min(2, max(1, int(height // 3.2)))
+    for part in parts:
+        if not isinstance(part, Polygon) or part.area < 20.0:
+            continue
+        edges: list[tuple[float, tuple[float, float], tuple[float, float], float, float, float]] = []
+        coords = list(part.exterior.coords)
+        for p1, p2 in zip(coords, coords[1:]):
+            dx, dy = float(p2[0] - p1[0]), float(p2[1] - p1[1])
+            length = math.hypot(dx, dy)
+            if length < 5.0:
+                continue
+            mid_x, mid_y = (float(p1[0]) + float(p2[0])) * 0.5, (float(p1[1]) + float(p2[1])) * 0.5
+            if tile_bounds.boundary.distance(Point(mid_x, mid_y)) < 1.0:
+                continue
+            nx, ny = -dy / length, dx / length
+            if part.contains(Point(mid_x + nx * 0.25, mid_y + ny * 0.25)):
+                nx, ny = -nx, -ny
+            angle = math.atan2(dy, dx)
+            edges.append((length, (float(p1[0]), float(p1[1])), (float(p2[0]), float(p2[1])), nx, ny, angle))
+        # Two longest exterior walls provide visible detail without multiplying draw calls.
+        edges.sort(key=lambda edge: edge[0], reverse=True)
+        for edge in edges[:2]:
+            length, p1, p2, nx, ny, angle = edge
+            window_count = min(2, max(1, int(length / 4.5)))
+            window_width = min(0.95, max(0.55, length / (window_count + 1) * 0.4))
+            for row in range(floor_rows):
+                center_z = 0.02 + 1.65 + float(row) * 3.0
+                if center_z + 0.45 >= height + 0.02:
+                    continue
+                for index in range(window_count):
+                    fraction = float(index + 1) / float(window_count + 1)
+                    cx = p1[0] + (p2[0] - p1[0]) * fraction + nx * 0.035
+                    cy = p1[1] + (p2[1] - p1[1]) * fraction + ny * 0.035
+                    window_centers.append((cx, cy, center_z, window_width, angle))
+                    if len(window_centers) >= 8:
+                        break
+                if len(window_centers) >= 8:
+                    break
+            if len(window_centers) >= 8:
+                break
+        if len(window_centers) >= 8:
+            break
+    if not window_centers:
+        return None
+
+    params = np.asarray(window_centers, dtype=np.float32)
+    count = len(params)
+    vertices = np.tile(_WINDOW_BOX_TEMPLATE.vertices, (count, 1)).astype(np.float32)
+    vertices[:, 0] *= np.repeat(params[:, 3], 8)
+    vertices[:, 1] *= 0.055
+    vertices[:, 2] *= 0.9
+    angles = np.repeat(params[:, 4], 8)
+    cos_angles, sin_angles = np.cos(angles), np.sin(angles)
+    rotated_x = vertices[:, 0] * cos_angles - vertices[:, 1] * sin_angles
+    rotated_y = vertices[:, 0] * sin_angles + vertices[:, 1] * cos_angles
+    vertices[:, 0] = rotated_x + np.repeat(params[:, 0], 8)
+    vertices[:, 1] = rotated_y + np.repeat(params[:, 1], 8)
+    vertices[:, 2] += np.repeat(params[:, 2], 8)
+    faces = np.tile(_WINDOW_BOX_TEMPLATE.faces, (count, 1)).astype(np.int32)
+    faces += np.repeat(np.arange(count, dtype=np.int32) * 8, 12).reshape(-1, 1)
+    color = _WINDOW_GLASS_PALETTE[osm_id % len(_WINDOW_GLASS_PALETTE)]
+    return color, vertices, faces, count
 
 
 def make_geojson(
@@ -233,11 +469,14 @@ def make_geojson(
             coords = [(float(p["lon"]), float(p["lat"])) for p in geom if "lon" in p and "lat" in p]
             if not coords:
                 continue
-            if el.get("type") == "way" and tags.get("building") and len(coords) >= 4 and coords[0] == coords[-1]:
+            is_closed_way = el.get("type") == "way" and len(coords) >= 4 and coords[0] == coords[-1]
+            if is_closed_way and (tags.get("building") or surface_color(tags) is not None):
                 source_geom = Polygon(coords)
                 if not source_geom.is_valid:
                     source_geom = source_geom.buffer(0)
-            elif el.get("type") == "way" and tags.get("highway") and len(coords) >= 2:
+            elif el.get("type") == "way" and (
+                tags.get("highway") or tags.get("waterway") or tags.get("railway")
+            ) and len(coords) >= 2:
                 source_geom = LineString(coords)
             else:
                 source_geom = Point(coords[0])
@@ -344,6 +583,13 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
 
     buildings = roads = inferred_heights = named_places = 0
     trees = utility_poles = street_lamps = 0
+    water_polygons = waterway_segments = landuse_areas = railway_ways = bridge_ways = facade_windows = 0
+    surface_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
+    building_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
+    roof_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
+    facade_vertices_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
+    facade_faces_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
+    facade_vertex_counts: dict[tuple[int, int, int, int], int] = {}
     interior_seeds: list[dict[str, Any]] = []
     used_ids: set[tuple[str, int]] = set()
     for el in elements:
@@ -392,13 +638,23 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             height, inferred = building_height(tags, osm_id, polygon.area)
             if inferred:
                 inferred_heights += 1
-            for part_index, mesh in enumerate(extruded_polygon(polygon, height, building_color(tags, osm_id), f"osm_building_{osm_id}")):
+            facade_color = building_color(tags, osm_id)
+            for mesh in extruded_polygon(polygon, height, facade_color, f"osm_building_{osm_id}"):
                 mesh.apply_translation((0.0, 0.0, 0.02))
-                scene.add_geometry(mesh, node_name=f"building_{osm_id}_{part_index}", geom_name=f"building_{osm_id}_{part_index}")
-            # A distinct roof cap preserves mapped roof colour/material tags.
-            for roof_index, roof_mesh in enumerate(extruded_polygon(polygon, 0.055, roof_color(tags, osm_id), f"osm_roof_{osm_id}")):
+                building_meshes_by_color.setdefault(facade_color, []).append(mesh)
+            # Roof caps are batched by mapped colour to reduce mobile draw calls.
+            mapped_roof_color = roof_color(tags, osm_id)
+            for roof_mesh in extruded_polygon(polygon, 0.055, mapped_roof_color, f"osm_roof_{osm_id}"):
                 roof_mesh.apply_translation((0.0, 0.0, height + 0.025))
-                scene.add_geometry(roof_mesh, node_name=f"building_roof_{osm_id}_{roof_index}", geom_name=f"building_roof_{osm_id}_{roof_index}")
+                roof_meshes_by_color.setdefault(mapped_roof_color, []).append(roof_mesh)
+            window_geometry = facade_window_geometry(polygon, height, osm_id, tile_bounds)
+            if window_geometry is not None:
+                window_color, window_vertices, window_faces, window_count = window_geometry
+                vertex_offset = facade_vertex_counts.get(window_color, 0)
+                facade_vertices_by_color.setdefault(window_color, []).append(window_vertices)
+                facade_faces_by_color.setdefault(window_color, []).append(window_faces + vertex_offset)
+                facade_vertex_counts[window_color] = vertex_offset + len(window_vertices)
+                facade_windows += window_count
             buildings += 1
             name = tags.get("name", "")
             has_specific_place_tags = bool(name or tags.get("shop") or tags.get("amenity") or tags.get("tourism"))
@@ -429,10 +685,11 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 "name": name or tags.get("shop", tags.get("amenity", "Unnamed building")),
                 "category": interior_category,
                 "anchor_kind": "named_or_tagged" if has_specific_place_tags else "generic_building",
-                "floors_estimate": None if inferred else max(1, round(height / 3.1)),
+                "floors_estimate": max(1, round(height / 3.1)),
+                "floors_source": building_floors_source(tags),
                 "height_metres": round(height, 2),
-                "height_source": "UNVERIFIED_PLACEHOLDER_3_2M" if inferred else "OSM_HEIGHT_OR_LEVELS",
-                "facade_status": "MAPPED_COLOUR_TAGS_IF_PRESENT; OTHERWISE_APPROXIMATE_CATEGORY_COLOUR",
+                "height_source": building_height_source(tags),
+                "facade_status": "PROCEDURAL_LOW_POLY_WINDOW_PANELS; MAPPED_COLOUR_TAGS_IF_PRESENT; OTHERWISE_APPROXIMATE_CATEGORY_COLOUR",
                 "geometry_confidence": "OSM_FOOTPRINT; HEIGHT_IS_TAGGED_OR_FLAGGED_AREA_CATEGORY_ESTIMATE",
                 "building_tags": {
                     key: tags[key] for key in (
@@ -465,6 +722,59 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             if has_specific_place_tags:
                 named_places += 1
             continue
+        if el_type == "way" and len(points) >= 4 and points[0] == points[-1]:
+            color = surface_color(tags)
+            if color is not None:
+                try:
+                    polygon = Polygon(points)
+                    if not polygon.is_valid:
+                        polygon = polygon.buffer(0)
+                    polygon = polygon.intersection(tile_bounds)
+                    surface_meshes = flat_surface_mesh(polygon, color, f"osm_surface_{osm_id}")
+                    for mesh in surface_meshes:
+                        surface_meshes_by_color.setdefault(color, []).append(mesh)
+                    if surface_meshes:
+                        if is_water_area(tags):
+                            water_polygons += 1
+                        else:
+                            landuse_areas += 1
+                    continue
+                except Exception:
+                    pass
+
+        if el_type == "way" and tags.get("waterway") and len(points) >= 2:
+            try:
+                line = LineString(points).intersection(tile_bounds)
+                if line.is_empty or line.length < 1.0:
+                    continue
+                water_polygon = line.buffer(
+                    waterway_width(tags) / 2.0, cap_style="flat", join_style="round"
+                ).intersection(tile_bounds)
+                water_meshes = flat_surface_mesh(water_polygon, (52, 121, 158, 255), f"osm_waterway_{osm_id}")
+                for mesh in water_meshes:
+                    surface_meshes_by_color.setdefault((52, 121, 158, 255), []).append(mesh)
+                if water_meshes:
+                    waterway_segments += 1
+            except Exception:
+                continue
+            continue
+
+        if el_type == "way" and tags.get("railway", "").lower() in {"rail", "light_rail", "tram", "narrow_gauge"} and len(points) >= 2:
+            try:
+                line = LineString(points).intersection(tile_bounds)
+                if line.is_empty or line.length < 1.0:
+                    continue
+                rail_bed = line.buffer(2.2 / 2.0, cap_style="flat", join_style="round").intersection(tile_bounds)
+                rail_color = (75, 78, 80, 255)
+                rail_meshes = flat_surface_mesh(rail_bed, rail_color, f"osm_railway_{osm_id}")
+                for mesh in rail_meshes:
+                    surface_meshes_by_color.setdefault(rail_color, []).append(mesh)
+                if rail_meshes:
+                    railway_ways += 1
+            except Exception:
+                continue
+            continue
+
         if el_type == "way" and tags.get("highway") and len(points) >= 2:
             try:
                 line = LineString(points).intersection(tile_bounds)
@@ -472,15 +782,52 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                     continue
                 road_polygon = line.buffer(road_width(tags) / 2.0, cap_style="flat", join_style="mitre").intersection(tile_bounds)
                 parts = list(road_polygon.geoms) if isinstance(road_polygon, MultiPolygon) else [road_polygon]
+                lift = road_elevation(tags)
                 for part_index, part in enumerate(parts):
                     if part.area < 0.25:
                         continue
-                    for mesh_index, mesh in enumerate(extruded_polygon(part, 0.07, (65, 68, 71, 255), f"road_{osm_id}")):
-                        mesh.apply_translation((0.0, 0.0, 0.015))
+                    for mesh_index, mesh in enumerate(extruded_polygon(part, 0.07, road_color(tags), f"road_{osm_id}")):
+                        mesh.apply_translation((0.0, 0.0, lift))
                         scene.add_geometry(mesh, node_name=f"road_{osm_id}_{part_index}_{mesh_index}", geom_name=f"road_{osm_id}_{part_index}_{mesh_index}")
                 roads += 1
+                if tags.get("bridge", "").lower() not in {"", "no", "false", "0"}:
+                    bridge_ways += 1
             except Exception:
                 continue
+
+    # Batch the dominant building and roof geometry by material colour. This keeps
+    # the mapped silhouettes and height variation while avoiding thousands of
+    # separate draw calls when a rural/urban tile streams onto a mobile device.
+    for color, meshes in building_meshes_by_color.items():
+        if not meshes:
+            continue
+        combined = color_mesh(trimesh.util.concatenate(meshes), color)
+        color_name = "".join(f"{channel:02x}" for channel in color)
+        scene.add_geometry(combined, node_name=f"mapped_buildings_{color_name}", geom_name=f"mapped_buildings_{color_name}")
+
+    for color, meshes in roof_meshes_by_color.items():
+        if not meshes:
+            continue
+        combined = color_mesh(trimesh.util.concatenate(meshes), color)
+        color_name = "".join(f"{channel:02x}" for channel in color)
+        scene.add_geometry(combined, node_name=f"mapped_roofs_{color_name}", geom_name=f"mapped_roofs_{color_name}")
+
+    for color, meshes in surface_meshes_by_color.items():
+        if not meshes:
+            continue
+        combined = trimesh.util.concatenate(meshes)
+        color_name = "".join(f"{channel:02x}" for channel in color[:3])
+        scene.add_geometry(combined, node_name=f"mapped_surface_{color_name}", geom_name=f"mapped_surface_{color_name}")
+
+    for color, vertex_chunks in facade_vertices_by_color.items():
+        if not vertex_chunks:
+            continue
+        vertices = np.concatenate(vertex_chunks, axis=0)
+        faces = np.concatenate(facade_faces_by_color[color], axis=0)
+        combined = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+        color_mesh(combined, color)
+        color_name = "".join(f"{channel:02x}" for channel in color[:3])
+        scene.add_geometry(combined, node_name=f"facade_windows_{color_name}", geom_name=f"facade_windows_{color_name}")
 
     scene_bounds = scene.bounds
     if (scene_bounds[0][0] < -width / 2 - 1 or scene_bounds[1][0] > width / 2 + 1 or
@@ -518,9 +865,12 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "road_ways": roads,
                            "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places,
                            "interior_anchors": len(interior_seeds), "mapped_trees": trees,
-                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps},
+                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color),
+                            "water_polygons": water_polygons, "waterway_segments": waterway_segments,
+                            "landuse_areas": landuse_areas, "railway_ways": railway_ways, "bridge_ways": bridge_ways},
         "height_note": "OSM height/building:levels tags are used when present; otherwise footprint-area/building-category estimates with deterministic floor-height variation are flagged as inferred, not surveyed facts.",
-        "visual_fidelity_note": "Real OSM road alignments and building footprints; explicit facade/roof colour tags are used where available, and Bangla/English names plus exterior image references are preserved per building. Untagged facades remain approximate; photorealistic street imagery requires separately licensed source data.",
+        "hydrography_note": "Mapped OSM water polygons are kept to their source outlines. River/canal centerlines without mapped widths use type-based approximate widths and are not survey-grade water boundaries.",
+         "visual_fidelity_note": "Real OSM road alignments, building footprints, mapped water and land-use surfaces, and tagged bridges are included. Sufficiently large buildings receive lightweight procedural low-poly window panels; building and roof meshes are batched by material colour to reduce mobile draw calls. Explicit facade/roof colour tags are used where available. Bangla/English names and exterior image references are preserved per building. This is not photorealistic street imagery; that requires separately licensed source data.",
         "interiors_and_people": "AI_Interior_Seeds.json includes anchors for every mapped building footprint plus named/tagged places; the game generates fictional interiors and residents at runtime, not actual private interiors or real people.",
         "engine_import": "Import Dhaka_Explorable_Map.glb as a Godot MeshInstance3D/scene; retain GeoJSON and manifest for labels, navigation and source attribution.",
     }

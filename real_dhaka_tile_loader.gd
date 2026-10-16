@@ -77,7 +77,12 @@ func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.j
 	_manifest_origin_lon = GAME_ORIGIN_LON
 	var valid_records: Array[Dictionary] = []
 	for item in tiles:
-		if not (item is Dictionary) or item.get("status", "") != "BAKED_FROM_OSM":
+		if not (item is Dictionary):
+			continue
+		var tile_status := str(item.get("status", ""))
+		# Ground-only tiles still contain a boundary-clipped GLB floor. Load them
+		# so sparse OSM coverage does not become a hole in the explorable world.
+		if tile_status not in ["BAKED_FROM_OSM", "GROUND_ONLY_NO_RENDERABLE_FEATURES"]:
 			continue
 		var relative_glb := str(item.get("glb", ""))
 		if relative_glb.is_empty():
@@ -91,6 +96,7 @@ func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.j
 			push_warning("Real Dhaka tile has no geographic origin: " + relative_glb)
 			return false
 		var copy: Dictionary = item.duplicate(true)
+		copy["ground_only"] = tile_status == "GROUND_ONLY_NO_RENDERABLE_FEATURES"
 		copy["full_path"] = full_path
 		copy["origin_lat"] = float(origin[0])
 		copy["origin_lon"] = float(origin[1])
@@ -222,7 +228,7 @@ func _stream_tiles(player_position: Vector3) -> void:
 		instance.name = str(record["tile_id"])
 		instance.position = record["world_position"]
 		_world.add_child(instance)
-		_add_walkable_collisions(instance)
+		_add_walkable_collisions(instance, record)
 		_load_road_routes(record)
 		record["interior_anchors"] = _load_interior_anchors(record, player_position)
 		record["instance"] = instance
@@ -441,8 +447,9 @@ func _interior_anchor_placement(seed: Dictionary, tile_position: Vector3, road_r
 		}
 	return {"position": tile_position, "direction": Vector3(0, 0, 1)}
 
-func _add_walkable_collisions(root: Node) -> void:
+func _add_walkable_collisions(root: Node, record: Dictionary) -> void:
 	var pending: Array[Node] = [root]
+	var individual_building_meshes := 0
 	while not pending.is_empty():
 		var current: Node = pending.pop_back()
 		for child in current.get_children():
@@ -452,8 +459,9 @@ func _add_walkable_collisions(root: Node) -> void:
 			if mesh_instance.name.begins_with("terrain_base"):
 				mesh_instance.create_trimesh_collision()
 			elif mesh_instance.name.begins_with("building_"):
-				# Use a light box collider for each building shell rather than a
-				# heavy concave collider per mesh; this is safer for Android physics.
+				# Legacy packages keep one mesh per building, so preserve their
+				# existing light box collision behavior.
+				individual_building_meshes += 1
 				var bounds := mesh_instance.get_aabb()
 				var static_body := StaticBody3D.new()
 				static_body.name = "BuildingCollision"
@@ -464,3 +472,64 @@ func _add_walkable_collisions(root: Node) -> void:
 				collision.position = bounds.position + bounds.size * 0.5
 				static_body.add_child(collision)
 				mesh_instance.add_child(static_body)
+	# New optimized packages batch building visuals by material. Rebuild the
+	# per-building box colliders from the same OSM footprint seeds instead of
+	# attaching one giant collider to the combined mesh.
+	if individual_building_meshes == 0:
+		_add_seed_building_collisions(root, record)
+
+
+func _add_seed_building_collisions(root: Node, record: Dictionary) -> void:
+	var relative_path := str(record.get("interior_seeds", ""))
+	if relative_path.is_empty():
+		return
+	var path := MAP_ROOT + "/" + relative_path
+	if not FileAccess.file_exists(path):
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (parsed is Array):
+		return
+	var seeds: Array = []
+	for item in parsed:
+		if item is Dictionary and (item.has("footprint_local_m") or item.has("anchor_local_m")):
+			seeds.append(item)
+	record["interior_seed_records"] = seeds
+	for seed in seeds:
+		if not (seed is Dictionary):
+			continue
+		var footprint: Array = seed.get("footprint_local_m", [])
+		if footprint.size() < 3:
+			continue
+		var min_x := INF
+		var max_x := -INF
+		var min_y := INF
+		var max_y := -INF
+		var valid_footprint := true
+		for point in footprint:
+			if not (point is Array and point.size() >= 2):
+				valid_footprint = false
+				break
+			var x := float(point[0])
+			var y := float(point[1])
+			min_x = minf(min_x, x)
+			max_x = maxf(max_x, x)
+			min_y = minf(min_y, y)
+			max_y = maxf(max_y, y)
+		if not valid_footprint:
+			continue
+		var width := maxf(max_x - min_x, 0.5)
+		var depth := maxf(max_y - min_y, 0.5)
+		var raw_height: Variant = seed.get("height_metres", seed.get("building_height_m", 3.2))
+		var height := 3.2
+		if raw_height is int or raw_height is float:
+			height = clampf(float(raw_height), 2.5, 120.0)
+		var static_body := StaticBody3D.new()
+		static_body.name = "BuildingCollisionSeed_" + str(seed.get("osm_id", "unknown"))
+		static_body.position = Vector3((min_x + max_x) * 0.5, height * 0.5, -(min_y + max_y) * 0.5)
+		var collision := CollisionShape3D.new()
+		collision.name = "BuildingFootprintCollision"
+		var shape := BoxShape3D.new()
+		shape.size = Vector3(width, height, depth)
+		collision.shape = shape
+		static_body.add_child(collision)
+		root.add_child(static_body)
