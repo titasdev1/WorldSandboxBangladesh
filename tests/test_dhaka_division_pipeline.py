@@ -32,6 +32,20 @@ class DhakaDivisionPipelineTests(unittest.TestCase):
         self.assertEqual(select_tile_batch(ordered, 2, 2), [tiles[2]])
         self.assertEqual(SHARIATPUR_PRIORITY_LAT_LON, (23.2167, 90.3500))
 
+    def test_shariatpur_review_batch_is_capped_at_district_boundary(self):
+        ordered = [
+            (23.10, 90.10, 23.15, 90.15),
+            (23.15, 90.10, 23.20, 90.15),
+            (23.20, 90.10, 23.25, 90.15),
+            (23.25, 90.10, 23.30, 90.15),
+            (23.30, 90.10, 23.35, 90.15),
+        ]
+        district_count = 4
+        offset = 2
+        effective_limit = min(3, district_count - offset)
+        self.assertEqual(select_tile_batch(ordered, offset, effective_limit), ordered[2:4])
+        self.assertEqual(offset + len(select_tile_batch(ordered, offset, effective_limit)), district_count)
+
     def test_tile_batches_reject_invalid_limits(self):
         with self.assertRaises(ValueError):
             select_tile_batch([], -1, 2)
