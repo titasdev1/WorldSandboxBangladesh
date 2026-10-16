@@ -65,14 +65,35 @@ jobs:
       # The release default remains the pinned Greater Dhaka package. A manual
       # review build can explicitly install the latest assembled Shariatpur-first
       # district package without silently promoting it as a production map.
-      - name: Download selected map package
+      - name: Download pinned Greater Dhaka map package
+        if: ${{ !(inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) }}
         uses: actions/download-artifact@v4
         with:
-          name: ${{ (inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && 'Project-A-Square-Shariatpur-Review-Map-38896398155' || 'Project-A-Square-Greater-Dhaka-3D-Tiles' }}
+          name: Project-A-Square-Greater-Dhaka-3D-Tiles
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
-          run-id: ${{ (inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && '38901386980' || '38618204090' }}
+          run-id: 38618204090
           path: build/selected-map
+
+      - name: Download latest assembled Shariatpur review package
+        if: ${{ inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]')) }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Never pin a stale review artifact: find the newest non-expired, main-branch
+          # district package by creation time, then download that exact workflow run.
+          artifact_record="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.expired == false) | select(.name | startswith("Project-A-Square-Shariatpur-Review-Map-")) | select(.workflow_run.head_branch == "main") | [.workflow_run.id, .name, .created_at] | @tsv' \
+            | sort -k3,3 | tail -n 1)"
+          if [[ -z "${artifact_record}" ]]; then
+            echo "No assembled Shariatpur review package exists yet; finish the Shariatpur tile sequence first." >&2
+            exit 1
+          fi
+          read -r map_run_id map_artifact_name map_created_at <<< "${artifact_record}"
+          echo "Selected Shariatpur package: ${map_artifact_name} (run ${map_run_id}, created ${map_created_at})"
+          gh run download "${map_run_id}" --repo "${GITHUB_REPOSITORY}" --name "${map_artifact_name}" --dir build/selected-map
 
       - name: Install and validate selected map package
         shell: bash
@@ -93,6 +114,11 @@ jobs:
               raise SystemExit("Selected map package failed GLB/manifest integrity verification")
           selected = os.environ["MAP_PACKAGE"]
           if selected == "shariatpur_review":
+              # Older review packages lacked this local origin and streamed tiles
+              # tens of kilometres away from the zero-position player at startup.
+              game_origin = manifest.get("game_origin_lat_lon")
+              if not isinstance(game_origin, list) or len(game_origin) != 2:
+                  raise SystemExit("Shariatpur package lacks game_origin_lat_lon; refusing stale/broken candidate APK")
               report_path = root / "quality_gate_report.json"
               if not report_path.is_file():
                   raise SystemExit("Shariatpur review package has no quality gate report")
