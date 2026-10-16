@@ -184,7 +184,7 @@ jobs:
           GODOT="$GODOT_DIR/Godot_v4.4.1-stable_linux.x86_64"
           chmod +x "$GODOT"
           set +e
-          "$GODOT" --headless --editor --path . --quit > "$GODOT_DIR/import.log" 2>&1
+          timeout 2400s "$GODOT" --headless --editor --path . --quit > "$GODOT_DIR/import.log" 2>&1
           IMPORT_STATUS=$?
           cat "$GODOT_DIR/import.log"
           set -e
