@@ -71,7 +71,7 @@ jobs:
       total_tiles: ${{ steps.batch-meta.outputs.total_tiles }}
       sequence_id: ${{ inputs.sequence_id || github.run_id }}
       tile_degrees: ${{ inputs.tile_degrees || '0.05' }}
-      max_tiles: ${{ inputs.max_tiles || (github.event_name == 'pull_request' && '2' || '8') }}
+      max_tiles: ${{ inputs.max_tiles || (github.event_name == 'workflow_dispatch' && '8' || '2') }}
     steps:
       - name: Checkout canonical repository
         uses: actions/checkout@v5
@@ -115,7 +115,7 @@ jobs:
             --pbf build/osm/dhaka-division-envelope.osm.pbf \
             --tile-degrees "${{ inputs.tile_degrees || '0.05' }}" \
             --tile-offset "${{ inputs.tile_offset || '0' }}" \
-            --max-tiles "${{ inputs.max_tiles || (github.event_name == 'pull_request' && '2' || '8') }}" \
+            --max-tiles "${{ inputs.max_tiles || (github.event_name == 'workflow_dispatch' && '8' || '2') }}" \
             --out build/dhaka-division
 
       - name: Verify map package and geographic provenance
@@ -176,7 +176,7 @@ jobs:
 
   retry-map:
     needs: build-map
-    if: failure() && github.event_name != 'pull_request' && fromJSON(inputs.retry_count || '0') < 2
+    if: failure() && github.event_name == 'workflow_dispatch' && fromJSON(inputs.retry_count || '0') < 2
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -208,7 +208,7 @@ jobs:
 
   continue-map:
     needs: build-map
-    if: success() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.continue_full_division))
+    if: success() && github.event_name == 'workflow_dispatch' && inputs.continue_full_division
     runs-on: ubuntu-latest
     timeout-minutes: 50
     steps:
