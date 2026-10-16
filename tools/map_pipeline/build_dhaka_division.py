@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import pathlib
 import shutil
 import sys
@@ -582,6 +583,7 @@ def main() -> int:
         "region_south_west_north_east": list((build_boundary.bounds[1], build_boundary.bounds[0],
                                                 build_boundary.bounds[3], build_boundary.bounds[2])),
         "tile_edge_degrees": args.tile_degrees,
+        "pipeline_commit_sha": os.environ.get("GITHUB_SHA", "local"),
         "build_stage": args.stage,
         "tile_count_intersecting_boundary": shariatpur_tile_count if args.stage == "shariatpur_review" else total_tiles,
         "tile_count_intersecting_division": total_tiles,
