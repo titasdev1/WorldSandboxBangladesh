@@ -108,6 +108,8 @@ loader_text = (ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
 for token in ("map_tiles_manifest.json", "LOAD_RADIUS_M", "UNLOAD_RADIUS_M", "_geo_to_world", "create_trimesh_collision"):
     if token not in loader_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: real-Dhaka tile streamer missing {token}")
+if "func _mount_external_map_packs()" not in loader_text or "ProjectSettings.load_resource_pack(pack_path, true)" not in loader_text or 'user://map_packs' not in loader_text:
+    raise SystemExit("PRODUCTION GATE FAILED: external map PCK patches are not supported by the canonical loader")
 city_factory_text = (ROOT / "city_asset_factory.gd").read_text(encoding="utf-8")
 if "MANIFESTS" not in city_factory_text or "spawn_building" not in city_factory_text:
     raise SystemExit("PRODUCTION GATE FAILED: city asset factory is missing manifest-driven building placement")
