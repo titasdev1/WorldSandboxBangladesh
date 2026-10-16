@@ -200,6 +200,7 @@ func _create_target_area() -> Area3D:
 
 func _make_target_positions(mission: Dictionary) -> Array[Vector3]:
     var positions: Array[Vector3] = []
+    var player_position: Vector3 = player.global_position if is_instance_valid(player) else Vector3.ZERO
     var kind := String(mission.get("kind", "delivery"))
     var count := 2
     if kind in ["rescue", "escort"]:
@@ -211,7 +212,6 @@ func _make_target_positions(mission: Dictionary) -> Array[Vector3]:
         var loader: Node = world.get("real_dhaka_loader") as Node
         if is_instance_valid(loader) and loader.has_method("get_road_routes"):
             var routes: Array = loader.call("get_road_routes")
-            var player_position: Vector3 = player.global_position if is_instance_valid(player) else Vector3.ZERO
             var candidates: Array[Vector3] = []
             for route in routes:
                 if not (route is Array):
@@ -241,7 +241,6 @@ func _make_target_positions(mission: Dictionary) -> Array[Vector3]:
             for point in mapped_targets:
                 if not (point is Vector3):
                     continue
-                var player_position: Vector3 = player.global_position if is_instance_valid(player) else Vector3.ZERO
                 var distance := Vector2(point.x - player_position.x, point.z - player_position.z).length()
                 if distance < TARGET_RADIUS_MIN or distance > TARGET_RADIUS_MAX:
                     continue
