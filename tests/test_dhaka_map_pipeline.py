@@ -59,6 +59,62 @@ class DhakaMapPipelineTests(unittest.TestCase):
             self.assertEqual(seeds[0]["exterior_reference"]["image_tag"], "https://example.invalid/facade.jpg")
             self.assertFalse(seeds[0]["exterior_reference"]["downloaded_or_embedded"])
 
+    def test_mapped_water_landuse_and_bridges_are_baked_and_exported(self):
+        from tools.map_pipeline.build_dhaka_map import waterway_width
+
+        elements = [
+            {
+                "type": "way", "id": 2101,
+                "tags": {"natural": "water", "name": "Mapped Pond"},
+                "geometry": [
+                    {"lat": 23.8092, "lon": 90.4100}, {"lat": 23.8092, "lon": 90.4110},
+                    {"lat": 23.8100, "lon": 90.4110}, {"lat": 23.8100, "lon": 90.4100},
+                    {"lat": 23.8092, "lon": 90.4100},
+                ],
+            },
+            {
+                "type": "way", "id": 2102,
+                "tags": {"waterway": "river", "name": "Mapped River"},
+                "geometry": [
+                    {"lat": 23.8090, "lon": 90.4120}, {"lat": 23.8100, "lon": 90.4150},
+                ],
+            },
+            {
+                "type": "way", "id": 2103,
+                "tags": {"landuse": "farmland", "name": "Mapped Field"},
+                "geometry": [
+                    {"lat": 23.8105, "lon": 90.4100}, {"lat": 23.8105, "lon": 90.4120},
+                    {"lat": 23.8115, "lon": 90.4120}, {"lat": 23.8115, "lon": 90.4100},
+                    {"lat": 23.8105, "lon": 90.4100},
+                ],
+            },
+            {
+                "type": "way", "id": 2104,
+                "tags": {"highway": "primary", "bridge": "yes", "width": "8"},
+                "geometry": [
+                    {"lat": 23.8120, "lon": 90.4070}, {"lat": 23.8120, "lon": 90.4170},
+                ],
+            },
+        ]
+        self.assertEqual(waterway_width({"waterway": "river", "width": "35"}), 35.0)
+        self.assertEqual(waterway_width({"waterway": "river"}), 180.0)
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            manifest = build_map(elements, out, DEFAULT_BBOX)
+            counts = manifest["feature_counts"]
+            self.assertEqual(counts["water_polygons"], 1)
+            self.assertEqual(counts["waterway_segments"], 1)
+            self.assertEqual(counts["landuse_areas"], 1)
+            self.assertEqual(counts["bridge_ways"], 1)
+            scene = trimesh.load(out / "Dhaka_Explorable_Map.glb", force="scene")
+            self.assertTrue(any(name.startswith("mapped_surface_") for name in scene.geometry))
+            source = json.loads((out / "Dhaka_OSM_Source.geojson").read_text(encoding="utf-8"))
+            by_id = {feature["properties"]["osm_id"]: feature["geometry"]["type"] for feature in source["features"]}
+            self.assertEqual(by_id[2101], "Polygon")
+            self.assertEqual(by_id[2102], "LineString")
+            self.assertEqual(by_id[2103], "Polygon")
+            self.assertIn("Mapped water polygons", manifest["hydrography_note"])
+
     def test_local_projection_is_stable_and_metric(self):
         x, y = local_xy(23.781, 90.407, 23.780, 90.407)
         self.assertAlmostEqual(x, 0.0, places=3)
