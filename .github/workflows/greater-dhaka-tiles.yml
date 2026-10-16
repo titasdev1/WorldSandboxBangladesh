@@ -1,4 +1,4 @@
-name: Build Greater Dhaka Real-World 3D Tiles
+name: Legacy Greater Dhaka Tile Builder (Manual Only)
 
 on:
   workflow_dispatch:
@@ -12,22 +12,6 @@ on:
           - "0.01"
           - "0.02"
           - "0.03"
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "tools/map_pipeline/**"
-      - ".github/workflows/greater-dhaka-tiles.yml"
-      - "tests/test_dhaka_map_pipeline.py"
-  push:
-    branches:
-      - main
-      - feature/dhaka-real-map-pipeline
-    paths:
-      - "tools/map_pipeline/**"
-      - ".github/workflows/greater-dhaka-tiles.yml"
-      - "tests/test_dhaka_map_pipeline.py"
-
 permissions:
   contents: read
 

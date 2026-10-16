@@ -219,6 +219,64 @@ def make_geojson(
         })
     return {"type": "FeatureCollection", "name": "Dhaka OSM source features (clipped to tile)", "features": features}
 
+
+def add_node_environment_prop(scene: trimesh.Scene, x: float, y: float,
+                              tags: dict[str, str], osm_id: int) -> str:
+    """Add simple, clearly approximate 3D props at mapped OSM tree/pole/light nodes."""
+    if tags.get("natural", "").lower() == "tree":
+        trunk = trimesh.creation.cylinder(radius=0.13, height=2.2, sections=7)
+        trunk.apply_translation((x, y, 1.1))
+        color_mesh(trunk, (105, 76, 51, 255))
+        canopy = trimesh.creation.icosphere(subdivisions=1, radius=1.05)
+        canopy.apply_scale((1.0, 1.0, 1.15))
+        canopy.apply_translation((x, y, 2.8))
+        color_mesh(canopy, (58, 105, 61, 255))
+        scene.add_geometry(trunk, node_name=f"osm_tree_trunk_{osm_id}", geom_name=f"osm_tree_trunk_{osm_id}")
+        scene.add_geometry(canopy, node_name=f"osm_tree_canopy_{osm_id}", geom_name=f"osm_tree_canopy_{osm_id}")
+        return "tree"
+
+    power_kind = tags.get("power", "").lower()
+    is_utility_pole = power_kind in {"pole", "tower"} or tags.get("man_made", "").lower() == "utility_pole"
+    is_street_lamp = tags.get("highway", "").lower() == "street_lamp" or tags.get("man_made", "").lower() == "street_lamp"
+    if not is_utility_pole and not is_street_lamp:
+        return ""
+
+    raw_height = tags.get("height", "").replace(" m", "").strip()
+    try:
+        height = float(raw_height)
+        if not 3.0 <= height <= 35.0:
+            raise ValueError
+    except (TypeError, ValueError):
+        height = 9.0 if power_kind == "tower" else (6.5 if is_utility_pole else 5.5)
+
+    pole_radius = 0.17 if power_kind == "tower" else (0.11 if is_utility_pole else 0.075)
+    pole = trimesh.creation.cylinder(radius=pole_radius, height=height, sections=8)
+    pole.apply_translation((x, y, height / 2.0))
+    color_mesh(pole, (111, 119, 121, 255))
+    scene.add_geometry(pole, node_name=f"osm_utility_pole_{osm_id}", geom_name=f"osm_utility_pole_{osm_id}")
+
+    if is_utility_pole:
+        arm = trimesh.creation.box(extents=(2.0 if power_kind == "tower" else 1.25, 0.12, 0.12))
+        arm.apply_translation((x, y, height * 0.82))
+        color_mesh(arm, (91, 99, 101, 255))
+        scene.add_geometry(arm, node_name=f"osm_power_crossarm_{osm_id}", geom_name=f"osm_power_crossarm_{osm_id}")
+        for insulator_index, dx in enumerate((-0.72, 0.0, 0.72)):
+            insulator = trimesh.creation.cylinder(radius=0.07, height=0.24, sections=6)
+            insulator.apply_translation((x + dx, y, height * 0.82 + 0.16))
+            color_mesh(insulator, (204, 205, 194, 255))
+            scene.add_geometry(insulator, node_name=f"osm_power_insulator_{osm_id}_{insulator_index}", geom_name=f"osm_power_insulator_{osm_id}_{insulator_index}")
+    else:
+        arm = trimesh.creation.box(extents=(0.75, 0.07, 0.07))
+        arm.apply_translation((x + 0.32, y, height - 0.1))
+        color_mesh(arm, (80, 88, 90, 255))
+        scene.add_geometry(arm, node_name=f"osm_streetlamp_arm_{osm_id}", geom_name=f"osm_streetlamp_arm_{osm_id}")
+        lamp = trimesh.creation.box(extents=(0.36, 0.20, 0.12))
+        lamp.apply_translation((x + 0.65, y, height - 0.16))
+        color_mesh(lamp, (236, 220, 160, 255))
+        scene.add_geometry(lamp, node_name=f"osm_streetlamp_head_{osm_id}", geom_name=f"osm_streetlamp_head_{osm_id}")
+    return "utility_pole" if is_utility_pole else "street_lamp"
+
+
 def build_map(elements: list[dict[str, Any]], output_dir: Path,
               bbox: tuple[float, float, float, float] = DEFAULT_BBOX) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -236,6 +294,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     scene.add_geometry(ground, node_name="terrain_base", geom_name="terrain_base")
 
     buildings = roads = inferred_heights = named_places = 0
+    trees = utility_poles = street_lamps = 0
     interior_seeds: list[dict[str, Any]] = []
     used_ids: set[tuple[str, int]] = set()
     for el in elements:
@@ -246,19 +305,31 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         tags = el.get("tags", {})
         points = geometry_xy(el, origin_lat, origin_lon)
         if not points:
-            # Standalone OSM nodes are still useful as labeled interaction anchors.
-            if el_type == "node" and ("shop" in tags or "amenity" in tags or "tourism" in tags):
+            # Standalone mapped nodes can provide both environment props and interaction anchors.
+            if el_type == "node":
                 lat, lon = el.get("lat"), el.get("lon")
                 if lat is not None and lon is not None:
                     x, y = local_xy(float(lat), float(lon), origin_lat, origin_lon)
-                    interior_seeds.append({
-                        "osm_id": osm_id, "name": tags.get("name", tags.get("shop", tags.get("amenity", "Unnamed place"))),
-                        "category": tags.get("shop", tags.get("amenity", tags.get("tourism", "place"))),
-                        "anchor_local_m": [round(x, 2), round(y, 2)],
-                        "interior_status": "AI_GENERATED_LATER_NOT_PRESENT_IN_OSM",
-                        "npc_seed": "Generate a locally plausible Bangladeshi shopkeeper or resident; do not claim this person's identity is real.",
-                    })
-                    named_places += 1
+                    # Keep multi-metre props inside the tile; a neighbouring tile owns edge-adjacent nodes.
+                    prop_kind = ""
+                    if abs(x) <= width / 2.0 - 1.1 and abs(y) <= depth / 2.0 - 1.1:
+                        prop_kind = add_node_environment_prop(scene, x, y, tags, osm_id)
+                    if prop_kind == "tree":
+                        trees += 1
+                    elif prop_kind == "utility_pole":
+                        utility_poles += 1
+                    elif prop_kind == "street_lamp":
+                        street_lamps += 1
+                    if "shop" in tags or "amenity" in tags or "tourism" in tags:
+                        interior_seeds.append({
+                            "osm_id": osm_id,
+                            "name": tags.get("name", tags.get("shop", tags.get("amenity", "Unnamed place"))),
+                            "category": tags.get("shop", tags.get("amenity", tags.get("tourism", "place"))),
+                            "anchor_local_m": [round(x, 2), round(y, 2)],
+                            "interior_status": "FICTIONAL_GAME_INTERIOR_GENERATED_AT_RUNTIME",
+                            "npc_seed": "Generate a locally plausible fictional Bangladeshi shopkeeper or resident; do not claim this person's identity is real.",
+                        })
+                        named_places += 1
             continue
         if el_type == "way" and tags.get("building") and len(points) >= 4:
             polygon = Polygon(points)
@@ -277,20 +348,46 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 scene.add_geometry(mesh, node_name=f"building_{osm_id}_{part_index}", geom_name=f"building_{osm_id}_{part_index}")
             buildings += 1
             name = tags.get("name", "")
-            if name or tags.get("shop") or tags.get("amenity"):
-                interior_seeds.append({
-                    "osm_id": osm_id, "name": name or tags.get("shop", tags.get("amenity", "Unnamed building")),
-                    "category": tags.get("shop", tags.get("amenity", tags.get("building", "building"))),
-                    "floors_estimate": None if inferred else max(1, round(height / 3.1)),
-                    "height_metres": round(height, 2),
-                    "height_source": "UNVERIFIED_PLACEHOLDER_3_2M" if inferred else "OSM_HEIGHT_OR_LEVELS",
-                    "facade_status": "NO_VERIFIED_FACADE_TEXTURE",
-                    "geometry_confidence": "OSM_FOOTPRINT; VERIFY_ON_GROUND_OR_WITH_LICENSED_IMAGERY",
-                    "footprint_local_m": [[round(x, 2), round(y, 2)] for x, y in points],
-                    "interior_status": "AI_GENERATED_LATER_NOT_PRESENT_IN_OSM",
-                    "npc_seed": "Create fictional AI shopkeepers/residents appropriate to this place and Bangladesh; never impersonate a real person.",
-                    "rooms_seed": ["entrance", "public_or_living_area", "counter_or_reception", "back_room"],
-                })
+            has_specific_place_tags = bool(name or tags.get("shop") or tags.get("amenity") or tags.get("tourism"))
+            building_kind = str(tags.get("building", "building")).lower()
+            if tags.get("shop"):
+                interior_category = str(tags["shop"])
+            elif tags.get("amenity"):
+                interior_category = str(tags["amenity"])
+            elif building_kind in {"house", "residential", "apartments", "detached", "semidetached_house", "terrace", "dormitory"}:
+                interior_category = "residential"
+            elif building_kind in {"commercial", "retail", "office", "industrial", "warehouse", "school", "hospital", "hotel", "church", "mosque", "temple"}:
+                interior_category = building_kind
+            else:
+                interior_category = "building"
+            if has_specific_place_tags:
+                footprint_for_anchor = [[round(x, 2), round(y, 2)] for x, y in points]
+            else:
+                # A compact bbox is sufficient to position a generic entrance; the GLB
+                # retains the actual OSM footprint. Avoid duplicating every polygon vertex
+                # for every unnamed building in the streamed seed JSON.
+                min_x, min_y, max_x, max_y = polygon.bounds
+                footprint_for_anchor = [
+                    [round(min_x, 2), round(min_y, 2)], [round(max_x, 2), round(min_y, 2)],
+                    [round(max_x, 2), round(max_y, 2)], [round(min_x, 2), round(max_y, 2)],
+                ]
+            interior_seeds.append({
+                "osm_id": osm_id,
+                "name": name or tags.get("shop", tags.get("amenity", "Unnamed building")),
+                "category": interior_category,
+                "anchor_kind": "named_or_tagged" if has_specific_place_tags else "generic_building",
+                "floors_estimate": None if inferred else max(1, round(height / 3.1)),
+                "height_metres": round(height, 2),
+                "height_source": "UNVERIFIED_PLACEHOLDER_3_2M" if inferred else "OSM_HEIGHT_OR_LEVELS",
+                "facade_status": "NO_VERIFIED_FACADE_TEXTURE",
+                "geometry_confidence": "OSM_FOOTPRINT; VERIFY_ON_GROUND_OR_WITH_LICENSED_IMAGERY",
+                "footprint_local_m": footprint_for_anchor,
+                "interior_status": "FICTIONAL_GAME_INTERIOR_GENERATED_AT_RUNTIME",
+                "npc_seed": "Create fictional residents/workers appropriate to the mapped building category; never imply actual occupants.",
+                "rooms_seed": ["entrance", "public_or_living_area", "counter_or_reception", "back_room"],
+            })
+            if has_specific_place_tags:
+                named_places += 1
             continue
         if el_type == "way" and tags.get("highway") and len(points) >= 2:
             try:
@@ -343,10 +440,12 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "projected_local_units": "metres; local equirectangular projection; Z is up",
         "extent_metres_approx": {"east_west": round(width, 1), "north_south": round(depth, 1)},
         "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "road_ways": roads,
-                           "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places},
+                           "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places,
+                           "interior_anchors": len(interior_seeds), "mapped_trees": trees,
+                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps},
         "height_note": "OSM height/building:levels tags are used when present; missing heights are visually inferred and flagged, not surveyed facts.",
         "visual_fidelity_note": "Real OSM road alignments and building footprints, but not photorealistic façade imagery, surveyed heights, or street-view photography. Those require separately licensed source data.",
-        "interiors_and_people": "AI_Interior_Seeds.json is a generation brief/anchor dataset, not completed interiors or actual people.",
+        "interiors_and_people": "AI_Interior_Seeds.json includes anchors for every mapped building footprint plus named/tagged places; the game generates fictional interiors and residents at runtime, not actual private interiors or real people.",
         "engine_import": "Import Dhaka_Explorable_Map.glb as a Godot MeshInstance3D/scene; retain GeoJSON and manifest for labels, navigation and source attribution.",
     }
     (output_dir / "map_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
