@@ -71,10 +71,10 @@ func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.j
 	# District review packs carry their own local origin so the player at world
 	# origin streams Shariatpur immediately. Older/full-division packages safely
 	# fall back to the established central-Dhaka coordinates.
-	var origin: Variant = manifest.get("game_origin_lat_lon", [GAME_ORIGIN_LAT, GAME_ORIGIN_LON])
-	if origin is Array and origin.size() == 2:
-		_manifest_origin_lat = float(origin[0])
-		_manifest_origin_lon = float(origin[1])
+	var game_origin: Variant = manifest.get("game_origin_lat_lon", [GAME_ORIGIN_LAT, GAME_ORIGIN_LON])
+	if game_origin is Array and game_origin.size() == 2:
+		_manifest_origin_lat = float(game_origin[0])
+		_manifest_origin_lon = float(game_origin[1])
 	else:
 		_manifest_origin_lat = GAME_ORIGIN_LAT
 		_manifest_origin_lon = GAME_ORIGIN_LON
