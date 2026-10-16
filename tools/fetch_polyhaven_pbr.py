@@ -82,14 +82,16 @@ def map_kind(path) -> str | None:
     return None
 
 def resolution_score(path, surface: str) -> int:
-    """Prefer the highest available source resolution for the HD content pack.
+    """Prefer mobile-budget source maps without allowing 8K textures into the APK.
 
-    High-resolution maps are retained as authored content. Device performance
-    should be controlled by runtime texture filtering/render scale and quality
-    presets, not by silently removing source detail during asset collection.
+    Keep road albedo at up to 4K; cap other surface maps at 2K. These remain
+    high-resolution PBR assets, while avoiding hundreds of megabytes of source
+    maps being bundled into every Android install. Missing target sizes fall
+    back to the next smaller available resolution.
     """
     joined = "/".join(path).lower()
-    for rank, resolution in enumerate(("8k", "4k", "2k", "1k", "512")):
+    allowed = ("4k", "2k", "1k", "512") if surface == "road" else ("2k", "1k", "512")
+    for rank, resolution in enumerate(allowed):
         if resolution in joined:
             return rank
     return 9
@@ -102,7 +104,7 @@ def write_manifest(surfaces: dict, note: str = "") -> None:
         "api": API,
         "license": "CC0-1.0",
         "attribution_required_for_downloaded_assets": False,
-        "resolution_policy": "HD content pack: retain highest available source maps (8K, then 4K, 2K, 1K). Device-specific runtime quality must be handled by graphics presets/texture filtering, not by silently excluding source detail.",
+        "resolution_policy": "Mobile content pack: road maps up to 4K; all other surface maps up to 2K; fall back to 1K/512 where target size is unavailable; exclude 8K maps from the Android bundle.",
         "surfaces": surfaces,
         "note": note,
     }, indent=2) + "\n", encoding="utf-8")
