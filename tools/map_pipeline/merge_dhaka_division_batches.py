@@ -129,7 +129,6 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "tile_count_intersecting_boundary": total_tiles,
         "tile_count_intersecting_division": division_total_tiles,
         "tile_count_intersecting_build_boundary": total_tiles,
-        "tile_count_intersecting_division": division_total_tiles,
         "tile_count_with_geometry": geometry_count,
         "feature_counts_across_tiles": feature_counts,
         "source_elements_processed_across_batches": source_element_count,
