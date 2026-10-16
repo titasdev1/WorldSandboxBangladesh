@@ -59,6 +59,19 @@ class DhakaMapPipelineTests(unittest.TestCase):
     def test_default_tile_matches_existing_central_dhaka_anchor(self):
         self.assertEqual(DEFAULT_BBOX, (23.8043, 90.4065, 23.8163, 90.4185))
 
+    def test_overpass_query_requests_multipolygon_landcover_and_water(self):
+        from tools.map_pipeline.build_dhaka_map import overpass_query
+
+        query = overpass_query(DEFAULT_BBOX)
+        for selector in (
+            'relation["natural"]',
+            'relation["landuse"]',
+            'relation["leisure"]',
+            'relation["water"]',
+        ):
+            with self.subTest(selector=selector):
+                self.assertIn(selector, query)
+
     def test_unmapped_building_height_is_not_fabricated_as_a_tall_building(self):
         height, inferred = building_height({"building": "yes"}, 999999)
         self.assertGreaterEqual(height, 3.0)
