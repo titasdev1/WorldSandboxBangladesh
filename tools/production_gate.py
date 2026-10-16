@@ -86,6 +86,11 @@ if 'get_node_or_null("MissionFactory")' not in hud_text or "DESHI JOB %04d/4000"
     raise SystemExit("PRODUCTION GATE FAILED: Deshi mission catalogue is not visible in the HUD")
 if 'load("res://systems/interior_factory.gd").new()' not in world_text or "try_interior_interaction" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: generated building interiors are not wired into the canonical world")
+player_text = (ROOT / "player.gd").read_text(encoding="utf-8")
+if "func toggle_camera_view_mode()" not in player_text or 'camera_view_mode == "first_person"' not in player_text:
+    raise SystemExit("PRODUCTION GATE FAILED: first-person/third-person camera modes are not implemented")
+if "CameraViewToggle" not in hud_text or "_toggle_camera_view" not in hud_text:
+    raise SystemExit("PRODUCTION GATE FAILED: first-person/third-person toggle is not exposed in the touch HUD")
 interior_text = (ROOT / "systems" / "interior_factory.gd").read_text(encoding="utf-8")
 if "CeilingFanAnimated" not in interior_text or "open_interior" not in interior_text:
     raise SystemExit("PRODUCTION GATE FAILED: generated interior runtime/animated dressing is missing")
