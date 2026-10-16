@@ -68,16 +68,16 @@ jobs:
       - name: Download selected map package
         uses: actions/download-artifact@v4
         with:
-          name: ${{ inputs.map_package == 'shariatpur_review' && 'Project-A-Square-Shariatpur-Review-Map-38896398155' || 'Project-A-Square-Greater-Dhaka-3D-Tiles' }}
+          name: ${{ (inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && 'Project-A-Square-Shariatpur-Review-Map-38896398155' || 'Project-A-Square-Greater-Dhaka-3D-Tiles' }}
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
-          run-id: ${{ inputs.map_package == 'shariatpur_review' && '38901386980' || '38618204090' }}
+          run-id: ${{ (inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && '38901386980' || '38618204090' }}
           path: build/selected-map
 
       - name: Install and validate selected map package
         shell: bash
         env:
-          MAP_PACKAGE: ${{ inputs.map_package || 'greater_dhaka' }}
+          MAP_PACKAGE: ${{ (inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && 'shariatpur_review' || 'greater_dhaka' }}
         run: |
           set -euo pipefail
           test -s build/selected-map/map_tiles_manifest.json
@@ -312,12 +312,12 @@ jobs:
       - name: Upload canonical game artifact (APK + verification reports)
         uses: actions/upload-artifact@v4
         with:
-          name: WorldSandboxBangladesh-Canonical-Build
+          name: ${{ (inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && 'WorldSandboxBangladesh-Shariatpur-Review-Build' || 'WorldSandboxBangladesh-Canonical-Build' }}
           path: build/canonical_release/*
           if-no-files-found: error
 
       - name: Publish direct APK download (no artifact ZIP wrapper)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[shariatpur-review-apk]')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-dev
