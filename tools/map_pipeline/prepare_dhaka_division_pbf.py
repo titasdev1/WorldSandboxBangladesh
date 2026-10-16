@@ -32,6 +32,15 @@ FEATURE_KEYS = (
 )
 
 
+def build_tag_filter_command(osmium: str, regional: pathlib.Path, filtered: pathlib.Path) -> list[str]:
+    """Build the explicit selector list; omit -R so way-reference nodes survive."""
+    return [
+        osmium, "tags-filter", str(regional),
+        *(f"nwr/{key}" for key in FEATURE_KEYS),
+        "--overwrite", "-o", str(filtered),
+    ]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-pbf", type=pathlib.Path,
@@ -60,11 +69,7 @@ def main() -> int:
         osmium, "extract", "--bbox", bbox, "--strategy", "smart", "--overwrite",
         str(args.source_pbf), "-o", str(regional),
     ]
-    filter_command = [
-        osmium, "tags-filter", str(regional),
-        *(f"nwr/{key}" for key in FEATURE_KEYS),
-        "--overwrite", "-o", str(filtered),
-    ]
+    filter_command = build_tag_filter_command(osmium, regional, filtered)
     print("Preparing reusable Dhaka Division OSM extract, then filtering to game-relevant tags.", flush=True)
     print(json.dumps({
         "source_pbf": str(args.source_pbf),
