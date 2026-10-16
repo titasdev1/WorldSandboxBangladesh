@@ -16,6 +16,8 @@ var real_mission_targets: Array[Vector3] = []
 var rng := RandomNumberGenerator.new()
 var police_timer := 0.0
 var gunfire_wanted_cooldown := 0.0
+var combat_hit_marker_time := 0.0
+var combat_hit_marker_headshot := false
 var event_timer := 0.0
 var event_text := "CITY LIFE ACTIVE"
 var event_time_left := 0.0
@@ -373,6 +375,7 @@ func create_mission_marker():
 
 func _process(delta):
  gunfire_wanted_cooldown = maxf(0.0, gunfire_wanted_cooldown - delta)
+ combat_hit_marker_time = maxf(0.0, combat_hit_marker_time - delta)
  day_time = fmod(day_time + delta * 0.08, 24.0)
  event_time_left = max(0.0, event_time_left - delta)
  var sun = get_node_or_null("Sun")
@@ -424,7 +427,8 @@ func update_marker():
 func try_fire():
  if not player:
   return
- if gunfire_wanted_cooldown <= 0.0:
+ var controlled_combat_mode := is_instance_valid(combat_controller) and combat_controller.active_mode in ["survival", "arena_training"]
+ if not controlled_combat_mode and gunfire_wanted_cooldown <= 0.0:
   wanted = min(5, wanted + 1)
   gunfire_wanted_cooldown = 2.5
  var camera: Camera3D = player.get("camera") as Camera3D
@@ -434,7 +438,14 @@ func try_fire():
  query.exclude = [player]
  var hit = get_world_3d().direct_space_state.intersect_ray(query)
  if hit and hit.collider and hit.collider is CharacterBody3D:
-  if hit.collider.has_method("on_hit"):
+  if hit.collider.is_in_group("combat_enemy") and hit.collider.has_method("on_hit"):
+   var target_position: Vector3 = hit.collider.global_position
+   var is_headshot: bool = float(hit.position.y) >= target_position.y + 1.35
+   var damage: int = 100 if is_headshot else 50
+   hit.collider.call("on_hit", damage, is_headshot)
+   combat_hit_marker_time = 0.18
+   combat_hit_marker_headshot = is_headshot
+  elif hit.collider.has_method("on_hit"):
    hit.collider.on_hit()
 
 func respawn_player():
