@@ -7,6 +7,7 @@ from tools.map_pipeline.build_dhaka_division import (
     _clip_elements, _source_geometry, _replace_ground_with_boundary,
     order_tiles_shariatpur_first, select_tile_batch, effective_batch_limit, stage_gate_reached,
     build_boundary_for_stage, SHARIATPUR_PRIORITY_LAT_LON, has_feature,
+    boundary_attribution_for_stage,
 )
 from tools.map_pipeline.build_dhaka_map import build_map
 
@@ -61,6 +62,16 @@ class DhakaDivisionPipelineTests(unittest.TestCase):
         self.assertIs(build_boundary_for_stage("full_division", division, district), division)
         with self.assertRaises(ValueError):
             build_boundary_for_stage("unknown", division, district)
+
+    def test_boundary_attribution_matches_selected_administrative_level(self):
+        shariatpur = boundary_attribution_for_stage("shariatpur_review")
+        division = boundary_attribution_for_stage("full_division")
+        self.assertIn("Shariatpur District", shariatpur)
+        self.assertIn("BGD ADM2", shariatpur)
+        self.assertIn("Dhaka Division", division)
+        self.assertIn("BGD ADM1", division)
+        with self.assertRaises(ValueError):
+            boundary_attribution_for_stage("unknown")
 
     def test_tile_batches_reject_invalid_limits(self):
         with self.assertRaises(ValueError):
