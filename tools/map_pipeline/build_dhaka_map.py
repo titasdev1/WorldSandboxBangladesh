@@ -685,6 +685,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     facade_vertex_counts: dict[tuple[int, int, int, int], int] = {}
     vegetation_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
     vegetation_polygons: list[tuple[Polygon | MultiPolygon, int, str]] = []
+    blocked_vegetation_polygons: list[Polygon | MultiPolygon] = []
     interior_seeds: list[dict[str, Any]] = []
     used_ids: set[tuple[str, int]] = set()
     for el in elements:
@@ -730,6 +731,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             polygon = polygon.intersection(tile_bounds)
             if polygon.is_empty or polygon.area < 0.5:
                 continue
+            blocked_vegetation_polygons.append(polygon)
             height, inferred = building_height(tags, osm_id, polygon.area)
             if inferred:
                 inferred_heights += 1
@@ -831,6 +833,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                     if surface_meshes:
                         if is_water_area(tags):
                             water_polygons += 1
+                            blocked_vegetation_polygons.append(polygon)
                         else:
                             landuse_areas += 1
                             green_kind = vegetation_kind(tags)
@@ -848,6 +851,8 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 water_polygon = line.buffer(
                     waterway_width(tags) / 2.0, cap_style="flat", join_style="round"
                 ).intersection(tile_bounds)
+                if not water_polygon.is_empty:
+                    blocked_vegetation_polygons.append(water_polygon)
                 water_meshes = flat_surface_mesh(water_polygon, (52, 121, 158, 255), f"osm_waterway_{osm_id}")
                 for mesh in water_meshes:
                     surface_meshes_by_color.setdefault((52, 121, 158, 255), []).append(mesh)
@@ -863,6 +868,8 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 if line.is_empty or line.length < 1.0:
                     continue
                 rail_bed = line.buffer(2.2 / 2.0, cap_style="flat", join_style="round").intersection(tile_bounds)
+                if not rail_bed.is_empty:
+                    blocked_vegetation_polygons.append(rail_bed)
                 rail_color = (75, 78, 80, 255)
                 rail_meshes = flat_surface_mesh(rail_bed, rail_color, f"osm_railway_{osm_id}")
                 for mesh in rail_meshes:
@@ -879,6 +886,8 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 if line.is_empty or line.length < 1.0:
                     continue
                 road_polygon = line.buffer(road_width(tags) / 2.0, cap_style="flat", join_style="mitre").intersection(tile_bounds)
+                if not road_polygon.is_empty:
+                    blocked_vegetation_polygons.append(road_polygon)
                 parts = list(road_polygon.geoms) if isinstance(road_polygon, MultiPolygon) else [road_polygon]
                 lift = road_elevation(tags)
                 for part_index, part in enumerate(parts):
@@ -899,11 +908,21 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     # inventing tree positions outside mapped green land-use areas.
     procedural_trees = 0
     per_tile_tree_budget = 700
+    blocked_union = unary_union(blocked_vegetation_polygons) if blocked_vegetation_polygons else GeometryCollection()
     for polygon, osm_id, kind in vegetation_polygons:
         if procedural_trees >= per_tile_tree_budget:
             break
+        # Keep procedural props out of building footprints, mapped water, rail beds,
+        # and road corridors even when land-use polygons overlap those features.
+        safe_polygon = polygon.difference(blocked_union) if not blocked_union.is_empty else polygon
+        if safe_polygon.is_empty:
+            continue
+        if not safe_polygon.is_valid:
+            safe_polygon = safe_polygon.buffer(0)
+        if safe_polygon.is_empty:
+            continue
         kind_budget = {"forest": 90, "orchard": 130, "scrub": 42, "park": 48, "farmland": 22}.get(kind, 30)
-        sites = procedural_tree_sites(polygon, osm_id, kind, min(kind_budget, per_tile_tree_budget - procedural_trees))
+        sites = procedural_tree_sites(safe_polygon, osm_id, kind, min(kind_budget, per_tile_tree_budget - procedural_trees))
         for tree_index, (tree_x, tree_y) in enumerate(sites):
             for tree_color, tree_mesh in make_procedural_tree_meshes(
                 tree_x, tree_y, osm_id * 1009 + tree_index, kind
