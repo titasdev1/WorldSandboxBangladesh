@@ -81,6 +81,10 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
             self.assertEqual(manifest["tile_count_intersecting_boundary"], 3)
             self.assertEqual(manifest["tile_count_intersecting_division"], 10)
             self.assertEqual(len(manifest["tiles"]), 3)
+            report = json.loads((output / "quality_gate_report.json").read_text())
+            self.assertEqual(report["status"], "REVIEW_REQUIRED")
+            self.assertFalse(report["checks"]["photorealistic_facade_imagery_mapped"])
+            self.assertTrue(report["checks"]["manual_visual_review_required"])
 
     def test_refuses_missing_batches(self):
         with tempfile.TemporaryDirectory() as temp:
