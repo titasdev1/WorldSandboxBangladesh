@@ -40,12 +40,16 @@ func _physics_process(delta: float) -> void:
         velocity.y = -0.5
     move_and_slide()
 
-func on_hit() -> void:
-    health -= 50
-    if is_instance_valid(world):
-        world.event_text = "ENEMY HIT • %d HP LEFT" % maxi(health, 0)
-        world.event_time_left = 1.0
+func on_hit(damage: int = 50, is_headshot: bool = false) -> void:
+    health -= maxi(1, damage)
     if health <= 0:
         if is_instance_valid(combat_controller):
             combat_controller.enemy_defeated(self)
+        if is_instance_valid(world):
+            world.event_text = "HEADSHOT • ELIMINATED" if is_headshot else "ENEMY ELIMINATED"
+            world.event_time_left = 1.0
         queue_free()
+        return
+    if is_instance_valid(world):
+        world.event_text = ("HEADSHOT • %d HP LEFT" % health) if is_headshot else ("HIT • %d HP LEFT" % health)
+        world.event_time_left = 1.0
