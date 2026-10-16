@@ -58,3 +58,8 @@ The tile exporter now emits a compact runtime-interior anchor for every mapped b
 The canonical game's interior loader keeps only the nearest 24 entry triggers per loaded tile within a 220 m radius and refreshes the selection as the player moves. This makes more buildings reachable across a large district without creating thousands of active physics/interaction nodes at once. The room layouts and occupants are fictional game-authored content.
 
 Where OSM tags exist, natural=tree, power=pole / power=tower, man_made=utility_pole, and highway=street_lamp are baked as simple low-poly tree, utility-pole, or lamp props. Their shapes are approximate representations of mapped point features, not photographic or surveyed replicas. The manifest records separate counts for these categories. Tile-edge props are skipped when their geometry would cross the tile boundary; the neighbouring tile owns the nearby map region.
+
+
+## 2026-10-16 sequence-label correction
+
+The final Shariatpur review artifact name now resolves its sequence ID from the explicit workflow input first, the build job output second, and the current workflow run ID as a safe fallback. This prevents an empty suffix when assembling an already completed sequence without rebuilding tiles. The next fresh Shariatpur-only sequence will verify the artifact naming fix and regenerate the review package from the merged geometry/collision pipeline. The quality report remains review-required until its coverage, geometry, licensed visual reference, and Android integration checks pass.
