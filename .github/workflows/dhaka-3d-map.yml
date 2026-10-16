@@ -98,6 +98,12 @@ jobs:
         with:
           ref: ${{ inputs.source_commit || github.sha }}
 
+      - name: Reject unpinned continuation batches
+        if: ${{ inputs.continue_full_division && inputs.sequence_id != '' && inputs.source_commit == '' }}
+        run: |
+          echo "Continuation batch lacks its original source_commit; refusing to mix map pipeline versions." >&2
+          exit 1
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -219,7 +225,7 @@ jobs:
 
   retry-map:
     needs: build-map
-    if: failure() && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[build-shariatpur-review]'))) && fromJSON(inputs.retry_count || '0') < 2
+    if: failure() && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[build-shariatpur-review]')) || (github.event_name == 'workflow_dispatch' && (inputs.sequence_id == '' || inputs.source_commit != ''))) && fromJSON(inputs.retry_count || '0') < 2
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
