@@ -66,15 +66,20 @@ func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.j
 	var manifest: Dictionary = parsed
 	var region: Variant = manifest.get("region_south_west_north_east", [])
 	var tiles: Variant = manifest.get("tiles", [])
-	if region is Array and region.size() == 4:
-		_configure_world_bounds(region)
-		_configure_streaming_radius(float(manifest.get("tile_edge_degrees", 0.02)))
 	if not (region is Array and region.size() == 4 and tiles is Array and not tiles.is_empty()):
 		return false
-	# Keep the game origin fixed at central Dhaka so missions/player spawn remain
-	# aligned when the map coverage expands or tile size changes.
-	_manifest_origin_lat = GAME_ORIGIN_LAT
-	_manifest_origin_lon = GAME_ORIGIN_LON
+	# District review packs carry their own local origin so the player at world
+	# origin streams Shariatpur immediately. Older/full-division packages safely
+	# fall back to the established central-Dhaka coordinates.
+	var origin: Variant = manifest.get("game_origin_lat_lon", [GAME_ORIGIN_LAT, GAME_ORIGIN_LON])
+	if origin is Array and origin.size() == 2:
+		_manifest_origin_lat = float(origin[0])
+		_manifest_origin_lon = float(origin[1])
+	else:
+		_manifest_origin_lat = GAME_ORIGIN_LAT
+		_manifest_origin_lon = GAME_ORIGIN_LON
+	_configure_world_bounds(region)
+	_configure_streaming_radius(float(manifest.get("tile_edge_degrees", 0.02)))
 	var valid_records: Array[Dictionary] = []
 	for item in tiles:
 		if not (item is Dictionary):
@@ -255,7 +260,7 @@ func _configure_world_bounds(region: Array) -> void:
 
 func _configure_streaming_radius(tile_degrees: float) -> void:
 	var edge_north_south := deg_to_rad(tile_degrees) * EARTH_RADIUS_M
-	var edge_east_west := deg_to_rad(tile_degrees) * EARTH_RADIUS_M * cos(deg_to_rad((GAME_ORIGIN_LAT)))
+	var edge_east_west := deg_to_rad(tile_degrees) * EARTH_RADIUS_M * cos(deg_to_rad(_manifest_origin_lat))
 	var half_diagonal := sqrt(edge_north_south * edge_north_south + edge_east_west * edge_east_west) * 0.5
 	# Always include the nearest tile center even when a larger map tile is used.
 	_load_radius_m = maxf(DEFAULT_LOAD_RADIUS_M, half_diagonal + 900.0)
