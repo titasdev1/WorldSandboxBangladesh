@@ -8,6 +8,7 @@ var health := 100
 var ammo := 30
 var reserve_ammo := 120
 var reload_time := 0.0
+var fire_cooldown := 0.0
 var camera: Camera3D
 var camera_yaw := 0.0
 var camera_pitch := -28.0
@@ -78,6 +79,10 @@ func _physics_process(delta):
    var loaded: int = mini(30 - ammo, reserve_ammo)
    ammo += loaded
    reserve_ammo -= loaded
+   if world:
+    world.event_text = "RELOAD COMPLETE • %d/%d" % [ammo, reserve_ammo]
+    world.event_time_left = 1.8
+ fire_cooldown = maxf(0.0, fire_cooldown - delta)
 
  # Four-button movement is camera-relative. Godot's get_vector returns
  # negative Y for "forward"; convert it to a positive forward amount here.
@@ -116,12 +121,19 @@ func _physics_process(delta):
   position.x = clamp(position.x, -285.0, 285.0)
   position.z = clamp(position.z, -285.0, 285.0)
  _update_camera()
- if Input.is_action_just_pressed("fire") and world and ammo > 0 and reload_time <= 0.0:
+ if Input.is_action_pressed("fire") and world and ammo > 0 and reload_time <= 0.0 and fire_cooldown <= 0.0:
   ammo -= 1
   world.try_fire()
- if Input.is_action_just_pressed("interact") and world:
-  if ammo < 30 and reserve_ammo > 0:
+  fire_cooldown = 0.13 if Input.is_action_pressed("aim") else 0.17
+  if ammo == 0 and reserve_ammo > 0:
    reload_time = 1.35
+   world.event_text = "MAGAZINE EMPTY • RELOADING"
+   world.event_time_left = 1.8
+ if Input.is_action_just_pressed("reload") and ammo < 30 and reserve_ammo > 0 and reload_time <= 0.0:
+  reload_time = 1.35
+  world.event_text = "RELOADING"
+  world.event_time_left = 1.5
+ if Input.is_action_just_pressed("interact") and world:
   interact()
 
 func interact():
