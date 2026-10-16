@@ -15,6 +15,8 @@ on:
       - "Main.tscn"
       - "project.godot"
       - "tests/test_dhaka_map_pipeline.py"
+      - "tools/map_pipeline/package_map_pack.gd"
+      - "tests/fixtures/map_pack/**"
       - ".github/workflows/validate-godot.yml"
   pull_request:
     branches:
@@ -29,6 +31,8 @@ on:
       - "Main.tscn"
       - "project.godot"
       - "tests/test_dhaka_map_pipeline.py"
+      - "tools/map_pipeline/package_map_pack.gd"
+      - "tests/fixtures/map_pack/**"
       - ".github/workflows/validate-godot.yml"
 
 permissions:
@@ -87,6 +91,15 @@ jobs:
           if grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|Invalid call|Invalid get index|ERROR:" "$RUNNER_TEMP/godot/startup.log"; then
             exit 1
           fi
+
+      - name: Smoke-test installable map PCK creation and runtime mounting
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+          mkdir -p build/map-pack-smoke
+          "$GODOT" --headless --path . --script tools/map_pipeline/package_map_pack.gd -- --source tests/fixtures/map_pack --output build/map-pack-smoke/map-pack-smoke.pck
+          test -s build/map-pack-smoke/map-pack-smoke.pck
 
       - name: Upload validation logs
         if: always()

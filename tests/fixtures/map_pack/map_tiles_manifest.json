@@ -1,0 +1,6 @@
+{
+  "product": "PCK packager smoke fixture",
+  "region_south_west_north_east": [23.0, 90.0, 23.1, 90.1],
+  "tile_count_intersecting_boundary": 0,
+  "tiles": []
+}
