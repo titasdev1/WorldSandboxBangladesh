@@ -44,7 +44,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
     batches.sort(key=lambda item: item[0])
     first = batches[0][2]
     total_tiles = int(first["tile_count_intersecting_build_boundary"] if stage == "shariatpur_review" else first["tile_count_intersecting_boundary"])
-    division_total_tiles = int(first["tile_count_intersecting_boundary"])
+    division_total_tiles = int(first.get("tile_count_intersecting_division", first["tile_count_intersecting_boundary"]))
     tile_degrees = float(first["tile_edge_degrees"])
     boundary_name = first.get("administrative_boundary", {}).get("name")
     expected_boundary_name = "Shariatpur District" if stage == "shariatpur_review" else "Dhaka Division"
@@ -61,6 +61,9 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         manifest_total = int(manifest["tile_count_intersecting_build_boundary"] if stage == "shariatpur_review" else manifest["tile_count_intersecting_boundary"])
         if manifest_total != total_tiles:
             raise RuntimeError("Batches disagree on the total number of tiles for the selected build stage")
+        batch_division_total = int(manifest.get("tile_count_intersecting_division", manifest["tile_count_intersecting_boundary"]))
+        if batch_division_total != division_total_tiles:
+            raise RuntimeError("Batches disagree on the Dhaka Division-wide tile count")
         if manifest.get("build_stage", "full_division") != stage:
             raise RuntimeError("Batches mix Shariatpur review and full-division build stages")
         if float(manifest["tile_edge_degrees"]) != tile_degrees:
@@ -124,6 +127,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "complete_district_map": stage == "shariatpur_review",
         "tile_count_requested": total_tiles,
         "tile_count_intersecting_boundary": total_tiles,
+        "tile_count_intersecting_division": division_total_tiles,
         "tile_count_intersecting_build_boundary": total_tiles,
         "tile_count_intersecting_division": division_total_tiles,
         "tile_count_with_geometry": geometry_count,
