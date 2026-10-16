@@ -8,12 +8,18 @@ from tools.map_pipeline.build_dhaka_division import (
     _clip_elements, _source_geometry, _replace_ground_with_boundary,
     order_tiles_shariatpur_first, select_tile_batch, effective_batch_limit, stage_gate_reached,
     build_boundary_for_stage, SHARIATPUR_PRIORITY_LAT_LON, has_feature,
-    boundary_attribution_for_stage, tile_status_from_counts,
+    boundary_attribution_for_stage, tile_status_from_counts, pipeline_commit_sha,
 )
 from tools.map_pipeline.build_dhaka_map import build_map
 
 
 class DhakaDivisionPipelineTests(unittest.TestCase):
+    def test_pinned_pipeline_commit_is_available_for_batch_manifests(self):
+        import os
+        from unittest.mock import patch
+        with patch.dict(os.environ, {"WSB_PIPELINE_COMMIT_SHA": "fixture-pipeline-revision"}):
+            self.assertEqual(pipeline_commit_sha(), "fixture-pipeline-revision")
+
     def test_cached_pbf_filter_covers_every_builder_feature_key(self):
         from tools.map_pipeline.build_dhaka_division import INTERESTING_KEYS
         self.assertEqual(set(FEATURE_KEYS), INTERESTING_KEYS)

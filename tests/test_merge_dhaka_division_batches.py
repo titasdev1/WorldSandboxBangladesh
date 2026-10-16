@@ -152,6 +152,19 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "different tile sizes"):
                 merge_batches(batches, root / "full")
 
+    def test_refuses_missing_pipeline_commit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            batches = root / "batches"
+            batches.mkdir()
+            write_batch(batches, 0, [{"tile_id": "tile_a", "status": "BAKED_FROM_OSM"}], total=1, geometry_count=1)
+            manifest_path = batches / "0" / "map_tiles_manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            manifest.pop("pipeline_commit_sha")
+            manifest_path.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(RuntimeError, "missing pipeline_commit_sha"):
+                merge_batches(batches, root / "out")
+
     def test_refuses_mixed_pipeline_commits(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -1,6 +1,8 @@
 import json
+import os
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import trimesh
@@ -75,6 +77,22 @@ class DhakaMapPipelineTests(unittest.TestCase):
             self.assertIsInstance(seeds[0]["floors_estimate"], int)
             self.assertEqual(seeds[0]["exterior_reference"]["image_tag"], "https://example.invalid/facade.jpg")
             self.assertFalse(seeds[0]["exterior_reference"]["downloaded_or_embedded"])
+
+    def test_pipeline_commit_is_recorded_in_map_manifest(self):
+        elements = [{
+            "type": "way", "id": 71234,
+            "tags": {"building": "yes"},
+            "geometry": [
+                {"lat": 23.8098, "lon": 90.4123}, {"lat": 23.8098, "lon": 90.4125},
+                {"lat": 23.8100, "lon": 90.4125}, {"lat": 23.8100, "lon": 90.4123},
+                {"lat": 23.8098, "lon": 90.4123},
+            ],
+        }]
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"WSB_PIPELINE_COMMIT_SHA": "fixture-commit-123"}):
+            manifest = build_map(elements, Path(tmp), DEFAULT_BBOX)
+            self.assertEqual(manifest["pipeline_commit_sha"], "fixture-commit-123")
+            saved = json.loads((Path(tmp) / "map_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(saved["pipeline_commit_sha"], "fixture-commit-123")
 
     def test_empty_tile_still_exports_ground_geometry_instead_of_a_hole(self):
         with tempfile.TemporaryDirectory() as tmp:

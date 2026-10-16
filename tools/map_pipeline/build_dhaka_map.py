@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import re
 import time
 import urllib.parse
@@ -997,6 +998,9 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         json.dumps(interior_seeds, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     manifest = {
+        # CI pins this value before each bake so the batch assembler can prove
+        # every tile in a sequence came from the same pipeline revision.
+        "pipeline_commit_sha": os.environ.get("WSB_PIPELINE_COMMIT_SHA", "").strip(),
         "product": "Dhaka Explorable 3D Map — first offline map slice",
         "format": "glTF 2.0 binary (.glb)",
         "source": "OpenStreetMap ways/nodes via Overpass API",
