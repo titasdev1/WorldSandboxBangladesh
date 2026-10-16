@@ -142,8 +142,9 @@ jobs:
               raise SystemExit("No GLB tiles were produced")
           if len(glbs) != manifest["tile_count_with_geometry"]:
               raise SystemExit("Manifest GLB count mismatch")
-          if manifest.get("administrative_boundary", {}).get("name") != "Dhaka Division":
-              raise SystemExit("Administrative boundary metadata is missing")
+          expected_boundary = "Shariatpur District" if manifest.get("build_stage") == "shariatpur_review" else "Dhaka Division"
+          if manifest.get("administrative_boundary", {}).get("name") != expected_boundary:
+              raise SystemExit("Administrative boundary metadata mismatch: " + expected_boundary)
           if not (root / "ATTRIBUTION.txt").is_file():
               raise SystemExit("Required attribution is missing")
           feature_counts = {}
