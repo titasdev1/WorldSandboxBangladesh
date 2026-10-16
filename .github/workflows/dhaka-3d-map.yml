@@ -74,7 +74,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: dhaka-division-map-v2-${{ github.ref }}
+  group: dhaka-division-map-v2-${{ github.ref }}-${{ inputs.sequence_id || github.run_id }}
   # Sequential batches must not cancel the previous run after dispatching the next.
   cancel-in-progress: false
 
