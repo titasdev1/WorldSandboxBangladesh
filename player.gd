@@ -33,6 +33,9 @@ func toggle_camera_view_mode() -> String:
  return camera_view_mode
 
 func _ready():
+ var controls_config := ConfigFile.new()
+ if controls_config.load("user://graphics_settings.cfg") == OK:
+  camera_sensitivity = clampf(float(controls_config.get_value("controls", "look_sensitivity", 0.12)), 0.05, 0.25)
  _collision_shape = get_node_or_null("CollisionShape3D") as CollisionShape3D
  if _collision_shape and _collision_shape.shape is CapsuleShape3D:
   _standing_capsule_height = (_collision_shape.shape as CapsuleShape3D).height
