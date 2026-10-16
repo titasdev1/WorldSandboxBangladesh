@@ -95,6 +95,8 @@ if 'add_touch_button("AIM"' not in hud_text or 'Input.is_action_pressed("aim")' 
     raise SystemExit("PRODUCTION GATE FAILED: hold-to-aim zoom is not integrated into the player and touch HUD")
 if "CombatCrosshair" not in hud_text:
     raise SystemExit("PRODUCTION GATE FAILED: combat reticle is missing from the HUD")
+if "camera.global_transform.basis.z.normalized()" not in world_text:
+    raise SystemExit("PRODUCTION GATE FAILED: firing direction is not aligned with the active camera aim")
 interior_text = (ROOT / "systems" / "interior_factory.gd").read_text(encoding="utf-8")
 if "CeilingFanAnimated" not in interior_text or "open_interior" not in interior_text:
     raise SystemExit("PRODUCTION GATE FAILED: generated interior runtime/animated dressing is missing")
