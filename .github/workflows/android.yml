@@ -124,10 +124,15 @@ jobs:
               game_origin = manifest.get("game_origin_lat_lon")
               if not isinstance(game_origin, list) or len(game_origin) != 2:
                   raise SystemExit("Shariatpur package lacks game_origin_lat_lon; refusing stale/broken candidate APK")
+              pipeline_sha = str(manifest.get("pipeline_commit_sha", "")).strip()
+              if not pipeline_sha:
+                  raise SystemExit("Shariatpur package lacks pipeline_commit_sha; rebuild with the provenance gate")
               report_path = root / "quality_gate_report.json"
               if not report_path.is_file():
                   raise SystemExit("Shariatpur review package has no quality gate report")
               report = json.loads(report_path.read_text())
+              if report.get("pipeline_commit_sha") != pipeline_sha:
+                  raise SystemExit("Shariatpur manifest/report pipeline provenance mismatch")
               if manifest.get("build_stage") != "shariatpur_review" or not manifest.get("complete_district_map"):
                   raise SystemExit("Selected Shariatpur package is not a complete district-stage package")
               vegetation_count = int(manifest.get("feature_counts_across_tiles", {}).get("procedural_vegetation_trees", 0))
