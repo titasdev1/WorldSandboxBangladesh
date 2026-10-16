@@ -17,6 +17,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import trimesh
 from shapely.geometry import GeometryCollection, LineString, MultiLineString, MultiPolygon, Point, Polygon, box, mapping, shape
 from shapely.ops import unary_union
@@ -360,6 +361,89 @@ def road_elevation(tags: dict[str, str]) -> float:
     if tags.get("bridge", "").lower() not in {"", "no", "false", "0"}:
         return 0.65
     return 0.015
+
+
+_WINDOW_BOX_TEMPLATE = trimesh.creation.box(extents=(1.0, 1.0, 1.0))
+_WINDOW_GLASS_PALETTE = (
+    (49, 82, 96, 255),
+    (59, 94, 108, 255),
+    (70, 104, 116, 255),
+)
+
+
+def facade_window_geometry(
+    geometry: Any,
+    height: float,
+    osm_id: int,
+    tile_bounds: Polygon,
+) -> tuple[tuple[int, int, int, int], np.ndarray, np.ndarray, int] | None:
+    """Build capped, low-poly window panels as one mesh chunk per building."""
+    if height < 3.2 or geometry.is_empty:
+        return None
+    parts = list(geometry.geoms) if isinstance(geometry, MultiPolygon) else [geometry]
+    window_centers: list[tuple[float, float, float, float, float]] = []
+    floor_rows = min(2, max(1, int(height // 3.2)))
+    for part in parts:
+        if not isinstance(part, Polygon) or part.area < 20.0:
+            continue
+        edges: list[tuple[float, tuple[float, float], tuple[float, float], float, float]] = []
+        coords = list(part.exterior.coords)
+        for p1, p2 in zip(coords, coords[1:]):
+            dx, dy = float(p2[0] - p1[0]), float(p2[1] - p1[1])
+            length = math.hypot(dx, dy)
+            if length < 5.0:
+                continue
+            mid_x, mid_y = (float(p1[0]) + float(p2[0])) * 0.5, (float(p1[1]) + float(p2[1])) * 0.5
+            if tile_bounds.boundary.distance(Point(mid_x, mid_y)) < 1.0:
+                continue
+            nx, ny = -dy / length, dx / length
+            if part.contains(Point(mid_x + nx * 0.25, mid_y + ny * 0.25)):
+                nx, ny = -nx, -ny
+            angle = math.atan2(dy, dx)
+            edges.append((length, (float(p1[0]), float(p1[1])), (float(p2[0]), float(p2[1])), nx, ny, angle))
+        # Two longest exterior walls provide visible detail without multiplying draw calls.
+        edges.sort(key=lambda edge: edge[0], reverse=True)
+        for edge in edges[:2]:
+            length, p1, p2, nx, ny, angle = edge
+            window_count = min(2, max(1, int(length / 4.5)))
+            window_width = min(0.95, max(0.55, length / (window_count + 1) * 0.4))
+            for row in range(floor_rows):
+                center_z = 0.02 + 1.65 + float(row) * 3.0
+                if center_z + 0.45 >= height + 0.02:
+                    continue
+                for index in range(window_count):
+                    fraction = float(index + 1) / float(window_count + 1)
+                    cx = p1[0] + (p2[0] - p1[0]) * fraction + nx * 0.035
+                    cy = p1[1] + (p2[1] - p1[1]) * fraction + ny * 0.035
+                    window_centers.append((cx, cy, center_z, window_width, angle))
+                    if len(window_centers) >= 8:
+                        break
+                if len(window_centers) >= 8:
+                    break
+            if len(window_centers) >= 8:
+                break
+        if len(window_centers) >= 8:
+            break
+    if not window_centers:
+        return None
+
+    params = np.asarray(window_centers, dtype=np.float32)
+    count = len(params)
+    vertices = np.tile(_WINDOW_BOX_TEMPLATE.vertices, (count, 1)).astype(np.float32)
+    vertices[:, 0] *= np.repeat(params[:, 3], 8)
+    vertices[:, 1] *= 0.055
+    vertices[:, 2] *= 0.9
+    angles = np.repeat(params[:, 4], 8)
+    cos_angles, sin_angles = np.cos(angles), np.sin(angles)
+    rotated_x = vertices[:, 0] * cos_angles - vertices[:, 1] * sin_angles
+    rotated_y = vertices[:, 0] * sin_angles + vertices[:, 1] * cos_angles
+    vertices[:, 0] = rotated_x + np.repeat(params[:, 0], 8)
+    vertices[:, 1] = rotated_y + np.repeat(params[:, 1], 8)
+    vertices[:, 2] += np.repeat(params[:, 2], 8)
+    faces = np.tile(_WINDOW_BOX_TEMPLATE.faces, (count, 1)).astype(np.int32)
+    faces += np.repeat(np.arange(count, dtype=np.int32) * 8, 12).reshape(-1, 1)
+    color = _WINDOW_GLASS_PALETTE[osm_id % len(_WINDOW_GLASS_PALETTE)]
+    return color, vertices, faces, count
 
 
 def make_geojson(
