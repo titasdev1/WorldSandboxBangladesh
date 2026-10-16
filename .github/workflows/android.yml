@@ -64,7 +64,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check shapely trimesh osmium
+          python3 -m pip install --disable-pip-version-check shapely trimesh osmium mapbox-earcut
           python3 -m unittest discover -s tests -p 'test_dhaka_*pipeline.py' -v
           python3 -m unittest discover -s tests -p 'test_merge_dhaka_division_batches.py' -v
 
