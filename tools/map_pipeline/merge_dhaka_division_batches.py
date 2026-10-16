@@ -112,11 +112,23 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
     attribution_source = next((path / "ATTRIBUTION.txt" for _, path, _ in batches if (path / "ATTRIBUTION.txt").is_file()), None)
     if attribution_source is None:
         raise RuntimeError("No batch contains required attribution")
-    shutil.copy2(attribution_source, out / "ATTRIBUTION.txt")
 
     manifest = dict(first)
     for key in ("tile_batch_offset", "tile_batch_count", "tile_batch_tile_ids", "source_elements_in_boundary_envelope"):
         manifest.pop(key, None)
+    boundary_type = "ADM2" if stage == "shariatpur_review" else "ADM1"
+    boundary_attribution = (
+        f"Clipping boundary: {expected_boundary_name}; source: geoBoundaries "
+        f"(https://www.geoboundaries.org), gbOpen BGD {boundary_type}. "
+        "See manifest for the returned dataset license."
+    )
+    boundary_record = dict(manifest.get("administrative_boundary", {}))
+    boundary_record.update({
+        "name": expected_boundary_name,
+        "source": f"geoBoundaries gbOpen BGD {boundary_type}",
+        "attribution": boundary_attribution,
+    })
+    manifest["administrative_boundary"] = boundary_record
     manifest.update({
         "product": (
             "Project A-Square — complete Shariatpur District boundary-clipped 3D map"
@@ -167,6 +179,22 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
             if vertices is None or len(vertices) == 0 or not np.isfinite(vertices).all():
                 raise RuntimeError(f"GLB contains empty or non-finite mesh data: {glb_path.relative_to(out)}")
             mesh_geometry_count += 1
+    building_count = int(feature_counts.get("building_footprints", 0))
+    inferred_height_count = int(feature_counts.get("buildings_with_inferred_height", 0))
+    inferred_height_percent = round(100.0 * inferred_height_count / max(1, building_count), 2)
+    boundary_metadata = boundary_record.get("metadata", {})
+    boundary_license = str(boundary_metadata.get("boundary_license", boundary_record.get("license", "See manifest")))
+    boundary_license_source = str(boundary_metadata.get("boundary_license_source", "See manifest"))
+    boundary_id = str(boundary_metadata.get("boundary_id", "unspecified"))
+    (out / "ATTRIBUTION.txt").write_text(
+        "© OpenStreetMap contributors — https://www.openstreetmap.org/copyright\n"
+        + boundary_attribution + "\n"
+        + "OSM data license: ODbL 1.0.\n"
+        + f"Clipping boundary: {expected_boundary_name} (geoBoundaries gbOpen BGD {boundary_type}).\n"
+        + f"Clipping boundary ID: {boundary_id}.\n"
+        + f"Clipping boundary license: {boundary_license}. License source: {boundary_license_source}.\n"
+        , encoding="utf-8",
+    )
     quality_report = {
         "build_stage": stage,
         "status": "REVIEW_REQUIRED" if stage == "shariatpur_review" else "MAP_DATA_VALIDATED_VISUAL_QA_PENDING",
@@ -181,6 +209,9 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
             "mesh_geometry_count": mesh_geometry_count,
             "photorealistic_facade_imagery_mapped": False,
             "physical_android_integration_verified": False,
+            "all_building_heights_verified_or_surveyed": building_count > 0 and inferred_height_count == 0,
+            "estimated_building_heights_count": inferred_height_count,
+            "estimated_building_heights_percent": inferred_height_percent,
             "manual_visual_review_required": True,
         },
         "tiles_expected": total_tiles,
