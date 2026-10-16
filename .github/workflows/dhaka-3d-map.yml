@@ -209,7 +209,7 @@ jobs:
 
   continue-map:
     needs: build-map
-    if: success() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.continue_full_division))
+    if: (github.event_name != 'push' || github.ref == 'refs/heads/main') && success() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.continue_full_division))
     runs-on: ubuntu-latest
     timeout-minutes: 50
     steps:
