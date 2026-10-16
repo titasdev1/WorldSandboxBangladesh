@@ -142,7 +142,7 @@ class DhakaMapPipelineTests(unittest.TestCase):
             counts = manifest["feature_counts"]
             self.assertEqual(counts["water_polygons"], 1)
             self.assertEqual(counts["waterway_segments"], 1)
-            self.assertEqual(counts["landuse_areas"], 1)
+            self.assertEqual(counts["landuse_areas"], 2)  # farmland + mapped woodland
             self.assertEqual(counts["bridge_ways"], 1)
             self.assertGreater(counts["procedural_vegetation_trees"], 0)
             self.assertGreaterEqual(counts["vegetation_mesh_batches"], 1)
