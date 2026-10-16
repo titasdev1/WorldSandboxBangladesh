@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "028_SHARIATPUR_REVIEW_SEQUENCE_REGENERATED_AFTER_GEOMETRY_AND_METADATA_FIX",
+  "current_milestone": "029_SHARIATPUR_CLEAN_PROVENANCE_SEQUENCE_BATCH_0_VERIFIED",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -25,7 +25,7 @@
     "015_UI",
     "017_SAVE_LOAD"
   ],
-  "next_priority": "Verify fresh Shariatpur-only workflow sequence e243a563c33c584bce0375f8685c38ed5b94ef78; inspect package and quality report before any map promotion",
+  "next_priority": "Finish all 60 Shariatpur tiles in sequence 38920673926 using pinned source commit 65a3540c182aca78c5583bf48a83a9755b3f0f7e; assemble the complete package, inspect quality_gate_report.json, then build a candidate Android APK with that exact package and keep REVIEW_REQUIRED until visual/device QA.",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -45,9 +45,9 @@
     "Map artifact naming from run 38891159212 omitted its sequence suffix. Fix workflow metadata propagation without rebuilding tiles solely to rename the artifact.",
     "APK summary shell-quoting defect fixed in .github/workflows/android.yml commit bf43113107353095891ae6255a6e08d07b55b3a5; awaiting a workflow run to verify no shell warning and correct summary output.",
     "Commit b1399551554e12bcfc8a230d650034552d6c566a fixes Shariatpur review artifact suffix fallback: explicit input sequence ID, build output sequence ID, then workflow run ID.",
-    "Commit e243a563c33c584bce0375f8685c38ed5b94ef78 updates MAP_PIPELINE.md with the fix and includes [build-shariatpur-review] to trigger a fresh bounded Shariatpur-only review sequence. Its workflow status and output package have not yet been inspected."
+    "Fresh Shariatpur sequence 38920673926 is pinned to source commit 65a3540c182aca78c5583bf48a83a9755b3f0f7e. Batch 0 passed provenance/GLB checks: 8/60 tiles, all 8 with geometry; 2,241 buildings, 984 road ways, 1,444 water polygons, 520 land-use areas, 66 bridges, 12,813 facade-window panels, and 98 procedural vegetation trees. Batch 1 is running; full district assembly and Android integration are pending."
   ],
-  "build_status": "SHARIATPUR_SEQUENCE_TRIGGERED_AWAITING_WORKFLOW_AND_PACKAGE_VERIFICATION",
+  "build_status": "SHARIATPUR_CLEAN_SEQUENCE_RUNNING_BATCH_0_OF_60_VERIFIED; BATCH_1_RUNNING; NO_DISTRICT_ASSEMBLY_OR_APK_YET",
   "latest_verified_run": 38892036942,
   "latest_verified_commit": "7d62ad457907a72094a6cbdc072ebbdd152d0066",
   "latest_build_artifact": {
@@ -72,10 +72,10 @@
   "asset_pipeline": "live_game_factory_installed",
   "audit": {
     "date": "2026-10-16",
-    "latest_audited_commit": "e243a563c33c584bce0375f8685c38ed5b94ef78",
-    "latest_audited_workflow_run": 38892036942,
-    "latest_audited_workflow_conclusion": "fresh_shariatpur_sequence_triggered_awaiting_results",
-    "verification_status": "Committed APK summary shell fix (bf43113107353095891ae6255a6e08d07b55b3a5) and Shariatpur artifact sequence fallback fix (b1399551554e12bcfc8a230d650034552d6c566a). Triggered fresh Shariatpur-only sequence from commit e243a563c33c584bce0375f8685c38ed5b94ef78; do not claim success until runs/artifacts are inspected. Previous Shariatpur package remains REVIEW_REQUIRED; no promotion to canonical game.",
+    "latest_audited_commit": "65a3540c182aca78c5583bf48a83a9755b3f0f7e",
+    "latest_audited_workflow_run": 38920673926,
+    "latest_audited_workflow_conclusion": "batch_0_success; batch_1_running",
+    "verification_status": "Fixed the missing pipeline_commit_sha in build_dhaka_division.py and added regression tests for manifest provenance and rejecting missing provenance. PR #64 merged as 65a3540c182aca78c5583bf48a83a9755b3f0f7e. Fast map tests and Godot runtime validation passed; map workflow run 38920245648 also passed on the PR revision. Clean Shariatpur sequence 38920673926 has produced a verified 8-tile batch; full 60-tile assembly, quality report, candidate APK, and device QA remain pending.",
     "map_quality_gate": {
       "artifact_run": 38891159212,
       "status": "REVIEW_REQUIRED",
@@ -102,8 +102,12 @@
         "Android integration and physical-device memory/FPS/touch QA pending"
       ],
       "sequence_label_fix_commit": "b1399551554e12bcfc8a230d650034552d6c566a",
-      "fresh_sequence_trigger_commit": "e243a563c33c584bce0375f8685c38ed5b94ef78",
-      "fresh_sequence_status": "TRIGGERED_AWAITING_WORKFLOW"
+      "fresh_sequence_trigger_commit": "65a3540c182aca78c5583bf48a83a9755b3f0f7e",
+      "fresh_sequence_status": "BATCH_0_VERIFIED_BATCH_1_RUNNING",
+      "fresh_sequence_run": 38920673926,
+      "completed_tiles": 8,
+      "total_tiles": 60,
+      "tile_count_percent": 13.33
     },
     "apk_verification": {
       "run_id": 38892036942,
@@ -118,6 +122,52 @@
       "report_warning": "Prior run emitted '491470358: command not found' in summary generation. Fixed in workflow source using printf; must verify in next run.",
       "reporting_fix_commit": "bf43113107353095891ae6255a6e08d07b55b3a5",
       "reporting_fix_status": "COMMITTED_AWAITING_WORKFLOW_VALIDATION"
+    },
+    "active_shariatpur_sequence": {
+      "sequence_id": 38920673926,
+      "source_commit": "65a3540c182aca78c5583bf48a83a9755b3f0f7e",
+      "stage": "shariatpur_review",
+      "total_tiles": 60,
+      "completed_tiles": 8,
+      "tile_count_percent": 13.33,
+      "completed_batch_offsets": [
+        0
+      ],
+      "current_batch_offset": 8,
+      "current_batch_run": 38921508958,
+      "batch_0_artifact_id": 12054956590,
+      "batch_0_artifact_name": "Project-A-Square-Dhaka-Division-38920673926-batch-0-attempt-0",
+      "batch_0_artifact_bytes": 3266023,
+      "batch_0_glb_bytes": 9111156,
+      "batch_0_tiles_with_geometry": 8,
+      "batch_0_source_elements_in_boundary_envelope": 7646,
+      "batch_0_feature_counts": {
+        "building_footprints": 2241,
+        "road_ways": 984,
+        "buildings_with_inferred_height": 2233,
+        "named_or_tagged_interaction_seeds": 280,
+        "interior_anchors": 2401,
+        "mapped_trees": 2,
+        "mapped_utility_poles": 16,
+        "mapped_street_lamps": 0,
+        "facade_window_panels": 12813,
+        "building_mesh_batches": 18,
+        "roof_mesh_batches": 18,
+        "procedural_vegetation_trees": 98,
+        "vegetation_mesh_batches": 3,
+        "water_polygons": 1444,
+        "waterway_segments": 32,
+        "landuse_areas": 520,
+        "railway_ways": 0,
+        "bridge_ways": 66
+      },
+      "blockers": [
+        "Only 8 of 60 tiles have been baked in the fresh sequence so far.",
+        "Full district assembly and quality report are not yet available.",
+        "Most building heights in batch 0 are inferred rather than verified.",
+        "Licensed photorealistic facade imagery is absent from OSM data.",
+        "Candidate Android APK and physical-device visual/performance/touch QA are pending."
+      ]
     }
   }
 }
