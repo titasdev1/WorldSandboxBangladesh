@@ -128,9 +128,39 @@ func _create_hub() -> void:
     sphere.radius = 4.0
     shape.shape = sphere
     hub.add_child(shape)
-    hub.position = Vector3(0, 0.2, -12)
+    hub.position = Vector3(6, 0.2, -12)
     hub.body_entered.connect(_on_hub_entered)
     add_child(hub)
+
+    # A visible, original job-board kiosk makes the mission system discoverable
+    # instead of relying on an invisible trigger or debug-only interaction.
+    var board := MeshInstance3D.new()
+    board.name = "DeshiJobBoardVisual"
+    var board_mesh := BoxMesh.new()
+    board_mesh.size = Vector3(2.4, 1.5, 0.18)
+    board.mesh = board_mesh
+    board.material_override = _mat(Color("#35584b"))
+    board.position = hub.position + Vector3(0, 1.55, 0)
+    add_child(board)
+
+    var header := Label3D.new()
+    header.name = "DeshiJobBoardHeader"
+    header.text = "DESHI JOB BOARD"
+    header.font_size = 34
+    header.pixel_size = 0.009
+    header.modulate = Color("#fff0bd")
+    header.position = hub.position + Vector3(0, 2.0, -0.12)
+    add_child(header)
+
+    var subtitle := Label3D.new()
+    subtitle.name = "DeshiJobBoardSubtitle"
+    subtitle.text = "LOCAL TASKS • 4000 JOB VARIANTS"
+    subtitle.font_size = 17
+    subtitle.pixel_size = 0.008
+    subtitle.modulate = Color("#d8e8dd")
+    subtitle.position = hub.position + Vector3(0, 1.35, -0.13)
+    add_child(subtitle)
+
     marker_node = _marker(hub.position, Color("#ffd34e"), Vector3(1.8, 1.0, 1.8))
 
 func _on_hub_entered(body: Node3D) -> void:
@@ -237,6 +267,8 @@ func _on_target_entered(body: Node3D) -> void:
         m.title, int(m.reward), int(m.id) + 1
     ])
     world.set("event_time_left", 8.0)
+    if world.has_method("notify_gameplay_event"):
+        world.notify_gameplay_event("SIDE_MISSION_COMPLETE", int(m.reward))
     cooldown = 3.0
     active_index = -1
     target_positions.clear()
