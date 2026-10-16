@@ -145,6 +145,30 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
     glbs = list(out.rglob("Dhaka_Explorable_Map.glb"))
     if len(glbs) != geometry_count:
         raise RuntimeError(f"Full package GLB count mismatch: manifest {geometry_count}, found {len(glbs)}")
+    quality_report = {
+        "build_stage": stage,
+        "status": "REVIEW_REQUIRED" if stage == "shariatpur_review" else "MAP_DATA_VALIDATED_VISUAL_QA_PENDING",
+        "map_data_validation": "PASS",
+        "checks": {
+            "tile_offsets_contiguous": True,
+            "tile_ids_unique": True,
+            "administrative_boundary_consistent": True,
+            "attribution_present": True,
+            "glb_count_matches_manifest": True,
+            "photorealistic_facade_imagery_mapped": False,
+            "physical_android_integration_verified": False,
+            "manual_visual_review_required": True,
+        },
+        "tiles_expected": total_tiles,
+        "tiles_in_manifest": len(all_records),
+        "tiles_with_geometry": len(glbs),
+        "tile_coverage_percent": round(100.0 * len(all_records) / max(1, total_tiles), 2),
+        "feature_counts": feature_counts,
+        "note": "Tile coverage is geographic bookkeeping, not visual fidelity. The package is not final until licensed imagery, visual inspection, and canonical Android integration pass.",
+    }
+    (out / "quality_gate_report.json").write_text(
+        json.dumps(quality_report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     return {
         "output": str(out),
         "complete_division_map": stage == "full_division",
@@ -153,6 +177,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "tile_count_intersecting_division": division_total_tiles,
         "tile_count_with_geometry": len(glbs),
         "feature_counts": feature_counts,
+        "quality_gate_status": quality_report["status"],
         "batch_count": len(batches),
         "glb_bytes": sum(path.stat().st_size for path in glbs),
     }
