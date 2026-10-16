@@ -177,10 +177,14 @@ def building_height_source(tags: dict[str, str]) -> str:
 
 
 def building_floors_source(tags: dict[str, str]) -> str:
-    source = building_height_source(tags)
-    if source == "OSM_BUILDING_LEVELS_TAG":
-        return source
-    if source == "OSM_HEIGHT_TAG":
+    raw_levels = str(tags.get("building:levels", "")).strip()
+    try:
+        levels = int(float(raw_levels))
+        if 1 <= levels <= 70:
+            return "OSM_BUILDING_LEVELS_TAG"
+    except (TypeError, ValueError):
+        pass
+    if building_height_source(tags) == "OSM_HEIGHT_TAG":
         return "DERIVED_FROM_OSM_HEIGHT_TAG"
     return "AREA_CATEGORY_ESTIMATE_UNVERIFIED"
 
