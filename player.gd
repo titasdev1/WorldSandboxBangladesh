@@ -56,9 +56,10 @@ func _update_camera():
   # Eye-height camera shares the orbit camera's yaw/pitch and movement basis.
   var eye := global_position + Vector3(0, 1.58, 0)
   camera.global_position = eye
+  camera.fov = 50.0 if Input.is_action_pressed("aim") else 68.0
   camera.global_rotation = Vector3(deg_to_rad(-camera_pitch), yaw, 0.0)
   return
- var camera_distance := 9.5
+ var camera_distance := 5.8 if Input.is_action_pressed("aim") else 9.5
  if world:
   var interior_node: Node = world.get("interior_factory")
   if is_instance_valid(interior_node) and interior_node.has_method("is_inside") and bool(interior_node.call("is_inside")):
@@ -67,6 +68,7 @@ func _update_camera():
  # must use opposite signs: forward movement points from camera toward target.
  var offset := Vector3(sin(yaw) * cos(pitch) * camera_distance, -sin(pitch) * camera_distance + 1.0, cos(yaw) * cos(pitch) * camera_distance)
  camera.global_position = target + offset
+ camera.fov = 56.0 if Input.is_action_pressed("aim") else 68.0
  camera.look_at(target, Vector3.UP)
 
 func _physics_process(delta):
