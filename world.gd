@@ -52,6 +52,11 @@ func _ready():
   var street_life = load("res://street_life_factory.gd").new()
   street_life.build(self)
  spawn_player()
+ # Keep the Deshi side-job catalogue in the canonical world scene; its hub and targets
+ # use the same player, streamed map, HUD, rewards and save/gameplay event path.
+ var side_mission_factory = load("res://systems/mission_factory.gd").new()
+ side_mission_factory.name = "MissionFactory"
+ add_child(side_mission_factory)
  spawn_traffic()
  spawn_npcs()
  _configure_real_missions()
