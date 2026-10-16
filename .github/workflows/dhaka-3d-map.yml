@@ -35,6 +35,11 @@ on:
         required: false
         default: ""
         type: string
+      source_commit:
+        description: "Pinned source commit shared by every batch in this sequence"
+        required: false
+        default: ""
+        type: string
       assemble_only:
         description: "Assemble an already completed Shariatpur batch sequence without rebuilding tiles"
         required: false
@@ -82,13 +87,16 @@ jobs:
       next_offset: ${{ steps.batch-meta.outputs.next_offset }}
       total_tiles: ${{ steps.batch-meta.outputs.total_tiles }}
       sequence_id: ${{ inputs.sequence_id || github.run_id }}
+      source_commit: ${{ inputs.source_commit || github.sha }}
       tile_degrees: ${{ inputs.tile_degrees || '0.05' }}
       max_tiles: ${{ inputs.max_tiles || (github.event_name == 'workflow_dispatch' && '8' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[build-shariatpur-review]') && '8' || '2')) }}
       build_stage: ${{ inputs.build_stage || 'shariatpur_review' }}
       stage_gate_reached: ${{ steps.batch-meta.outputs.stage_gate_reached }}
     steps:
-      - name: Checkout canonical repository
+      - name: Checkout pinned source commit for this map sequence
         uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_commit || github.sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -220,6 +228,7 @@ jobs:
           TILE_OFFSET: ${{ inputs.tile_offset || '0' }}
           MAX_TILES: ${{ inputs.max_tiles || '8' }}
           SEQUENCE_ID: ${{ inputs.sequence_id || github.run_id }}
+          SOURCE_COMMIT: ${{ inputs.source_commit || github.sha }}
           RETRY_COUNT: ${{ inputs.retry_count || '0' }}
           CONTINUE_FULL: ${{ inputs.continue_full_division || (github.event_name == 'push' && contains(github.event.head_commit.message, '[build-shariatpur-review]')) }}
           BUILD_STAGE: ${{ inputs.build_stage || 'shariatpur_review' }}
@@ -236,6 +245,7 @@ jobs:
               "continue_full_division": "${CONTINUE_FULL}",
               "build_stage": "${BUILD_STAGE}",
               "sequence_id": "${SEQUENCE_ID}",
+              "source_commit": "${SOURCE_COMMIT}",
               "retry_count": "${NEXT_RETRY_COUNT}"
             }
           }
@@ -247,8 +257,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 50
     steps:
-      - name: Checkout canonical repository for package assembly
+      - name: Checkout pinned source commit for package assembly
         uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.build-map.outputs.source_commit }}
 
       - name: Set up Python for package assembly
         uses: actions/setup-python@v6
@@ -266,6 +278,7 @@ jobs:
           TILE_DEGREES: ${{ needs.build-map.outputs.tile_degrees }}
           MAX_TILES: ${{ needs.build-map.outputs.max_tiles }}
           SEQUENCE_ID: ${{ needs.build-map.outputs.sequence_id }}
+          SOURCE_COMMIT: ${{ needs.build-map.outputs.source_commit }}
           BUILD_STAGE: ${{ needs.build-map.outputs.build_stage }}
         run: |
           set -euo pipefail
@@ -279,6 +292,7 @@ jobs:
               "continue_full_division": "true",
               "build_stage": "${BUILD_STAGE}",
               "sequence_id": "${SEQUENCE_ID}",
+              "source_commit": "${SOURCE_COMMIT}",
               "retry_count": "0"
             }
           }
