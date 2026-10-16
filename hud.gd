@@ -40,8 +40,19 @@ func _ready():
  status.add_theme_font_size_override("font_size", 16)
  add_child(status)
 
+ var crosshair := Label.new()
+ crosshair.name = "CombatCrosshair"
+ crosshair.text = "+"
+ crosshair.position = Vector2(632, 342)
+ crosshair.add_theme_font_size_override("font_size", 28)
+ crosshair.add_theme_color_override("font_color", Color("#e8f7ff"))
+ crosshair.add_theme_color_override("font_shadow_color", Color("#07111b"))
+ crosshair.add_theme_constant_override("shadow_offset_x", 1)
+ crosshair.add_theme_constant_override("shadow_offset_y", 1)
+ add_child(crosshair)
+
  var hint = Label.new()
- hint.text = "CIRCULAR MOVE • DRAG RIGHT SIDE TO LOOK • SPRINT • BARGAIN • FIRE • RAIN"
+ hint.text = "CIRCULAR MOVE • DRAG TO LOOK • AIM • FIRE • VIEW: FPP/TPP • SPRINT • BARGAIN"
  hint.position = Vector2(28, 680)
  hint.add_theme_font_size_override("font_size", 16)
  add_child(hint)
@@ -56,6 +67,7 @@ func _ready():
  add_child(stick)
  add_touch_button("SPRINT", Vector2(35, 645), Vector2(150, 45), "sprint")
  add_touch_button("FIRE", Vector2(1080, 560), Vector2(150, 75), "fire")
+ add_touch_button("AIM", Vector2(900, 500), Vector2(130, 45), "aim")
  interaction_button = add_touch_button("INTERACT", Vector2(900, 650), Vector2(170, 55), "interact")
  var camera_view_button := Button.new()
  camera_view_button.name = "CameraViewToggle"
