@@ -254,7 +254,7 @@ func _load_interior_anchors(record: Dictionary, player_position: Vector3) -> Arr
 	var tile_id := str(record.get("tile_id", "tile"))
 	var nearby: Array[Dictionary] = []
 	for seed in seeds:
-		var typed_seed := seed as Dictionary
+		var typed_seed: Dictionary = seed
 		if _interior_seed_distance(typed_seed, tile_position, player_position) <= INTERIOR_ANCHOR_RADIUS_M:
 			nearby.append(typed_seed)
 	nearby.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
