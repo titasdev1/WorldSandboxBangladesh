@@ -585,6 +585,8 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     trees = utility_poles = street_lamps = 0
     water_polygons = waterway_segments = landuse_areas = railway_ways = bridge_ways = facade_windows = 0
     surface_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
+    building_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
+    roof_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
     facade_vertices_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
     facade_faces_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
     facade_vertex_counts: dict[tuple[int, int, int, int], int] = {}
@@ -636,13 +638,15 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             height, inferred = building_height(tags, osm_id, polygon.area)
             if inferred:
                 inferred_heights += 1
-            for part_index, mesh in enumerate(extruded_polygon(polygon, height, building_color(tags, osm_id), f"osm_building_{osm_id}")):
+            facade_color = building_color(tags, osm_id)
+            for mesh in extruded_polygon(polygon, height, facade_color, f"osm_building_{osm_id}"):
                 mesh.apply_translation((0.0, 0.0, 0.02))
-                scene.add_geometry(mesh, node_name=f"building_{osm_id}_{part_index}", geom_name=f"building_{osm_id}_{part_index}")
-            # A distinct roof cap preserves mapped roof colour/material tags.
-            for roof_index, roof_mesh in enumerate(extruded_polygon(polygon, 0.055, roof_color(tags, osm_id), f"osm_roof_{osm_id}")):
+                building_meshes_by_color.setdefault(facade_color, []).append(mesh)
+            # Roof caps are batched by mapped colour to reduce mobile draw calls.
+            mapped_roof_color = roof_color(tags, osm_id)
+            for roof_mesh in extruded_polygon(polygon, 0.055, mapped_roof_color, f"osm_roof_{osm_id}"):
                 roof_mesh.apply_translation((0.0, 0.0, height + 0.025))
-                scene.add_geometry(roof_mesh, node_name=f"building_roof_{osm_id}_{roof_index}", geom_name=f"building_roof_{osm_id}_{roof_index}")
+                roof_meshes_by_color.setdefault(mapped_roof_color, []).append(roof_mesh)
             window_geometry = facade_window_geometry(polygon, height, osm_id, tile_bounds)
             if window_geometry is not None:
                 window_color, window_vertices, window_faces, window_count = window_geometry
@@ -791,6 +795,23 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             except Exception:
                 continue
 
+    # Batch the dominant building and roof geometry by material colour. This keeps
+    # the mapped silhouettes and height variation while avoiding thousands of
+    # separate draw calls when a rural/urban tile streams onto a mobile device.
+    for color, meshes in building_meshes_by_color.items():
+        if not meshes:
+            continue
+        combined = color_mesh(trimesh.util.concatenate(meshes), color)
+        color_name = "".join(f"{channel:02x}" for channel in color)
+        scene.add_geometry(combined, node_name=f"mapped_buildings_{color_name}", geom_name=f"mapped_buildings_{color_name}")
+
+    for color, meshes in roof_meshes_by_color.items():
+        if not meshes:
+            continue
+        combined = color_mesh(trimesh.util.concatenate(meshes), color)
+        color_name = "".join(f"{channel:02x}" for channel in color)
+        scene.add_geometry(combined, node_name=f"mapped_roofs_{color_name}", geom_name=f"mapped_roofs_{color_name}")
+
     for color, meshes in surface_meshes_by_color.items():
         if not meshes:
             continue
@@ -844,12 +865,12 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "road_ways": roads,
                            "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places,
                            "interior_anchors": len(interior_seeds), "mapped_trees": trees,
-                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows,
+                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color),
                             "water_polygons": water_polygons, "waterway_segments": waterway_segments,
                             "landuse_areas": landuse_areas, "railway_ways": railway_ways, "bridge_ways": bridge_ways},
         "height_note": "OSM height/building:levels tags are used when present; otherwise footprint-area/building-category estimates with deterministic floor-height variation are flagged as inferred, not surveyed facts.",
         "hydrography_note": "Mapped OSM water polygons are kept to their source outlines. River/canal centerlines without mapped widths use type-based approximate widths and are not survey-grade water boundaries.",
-         "visual_fidelity_note": "Real OSM road alignments, building footprints, mapped water and land-use surfaces, and tagged bridges are included. Sufficiently large buildings receive lightweight procedural low-poly window panels; explicit facade/roof colour tags are used where available. Bangla/English names and exterior image references are preserved per building. This is not photorealistic street imagery; that requires separately licensed source data.",
+         "visual_fidelity_note": "Real OSM road alignments, building footprints, mapped water and land-use surfaces, and tagged bridges are included. Sufficiently large buildings receive lightweight procedural low-poly window panels; building and roof meshes are batched by material colour to reduce mobile draw calls. Explicit facade/roof colour tags are used where available. Bangla/English names and exterior image references are preserved per building. This is not photorealistic street imagery; that requires separately licensed source data.",
         "interiors_and_people": "AI_Interior_Seeds.json includes anchors for every mapped building footprint plus named/tagged places; the game generates fictional interiors and residents at runtime, not actual private interiors or real people.",
         "engine_import": "Import Dhaka_Explorable_Map.glb as a Godot MeshInstance3D/scene; retain GeoJSON and manifest for labels, navigation and source attribution.",
     }
