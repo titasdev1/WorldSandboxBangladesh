@@ -105,10 +105,17 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
     for key in ("tile_batch_offset", "tile_batch_count", "tile_batch_tile_ids", "source_elements_in_boundary_envelope"):
         manifest.pop(key, None)
     manifest.update({
-        "product": "Project A-Square — complete Dhaka Division boundary-clipped 3D map",
-        "complete_division_map": True,
+        "product": (
+            "Project A-Square — complete Shariatpur District boundary-clipped 3D map"
+            if stage == "shariatpur_review"
+            else "Project A-Square — complete Dhaka Division boundary-clipped 3D map"
+        ),
+        "complete_division_map": stage == "full_division",
+        "complete_district_map": stage == "shariatpur_review",
         "tile_count_requested": total_tiles,
         "tile_count_intersecting_boundary": total_tiles,
+        "tile_count_intersecting_build_boundary": total_tiles,
+        "tile_count_intersecting_division": division_total_tiles,
         "tile_count_with_geometry": geometry_count,
         "source_elements_processed_across_batches": source_element_count,
         "map_build_batch_count": len(batches),
@@ -116,7 +123,12 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "tiles": all_records,
         "generated_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "completeness_note": (
-            "All generated batches for every tile intersecting the Dhaka Division administrative boundary "
+            "All generated batches for every tile intersecting the Shariatpur District boundary "
+            "are present. Tile geometry is clipped to the district polygon. This is geographic coverage, "
+            "not proof that every real-world feature is mapped or that exteriors are photorealistic. "
+            "Licensed façade imagery, surveyed heights, actual interiors, and real residents are not supplied by OSM."
+            if stage == "shariatpur_review"
+            else "All generated batches for every tile intersecting the Dhaka Division administrative boundary "
             "are present in this package. The map is based on mapped OpenStreetMap features and is not proof "
             "that every real-world feature is mapped. Facade photography, surveyed heights, actual interiors, "
             "and real residents are not supplied by OSM."
@@ -130,8 +142,10 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         raise RuntimeError(f"Full package GLB count mismatch: manifest {geometry_count}, found {len(glbs)}")
     return {
         "output": str(out),
-        "complete_division_map": True,
+        "complete_division_map": stage == "full_division",
+        "complete_district_map": stage == "shariatpur_review",
         "tile_count_intersecting_boundary": total_tiles,
+        "tile_count_intersecting_division": division_total_tiles,
         "tile_count_with_geometry": len(glbs),
         "batch_count": len(batches),
         "glb_bytes": sum(path.stat().st_size for path in glbs),
@@ -142,8 +156,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--batches-dir", type=pathlib.Path, required=True)
     parser.add_argument("--out", type=pathlib.Path, required=True)
+    parser.add_argument("--stage", choices=("shariatpur_review", "full_division"), default="full_division")
     args = parser.parse_args()
-    print(json.dumps(merge_batches(args.batches_dir, args.out), indent=2))
+    print(json.dumps(merge_batches(args.batches_dir, args.out, args.stage), indent=2))
     return 0
 
 
