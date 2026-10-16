@@ -198,9 +198,8 @@ func _make_target_positions(mission: Dictionary) -> Array[Vector3]:
         if not candidates.is_empty():
             var seed_id := int(mission.get("id", 0))
             var first := posmod(seed_id * 37 + 11, candidates.size())
-            var stride := maxi(1, int(candidates.size() / maxi(count, 1)))
             for attempt in range(candidates.size()):
-                var point_index := posmod(first + attempt * stride, candidates.size())
+                var point_index := posmod(first + attempt, candidates.size())
                 var point: Vector3 = candidates[point_index]
                 var too_close := false
                 for existing in positions:
