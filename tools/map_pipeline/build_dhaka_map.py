@@ -38,6 +38,11 @@ def overpass_query(bbox: tuple[float, float, float, float]) -> str:
 (
   way["highway"]({box});
   way["building"]({box});
+  way["waterway"]({box});
+  way["natural"]({box});
+  way["landuse"]({box});
+  way["leisure"]({box});
+  way["railway"]({box});
   way["shop"]({box});
   way["amenity"]({box});
   node["shop"]({box});
@@ -323,11 +328,14 @@ def make_geojson(
             coords = [(float(p["lon"]), float(p["lat"])) for p in geom if "lon" in p and "lat" in p]
             if not coords:
                 continue
-            if el.get("type") == "way" and tags.get("building") and len(coords) >= 4 and coords[0] == coords[-1]:
+            is_closed_way = el.get("type") == "way" and len(coords) >= 4 and coords[0] == coords[-1]
+            if is_closed_way and (tags.get("building") or surface_color(tags) is not None):
                 source_geom = Polygon(coords)
                 if not source_geom.is_valid:
                     source_geom = source_geom.buffer(0)
-            elif el.get("type") == "way" and tags.get("highway") and len(coords) >= 2:
+            elif el.get("type") == "way" and (
+                tags.get("highway") or tags.get("waterway") or tags.get("railway")
+            ) and len(coords) >= 2:
                 source_geom = LineString(coords)
             else:
                 source_geom = Point(coords[0])
