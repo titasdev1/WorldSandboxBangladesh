@@ -15,13 +15,49 @@ class DhakaMapPipelineTests(unittest.TestCase):
 
     def test_unmapped_building_height_is_not_fabricated_as_a_tall_building(self):
         height, inferred = building_height({"building": "yes"}, 999999)
-        self.assertEqual(height, 3.2)
+        self.assertGreaterEqual(height, 3.0)
+        self.assertLessEqual(height, 3.25)
         self.assertTrue(inferred)
 
     def test_tagged_building_levels_are_preserved_as_source_data(self):
         height, inferred = building_height({"building:levels": "5"}, 1001)
         self.assertAlmostEqual(height, 15.5)
         self.assertFalse(inferred)
+
+    def test_area_and_category_estimate_varies_untagged_building_silhouettes(self):
+        small, small_inferred = building_height({"building": "yes"}, 101, 24.0)
+        large, large_inferred = building_height({"building": "yes"}, 102, 420.0)
+        self.assertTrue(small_inferred)
+        self.assertTrue(large_inferred)
+        self.assertGreater(large, small)
+
+    def test_explicit_building_height_still_overrides_area_estimate(self):
+        height, inferred = building_height({"building": "yes", "height": "18 m"}, 103, 24.0)
+        self.assertEqual(height, 18.0)
+        self.assertFalse(inferred)
+
+    def test_mapped_facade_and_roof_colours_are_respected(self):
+        from tools.map_pipeline.build_dhaka_map import building_color, roof_color
+        self.assertEqual(building_color({"building:colour": "#123456"}, 1), (18, 52, 86, 255))
+        self.assertEqual(roof_color({"roof:colour": "red"}, 1), (166, 67, 59, 255))
+
+    def test_interior_seed_preserves_bangla_signage_and_image_references(self):
+        elements = [{
+            "type": "way", "id": 9191,
+            "tags": {"building": "retail", "name": "Shop", "name:bn": "দোকান",
+                     "image": "https://example.invalid/facade.jpg", "roof:colour": "#aabbcc"},
+            "geometry": [
+                {"lat": 23.8098, "lon": 90.4123}, {"lat": 23.8098, "lon": 90.4125},
+                {"lat": 23.8100, "lon": 90.4125}, {"lat": 23.8100, "lon": 90.4123},
+                {"lat": 23.8098, "lon": 90.4123},
+            ],
+        }]
+        with tempfile.TemporaryDirectory() as tmp:
+            build_map(elements, Path(tmp), DEFAULT_BBOX)
+            seeds = json.loads((Path(tmp) / "AI_Interior_Seeds.json").read_text(encoding="utf-8"))
+            self.assertEqual(seeds[0]["signage_text"]["name:bn"], "দোকান")
+            self.assertEqual(seeds[0]["exterior_reference"]["image_tag"], "https://example.invalid/facade.jpg")
+            self.assertFalse(seeds[0]["exterior_reference"]["downloaded_or_embedded"])
 
     def test_local_projection_is_stable_and_metric(self):
         x, y = local_xy(23.781, 90.407, 23.780, 90.407)
