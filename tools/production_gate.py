@@ -27,6 +27,8 @@ REQUIRED = [
     "tools/fetch_free_assets.py",
     "tools/fetch_city_assets.py",
     "city_asset_factory.gd",
+    "systems/mission_factory.gd",
+    "systems/interior_factory.gd",
     "development_state.json",
     "development_roadmap.md",
     "PRODUCTION_MASTER_DIRECTIVE.md",
@@ -75,6 +77,18 @@ if "city_asset_factory.configure(self)" not in world_text or "spawn_building(Vec
     raise SystemExit("PRODUCTION GATE FAILED: authored city building factory is not integrated into the world")
 if "real_dhaka_loader.configure(self)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: real-Dhaka tile loader is not wired into the canonical world")
+
+# The mission and interior modules must be reachable from the canonical game.
+if 'load("res://systems/mission_factory.gd").new()' not in world_text or 'mission_factory_node.name = "MissionFactory"' not in world_text:
+    raise SystemExit("PRODUCTION GATE FAILED: Deshi mission factory is not instantiated in the canonical world")
+hud_text = (ROOT / "hud.gd").read_text(encoding="utf-8")
+if 'get_node_or_null("MissionFactory")' not in hud_text or "DESHI JOB %04d/4000" not in hud_text:
+    raise SystemExit("PRODUCTION GATE FAILED: Deshi mission catalogue is not visible in the HUD")
+if 'load("res://systems/interior_factory.gd").new()' not in world_text or "try_interior_interaction" not in world_text:
+    raise SystemExit("PRODUCTION GATE FAILED: generated building interiors are not wired into the canonical world")
+interior_text = (ROOT / "systems" / "interior_factory.gd").read_text(encoding="utf-8")
+if "CeilingFanAnimated" not in interior_text or "open_interior" not in interior_text:
+    raise SystemExit("PRODUCTION GATE FAILED: generated interior runtime/animated dressing is missing")
 loader_text = (ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
 for token in ("map_tiles_manifest.json", "LOAD_RADIUS_M", "UNLOAD_RADIUS_M", "_geo_to_world", "create_trimesh_collision"):
     if token not in loader_text:
