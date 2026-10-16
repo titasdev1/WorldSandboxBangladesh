@@ -48,9 +48,9 @@ class DhakaDivisionPipelineTests(unittest.TestCase):
         self.assertEqual(select_tile_batch(ordered, offset, limit), ordered[2:4])
         self.assertEqual(offset + len(select_tile_batch(ordered, offset, limit)), district_count)
         self.assertEqual(effective_batch_limit(2, 3, district_count, "full_division"), 3)
-        self.assertFalse(stage_gate_reached(58, district_count, "shariatpur_review"))
-        self.assertTrue(stage_gate_reached(60, district_count, "shariatpur_review"))
-        self.assertFalse(stage_gate_reached(60, district_count, "full_division"))
+        self.assertFalse(stage_gate_reached(3, district_count, "shariatpur_review"))
+        self.assertTrue(stage_gate_reached(4, district_count, "shariatpur_review"))
+        self.assertFalse(stage_gate_reached(4, district_count, "full_division"))
         with self.assertRaises(ValueError):
             effective_batch_limit(-1, 3, district_count, "shariatpur_review")
 
