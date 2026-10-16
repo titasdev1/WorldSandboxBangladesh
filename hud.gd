@@ -8,6 +8,8 @@ var w
 var settings_panel: PanelContainer
 var quality_option: OptionButton
 var fps_option: OptionButton
+var sensitivity_slider: HSlider
+var sensitivity_value_label: Label
 var settings_config := ConfigFile.new()
 var _world_quality_applied := false
 var lobby_overlay: ColorRect
@@ -70,6 +72,8 @@ func _ready():
  add_touch_button("FIRE", Vector2(1080, 560), Vector2(150, 75), "fire")
  add_touch_button("AIM", Vector2(900, 500), Vector2(130, 45), "aim")
  add_touch_button("RELOAD", Vector2(900, 450), Vector2(130, 45), "reload")
+ add_touch_button("JUMP", Vector2(1070, 445), Vector2(140, 48), "jump")
+ add_touch_button("CROUCH", Vector2(1070, 500), Vector2(140, 48), "crouch")
  interaction_button = add_touch_button("INTERACT", Vector2(900, 650), Vector2(170, 55), "interact")
  var camera_view_button := Button.new()
  camera_view_button.name = "CameraViewToggle"
@@ -121,8 +125,8 @@ func _build_settings_ui() -> void:
  settings_panel = PanelContainer.new()
  settings_panel.name = "GraphicsSettingsPanel"
  settings_panel.position = Vector2(850, 72)
- settings_panel.size = Vector2(400, 340)
- settings_panel.custom_minimum_size = Vector2(400, 340)
+ settings_panel.size = Vector2(400, 400)
+ settings_panel.custom_minimum_size = Vector2(400, 400)
  settings_panel.visible = false
  settings_panel.z_index = 30
  add_child(settings_panel)
@@ -158,6 +162,18 @@ func _build_settings_ui() -> void:
  fps_option.item_selected.connect(_on_fps_selected)
  column.add_child(fps_option)
 
+ sensitivity_value_label = Label.new()
+ sensitivity_value_label.text = "Look sensitivity: 0.12"
+ column.add_child(sensitivity_value_label)
+ sensitivity_slider = HSlider.new()
+ sensitivity_slider.min_value = 0.05
+ sensitivity_slider.max_value = 0.25
+ sensitivity_slider.step = 0.01
+ sensitivity_slider.value = 0.12
+ sensitivity_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ sensitivity_slider.value_changed.connect(_on_sensitivity_changed)
+ column.add_child(sensitivity_slider)
+
  var note := Label.new()
  note.text = "Higher FPS / resolution needs capable hardware.\nThis limit cannot force unsupported refresh rates."
  note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -186,13 +202,17 @@ func _load_graphics_settings() -> void:
  var err := settings_config.load("user://graphics_settings.cfg")
  var quality_index := 2
  var fps_index := 1
+ var look_sensitivity := 0.12
  if err == OK:
   quality_index = clampi(int(settings_config.get_value("graphics", "quality", 2)), 0, 3)
   fps_index = clampi(int(settings_config.get_value("graphics", "fps_index", 1)), 0, 5)
+  look_sensitivity = clampf(float(settings_config.get_value("controls", "look_sensitivity", 0.12)), 0.05, 0.25)
  quality_option.select(quality_index)
  fps_option.select(fps_index)
+ sensitivity_slider.value = look_sensitivity
  _apply_quality(quality_index)
  _apply_fps(fps_index)
+ _apply_camera_sensitivity(look_sensitivity)
 
 func _on_quality_selected(index: int) -> void:
  _apply_quality(index)
@@ -219,9 +239,23 @@ func _apply_fps(index: int) -> void:
  var limits := [30, 60, 90, 120, 144, 0]
  Engine.max_fps = limits[clampi(index, 0, 5)]
 
+func _on_sensitivity_changed(value: float) -> void:
+ _apply_camera_sensitivity(value)
+ _save_graphics_settings()
+
+func _apply_camera_sensitivity(value: float) -> void:
+ var sensitivity := clampf(value, 0.05, 0.25)
+ if sensitivity_value_label:
+  sensitivity_value_label.text = "Look sensitivity: %.2f" % sensitivity
+ if is_instance_valid(w):
+  var player = w.get("player")
+  if is_instance_valid(player):
+   player.set("camera_sensitivity", sensitivity)
+
 func _save_graphics_settings() -> void:
  settings_config.set_value("graphics", "quality", quality_option.selected)
  settings_config.set_value("graphics", "fps_index", fps_option.selected)
+ settings_config.set_value("controls", "look_sensitivity", sensitivity_slider.value if sensitivity_slider else 0.12)
  settings_config.save("user://graphics_settings.cfg")
 
 
