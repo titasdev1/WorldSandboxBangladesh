@@ -179,9 +179,10 @@ func _add_building_specific_details(category: String, room_width: float, room_de
     var variant: int = building_id % 4
     # Per-building window count and placement are deterministic from the mapped OSM identity.
     var window_count := 2 + int(building_id % 4)
+    var window_y := minf(2.25 + float(variant % 2) * 0.1, room_height - 1.8)
     for i in range(window_count):
         var x := -room_width * 0.5 + 1.5 + float(i) * (room_width - 3.0) / maxf(1.0, float(window_count - 1))
-        _box(active_root, "BuildingSpecificWindow_%d" % i, Vector3(x, 2.7 + float(variant % 2) * 0.25, -room_depth * 0.5 + 0.18), Vector3(0.9 + float(variant % 2) * 0.25, 1.25, 0.08), [Color("#6b9ca8"), Color("#82a5b0"), Color("#6f919d"), Color("#91aab0")][variant])
+        _box(active_root, "BuildingSpecificWindow_%d" % i, Vector3(x, window_y, -room_depth * 0.5 + 0.18), Vector3(0.9 + float(variant % 2) * 0.25, 1.25, 0.08), [Color("#6b9ca8"), Color("#82a5b0"), Color("#6f919d"), Color("#91aab0")][variant])
     # Unique local dressing: one building gets a second ceiling fixture, another a divider/cabinet,
     # and another a different furniture accent; this is deterministic so reloads are stable.
     if variant == 0:
