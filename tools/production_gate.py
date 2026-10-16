@@ -27,6 +27,7 @@ REQUIRED = [
     "tools/fetch_free_assets.py",
     "tools/fetch_city_assets.py",
     "city_asset_factory.gd",
+    "systems/mission_factory.gd",
     "development_state.json",
     "development_roadmap.md",
     "PRODUCTION_MASTER_DIRECTIVE.md",
@@ -75,6 +76,14 @@ if "city_asset_factory.configure(self)" not in world_text or "spawn_building(Vec
     raise SystemExit("PRODUCTION GATE FAILED: authored city building factory is not integrated into the world")
 if "real_dhaka_loader.configure(self)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: real-Dhaka tile loader is not wired into the canonical world")
+
+# The side-mission catalogue must be instantiated by the canonical world and
+# exposed to the HUD; a present-but-unused mission script is not a feature.
+if 'load("res://systems/mission_factory.gd").new()' not in world_text or 'mission_factory_node.name = "MissionFactory"' not in world_text:
+    raise SystemExit("PRODUCTION GATE FAILED: Deshi mission factory is not instantiated in the canonical world")
+hud_text = (ROOT / "hud.gd").read_text(encoding="utf-8")
+if 'get_node_or_null("MissionFactory")' not in hud_text:
+    raise SystemExit("PRODUCTION GATE FAILED: HUD does not expose the integrated Deshi mission factory")
 loader_text = (ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
 for token in ("map_tiles_manifest.json", "LOAD_RADIUS_M", "UNLOAD_RADIUS_M", "_geo_to_world", "create_trimesh_collision"):
     if token not in loader_text:
