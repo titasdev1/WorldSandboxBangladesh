@@ -157,6 +157,34 @@ def building_height(
     return min(60.0, max(3.0, floors * floor_height)), True
 
 
+def building_height_source(tags: dict[str, str]) -> str:
+    """Describe whether a height came from OSM tags or an unverified estimate."""
+    raw_height = str(tags.get("height", "")).replace(" m", "").strip()
+    try:
+        height = float(raw_height)
+        if 2.5 <= height <= 250:
+            return "OSM_HEIGHT_TAG"
+    except (TypeError, ValueError):
+        pass
+    raw_levels = str(tags.get("building:levels", "")).strip()
+    try:
+        levels = int(float(raw_levels))
+        if 1 <= levels <= 70:
+            return "OSM_BUILDING_LEVELS_TAG"
+    except (TypeError, ValueError):
+        pass
+    return "AREA_CATEGORY_ESTIMATE_UNVERIFIED"
+
+
+def building_floors_source(tags: dict[str, str]) -> str:
+    source = building_height_source(tags)
+    if source == "OSM_BUILDING_LEVELS_TAG":
+        return source
+    if source == "OSM_HEIGHT_TAG":
+        return "DERIVED_FROM_OSM_HEIGHT_TAG"
+    return "AREA_CATEGORY_ESTIMATE_UNVERIFIED"
+
+
 def _parse_color(value: str | None) -> tuple[int, int, int, int] | None:
     if not value:
         return None
@@ -552,9 +580,10 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 "name": name or tags.get("shop", tags.get("amenity", "Unnamed building")),
                 "category": interior_category,
                 "anchor_kind": "named_or_tagged" if has_specific_place_tags else "generic_building",
-                "floors_estimate": None if inferred else max(1, round(height / 3.1)),
+                "floors_estimate": max(1, round(height / 3.1)),
+                "floors_source": building_floors_source(tags),
                 "height_metres": round(height, 2),
-                "height_source": "UNVERIFIED_PLACEHOLDER_3_2M" if inferred else "OSM_HEIGHT_OR_LEVELS",
+                "height_source": building_height_source(tags),
                 "facade_status": "MAPPED_COLOUR_TAGS_IF_PRESENT; OTHERWISE_APPROXIMATE_CATEGORY_COLOUR",
                 "geometry_confidence": "OSM_FOOTPRINT; HEIGHT_IS_TAGGED_OR_FLAGGED_AREA_CATEGORY_ESTIMATE",
                 "building_tags": {
