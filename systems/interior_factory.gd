@@ -44,55 +44,157 @@ func open_interior(seed: Dictionary, exterior_position: Vector3, direction: Vect
     var interior_origin := Vector3(exterior_position.x, -300.0, exterior_position.z)
     active_root = Node3D.new()
     active_root.name = "GeneratedInterior_" + str(seed.get("osm_id", "place"))
-    active_root.position = interior_origin
+    # A stable per-building rotation makes layouts reproducible but not identical.
+    var building_id := abs(int(seed.get("osm_id", 1)))
+    active_root.rotation.y = float(building_id % 4) * PI * 0.5
     world.add_child(active_root)
     _build_room()
     var player := _player()
-    player.global_position = interior_origin + Vector3(0, 0.25, 1.5)
+    player.global_position = active_root.to_global(Vector3(0, 0.25, 1.5))
     player.velocity = Vector3.ZERO
     world.set("event_text", "ENTERED %s • FICTIONAL GAME INTERIOR" % _display_name())
     world.set("event_time_left", 5.0)
 
 func _build_room() -> void:
     var category := String(active_seed.get("category", "building")).to_lower()
+    var building_id := abs(int(active_seed.get("osm_id", 1)))
+    var layout_variant := building_id % 4
+    var room_rng := RandomNumberGenerator.new()
+    room_rng.seed = building_id + 104729
+    var dimensions := _infer_room_dimensions()
+    var room_width := dimensions.x
+    var room_depth := dimensions.y
+    var room_height := 4.4 + float(building_id % 3) * 0.35
+    var half_w := room_width * 0.5
+    var half_d := room_depth * 0.5
     var room_color := Color("#b9b0a1")
     if category.contains("shop") or category in ["retail", "convenience", "supermarket"]:
         room_color = Color("#d7c7a6")
-    elif category.contains("amenity") or category.contains("clinic") or category.contains("hospital"):
+    elif category.contains("clinic") or category.contains("hospital") or category.contains("health"):
         room_color = Color("#c8d9d0")
     elif category.contains("school") or category.contains("education"):
         room_color = Color("#d8d0b8")
+    elif category.contains("mosque") or category.contains("religious"):
+        room_color = Color("#d5d1bf")
+    var building_tags: Dictionary = active_seed.get("building_tags", {})
+    var mapped_colour := _colour_from_osm_tags(building_tags)
+    if mapped_colour != Color.TRANSPARENT:
+        room_color = room_color.lerp(mapped_colour, 0.24)
+    room_color = room_color.lightened(float(layout_variant) * 0.025)
+    var floor_colour := [Color("#a79a84"), Color("#9e9a8a"), Color("#b4a58e"), Color("#8f9388")][layout_variant]
 
-    _solid_box(active_root, "InteriorFloor", Vector3(0, -0.15, 0), Vector3(14, 0.3, 14), Color("#a79a84"))
-    _solid_box(active_root, "BackWall", Vector3(0, 2.5, -7), Vector3(14, 5, 0.25), room_color)
-    _solid_box(active_root, "LeftWall", Vector3(-7, 2.5, 0), Vector3(0.25, 5, 14), room_color)
-    _solid_box(active_root, "RightWall", Vector3(7, 2.5, 0), Vector3(0.25, 5, 14), room_color)
-    # Leave a doorway in the front wall; the room is roofless for mobile visibility.
-    _solid_box(active_root, "FrontWallLeft", Vector3(-4.2, 2.5, 7), Vector3(5.6, 5, 0.25), room_color)
-    _solid_box(active_root, "FrontWallRight", Vector3(4.2, 2.5, 7), Vector3(5.6, 5, 0.25), room_color)
-    _solid_box(active_root, "FrontLintel", Vector3(0, 4.65, 7), Vector3(2.8, 0.7, 0.25), room_color.darkened(0.1))
+    _solid_box(active_root, "InteriorFloor", Vector3(0, -0.15, 0), Vector3(room_width, 0.3, room_depth), floor_colour)
+    _solid_box(active_root, "BackWall", Vector3(0, room_height * 0.5, -half_d), Vector3(room_width, room_height, 0.25), room_color)
+    _solid_box(active_root, "LeftWall", Vector3(-half_w, room_height * 0.5, 0), Vector3(0.25, room_height, room_depth), room_color)
+    _solid_box(active_root, "RightWall", Vector3(half_w, room_height * 0.5, 0), Vector3(0.25, room_height, room_depth), room_color)
+    # The entry is centered but its proportions and the room shell follow this building's footprint.
+    var side_wall_width := maxf(0.5, (room_width - 2.8) * 0.5)
+    var side_wall_center := (room_width + 2.8) * 0.25
+    _solid_box(active_root, "FrontWallLeft", Vector3(-side_wall_center, room_height * 0.5, half_d), Vector3(side_wall_width, room_height, 0.25), room_color)
+    _solid_box(active_root, "FrontWallRight", Vector3(side_wall_center, room_height * 0.5, half_d), Vector3(side_wall_width, room_height, 0.25), room_color)
+    _solid_box(active_root, "FrontLintel", Vector3(0, room_height - 0.35, half_d), Vector3(2.8, 0.7, 0.25), room_color.darkened(0.1))
+
+    # Different OSM IDs produce different room partitions and circulation layouts.
+    # Partitions leave a central doorway so the generated interior remains explorable.
+    if layout_variant == 1:
+        var span := maxf(2.0, (room_width - 1.8) * 0.5)
+        var offset := (room_width + 1.8) * 0.25
+        _solid_box(active_root, "RearRoomPartitionLeft", Vector3(-offset, 1.55, -room_depth * 0.12), Vector3(span, 3.1, 0.16), room_color.darkened(0.04))
+        _solid_box(active_root, "RearRoomPartitionRight", Vector3(offset, 1.55, -room_depth * 0.12), Vector3(span, 3.1, 0.16), room_color.darkened(0.04))
+    elif layout_variant == 2:
+        var span := maxf(2.0, (room_depth - 1.8) * 0.5)
+        var offset := (room_depth + 1.8) * 0.25
+        _solid_box(active_root, "SideRoomPartitionFront", Vector3(room_width * 0.12, 1.55, offset), Vector3(0.16, 3.1, span), room_color.darkened(0.05))
+        _solid_box(active_root, "SideRoomPartitionRear", Vector3(room_width * 0.12, 1.55, -offset), Vector3(0.16, 3.1, span), room_color.darkened(0.05))
+    elif layout_variant == 3:
+        _solid_box(active_root, "LPartitionRear", Vector3(-room_width * 0.18, 1.5, -room_depth * 0.18), Vector3(room_width * 0.48, 3.0, 0.16), room_color.darkened(0.06))
+        _solid_box(active_root, "LPartitionSide", Vector3(-room_width * 0.42, 1.5, -room_depth * 0.02), Vector3(0.16, 3.0, room_depth * 0.32), room_color.darkened(0.06))
 
     _build_furniture(category)
     _add_room_details(category)
+    _add_building_specific_details(category, room_width, room_depth, room_height, room_rng)
     _add_resident(category)
     var light := OmniLight3D.new()
     light.name = "InteriorLight"
-    light.position = Vector3(0, 4.2, 0)
-    light.omni_range = 18.0
-    light.light_energy = 1.15
-    light.light_color = Color("#ffe5bd")
+    light.position = Vector3(0, room_height - 0.6, 0)
+    light.omni_range = maxf(room_width, room_depth) * 1.2
+    light.light_energy = 1.05 + float(layout_variant) * 0.08
+    light.light_color = [Color("#ffe5bd"), Color("#e4edff"), Color("#fff0d1"), Color("#e7f3e5")][layout_variant]
     active_root.add_child(light)
-    exit_world_position = active_root.global_position + Vector3(0, 0.25, 5.8)
+    exit_world_position = active_root.to_global(Vector3(0, 0.25, half_d - 1.2))
 
     var name_sign := Label3D.new()
     name_sign.name = "InteriorNameSign"
-    name_sign.text = _display_name().to_upper()
+    name_sign.text = _display_name()
     name_sign.font_size = 30
     name_sign.pixel_size = 0.009
     name_sign.modulate = Color("#f3e7d0")
-    name_sign.position = Vector3(0, 3.2, -6.75)
+    name_sign.position = Vector3(0, minf(room_height - 0.9, 3.2), -half_d + 0.22)
     active_root.add_child(name_sign)
 
+
+func _infer_room_dimensions() -> Vector2:
+    var footprint: Variant = active_seed.get("footprint_local_m", [])
+    var min_x := -7.0
+    var max_x := 7.0
+    var min_z := -7.0
+    var max_z := 7.0
+    if footprint is Array and footprint.size() >= 3:
+        min_x = INF
+        max_x = -INF
+        min_z = INF
+        max_z = -INF
+        for point in footprint:
+            if point is Array and point.size() >= 2:
+                min_x = minf(min_x, float(point[0]))
+                max_x = maxf(max_x, float(point[0]))
+                min_z = minf(min_z, float(point[1]))
+                max_z = maxf(max_z, float(point[1]))
+        if min_x == INF or max_x == -INF:
+            min_x = -7.0
+            max_x = 7.0
+            min_z = -7.0
+            max_z = 7.0
+    # The interior is inferred, not a claim about a private floor plan.
+    # Footprint proportions drive the shell while a mobile-friendly minimum
+    # preserves enough room for movement and the current category furniture.
+    var width := clampf((max_x - min_x) * 0.88, 14.0, 22.0)
+    var depth := clampf((max_z - min_z) * 0.88, 14.0, 22.0)
+    return Vector2(width, depth)
+
+
+func _colour_from_osm_tags(tags: Dictionary) -> Color:
+    for key in ["building:colour", "building:color", "facade:colour", "facade:color", "colour", "color"]:
+        var raw := String(tags.get(key, "")).strip_edges()
+        if raw.begins_with("#") and raw.length() in [4, 7]:
+            var parsed := Color.from_string(raw, Color.TRANSPARENT)
+            if parsed != Color.TRANSPARENT:
+                return parsed
+    return Color.TRANSPARENT
+
+
+func _add_building_specific_details(category: String, room_width: float, room_depth: float, room_height: float, room_rng: RandomNumberGenerator) -> void:
+    var building_id := abs(int(active_seed.get("osm_id", 1)))
+    var variant := building_id % 4
+    # Per-building window count and placement are deterministic from the mapped OSM identity.
+    var window_count := 2 + int(building_id % 4)
+    for i in range(window_count):
+        var x := -room_width * 0.5 + 1.5 + float(i) * (room_width - 3.0) / maxf(1.0, float(window_count - 1))
+        _box(active_root, "BuildingSpecificWindow_%d" % i, Vector3(x, 2.7 + float(variant % 2) * 0.25, -room_depth * 0.5 + 0.18), Vector3(0.9 + float(variant % 2) * 0.25, 1.25, 0.08), [Color("#6b9ca8"), Color("#82a5b0"), Color("#6f919d"), Color("#91aab0")][variant])
+    # Unique local dressing: one building gets a second ceiling fixture, another a divider/cabinet,
+    # and another a different furniture accent; this is deterministic so reloads are stable.
+    if variant == 0:
+        _box(active_root, "BuildingBeam", Vector3(0, room_height - 0.18, 0), Vector3(room_width - 0.5, 0.12, 0.16), Color("#8b7865"))
+    elif variant == 1:
+        _box(active_root, "BuildingCabinet", Vector3(room_width * 0.5 - 0.75, 1.3, -room_depth * 0.18), Vector3(0.55, 2.6, 1.8), Color("#84664e"))
+    elif variant == 2:
+        _box(active_root, "BuildingInteriorColumn", Vector3(-room_width * 0.25, room_height * 0.5, 0), Vector3(0.35, room_height, 0.35), Color("#b4a58e"))
+        _box(active_root, "BuildingInteriorColumn2", Vector3(room_width * 0.25, room_height * 0.5, 0), Vector3(0.35, room_height, 0.35), Color("#b4a58e"))
+    else:
+        for side in [-1.0, 1.0]:
+            _box(active_root, "BuildingWallAccent", Vector3(side * (room_width * 0.5 - 0.25), 2.0, 0), Vector3(0.08, 2.8, room_depth * 0.55), Color("#a88d75"))
+    if room_rng.randf() > 0.5:
+        _box(active_root, "ExtraCeilingLight", Vector3(0, room_height - 0.4, room_depth * 0.18), Vector3(2.0, 0.06, 0.22), Color("#fff0ce"))
 
 func _add_room_details(category: String) -> void:
     # Game-authored Bangladeshi interior dressing. These details are generated
