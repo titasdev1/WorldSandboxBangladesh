@@ -820,7 +820,12 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                         named_places += 1
             continue
         if el_type == "way" and tags.get("building") and len(points) >= 4:
-            polygon = Polygon(points)
+            inner_rings = [
+                [local_xy(float(point["lat"]), float(point["lon"]), origin_lat, origin_lon)
+                 for point in ring if "lat" in point and "lon" in point]
+                for ring in el.get("inner_rings", [])
+            ]
+            polygon = Polygon(points, [ring for ring in inner_rings if len(ring) >= 4])
             if points[0] != points[-1]:
                 polygon = Polygon(points)
             if not polygon.is_valid:
@@ -920,7 +925,12 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             color = surface_color(tags)
             if color is not None:
                 try:
-                    polygon = Polygon(points)
+                    inner_rings = [
+                        [local_xy(float(point["lat"]), float(point["lon"]), origin_lat, origin_lon)
+                         for point in ring if "lat" in point and "lon" in point]
+                        for ring in el.get("inner_rings", [])
+                    ]
+                    polygon = Polygon(points, [ring for ring in inner_rings if len(ring) >= 4])
                     if not polygon.is_valid:
                         polygon = polygon.buffer(0)
                     polygon = polygon.intersection(tile_bounds)
