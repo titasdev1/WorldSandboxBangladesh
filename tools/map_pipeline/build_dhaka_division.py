@@ -183,6 +183,15 @@ def select_tile_batch(
     return ordered_tiles[offset:offset + limit]
 
 
+def stage_gate_reached(offset: int, shariatpur_tile_count: int, stage: str) -> bool:
+    """True when a Shariatpur-only sequence has reached the review boundary."""
+    if offset < 0 or shariatpur_tile_count < 0:
+        raise ValueError("offset and district tile count must be >= 0")
+    if stage not in {"shariatpur_review", "full_division"}:
+        raise ValueError(f"Unsupported map build stage: {stage}")
+    return stage == "shariatpur_review" and offset >= shariatpur_tile_count
+
+
 def effective_batch_limit(offset: int, requested_limit: int, shariatpur_tile_count: int, stage: str) -> int:
     """Prevent the default Shariatpur review stage's final batch spilling into other districts."""
     if offset < 0 or requested_limit < 1 or shariatpur_tile_count < 0:
@@ -376,6 +385,59 @@ def main() -> int:
         if shariatpur_boundary.intersects(box(tile[1], tile[0], tile[3], tile[2]))
     )
     ordered_tiles = order_tiles_shariatpur_first(tiles, shariatpur_boundary)
+    if stage_gate_reached(args.tile_offset, shariatpur_tile_count, args.stage):
+        # A stale/queued dispatch from the previous workflow version must not
+        # accidentally bake non-Shariatpur tiles. Emit an explicit successful
+        # gate marker so the workflow can stop without treating it as a build failure.
+        args.out.mkdir(parents=True, exist_ok=True)
+        output_manifest = {
+            "product": "Project A-Square — Shariatpur review gate marker",
+            "source": "Geofabrik Bangladesh OpenStreetMap PBF",
+            "source_url": PBF_URL,
+            "attribution": OSM_ATTRIBUTION,
+            "license": "OSM data: ODbL 1.0. Administrative boundary licenses are recorded from geoBoundaries API metadata.",
+            "administrative_boundary": {
+                "name": "Dhaka Division", "source": "geoBoundaries gbOpen BGD ADM1",
+                "properties": boundary_properties.get("feature_properties", {}),
+                "metadata": boundary_properties,
+                "license": boundary_properties.get("boundary_license", "See geoBoundaries metadata"),
+                "attribution": BOUNDARY_ATTRIBUTION,
+            },
+            "region_south_west_north_east": list(bounds),
+            "tile_edge_degrees": args.tile_degrees,
+            "build_stage": args.stage,
+            "stage_gate_reached": True,
+            "tile_count_intersecting_boundary": total_tiles,
+            "tile_batch_offset": args.tile_offset,
+            "tile_batch_count": 0,
+            "tile_batch_tile_ids": [],
+            "tile_order_priority": {
+                "name": "Shariatpur District first",
+                "seed_lat_lon": [priority_lat, priority_lon],
+                "district_boundary_source": "geoBoundaries gbOpen BGD ADM2",
+                "district_boundary_properties": shariatpur_properties.get("feature_properties", {}),
+                "district_boundary_license": shariatpur_properties.get("boundary_license", "See geoBoundaries metadata"),
+                "district_boundary_license_source": shariatpur_properties.get("boundary_license_source", ""),
+                "district_boundary_id": shariatpur_properties.get("boundary_id", ""),
+                "tiles_intersecting_shariatpur_district": shariatpur_tile_count,
+            },
+            "tile_count_with_geometry": 0,
+            "source_elements_in_boundary_envelope": 0,
+            "missing_way_locations": 0,
+            "generated_utc": datetime.now(timezone.utc).isoformat(),
+            "completeness_note": "No tiles were built. This marker prevents a stale Shariatpur-review dispatch from spilling into other districts.",
+            "tiles": [],
+        }
+        (args.out / "map_tiles_manifest.json").write_text(
+            json.dumps(output_manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        (args.out / "ATTRIBUTION.txt").write_text(
+            OSM_ATTRIBUTION + "\\n" + BOUNDARY_ATTRIBUTION + "\\n",
+            encoding="utf-8",
+        )
+        print(json.dumps({"stage_gate_reached": True, "tile_batch_count": 0,
+                          "shariatpur_tile_count": shariatpur_tile_count}, indent=2))
+        return 0
     effective_limit = effective_batch_limit(
         args.tile_offset, args.max_tiles, shariatpur_tile_count, args.stage
     )
