@@ -58,8 +58,8 @@ func open_interior(seed: Dictionary, exterior_position: Vector3, direction: Vect
 
 func _build_room() -> void:
     var category := String(active_seed.get("category", "building")).to_lower()
-    var building_id := abs(int(active_seed.get("osm_id", 1)))
-    var layout_variant := building_id % 4
+    var building_id: int = absi(int(active_seed.get("osm_id", 1)))
+    var layout_variant: int = building_id % 4
     var room_rng := RandomNumberGenerator.new()
     room_rng.seed = building_id + 104729
     var dimensions := _infer_room_dimensions()
@@ -82,7 +82,7 @@ func _build_room() -> void:
     if mapped_colour != Color.TRANSPARENT:
         room_color = room_color.lerp(mapped_colour, 0.24)
     room_color = room_color.lightened(float(layout_variant) * 0.025)
-    var floor_colour := [Color("#a79a84"), Color("#9e9a8a"), Color("#b4a58e"), Color("#8f9388")][layout_variant]
+    var floor_colour: Color = [Color("#a79a84"), Color("#9e9a8a"), Color("#b4a58e"), Color("#8f9388")][layout_variant]
 
     _solid_box(active_root, "InteriorFloor", Vector3(0, -0.15, 0), Vector3(room_width, 0.3, room_depth), floor_colour)
     _solid_box(active_root, "BackWall", Vector3(0, room_height * 0.5, -half_d), Vector3(room_width, room_height, 0.25), room_color)
@@ -175,8 +175,8 @@ func _colour_from_osm_tags(tags: Dictionary) -> Color:
 
 
 func _add_building_specific_details(category: String, room_width: float, room_depth: float, room_height: float, room_rng: RandomNumberGenerator) -> void:
-    var building_id := abs(int(active_seed.get("osm_id", 1)))
-    var variant := building_id % 4
+    var building_id: int = absi(int(active_seed.get("osm_id", 1)))
+    var variant: int = building_id % 4
     # Per-building window count and placement are deterministic from the mapped OSM identity.
     var window_count := 2 + int(building_id % 4)
     for i in range(window_count):
