@@ -49,6 +49,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
     all_ids: set[str] = set()
     geometry_count = 0
     source_element_count = 0
+    feature_counts: dict[str, int] = {}
 
     for offset, path, manifest in batches:
         manifest_total = int(manifest["tile_count_intersecting_build_boundary"] if stage == "shariatpur_review" else manifest["tile_count_intersecting_boundary"])
@@ -69,6 +70,9 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
                 raise RuntimeError(f"Missing or duplicate tile ID in batch {path.name}: {tile_id}")
             all_ids.add(tile_id)
             all_records.append(record)
+            for feature, amount in record.get("feature_counts", {}).items():
+                if isinstance(amount, (int, float)):
+                    feature_counts[feature] = feature_counts.get(feature, 0) + int(amount)
         expected_offset += int(manifest["tile_batch_count"])
         geometry_count += int(manifest.get("tile_count_with_geometry", 0))
         source_element_count += int(manifest.get("source_elements_in_boundary_envelope", 0))
@@ -117,6 +121,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "tile_count_intersecting_build_boundary": total_tiles,
         "tile_count_intersecting_division": division_total_tiles,
         "tile_count_with_geometry": geometry_count,
+        "feature_counts_across_tiles": feature_counts,
         "source_elements_processed_across_batches": source_element_count,
         "map_build_batch_count": len(batches),
         "tile_batch_offsets": [offset for offset, _, _ in batches],
@@ -147,6 +152,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "tile_count_intersecting_boundary": total_tiles,
         "tile_count_intersecting_division": division_total_tiles,
         "tile_count_with_geometry": len(glbs),
+        "feature_counts": feature_counts,
         "batch_count": len(batches),
         "glb_bytes": sum(path.stat().st_size for path in glbs),
     }
