@@ -11,6 +11,11 @@ on:
       - "tools/fetch_*.py"
       - "tools/report_build_assets.py"
       - "tools/production_gate.py"
+      - "tools/map_pipeline/**"
+      - "tests/test_dhaka_*pipeline.py"
+      - "tests/test_merge_dhaka_division_batches.py"
+      - "MAP_PIPELINE.md"
+      - "SHARIATPUR_MAP_BATCH_AUDIT.md"
       - "development_state.json"
       - ".github/workflows/android.yml"
   push:
@@ -23,6 +28,11 @@ on:
       - "tools/fetch_*.py"
       - "tools/report_build_assets.py"
       - "tools/production_gate.py"
+      - "tools/map_pipeline/**"
+      - "tests/test_dhaka_*pipeline.py"
+      - "tests/test_merge_dhaka_division_batches.py"
+      - "MAP_PIPELINE.md"
+      - "SHARIATPUR_MAP_BATCH_AUDIT.md"
       - "development_state.json"
       - ".github/workflows/android.yml"
 
@@ -49,6 +59,14 @@ jobs:
       - name: Validate asset pipeline Python syntax
         shell: bash
         run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/report_build_assets.py
+
+      - name: Test Shariatpur-first map pipeline and strict batch merger
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check shapely trimesh osmium
+          python3 -m unittest discover -s tests -p 'test_dhaka_*pipeline.py' -v
+          python3 -m unittest discover -s tests -p 'test_merge_dhaka_division_batches.py' -v
 
       # Pin the current map package so game-only builds do not rebuild or
       # silently replace the world. Update this run ID only after a separately
