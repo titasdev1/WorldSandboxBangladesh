@@ -257,8 +257,14 @@ jobs:
           }
           EOF
 
+      - name: Mark Shariatpur review gate reached
+        if: needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'shariatpur_review'
+        run: |
+          echo "Shariatpur-first batch sequence reached its review gate."
+          echo "Do not start the full Dhaka Division stage until exterior fidelity, coverage, interiors, and Android integration are reviewed."
+
       - name: Assemble all batches into one complete Dhaka Division map
-        if: needs.build-map.outputs.next_offset == '-1'
+        if: needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'full_division'
         env:
           GH_TOKEN: ${{ github.token }}
           SEQUENCE_ID: ${{ needs.build-map.outputs.sequence_id }}
@@ -296,7 +302,7 @@ jobs:
             --out build/dhaka-division-full
 
       - name: Upload complete Dhaka Division map
-        if: needs.build-map.outputs.next_offset == '-1'
+        if: needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'full_division'
         uses: actions/upload-artifact@v4
         with:
           name: Project-A-Square-Dhaka-Division-Full-Map-${{ needs.build-map.outputs.sequence_id }}
