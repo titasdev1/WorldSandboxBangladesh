@@ -183,6 +183,34 @@ def select_tile_batch(
     return ordered_tiles[offset:offset + limit]
 
 
+def build_boundary_for_stage(stage: str, division_boundary: Any, district_boundary: Any) -> Any:
+    if stage == "shariatpur_review":
+        return district_boundary
+    if stage == "full_division":
+        return division_boundary
+    raise ValueError(f"Unsupported map build stage: {stage}")
+
+
+def stage_gate_reached(offset: int, shariatpur_tile_count: int, stage: str) -> bool:
+    """True when a Shariatpur-only sequence has reached the review boundary."""
+    if offset < 0 or shariatpur_tile_count < 0:
+        raise ValueError("offset and district tile count must be >= 0")
+    if stage not in {"shariatpur_review", "full_division"}:
+        raise ValueError(f"Unsupported map build stage: {stage}")
+    return stage == "shariatpur_review" and offset >= shariatpur_tile_count
+
+
+def effective_batch_limit(offset: int, requested_limit: int, shariatpur_tile_count: int, stage: str) -> int:
+    """Prevent the default Shariatpur review stage's final batch spilling into other districts."""
+    if offset < 0 or requested_limit < 1 or shariatpur_tile_count < 0:
+        raise ValueError("offset and district tile count must be >= 0; requested limit must be >= 1")
+    if stage not in {"shariatpur_review", "full_division"}:
+        raise ValueError(f"Unsupported map build stage: {stage}")
+    if stage == "shariatpur_review" and offset < shariatpur_tile_count:
+        return min(requested_limit, shariatpur_tile_count - offset)
+    return requested_limit
+
+
 class RegionHandler(osmium.SimpleHandler):
     def __init__(self, bounds: tuple[float, float, float, float]):
         super().__init__()
@@ -336,6 +364,9 @@ def main() -> int:
                         help="Zero-based offset in the Shariatpur-first, full-division tile order")
     parser.add_argument("--max-tiles", type=int, default=2,
                         help="Maximum tiles in this bounded batch; use 2 to keep each run below six hours")
+    parser.add_argument("--stage", choices=("shariatpur_review", "full_division"),
+                        default="shariatpur_review",
+                        help="Stop after Shariatpur for quality review unless full_division is explicitly selected")
     args = parser.parse_args()
     if not 0.01 <= args.tile_degrees <= 0.08:
         parser.error("--tile-degrees must be between 0.01 and 0.08 degrees")
@@ -362,7 +393,66 @@ def main() -> int:
         if shariatpur_boundary.intersects(box(tile[1], tile[0], tile[3], tile[2]))
     )
     ordered_tiles = order_tiles_shariatpur_first(tiles, shariatpur_boundary)
-    tiles = select_tile_batch(ordered_tiles, args.tile_offset, args.max_tiles)
+    build_boundary = build_boundary_for_stage(args.stage, boundary, shariatpur_boundary)
+    build_boundary_properties = shariatpur_properties if args.stage == "shariatpur_review" else boundary_properties
+    build_boundary_name = "Shariatpur District" if args.stage == "shariatpur_review" else "Dhaka Division"
+    if stage_gate_reached(args.tile_offset, shariatpur_tile_count, args.stage):
+        # A stale/queued dispatch from the previous workflow version must not
+        # accidentally bake non-Shariatpur tiles. Emit an explicit successful
+        # gate marker so the workflow can stop without treating it as a build failure.
+        args.out.mkdir(parents=True, exist_ok=True)
+        output_manifest = {
+            "product": "Project A-Square — Shariatpur review gate marker",
+            "source": "Geofabrik Bangladesh OpenStreetMap PBF",
+            "source_url": PBF_URL,
+            "attribution": OSM_ATTRIBUTION,
+            "license": "OSM data: ODbL 1.0. Administrative boundary licenses are recorded from geoBoundaries API metadata.",
+            "administrative_boundary": {
+                "name": "Dhaka Division", "source": "geoBoundaries gbOpen BGD ADM1",
+                "properties": boundary_properties.get("feature_properties", {}),
+                "metadata": boundary_properties,
+                "license": boundary_properties.get("boundary_license", "See geoBoundaries metadata"),
+                "attribution": BOUNDARY_ATTRIBUTION,
+            },
+            "region_south_west_north_east": list(bounds),
+            "tile_edge_degrees": args.tile_degrees,
+            "build_stage": args.stage,
+            "stage_gate_reached": True,
+            "tile_count_intersecting_boundary": total_tiles,
+            "tile_batch_offset": args.tile_offset,
+            "tile_batch_count": 0,
+            "tile_batch_tile_ids": [],
+            "tile_order_priority": {
+                "name": "Shariatpur District first",
+                "seed_lat_lon": [priority_lat, priority_lon],
+                "district_boundary_source": "geoBoundaries gbOpen BGD ADM2",
+                "district_boundary_properties": shariatpur_properties.get("feature_properties", {}),
+                "district_boundary_license": shariatpur_properties.get("boundary_license", "See geoBoundaries metadata"),
+                "district_boundary_license_source": shariatpur_properties.get("boundary_license_source", ""),
+                "district_boundary_id": shariatpur_properties.get("boundary_id", ""),
+                "tiles_intersecting_shariatpur_district": shariatpur_tile_count,
+            },
+            "tile_count_with_geometry": 0,
+            "source_elements_in_boundary_envelope": 0,
+            "missing_way_locations": 0,
+            "generated_utc": datetime.now(timezone.utc).isoformat(),
+            "completeness_note": "No tiles were built. This marker prevents a stale Shariatpur-review dispatch from spilling into other districts.",
+            "tiles": [],
+        }
+        (args.out / "map_tiles_manifest.json").write_text(
+            json.dumps(output_manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        (args.out / "ATTRIBUTION.txt").write_text(
+            OSM_ATTRIBUTION + "\\n" + BOUNDARY_ATTRIBUTION + "\\n",
+            encoding="utf-8",
+        )
+        print(json.dumps({"stage_gate_reached": True, "tile_batch_count": 0,
+                          "shariatpur_tile_count": shariatpur_tile_count}, indent=2))
+        return 0
+    effective_limit = effective_batch_limit(
+        args.tile_offset, args.max_tiles, shariatpur_tile_count, args.stage
+    )
+    tiles = select_tile_batch(ordered_tiles, args.tile_offset, effective_limit)
     if not tiles:
         raise RuntimeError(
             f"No tiles remain at offset {args.tile_offset}; total intersecting tiles: {total_tiles}."
@@ -427,7 +517,7 @@ def main() -> int:
         tile_id = f"tile_{s:.4f}_{w:.4f}".replace(".", "p")
         tile_dir = args.out / tile_id
         tile_polygon = box(w, s, e, n)
-        boundary_tile = boundary.intersection(tile_polygon)
+        boundary_tile = build_boundary.intersection(tile_polygon)
         clipped = _clip_elements(candidates[index - 1], boundary_tile)
         if not clipped:
             tile_records.append({"tile_id": tile_id, "bbox_south_west_north_east": list(bbox),
@@ -454,17 +544,23 @@ def main() -> int:
         })
     valid = sum(t["status"] == "BAKED_FROM_OSM" for t in tile_records)
     output_manifest = {
-        "product": "Project A-Square — Dhaka Division boundary-clipped 3D map tile batch",
+        "product": "Project A-Square — " + build_boundary_name + " boundary-clipped 3D map tile batch",
         "source": "Geofabrik Bangladesh OpenStreetMap PBF",
         "source_url": PBF_URL,
         "attribution": OSM_ATTRIBUTION,
         "license": "OSM data: ODbL 1.0. Administrative boundary license is recorded from geoBoundaries API metadata in administrative_boundary.metadata.boundary_license.",
-        "administrative_boundary": {"name": "Dhaka Division", "source": "geoBoundaries gbOpen BGD ADM1",
-                                   "properties": boundary_properties.get("feature_properties", {}), "metadata": boundary_properties, "license": boundary_properties.get("boundary_license", "See geoBoundaries metadata"),
+        "administrative_boundary": {"name": build_boundary_name,
+                                   "source": "geoBoundaries gbOpen BGD ADM2" if args.stage == "shariatpur_review" else "geoBoundaries gbOpen BGD ADM1",
+                                   "properties": build_boundary_properties.get("feature_properties", {}),
+                                   "metadata": build_boundary_properties,
+                                   "license": build_boundary_properties.get("boundary_license", "See geoBoundaries metadata"),
                                    "attribution": BOUNDARY_ATTRIBUTION},
-        "region_south_west_north_east": list(bounds),
+        "region_south_west_north_east": list((build_boundary.bounds[1], build_boundary.bounds[0],
+                                                build_boundary.bounds[3], build_boundary.bounds[2])),
         "tile_edge_degrees": args.tile_degrees,
+        "build_stage": args.stage,
         "tile_count_intersecting_boundary": total_tiles,
+        "tile_count_intersecting_build_boundary": shariatpur_tile_count if args.stage == "shariatpur_review" else total_tiles,
         "tile_batch_offset": args.tile_offset,
         "tile_batch_count": len(tiles),
         "tile_batch_tile_ids": [r["tile_id"] for r in tile_records],
@@ -485,15 +581,15 @@ def main() -> int:
         "tiles": tile_records,
     }
     (args.out / "map_tiles_manifest.json").write_text(json.dumps(output_manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    boundary_license_text = str(boundary_properties.get("boundary_license", "See geoBoundaries metadata"))
+    boundary_license_text = str(build_boundary_properties.get("boundary_license", "See geoBoundaries metadata"))
+    boundary_type = "ADM2" if args.stage == "shariatpur_review" else "ADM1"
     (args.out / "ATTRIBUTION.txt").write_text(
         OSM_ATTRIBUTION + "\n" + BOUNDARY_ATTRIBUTION + "\n"
         + "OSM data license: ODbL 1.0.\n"
-        + f"geoBoundaries Dhaka Division boundary license: {boundary_license_text}.\n"
-        + f"Shariatpur District boundary used for tile ordering only: geoBoundaries gbOpen BGD ADM2, "
-        + f"boundary ID {shariatpur_properties.get('boundary_id', 'unspecified')}.\n"
-        + f"Shariatpur district-boundary license: {shariatpur_properties.get('boundary_license', 'See geoBoundaries metadata')}. "
-        + f"License source: {shariatpur_properties.get('boundary_license_source', 'See manifest')}.\n",
+        + f"Clipping boundary: {build_boundary_name} (geoBoundaries gbOpen BGD {boundary_type}).\n"
+        + f"Clipping boundary ID: {build_boundary_properties.get('boundary_id', 'unspecified')}.\n"
+        + f"Clipping boundary license: {boundary_license_text}. "
+        + f"License source: {build_boundary_properties.get('boundary_license_source', 'See manifest')}.\n",
         encoding="utf-8",
     )
     print(json.dumps({"output": str(args.out), "tiles": len(tiles), "tiles_with_geometry": valid,

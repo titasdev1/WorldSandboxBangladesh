@@ -19,8 +19,14 @@ on:
         required: true
         default: "8"
         type: string
+      build_stage:
+        description: "Build Shariatpur first and pause for polish/review; full division must be explicitly approved"
+        required: true
+        default: "shariatpur_review"
+        type: choice
+        options: ["shariatpur_review", "full_division"]
       continue_full_division:
-        description: "Automatically dispatch the next batch and assemble the full division map"
+        description: "Automatically dispatch the next batch within the selected build stage"
         required: true
         default: true
         type: boolean
@@ -71,7 +77,9 @@ jobs:
       total_tiles: ${{ steps.batch-meta.outputs.total_tiles }}
       sequence_id: ${{ inputs.sequence_id || github.run_id }}
       tile_degrees: ${{ inputs.tile_degrees || '0.05' }}
-      max_tiles: ${{ inputs.max_tiles || (github.event_name == 'pull_request' && '2' || '8') }}
+      max_tiles: ${{ inputs.max_tiles || (github.event_name == 'workflow_dispatch' && '8' || '2') }}
+      build_stage: ${{ inputs.build_stage || 'shariatpur_review' }}
+      stage_gate_reached: ${{ steps.batch-meta.outputs.stage_gate_reached }}
     steps:
       - name: Checkout canonical repository
         uses: actions/checkout@v5
@@ -115,7 +123,8 @@ jobs:
             --pbf build/osm/dhaka-division-envelope.osm.pbf \
             --tile-degrees "${{ inputs.tile_degrees || '0.05' }}" \
             --tile-offset "${{ inputs.tile_offset || '0' }}" \
-            --max-tiles "${{ inputs.max_tiles || (github.event_name == 'pull_request' && '2' || '8') }}" \
+            --max-tiles "${{ inputs.max_tiles || (github.event_name == 'workflow_dispatch' && '8' || '2') }}" \
+            --stage "${{ inputs.build_stage || 'shariatpur_review' }}" \
             --out build/dhaka-division
 
       - name: Verify map package and geographic provenance
@@ -125,6 +134,9 @@ jobs:
           from pathlib import Path
           root = Path("build/dhaka-division")
           manifest = json.loads((root / "map_tiles_manifest.json").read_text())
+          if manifest.get("stage_gate_reached"):
+              print("Shariatpur review gate already reached; intentionally produced no additional tiles.")
+              raise SystemExit(0)
           glbs = list(root.rglob("Dhaka_Explorable_Map.glb"))
           if not glbs:
               raise SystemExit("No GLB tiles were produced")
@@ -160,12 +172,26 @@ jobs:
           offset = int(manifest["tile_batch_offset"])
           count = int(manifest["tile_batch_count"])
           total = int(manifest["tile_count_intersecting_boundary"])
-          next_offset = offset + count if offset + count < total else -1
+          shariatpur_total = int(manifest["tile_order_priority"]["tiles_intersecting_shariatpur_district"])
+          stage = manifest.get("build_stage", "shariatpur_review")
+          gate_reached = bool(manifest.get("stage_gate_reached", False))
+          if gate_reached:
+              next_offset = -1
+          elif stage == "shariatpur_review":
+              # This stage is deliberately a hard gate: no automatic dispatch into
+              # other districts until Shariatpur's standalone quality review passes.
+              next_offset = offset + count if offset + count < shariatpur_total else -1
+          else:
+              next_offset = offset + count if offset + count < total else -1
           print(f"next_offset={next_offset}")
           print(f"total_tiles={total}")
+          print(f"shariatpur_tiles={shariatpur_total}")
+          print(f"build_stage={stage}")
+          print(f"stage_gate_reached={'true' if gate_reached else 'false'}")
           PY
 
       - name: Upload Dhaka Division map batch
+        if: steps.batch-meta.outputs.stage_gate_reached != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: Project-A-Square-Dhaka-Division-${{ inputs.sequence_id || github.run_id }}-batch-${{ inputs.tile_offset || '0' }}-attempt-${{ inputs.retry_count || '0' }}
@@ -176,7 +202,7 @@ jobs:
 
   retry-map:
     needs: build-map
-    if: failure() && github.event_name != 'pull_request' && fromJSON(inputs.retry_count || '0') < 2
+    if: failure() && github.event_name == 'workflow_dispatch' && fromJSON(inputs.retry_count || '0') < 2
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -188,7 +214,8 @@ jobs:
           MAX_TILES: ${{ inputs.max_tiles || '8' }}
           SEQUENCE_ID: ${{ inputs.sequence_id || github.run_id }}
           RETRY_COUNT: ${{ inputs.retry_count || '0' }}
-          CONTINUE_FULL: ${{ inputs.continue_full_division || github.event_name == 'push' }}
+          CONTINUE_FULL: ${{ inputs.continue_full_division || false }}
+          BUILD_STAGE: ${{ inputs.build_stage || 'shariatpur_review' }}
         run: |
           set -euo pipefail
           NEXT_RETRY_COUNT=$((RETRY_COUNT + 1))
@@ -200,6 +227,7 @@ jobs:
               "tile_offset": "${TILE_OFFSET}",
               "max_tiles": "${MAX_TILES}",
               "continue_full_division": "${CONTINUE_FULL}",
+              "build_stage": "${BUILD_STAGE}",
               "sequence_id": "${SEQUENCE_ID}",
               "retry_count": "${NEXT_RETRY_COUNT}"
             }
@@ -208,7 +236,7 @@ jobs:
 
   continue-map:
     needs: build-map
-    if: success() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.continue_full_division))
+    if: success() && github.event_name == 'workflow_dispatch' && inputs.continue_full_division
     runs-on: ubuntu-latest
     timeout-minutes: 50
     steps:
@@ -220,6 +248,7 @@ jobs:
           TILE_DEGREES: ${{ needs.build-map.outputs.tile_degrees }}
           MAX_TILES: ${{ needs.build-map.outputs.max_tiles }}
           SEQUENCE_ID: ${{ needs.build-map.outputs.sequence_id }}
+          BUILD_STAGE: ${{ needs.build-map.outputs.build_stage }}
         run: |
           set -euo pipefail
           gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/dispatches" --input - <<EOF
@@ -230,14 +259,67 @@ jobs:
               "tile_offset": "${NEXT_OFFSET}",
               "max_tiles": "${MAX_TILES}",
               "continue_full_division": "true",
+              "build_stage": "${BUILD_STAGE}",
               "sequence_id": "${SEQUENCE_ID}",
               "retry_count": "0"
             }
           }
           EOF
 
+      - name: Mark Shariatpur review gate reached
+        if: needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'shariatpur_review'
+        run: |
+          echo "Shariatpur-first batch sequence reached its review gate."
+          echo "Do not start the full Dhaka Division stage until exterior fidelity, coverage, interiors, and Android integration are reviewed."
+
+      - name: Assemble complete Shariatpur District review package
+        if: needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'shariatpur_review' && needs.build-map.outputs.stage_gate_reached != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SEQUENCE_ID: ${{ needs.build-map.outputs.sequence_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/shariatpur/batches
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/runs?branch=main&per_page=100" \
+            --jq '.workflow_runs[] | [.id, .head_branch, (.conclusion // "")] | @tsv' > /tmp/map-runs.tsv
+          prefix="Project-A-Square-Dhaka-Division-${SEQUENCE_ID}-batch-"
+          while read -r run_id branch conclusion; do
+            [[ "${branch}" == "main" ]] || continue
+            [[ "${conclusion}" == "success" || "${run_id}" == "${GITHUB_RUN_ID}" ]] || continue
+            while IFS= read -r artifact_name; do
+              [[ "${artifact_name}" == "${prefix}"* ]] || continue
+              offset="${artifact_name##*-batch-}"
+              offset="${offset%%-attempt-*}"
+              destination="build/shariatpur/batches/${offset}"
+              mkdir -p "${destination}"
+              gh run download "${run_id}" --repo "${GITHUB_REPOSITORY}" --name "${artifact_name}" --dir "${destination}"
+              if [[ ! -f "${destination}/map_tiles_manifest.json" ]]; then
+                nested_manifest="$(find "${destination}" -mindepth 2 -name map_tiles_manifest.json -print -quit)"
+                if [[ -n "${nested_manifest}" ]]; then
+                  nested_root="$(dirname "${nested_manifest}")"
+                  find "${nested_root}" -mindepth 1 -maxdepth 1 -exec mv -t "${destination}" {} +
+                  rm -rf "${nested_root}"
+                fi
+              fi
+            done < <(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts" --jq '.artifacts[] | select(.expired == false) | .name')
+          done < /tmp/map-runs.tsv
+          python tools/map_pipeline/merge_dhaka_division_batches.py \
+            --batches-dir build/shariatpur/batches \
+            --out build/shariatpur-full \
+            --stage shariatpur_review
+
+      - name: Upload complete Shariatpur District review package
+        if: needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'shariatpur_review' && needs.build-map.outputs.stage_gate_reached != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project-A-Square-Shariatpur-Review-Map-${{ needs.build-map.outputs.sequence_id }}
+          path: build/shariatpur-full/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 1
+
       - name: Assemble all batches into one complete Dhaka Division map
-        if: needs.build-map.outputs.next_offset == '-1'
+        if: needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'full_division'
         env:
           GH_TOKEN: ${{ github.token }}
           SEQUENCE_ID: ${{ needs.build-map.outputs.sequence_id }}
@@ -275,7 +357,7 @@ jobs:
             --out build/dhaka-division-full
 
       - name: Upload complete Dhaka Division map
-        if: needs.build-map.outputs.next_offset == '-1'
+        if: needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'full_division'
         uses: actions/upload-artifact@v4
         with:
           name: Project-A-Square-Dhaka-Division-Full-Map-${{ needs.build-map.outputs.sequence_id }}

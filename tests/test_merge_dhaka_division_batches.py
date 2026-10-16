@@ -6,7 +6,7 @@ from pathlib import Path
 from tools.map_pipeline.merge_dhaka_division_batches import merge_batches
 
 
-def write_batch(root: Path, offset: int, records: list[dict], total: int, geometry_count: int) -> None:
+def write_batch(root: Path, offset: int, records: list[dict], total: int, geometry_count: int, stage: str = "full_division", division_total: int | None = None) -> None:
     batch = root / str(offset)
     batch.mkdir(parents=True)
     for record in records:
@@ -16,9 +16,11 @@ def write_batch(root: Path, offset: int, records: list[dict], total: int, geomet
             (tile_dir / "Dhaka_Explorable_Map.glb").write_bytes(b"glb-" + record["tile_id"].encode())
     manifest = {
         "product": "test batch",
-        "administrative_boundary": {"name": "Dhaka Division"},
+        "administrative_boundary": {"name": "Shariatpur District" if stage == "shariatpur_review" else "Dhaka Division"},
         "tile_edge_degrees": 0.05,
-        "tile_count_intersecting_boundary": total,
+        "build_stage": stage,
+        "tile_count_intersecting_boundary": division_total if stage == "shariatpur_review" and division_total is not None else total,
+        "tile_count_intersecting_build_boundary": total,
         "tile_count_with_geometry": geometry_count,
         "tile_batch_offset": offset,
         "tile_batch_count": len(records),
@@ -54,6 +56,29 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
             self.assertEqual(manifest["tile_batch_offsets"], [0, 2])
             self.assertEqual(len(list(output.rglob("Dhaka_Explorable_Map.glb"))), 2)
             self.assertTrue((output / "ATTRIBUTION.txt").is_file())
+
+    def test_merges_complete_shariatpur_stage_as_district_not_division(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            batches = root / "batches"
+            batches.mkdir()
+            write_batch(batches, 0, [
+                {"tile_id": "sp_a", "status": "BAKED_FROM_OSM"},
+                {"tile_id": "sp_b", "status": "EMPTY"},
+            ], total=3, geometry_count=1, stage="shariatpur_review", division_total=10)
+            write_batch(batches, 2, [
+                {"tile_id": "sp_c", "status": "BAKED_FROM_OSM"},
+            ], total=3, geometry_count=1, stage="shariatpur_review", division_total=10)
+            output = root / "shariatpur"
+            summary = merge_batches(batches, output, "shariatpur_review")
+            manifest = json.loads((output / "map_tiles_manifest.json").read_text())
+            self.assertTrue(summary["complete_district_map"])
+            self.assertFalse(summary["complete_division_map"])
+            self.assertTrue(manifest["complete_district_map"])
+            self.assertFalse(manifest["complete_division_map"])
+            self.assertEqual(manifest["tile_count_intersecting_boundary"], 3)
+            self.assertEqual(manifest["tile_count_intersecting_division"], 10)
+            self.assertEqual(len(manifest["tiles"]), 3)
 
     def test_refuses_missing_batches(self):
         with tempfile.TemporaryDirectory() as temp:

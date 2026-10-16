@@ -10,7 +10,9 @@ import shutil
 from typing import Any
 
 
-def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path) -> dict[str, Any]:
+def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "full_division") -> dict[str, Any]:
+    if stage not in {"shariatpur_review", "full_division"}:
+        raise ValueError(f"Unsupported map merge stage: {stage}")
     batch_dirs = sorted(
         (path for path in batches_dir.iterdir() if path.is_dir()),
         key=lambda path: int(path.name),
@@ -26,7 +28,8 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path) -> dict[str, Any
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         offset = int(manifest.get("tile_batch_offset", -1))
         count = int(manifest.get("tile_batch_count", len(manifest.get("tiles", []))))
-        total = int(manifest.get("tile_count_intersecting_boundary", -1))
+        total_key = "tile_count_intersecting_build_boundary" if stage == "shariatpur_review" else "tile_count_intersecting_boundary"
+        total = int(manifest.get(total_key, -1))
         if offset < 0 or count < 1 or total < 1:
             raise RuntimeError(f"Batch {path.name} has invalid offset/count/total metadata")
         if int(path.name) != offset:
@@ -37,7 +40,8 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path) -> dict[str, Any
 
     batches.sort(key=lambda item: item[0])
     first = batches[0][2]
-    total_tiles = int(first["tile_count_intersecting_boundary"])
+    total_tiles = int(first["tile_count_intersecting_build_boundary"] if stage == "shariatpur_review" else first["tile_count_intersecting_boundary"])
+    division_total_tiles = int(first["tile_count_intersecting_boundary"])
     tile_degrees = float(first["tile_edge_degrees"])
     boundary_name = first.get("administrative_boundary", {}).get("name")
     expected_offset = 0
@@ -47,8 +51,11 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path) -> dict[str, Any
     source_element_count = 0
 
     for offset, path, manifest in batches:
-        if int(manifest["tile_count_intersecting_boundary"]) != total_tiles:
-            raise RuntimeError("Batches disagree on the total number of division-intersecting tiles")
+        manifest_total = int(manifest["tile_count_intersecting_build_boundary"] if stage == "shariatpur_review" else manifest["tile_count_intersecting_boundary"])
+        if manifest_total != total_tiles:
+            raise RuntimeError("Batches disagree on the total number of tiles for the selected build stage")
+        if manifest.get("build_stage", "full_division") != stage:
+            raise RuntimeError("Batches mix Shariatpur review and full-division build stages")
         if float(manifest["tile_edge_degrees"]) != tile_degrees:
             raise RuntimeError("Batches use different tile sizes; refusing to merge incompatible grids")
         if manifest.get("administrative_boundary", {}).get("name") != boundary_name:
@@ -68,7 +75,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path) -> dict[str, Any
 
     if expected_offset != total_tiles or len(all_records) != total_tiles:
         raise RuntimeError(
-            f"Incomplete division coverage: merged {len(all_records)} of {total_tiles} expected tiles"
+            f"Incomplete {stage} coverage: merged {len(all_records)} of {total_tiles} expected tiles"
         )
 
     if out.exists():
@@ -98,10 +105,17 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path) -> dict[str, Any
     for key in ("tile_batch_offset", "tile_batch_count", "tile_batch_tile_ids", "source_elements_in_boundary_envelope"):
         manifest.pop(key, None)
     manifest.update({
-        "product": "Project A-Square — complete Dhaka Division boundary-clipped 3D map",
-        "complete_division_map": True,
+        "product": (
+            "Project A-Square — complete Shariatpur District boundary-clipped 3D map"
+            if stage == "shariatpur_review"
+            else "Project A-Square — complete Dhaka Division boundary-clipped 3D map"
+        ),
+        "complete_division_map": stage == "full_division",
+        "complete_district_map": stage == "shariatpur_review",
         "tile_count_requested": total_tiles,
         "tile_count_intersecting_boundary": total_tiles,
+        "tile_count_intersecting_build_boundary": total_tiles,
+        "tile_count_intersecting_division": division_total_tiles,
         "tile_count_with_geometry": geometry_count,
         "source_elements_processed_across_batches": source_element_count,
         "map_build_batch_count": len(batches),
@@ -109,7 +123,12 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path) -> dict[str, Any
         "tiles": all_records,
         "generated_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "completeness_note": (
-            "All generated batches for every tile intersecting the Dhaka Division administrative boundary "
+            "All generated batches for every tile intersecting the Shariatpur District boundary "
+            "are present. Tile geometry is clipped to the district polygon. This is geographic coverage, "
+            "not proof that every real-world feature is mapped or that exteriors are photorealistic. "
+            "Licensed façade imagery, surveyed heights, actual interiors, and real residents are not supplied by OSM."
+            if stage == "shariatpur_review"
+            else "All generated batches for every tile intersecting the Dhaka Division administrative boundary "
             "are present in this package. The map is based on mapped OpenStreetMap features and is not proof "
             "that every real-world feature is mapped. Facade photography, surveyed heights, actual interiors, "
             "and real residents are not supplied by OSM."
@@ -123,8 +142,10 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path) -> dict[str, Any
         raise RuntimeError(f"Full package GLB count mismatch: manifest {geometry_count}, found {len(glbs)}")
     return {
         "output": str(out),
-        "complete_division_map": True,
+        "complete_division_map": stage == "full_division",
+        "complete_district_map": stage == "shariatpur_review",
         "tile_count_intersecting_boundary": total_tiles,
+        "tile_count_intersecting_division": division_total_tiles,
         "tile_count_with_geometry": len(glbs),
         "batch_count": len(batches),
         "glb_bytes": sum(path.stat().st_size for path in glbs),
@@ -135,8 +156,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--batches-dir", type=pathlib.Path, required=True)
     parser.add_argument("--out", type=pathlib.Path, required=True)
+    parser.add_argument("--stage", choices=("shariatpur_review", "full_division"), default="full_division")
     args = parser.parse_args()
-    print(json.dumps(merge_batches(args.batches_dir, args.out), indent=2))
+    print(json.dumps(merge_batches(args.batches_dir, args.out, args.stage), indent=2))
     return 0
 
 
