@@ -12,9 +12,14 @@ var right_arm: Node3D
 var left_leg: Node3D
 var right_leg: Node3D
 var gait_time := 0.0
+var animation_time := 0.0
+var _torso: Node3D
+var _head: Node3D
 
 func _ready() -> void:
     _build_body()
+    _torso = get_node_or_null("ClothedTorso") as Node3D
+    _head = get_node_or_null("Head") as Node3D
 
 func _material(color: Color, roughness := 0.78) -> StandardMaterial3D:
     var key := color.to_html(false)
@@ -119,16 +124,32 @@ func _process(delta: float) -> void:
         return
     var body := actor as CharacterBody3D
     var planar_speed := Vector2(body.velocity.x, body.velocity.z).length()
+    animation_time += delta
+
+    # Subtle breathing and head settling keep idle characters from looking frozen.
+    var idle_weight := 1.0 - clampf(planar_speed / 1.6, 0.0, 1.0)
+    if is_instance_valid(_torso):
+        _torso.position.y = 1.18 + sin(animation_time * 2.2) * 0.018 * idle_weight
+        _torso.rotation.z = sin(animation_time * 1.1) * 0.012 * idle_weight
+    if is_instance_valid(_head):
+        _head.rotation.z = sin(animation_time * 0.8 + 0.7) * 0.018 * idle_weight
+
     if planar_speed > 0.15:
         gait_time += delta * clampf(planar_speed * 1.8, 2.0, 14.0)
-        var swing := sin(gait_time) * 0.58
+        var run_blend := clampf(planar_speed / 7.0, 0.0, 1.0)
+        var swing := sin(gait_time) * lerpf(0.42, 0.68, run_blend)
         left_leg.rotation.x = swing
         right_leg.rotation.x = -swing
         left_arm.rotation.x = -swing * 0.8
         right_arm.rotation.x = swing * 0.8
+        # A restrained counter-swing adds weight without changing locomotion.
+        left_arm.rotation.z = lerpf(left_arm.rotation.z, -0.06 * run_blend, delta * 5.0)
+        right_arm.rotation.z = lerpf(right_arm.rotation.z, 0.06 * run_blend, delta * 5.0)
         rotation.y = lerp_angle(rotation.y, atan2(-body.velocity.x, -body.velocity.z), minf(delta * 9.0, 1.0))
     else:
         left_leg.rotation.x = move_toward(left_leg.rotation.x, 0.0, delta * 2.5)
         right_leg.rotation.x = move_toward(right_leg.rotation.x, 0.0, delta * 2.5)
         left_arm.rotation.x = move_toward(left_arm.rotation.x, 0.0, delta * 2.5)
         right_arm.rotation.x = move_toward(right_arm.rotation.x, 0.0, delta * 2.5)
+        left_arm.rotation.z = move_toward(left_arm.rotation.z, sin(animation_time * 1.1) * 0.018, delta * 2.0)
+        right_arm.rotation.z = move_toward(right_arm.rotation.z, -sin(animation_time * 1.1) * 0.018, delta * 2.0)
