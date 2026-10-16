@@ -69,6 +69,8 @@ func _ready():
  add_touch_button("FIRE", Vector2(1080, 560), Vector2(150, 75), "fire")
  add_touch_button("AIM", Vector2(900, 500), Vector2(130, 45), "aim")
  add_touch_button("RELOAD", Vector2(900, 450), Vector2(130, 45), "reload")
+ add_touch_button("JUMP", Vector2(1070, 445), Vector2(140, 48), "jump")
+ add_touch_button("CROUCH", Vector2(1070, 500), Vector2(140, 48), "crouch")
  interaction_button = add_touch_button("INTERACT", Vector2(900, 650), Vector2(170, 55), "interact")
  var camera_view_button := Button.new()
  camera_view_button.name = "CameraViewToggle"
