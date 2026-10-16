@@ -371,6 +371,22 @@ jobs:
           overwrite_files: true
           files: build/Android/world_sandbox_bangladesh.apk
 
+      - name: Publish direct Shariatpur review APK (separate from canonical release)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[shariatpur-review-apk]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: shariatpur-review
+          name: "World Sandbox: Bangladesh — Shariatpur Review Candidate"
+          body: |
+            This is a direct APK candidate built with the latest assembled Shariatpur district map package.
+            It is intentionally separate from the canonical Android development release.
+            The map quality gate remains REVIEW_REQUIRED; photorealistic facade imagery, complete surveyed building heights, manual visual review, and physical-device gameplay/performance checks are not yet certified.
+            Do not treat this candidate as the final dream game or as a production release.
+          prerelease: true
+          make_latest: false
+          overwrite_files: true
+          files: build/Android/world_sandbox_bangladesh.apk
+
       - name: Upload small verification reports separately
         uses: actions/upload-artifact@v4
         with:
