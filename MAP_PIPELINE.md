@@ -47,7 +47,7 @@ The Bangladesh-wide OSM PBF is reduced to a reusable rectangular extract of the 
 
 ## Automatic full-division continuation
 
-When the full-division pipeline is merged and runs on `main`, it automatically dispatches the next tile batch after each successful batch. Every map-building run is limited to 300 minutes; the final assembly job is limited to 50 minutes, keeping each workflow run under six hours. Pull-request validation deliberately does not start the full chain.
+Push and pull-request events build only two tiles as bounded validation; they never start a second automatic sequence. A manually dispatched `shariatpur_review` sequence continues in bounded batches only through Shariatpur, then stops for the required quality review. After that gate passes, explicitly dispatch `full_division` to build and assemble the full division. Every map-building run is limited to 300 minutes; the final assembly job is limited to 50 minutes, keeping each workflow run under six hours.
 
 Each batch artifact is tagged with one sequence ID and its tile offset. The final run downloads only artifacts from that sequence, verifies every offset from zero through the full tile count is present exactly once, merges all GLBs/GeoJSON/interior seeds, and publishes a separate `Project-A-Square-Dhaka-Division-Full-Map-<sequence>` artifact. Missing batches, duplicate tile IDs, mixed tile sizes, missing attribution, or GLB/manifest count mismatches fail the assembly instead of being presented as a complete map.
 
