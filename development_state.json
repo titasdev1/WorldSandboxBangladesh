@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "027_SHARIATPUR_HYDROGRAPHY_FACADE_AND_COLLISION_PASS",
+  "current_milestone": "028_SHARIATPUR_REVIEW_SEQUENCE_REGENERATED_AFTER_GEOMETRY_AND_METADATA_FIX",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -25,7 +25,7 @@
     "015_UI",
     "017_SAVE_LOAD"
   ],
-  "next_priority": "Validate APK summary workflow fix; inspect and regenerate Shariatpur review package, correct sequence metadata, and preserve pinned map until quality acceptance.",
+  "next_priority": "Verify fresh Shariatpur-only workflow sequence e243a563c33c584bce0375f8685c38ed5b94ef78; inspect package and quality report before any map promotion",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -43,9 +43,11 @@
     "PR #59 merged as 30bc0e3b4f353d923923dc8707475b114cfe0a0c after its exact head 7d62ad457907a72094a6cbdc072ebbdd152d0066 passed fast map tests, Godot runtime validation, bounded map validation, and canonical Android export run 38892036942. Main-branch post-merge run is not yet independently observed.",
     "Shariatpur review artifact from run 38891159212 is REVIEW_REQUIRED: 60/60 tile offsets and GLBs present, but 3 tiles are ground-only; mapped street lamps 0, trees 2, 34,782 of 34,806 building heights estimated, licensed photorealistic façade imagery absent, and Android map-package integration/device performance unverified.",
     "Map artifact naming from run 38891159212 omitted its sequence suffix. Fix workflow metadata propagation without rebuilding tiles solely to rename the artifact.",
-    "APK summary shell-quoting defect fixed in .github/workflows/android.yml commit bf43113107353095891ae6255a6e08d07b55b3a5; awaiting a workflow run to verify no shell warning and correct summary output."
+    "APK summary shell-quoting defect fixed in .github/workflows/android.yml commit bf43113107353095891ae6255a6e08d07b55b3a5; awaiting a workflow run to verify no shell warning and correct summary output.",
+    "Commit b1399551554e12bcfc8a230d650034552d6c566a fixes Shariatpur review artifact suffix fallback: explicit input sequence ID, build output sequence ID, then workflow run ID.",
+    "Commit e243a563c33c584bce0375f8685c38ed5b94ef78 updates MAP_PIPELINE.md with the fix and includes [build-shariatpur-review] to trigger a fresh bounded Shariatpur-only review sequence. Its workflow status and output package have not yet been inspected."
   ],
-  "build_status": "PR_59_MERGED_CANONICAL_ANDROID_EXPORT_PASSED_POST_MERGE_MAIN_RUN_PENDING",
+  "build_status": "SHARIATPUR_SEQUENCE_TRIGGERED_AWAITING_WORKFLOW_AND_PACKAGE_VERIFICATION",
   "latest_verified_run": 38892036942,
   "latest_verified_commit": "7d62ad457907a72094a6cbdc072ebbdd152d0066",
   "latest_build_artifact": {
@@ -70,10 +72,10 @@
   "asset_pipeline": "live_game_factory_installed",
   "audit": {
     "date": "2026-10-16",
-    "latest_audited_commit": "5df6c57a0a8fb702d7c9645d4ea7af86828abc48",
+    "latest_audited_commit": "e243a563c33c584bce0375f8685c38ed5b94ef78",
     "latest_audited_workflow_run": 38892036942,
-    "latest_audited_workflow_conclusion": "latest_source_audit_includes_committed_APK_summary_fix; validation_run_pending",
-    "verification_status": "Previous PR-head Android build passed export, APK ZIP integrity and v2/v3 signature checks. Workflow summary shell-quoting fix is committed at bf43113107353095891ae6255a6e08d07b55b3a5; no post-fix Android run observed yet. Physical-device QA and regenerated Shariatpur package review remain pending.",
+    "latest_audited_workflow_conclusion": "fresh_shariatpur_sequence_triggered_awaiting_results",
+    "verification_status": "Committed APK summary shell fix (bf43113107353095891ae6255a6e08d07b55b3a5) and Shariatpur artifact sequence fallback fix (b1399551554e12bcfc8a230d650034552d6c566a). Triggered fresh Shariatpur-only sequence from commit e243a563c33c584bce0375f8685c38ed5b94ef78; do not claim success until runs/artifacts are inspected. Previous Shariatpur package remains REVIEW_REQUIRED; no promotion to canonical game.",
     "map_quality_gate": {
       "artifact_run": 38891159212,
       "status": "REVIEW_REQUIRED",
@@ -98,7 +100,10 @@
         "Manual exterior/geometry review",
         "Licensed façade imagery absent",
         "Android integration and physical-device memory/FPS/touch QA pending"
-      ]
+      ],
+      "sequence_label_fix_commit": "b1399551554e12bcfc8a230d650034552d6c566a",
+      "fresh_sequence_trigger_commit": "e243a563c33c584bce0375f8685c38ed5b94ef78",
+      "fresh_sequence_status": "TRIGGERED_AWAITING_WORKFLOW"
     },
     "apk_verification": {
       "run_id": 38892036942,
