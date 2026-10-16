@@ -284,8 +284,14 @@ def _source_geometry(element: dict[str, Any]):
         return Point(float(element["lon"]), float(element["lat"]))
     coords = [(float(p["lon"]), float(p["lat"])) for p in element.get("geometry", [])]
     tags = element.get("tags", {})
-    if tags.get("building") and len(coords) >= 4 and coords[0] == coords[-1]:
-        geom = Polygon(coords)
+    is_area = any(key in tags for key in ("building", "landuse", "natural", "leisure", "water", "amenity", "shop"))
+    if is_area and len(coords) >= 4 and coords[0] == coords[-1]:
+        holes = [
+            [(float(p["lon"]), float(p["lat"])) for p in ring]
+            for ring in element.get("inner_rings", [])
+            if len(ring) >= 4
+        ]
+        geom = Polygon(coords, holes)
         return geom if geom.is_valid else geom.buffer(0)
     if len(coords) >= 2:
         return LineString(coords)
@@ -319,6 +325,11 @@ def _to_element(original: dict[str, Any], geom: Any, part_no: int) -> dict[str, 
         if isinstance(geom, Polygon) and coords[0] != coords[-1]:
             coords.append(coords[0])
         item["geometry"] = [{"lat": float(lat), "lon": float(lon)} for lon, lat in coords]
+        if isinstance(geom, Polygon) and geom.interiors:
+            item["inner_rings"] = [
+                [{"lat": float(lat), "lon": float(lon)} for lon, lat in ring.coords]
+                for ring in geom.interiors
+            ]
     return item
 
 
@@ -336,7 +347,7 @@ def _clip_elements(elements: list[dict[str, Any]], clip_shape: Any) -> list[dict
             if clip_shape.covers(geom):
                 result.append(element)
             continue
-        expected = "polygon" if tags.get("building") and isinstance(geom, (Polygon, MultiPolygon)) else "line"
+        expected = "polygon" if isinstance(geom, (Polygon, MultiPolygon)) else "line"
         for i, part in enumerate(_parts(clipped, expected), start=1):
             if expected == "polygon" and part.area < 1e-10:
                 continue
