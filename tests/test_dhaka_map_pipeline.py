@@ -81,9 +81,9 @@ class DhakaMapPipelineTests(unittest.TestCase):
     def test_pipeline_commit_is_recorded_in_map_manifest(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"WSB_PIPELINE_COMMIT_SHA": "fixture-commit-123"}):
             manifest = build_map([], Path(tmp), DEFAULT_BBOX)
-        self.assertEqual(manifest["pipeline_commit_sha"], "fixture-commit-123")
-        saved = json.loads((Path(tmp) / "map_manifest.json").read_text(encoding="utf-8"))
-        self.assertEqual(saved["pipeline_commit_sha"], "fixture-commit-123")
+            self.assertEqual(manifest["pipeline_commit_sha"], "fixture-commit-123")
+            saved = json.loads((Path(tmp) / "map_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(saved["pipeline_commit_sha"], "fixture-commit-123")
 
     def test_empty_tile_still_exports_ground_geometry_instead_of_a_hole(self):
         with tempfile.TemporaryDirectory() as tmp:
