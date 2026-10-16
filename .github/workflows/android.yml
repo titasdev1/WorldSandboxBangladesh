@@ -92,6 +92,11 @@ jobs:
             exit 1
           fi
           read -r map_run_id map_artifact_name map_created_at <<< "${artifact_record}"
+          run_conclusion="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${map_run_id}" --jq '.conclusion')"
+          if [[ "${run_conclusion}" != "success" ]]; then
+            echo "Latest Shariatpur package came from a non-successful workflow run; refusing promotion." >&2
+            exit 1
+          fi
           echo "Selected Shariatpur package: ${map_artifact_name} (run ${map_run_id}, created ${map_created_at})"
           gh run download "${map_run_id}" --repo "${GITHUB_REPOSITORY}" --name "${map_artifact_name}" --dir build/selected-map
 
@@ -125,6 +130,9 @@ jobs:
               report = json.loads(report_path.read_text())
               if manifest.get("build_stage") != "shariatpur_review" or not manifest.get("complete_district_map"):
                   raise SystemExit("Selected Shariatpur package is not a complete district-stage package")
+              vegetation_count = int(manifest.get("feature_counts_across_tiles", {}).get("procedural_vegetation_trees", 0))
+              if vegetation_count < 1:
+                  raise SystemExit("Shariatpur package predates mapped-landuse vegetation generation; rebuild the district sequence")
               if report.get("status") != "REVIEW_REQUIRED":
                   raise SystemExit("Unexpected Shariatpur quality status; inspect before packaging")
               print("MAP QA MODE: Shariatpur district package is complete, but its visual/device review gate remains open.")
