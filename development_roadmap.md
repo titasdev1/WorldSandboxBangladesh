@@ -168,3 +168,11 @@ Development batches are measured by integrated playable capability, not workflow
 - The artifact label omitted its sequence suffix. Trace/fix sequence propagation in workflow assembly/upload metadata without rebaking tiles merely to change a label.
 - PR #59 changes improve mapped water polygons, waterways, land use, railway/bridge/road surface geometry, procedural low-poly façade window panels, building height provenance, and empty-tile ground coverage. This is a fidelity improvement, not photorealism; licensed façade imagery and real Android visual/performance review remain absent.
 - Next actions: (1) inspect the Shariatpur assembly workflow and artifact manifest to fix sequence-label propagation; (2) trigger a clean Shariatpur review sequence from merged main and inspect the actual package; (3) validate the post-merge-main Android run; (4) keep the pinned in-game map unchanged until package review and runtime/device acceptance pass.
+
+
+## 2026-10-16 — APK summary shell-quoting defect fixed
+
+- Inspected the full log for canonical Android run `38892036942`, not only its green status. The APK was 491,470,358 bytes with SHA-256 `db30fae41813126e4458f537b7c2595bf75eadff49f65beba845190da26cd3a0`; ZIP integrity and Android v2/v3 signature verification passed.
+- The same log exposed a genuine reporting defect: Markdown backticks around nested shell command substitutions caused Bash to attempt to execute the numeric APK size as a command (`491470358: command not found`). This did not invalidate the APK, but made the step summary unreliable.
+- Fixed `.github/workflows/android.yml` in commit `bf43113107353095891ae6255a6e08d07b55b3a5` by assigning basename/size/SHA values first and emitting Markdown with `printf`. The workflow's next run must confirm the warning is gone and the summary renders the exact values correctly.
+- Signing remains `debug-fallback` because stable release keystore secrets are not configured. A cryptographically valid debug-signed APK is not a production-signed release. The build artifact is available at [canonical build run 38892036942](https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/38892036942).
