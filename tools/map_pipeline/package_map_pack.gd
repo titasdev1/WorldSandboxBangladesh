@@ -62,7 +62,21 @@ func _initialize() -> void:
         push_error("Could not finalize PCK: " + str(flush_error))
         quit(1)
         return
-    print("MAP_PCK_CREATED files=", added, " bytes=", FileAccess.get_file_as_bytes(output_path).size(), " output=", output_path)
+    if not ProjectSettings.load_resource_pack(output_absolute, true):
+        push_error("PCK was written but could not be mounted for verification: " + output_absolute)
+        quit(1)
+        return
+    var mounted_manifest := "res://assets/world/dhaka_tiles/map_tiles_manifest.json"
+    if not FileAccess.file_exists(mounted_manifest):
+        push_error("PCK verification failed; mounted map manifest is missing.")
+        quit(1)
+        return
+    var mounted_data: Variant = JSON.parse_string(FileAccess.get_file_as_string(mounted_manifest))
+    if not (mounted_data is Dictionary) or not mounted_data.has("tiles"):
+        push_error("PCK verification failed; mounted map manifest is invalid.")
+        quit(1)
+        return
+    print("MAP_PCK_VERIFIED files=", added, " bytes=", FileAccess.get_file_as_bytes(output_absolute).size(), " output=", output_absolute)
     quit(0)
 
 func _add_directory(packer: PCKPacker, source_root: String, relative_dir: String) -> int:
