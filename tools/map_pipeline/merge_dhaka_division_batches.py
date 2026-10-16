@@ -46,6 +46,9 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
     total_tiles = int(first["tile_count_intersecting_build_boundary"] if stage == "shariatpur_review" else first["tile_count_intersecting_boundary"])
     division_total_tiles = int(first.get("tile_count_intersecting_division", first["tile_count_intersecting_boundary"]))
     tile_degrees = float(first["tile_edge_degrees"])
+    pipeline_commit_sha = str(first.get("pipeline_commit_sha", "")).strip()
+    if not pipeline_commit_sha:
+        raise RuntimeError("Batch is missing pipeline_commit_sha; refusing to assemble an unverifiable tile sequence")
     boundary_name = first.get("administrative_boundary", {}).get("name")
     expected_boundary_name = "Shariatpur District" if stage == "shariatpur_review" else "Dhaka Division"
     if boundary_name != expected_boundary_name:
@@ -68,6 +71,8 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
             raise RuntimeError("Batches mix Shariatpur review and full-division build stages")
         if float(manifest["tile_edge_degrees"]) != tile_degrees:
             raise RuntimeError("Batches use different tile sizes; refusing to merge incompatible grids")
+        if str(manifest.get("pipeline_commit_sha", "")).strip() != pipeline_commit_sha:
+            raise RuntimeError("Batches were built from different pipeline commits; restart the complete tile sequence")
         if manifest.get("administrative_boundary", {}).get("name") != boundary_name:
             raise RuntimeError("Batches use different administrative boundaries")
         if offset != expected_offset:
@@ -154,6 +159,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "feature_counts_across_tiles": feature_counts,
         "source_elements_processed_across_batches": source_element_count,
         "map_build_batch_count": len(batches),
+        "pipeline_commit_sha": pipeline_commit_sha,
         "tile_batch_offsets": [offset for offset, _, _ in batches],
         "tiles": all_records,
         "generated_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -216,6 +222,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
     )
     quality_report = {
         "build_stage": stage,
+        "pipeline_commit_sha": pipeline_commit_sha,
         "status": "REVIEW_REQUIRED" if stage == "shariatpur_review" else "MAP_DATA_VALIDATED_VISUAL_QA_PENDING",
         "map_data_validation": "PASS",
         "checks": {
