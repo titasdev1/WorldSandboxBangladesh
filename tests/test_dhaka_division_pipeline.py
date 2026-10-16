@@ -5,12 +5,19 @@ from pathlib import Path
 from shapely.geometry import Polygon, box, shape
 from tools.map_pipeline.build_dhaka_division import (
     _clip_elements, _source_geometry, _replace_ground_with_boundary,
-    order_tiles_shariatpur_first, select_tile_batch, SHARIATPUR_PRIORITY_LAT_LON,
+    order_tiles_shariatpur_first, select_tile_batch, SHARIATPUR_PRIORITY_LAT_LON, has_feature,
 )
 from tools.map_pipeline.build_dhaka_map import build_map
 
 
 class DhakaDivisionPipelineTests(unittest.TestCase):
+    def test_osm_extract_includes_trees_power_grid_and_street_lamps(self):
+        self.assertTrue(has_feature({"natural": "tree"}))
+        self.assertTrue(has_feature({"power": "pole"}))
+        self.assertTrue(has_feature({"power": "tower"}))
+        self.assertTrue(has_feature({"highway": "street_lamp"}))
+        self.assertTrue(has_feature({"man_made": "utility_pole"}))
+
     def test_shariatpur_is_first_but_all_division_tiles_remain_in_order(self):
         tiles = [
             (23.80, 90.40, 23.85, 90.45),  # central Dhaka
