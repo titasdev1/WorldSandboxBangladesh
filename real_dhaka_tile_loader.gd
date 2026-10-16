@@ -264,7 +264,7 @@ func _load_interior_anchors(record: Dictionary, player_position: Vector3) -> Arr
 			return _interior_seed_priority(a) > _interior_seed_priority(b)
 		return distance_a < distance_b
 	)
-	var road_routes := get_road_routes()
+	var road_routes := _get_nearby_road_routes(player_position)
 	for seed in nearby.slice(0, mini(MAX_INTERIOR_ANCHORS_PER_TILE, nearby.size())):
 		var placement := _interior_anchor_placement(seed, tile_position, road_routes)
 		var anchor := Node3D.new()
@@ -278,6 +278,22 @@ func _load_interior_anchors(record: Dictionary, player_position: Vector3) -> Arr
 		anchors.append(anchor)
 	record["interior_anchor_center"] = player_position
 	return anchors
+
+
+func _get_nearby_road_routes(player_position: Vector3) -> Array:
+	# Interior door placement only needs nearby road points. Filtering once per
+	# refresh avoids scanning every road point again for every building vertex.
+	var nearby_points: Array[Vector3] = []
+	var search_radius := INTERIOR_ANCHOR_RADIUS_M + 120.0
+	for routes in _road_routes_by_tile.values():
+		for route in routes:
+			for point in route:
+				if Vector2(point.x - player_position.x, point.z - player_position.z).length() <= search_radius:
+					nearby_points.append(point)
+	var result: Array = []
+	if not nearby_points.is_empty():
+		result.append(nearby_points)
+	return result
 
 func _interior_seed_distance(seed: Dictionary, tile_position: Vector3, player_position: Vector3) -> float:
 	var local_point := Vector2.ZERO
