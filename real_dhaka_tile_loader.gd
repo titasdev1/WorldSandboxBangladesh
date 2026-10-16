@@ -77,7 +77,12 @@ func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.j
 	_manifest_origin_lon = GAME_ORIGIN_LON
 	var valid_records: Array[Dictionary] = []
 	for item in tiles:
-		if not (item is Dictionary) or item.get("status", "") != "BAKED_FROM_OSM":
+		if not (item is Dictionary):
+			continue
+		var tile_status := str(item.get("status", ""))
+		# Ground-only tiles still contain a boundary-clipped GLB floor. Load them
+		# so sparse OSM coverage does not become a hole in the explorable world.
+		if tile_status not in ["BAKED_FROM_OSM", "GROUND_ONLY_NO_RENDERABLE_FEATURES"]:
 			continue
 		var relative_glb := str(item.get("glb", ""))
 		if relative_glb.is_empty():
@@ -91,6 +96,7 @@ func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.j
 			push_warning("Real Dhaka tile has no geographic origin: " + relative_glb)
 			return false
 		var copy: Dictionary = item.duplicate(true)
+		copy["ground_only"] = tile_status == "GROUND_ONLY_NO_RENDERABLE_FEATURES"
 		copy["full_path"] = full_path
 		copy["origin_lat"] = float(origin[0])
 		copy["origin_lon"] = float(origin[1])
