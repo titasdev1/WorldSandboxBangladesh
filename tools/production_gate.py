@@ -91,6 +91,10 @@ if "func toggle_camera_view_mode()" not in player_text or 'camera_view_mode == "
     raise SystemExit("PRODUCTION GATE FAILED: first-person/third-person camera modes are not implemented")
 if "CameraViewToggle" not in hud_text or "_toggle_camera_view" not in hud_text:
     raise SystemExit("PRODUCTION GATE FAILED: first-person/third-person toggle is not exposed in the touch HUD")
+if 'add_touch_button("AIM"' not in hud_text or 'Input.is_action_pressed("aim")' not in player_text:
+    raise SystemExit("PRODUCTION GATE FAILED: hold-to-aim zoom is not integrated into the player and touch HUD")
+if "CombatCrosshair" not in hud_text:
+    raise SystemExit("PRODUCTION GATE FAILED: combat reticle is missing from the HUD")
 interior_text = (ROOT / "systems" / "interior_factory.gd").read_text(encoding="utf-8")
 if "CeilingFanAnimated" not in interior_text or "open_interior" not in interior_text:
     raise SystemExit("PRODUCTION GATE FAILED: generated interior runtime/animated dressing is missing")
