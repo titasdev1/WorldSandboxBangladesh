@@ -14,9 +14,15 @@ var exterior_return_position := Vector3.ZERO
 var exit_direction := Vector3(0, 0, 1)
 var exit_world_position := Vector3.ZERO
 var dialogue_index := 0
+var fan_pivot: Node3D
 
 func configure(target: Node3D) -> void:
     world = target
+
+func _process(delta: float) -> void:
+    # Small visible animation keeps generated rooms from feeling like frozen debug boxes.
+    if is_instance_valid(fan_pivot) and is_inside():
+        fan_pivot.rotate_y(delta * 3.2)
 
 func _player() -> CharacterBody3D:
     if not is_instance_valid(world):
@@ -67,6 +73,7 @@ func _build_room() -> void:
     _solid_box(active_root, "FrontLintel", Vector3(0, 4.65, 7), Vector3(2.8, 0.7, 0.25), room_color.darkened(0.1))
 
     _build_furniture(category)
+    _add_room_details(category)
     _add_resident(category)
     var light := OmniLight3D.new()
     light.name = "InteriorLight"
@@ -85,6 +92,70 @@ func _build_room() -> void:
     name_sign.modulate = Color("#f3e7d0")
     name_sign.position = Vector3(0, 3.2, -6.75)
     active_root.add_child(name_sign)
+
+
+func _add_room_details(category: String) -> void:
+    # Game-authored Bangladeshi interior dressing. These details are generated
+    # assets, not scans or claims about the actual building's private interior.
+    for side in [-1.0, 1.0]:
+        var window_center := Vector3(side * 6.82, 3.0, -2.4)
+        _box(active_root, "WindowGlass", window_center, Vector3(0.045, 1.35, 2.55), Color("#6b9ca8"))
+        for z_offset in [-1.32, 1.32]:
+            _box(active_root, "WindowFrameVertical", window_center + Vector3(-side * 0.035, 0.0, z_offset), Vector3(0.12, 1.55, 0.12), Color("#eee1c8"))
+        for y_offset in [-0.72, 0.72]:
+            _box(active_root, "WindowFrameHorizontal", window_center + Vector3(-side * 0.04, y_offset, 0.0), Vector3(0.13, 0.12, 2.75), Color("#eee1c8"))
+        for z_offset in [-0.65, 0.0, 0.65]:
+            _box(active_root, "WindowSecurityBar", window_center + Vector3(-side * 0.075, 0.0, z_offset), Vector3(0.05, 1.3, 0.045), Color("#4a5558"))
+
+    # A wall clock and noticeboard make the room read as an inhabited place.
+    var clock := MeshInstance3D.new()
+    clock.name = "WallClock"
+    var clock_mesh := CylinderMesh.new()
+    clock_mesh.top_radius = 0.38
+    clock_mesh.bottom_radius = 0.38
+    clock_mesh.height = 0.08
+    clock.mesh = clock_mesh
+    clock.rotation_degrees = Vector3(90, 0, 0)
+    clock.position = Vector3(5.0, 3.65, -6.78)
+    clock.material_override = _material(Color("#f1e7cf"))
+    active_root.add_child(clock)
+    _box(active_root, "Noticeboard", Vector3(-4.4, 3.0, -6.78), Vector3(2.2, 1.5, 0.08), Color("#785c45"))
+    _box(active_root, "NoticeboardPaper", Vector3(-4.4, 3.0, -6.72), Vector3(1.85, 1.18, 0.035), Color("#e8d9b7"))
+
+    # Functional-looking tube light and a rotating ceiling fan provide a little
+    # motion and lighting depth while remaining cheap enough for mobile.
+    _box(active_root, "TubeLightHousing", Vector3(0.0, 4.68, -1.2), Vector3(3.2, 0.12, 0.28), Color("#d8ddd7"))
+    _box(active_root, "TubeLightGlow", Vector3(0.0, 4.60, -1.2), Vector3(2.9, 0.035, 0.12), Color("#fff1c9"))
+    fan_pivot = Node3D.new()
+    fan_pivot.name = "CeilingFanAnimated"
+    fan_pivot.position = Vector3(0.0, 4.42, 1.8)
+    active_root.add_child(fan_pivot)
+    var hub := MeshInstance3D.new()
+    var hub_mesh := SphereMesh.new()
+    hub_mesh.radius = 0.18
+    hub_mesh.height = 0.32
+    hub.mesh = hub_mesh
+    hub.material_override = _material(Color("#87918e"))
+    fan_pivot.add_child(hub)
+    for blade_index in range(4):
+        var blade := MeshInstance3D.new()
+        var blade_mesh := BoxMesh.new()
+        blade_mesh.size = Vector3(0.18, 0.045, 1.25)
+        blade.mesh = blade_mesh
+        blade.position = Vector3(0.0, -0.06, -0.78)
+        blade.rotation.y = TAU * float(blade_index) / 4.0
+        blade.material_override = _material(Color("#c3c9c3"))
+        fan_pivot.add_child(blade)
+
+    if category.contains("shop") or category in ["retail", "convenience", "supermarket"]:
+        _box(active_root, "ShopFridge", Vector3(-5.1, 1.35, 4.6), Vector3(1.0, 2.7, 1.2), Color("#d4dedb"))
+        _box(active_root, "FridgeDoorGlass", Vector3(-5.1, 1.45, 3.96), Vector3(0.72, 1.75, 0.05), Color("#8eb8c0"))
+    elif category.contains("clinic") or category.contains("hospital") or category.contains("health"):
+        _box(active_root, "ClinicWallCabinet", Vector3(4.9, 3.6, -6.78), Vector3(2.2, 1.0, 0.12), Color("#e8eee9"))
+    elif category.contains("school") or category.contains("education"):
+        _box(active_root, "ClassroomMapBoard", Vector3(0.0, 3.4, -6.78), Vector3(3.4, 1.0, 0.08), Color("#d8c59a"))
+    elif category.contains("house") or category.contains("residential") or category.contains("home"):
+        _box(active_root, "LivingRoomRug", Vector3(0.0, 0.025, 1.2), Vector3(4.8, 0.035, 3.2), Color("#8b5549"))
 
 func _build_furniture(category: String) -> void:
     if category.contains("shop") or category in ["retail", "convenience", "supermarket"] or category.contains("office"):
@@ -229,6 +300,7 @@ func _close_interior() -> void:
     resident = null
     active_seed.clear()
     active_tile_id = ""
+    fan_pivot = null
     var player := _player()
     if is_instance_valid(player):
         player.global_position = exterior_return_position
