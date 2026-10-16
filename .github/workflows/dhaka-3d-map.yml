@@ -132,6 +132,8 @@ jobs:
           python -m unittest discover -s tests -p 'test_merge_dhaka_division_batches.py' -v
 
       - name: Build boundary-clipped Dhaka Division tiles
+        env:
+          WSB_PIPELINE_COMMIT_SHA: ${{ inputs.source_commit || github.sha }}
         run: |
           python tools/map_pipeline/build_dhaka_division.py \
             --pbf build/osm/dhaka-division-envelope.osm.pbf \
