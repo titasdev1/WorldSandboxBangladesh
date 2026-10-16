@@ -192,8 +192,8 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         + "OSM data license: ODbL 1.0.\n"
         + f"Clipping boundary: {expected_boundary_name} (geoBoundaries gbOpen BGD {boundary_type}).\n"
         + f"Clipping boundary ID: {boundary_id}.\n"
-        + f"Clipping boundary license: {boundary_license}. License source: {boundary_license_source}.\n"
-        , encoding="utf-8",
+        + f"Clipping boundary license: {boundary_license}. License source: {boundary_license_source}.\n",
+        encoding="utf-8",
     )
     quality_report = {
         "build_stage": stage,
