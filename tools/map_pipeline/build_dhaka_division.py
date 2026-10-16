@@ -460,7 +460,7 @@ def main() -> int:
             json.dumps(output_manifest, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         (args.out / "ATTRIBUTION.txt").write_text(
-            OSM_ATTRIBUTION + "\\n" + boundary_attribution + "\\n",
+            OSM_ATTRIBUTION + "\n" + boundary_attribution + "\n",
             encoding="utf-8",
         )
         print(json.dumps({"stage_gate_reached": True, "tile_batch_count": 0,
