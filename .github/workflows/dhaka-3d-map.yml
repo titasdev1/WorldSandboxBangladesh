@@ -79,6 +79,7 @@ jobs:
       tile_degrees: ${{ inputs.tile_degrees || '0.05' }}
       max_tiles: ${{ inputs.max_tiles || (github.event_name == 'pull_request' && '2' || '8') }}
       build_stage: ${{ inputs.build_stage || 'shariatpur_review' }}
+      stage_gate_reached: ${{ steps.batch-meta.outputs.stage_gate_reached }}
     steps:
       - name: Checkout canonical repository
         uses: actions/checkout@v5
@@ -133,6 +134,9 @@ jobs:
           from pathlib import Path
           root = Path("build/dhaka-division")
           manifest = json.loads((root / "map_tiles_manifest.json").read_text())
+          if manifest.get("stage_gate_reached"):
+              print("Shariatpur review gate already reached; intentionally produced no additional tiles.")
+              raise SystemExit(0)
           glbs = list(root.rglob("Dhaka_Explorable_Map.glb"))
           if not glbs:
               raise SystemExit("No GLB tiles were produced")
@@ -170,7 +174,10 @@ jobs:
           total = int(manifest["tile_count_intersecting_boundary"])
           shariatpur_total = int(manifest["tile_order_priority"]["tiles_intersecting_shariatpur_district"])
           stage = manifest.get("build_stage", "shariatpur_review")
-          if stage == "shariatpur_review":
+          gate_reached = bool(manifest.get("stage_gate_reached", False))
+          if gate_reached:
+              next_offset = -1
+          elif stage == "shariatpur_review":
               # This stage is deliberately a hard gate: no automatic dispatch into
               # other districts until Shariatpur's standalone quality review passes.
               next_offset = offset + count if offset + count < shariatpur_total else -1
@@ -180,9 +187,11 @@ jobs:
           print(f"total_tiles={total}")
           print(f"shariatpur_tiles={shariatpur_total}")
           print(f"build_stage={stage}")
+          print(f"stage_gate_reached={'true' if gate_reached else 'false'}")
           PY
 
       - name: Upload Dhaka Division map batch
+        if: steps.batch-meta.outputs.stage_gate_reached != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: Project-A-Square-Dhaka-Division-${{ inputs.sequence_id || github.run_id }}-batch-${{ inputs.tile_offset || '0' }}-attempt-${{ inputs.retry_count || '0' }}
