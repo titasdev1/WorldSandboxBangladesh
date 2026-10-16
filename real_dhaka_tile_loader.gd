@@ -12,6 +12,7 @@ const GAME_ORIGIN_LAT := 23.8103
 const GAME_ORIGIN_LON := 90.4125
 const STREAM_INTERVAL := 0.5
 const MAX_INTERIOR_ANCHORS_PER_TILE := 24
+const MAX_BUILDING_COLLISIONS_PER_TILE := 96
 const INTERIOR_ANCHOR_RADIUS_M := 220.0
 const INTERIOR_ANCHOR_REFRESH_DISTANCE_M := 80.0
 const DEFAULT_LOAD_RADIUS_M := 2450.0
@@ -131,6 +132,7 @@ func _process(delta: float) -> void:
 		).length()
 		if horizontal_refresh_distance >= INTERIOR_ANCHOR_REFRESH_DISTANCE_M:
 			_refresh_loaded_interior_anchors(player_position)
+			_refresh_loaded_building_collisions(player_position)
 			_last_anchor_refresh_position = player_position
 
 func get_road_routes() -> Array:
@@ -233,7 +235,7 @@ func _stream_tiles(player_position: Vector3) -> void:
 		instance.name = str(record["tile_id"])
 		instance.position = record["world_position"]
 		_world.add_child(instance)
-		_add_walkable_collisions(instance, record)
+		_add_walkable_collisions(instance, record, player_position)
 		_load_road_routes(record)
 		record["interior_anchors"] = _load_interior_anchors(record, player_position)
 		record["instance"] = instance
@@ -452,7 +454,7 @@ func _interior_anchor_placement(seed: Dictionary, tile_position: Vector3, road_r
 		}
 	return {"position": tile_position, "direction": Vector3(0, 0, 1)}
 
-func _add_walkable_collisions(root: Node, record: Dictionary) -> void:
+func _add_walkable_collisions(root: Node, record: Dictionary, player_position: Vector3) -> void:
 	var pending: Array[Node] = [root]
 	var individual_building_meshes := 0
 	while not pending.is_empty():
@@ -477,28 +479,49 @@ func _add_walkable_collisions(root: Node, record: Dictionary) -> void:
 				collision.position = bounds.position + bounds.size * 0.5
 				static_body.add_child(collision)
 				mesh_instance.add_child(static_body)
-	# New optimized packages batch building visuals by material. Rebuild the
-	# per-building box colliders from the same OSM footprint seeds instead of
-	# attaching one giant collider to the combined mesh.
+	# Optimized packages batch building visuals by material, so build only the
+	# nearest footprint colliders. Re-evaluate as the player moves to avoid
+	# creating hundreds of distant physics bodies per streamed tile.
 	if individual_building_meshes == 0:
-		_add_seed_building_collisions(root, record)
+		record["uses_seed_building_collisions"] = true
+		_add_seed_building_collisions(root, record, player_position)
 
 
-func _add_seed_building_collisions(root: Node, record: Dictionary) -> void:
-	var relative_path := str(record.get("interior_seeds", ""))
-	if relative_path.is_empty():
-		return
-	var path := MAP_ROOT + "/" + relative_path
-	if not FileAccess.file_exists(path):
-		return
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
-	if not (parsed is Array):
-		return
-	var seeds: Array = []
-	for item in parsed:
-		if item is Dictionary and (item.has("footprint_local_m") or item.has("anchor_local_m")):
-			seeds.append(item)
-	record["interior_seed_records"] = seeds
+func _refresh_loaded_building_collisions(player_position: Vector3) -> void:
+	for value in _loaded.values():
+		if not (value is Dictionary):
+			continue
+		var record: Dictionary = value
+		if not bool(record.get("uses_seed_building_collisions", false)):
+			continue
+		var root := record.get("instance") as Node3D
+		if root == null or not is_instance_valid(root):
+			continue
+		for child in root.get_children():
+			if child is StaticBody3D and child.name.begins_with("BuildingCollisionSeed_"):
+				root.remove_child(child)
+				child.free()
+		_add_seed_building_collisions(root, record, player_position)
+
+
+func _add_seed_building_collisions(root: Node3D, record: Dictionary, player_position: Vector3) -> void:
+	var seeds: Array = record.get("interior_seed_records", [])
+	if seeds.is_empty():
+		var relative_path := str(record.get("interior_seeds", ""))
+		if relative_path.is_empty():
+			return
+		var path := MAP_ROOT + "/" + relative_path
+		if not FileAccess.file_exists(path):
+			return
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+		if not (parsed is Array):
+			return
+		for item in parsed:
+			if item is Dictionary and item.has("footprint_local_m"):
+				seeds.append(item)
+		record["interior_seed_records"] = seeds
+	var ranked: Array[Dictionary] = []
+	var tile_position: Vector3 = record.get("world_position", Vector3.ZERO)
 	for seed in seeds:
 		if not (seed is Dictionary):
 			continue
@@ -522,15 +545,26 @@ func _add_seed_building_collisions(root: Node, record: Dictionary) -> void:
 			max_y = maxf(max_y, y)
 		if not valid_footprint:
 			continue
-		var width := maxf(max_x - min_x, 0.5)
-		var depth := maxf(max_y - min_y, 0.5)
+		var local_center := Vector3((min_x + max_x) * 0.5, 0.0, -(min_y + max_y) * 0.5)
+		var world_center := tile_position + local_center
+		ranked.append({"seed": seed, "distance_sq": world_center.distance_squared_to(player_position),
+			"min_x": min_x, "max_x": max_x, "min_y": min_y, "max_y": max_y})
+	ranked.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a["distance_sq"]) < float(b["distance_sq"])
+	)
+	var limit := mini(ranked.size(), MAX_BUILDING_COLLISIONS_PER_TILE)
+	for index in range(limit):
+		var item: Dictionary = ranked[index]
+		var seed: Dictionary = item["seed"]
+		var width := maxf(float(item["max_x"]) - float(item["min_x"]), 0.5)
+		var depth := maxf(float(item["max_y"]) - float(item["min_y"]), 0.5)
 		var raw_height: Variant = seed.get("height_metres", seed.get("building_height_m", 3.2))
 		var height := 3.2
 		if raw_height is int or raw_height is float:
 			height = clampf(float(raw_height), 2.5, 120.0)
 		var static_body := StaticBody3D.new()
 		static_body.name = "BuildingCollisionSeed_" + str(seed.get("osm_id", "unknown"))
-		static_body.position = Vector3((min_x + max_x) * 0.5, height * 0.5, -(min_y + max_y) * 0.5)
+		static_body.position = Vector3((float(item["min_x"]) + float(item["max_x"])) * 0.5, height * 0.5, -(float(item["min_y"]) + float(item["max_y"])) * 0.5)
 		var collision := CollisionShape3D.new()
 		collision.name = "BuildingFootprintCollision"
 		var shape := BoxShape3D.new()
