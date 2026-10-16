@@ -63,8 +63,12 @@ class DhakaMapPipelineTests(unittest.TestCase):
             ],
         }]
         with tempfile.TemporaryDirectory() as tmp:
-            build_map(elements, Path(tmp), DEFAULT_BBOX)
+            manifest = build_map(elements, Path(tmp), DEFAULT_BBOX)
             seeds = json.loads((Path(tmp) / "AI_Interior_Seeds.json").read_text(encoding="utf-8"))
+            self.assertGreater(manifest["feature_counts"]["facade_window_panels"], 0)
+            scene = trimesh.load(Path(tmp) / "Dhaka_Explorable_Map.glb", force="scene")
+            self.assertTrue(any(name.startswith("facade_windows_") for name in scene.geometry))
+            self.assertIn("PROCEDURAL_LOW_POLY_WINDOW_PANELS", seeds[0]["facade_status"])
             self.assertEqual(seeds[0]["signage_text"]["name:bn"], "দোকান")
             self.assertEqual(seeds[0]["height_source"], "AREA_CATEGORY_ESTIMATE_UNVERIFIED")
             self.assertEqual(seeds[0]["floors_source"], "AREA_CATEGORY_ESTIMATE_UNVERIFIED")
