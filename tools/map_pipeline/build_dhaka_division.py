@@ -336,6 +336,9 @@ def main() -> int:
                         help="Zero-based offset in the Shariatpur-first, full-division tile order")
     parser.add_argument("--max-tiles", type=int, default=2,
                         help="Maximum tiles in this bounded batch; use 2 to keep each run below six hours")
+    parser.add_argument("--stage", choices=("shariatpur_review", "full_division"),
+                        default="shariatpur_review",
+                        help="Stop after Shariatpur for quality review unless full_division is explicitly selected")
     args = parser.parse_args()
     if not 0.01 <= args.tile_degrees <= 0.08:
         parser.error("--tile-degrees must be between 0.01 and 0.08 degrees")
@@ -362,7 +365,10 @@ def main() -> int:
         if shariatpur_boundary.intersects(box(tile[1], tile[0], tile[3], tile[2]))
     )
     ordered_tiles = order_tiles_shariatpur_first(tiles, shariatpur_boundary)
-    tiles = select_tile_batch(ordered_tiles, args.tile_offset, args.max_tiles)
+    effective_limit = args.max_tiles
+    if args.stage == "shariatpur_review" and args.tile_offset < shariatpur_tile_count:
+        effective_limit = min(args.max_tiles, shariatpur_tile_count - args.tile_offset)
+    tiles = select_tile_batch(ordered_tiles, args.tile_offset, effective_limit)
     if not tiles:
         raise RuntimeError(
             f"No tiles remain at offset {args.tile_offset}; total intersecting tiles: {total_tiles}."
@@ -464,6 +470,7 @@ def main() -> int:
                                    "attribution": BOUNDARY_ATTRIBUTION},
         "region_south_west_north_east": list(bounds),
         "tile_edge_degrees": args.tile_degrees,
+        "build_stage": args.stage,
         "tile_count_intersecting_boundary": total_tiles,
         "tile_batch_offset": args.tile_offset,
         "tile_batch_count": len(tiles),
