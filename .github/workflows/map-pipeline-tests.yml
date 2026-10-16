@@ -1,0 +1,48 @@
+name: Fast Map Pipeline Checks
+
+on:
+  pull_request:
+    paths:
+      - "tools/map_pipeline/**"
+      - "tests/test_dhaka_map_pipeline.py"
+      - "tests/test_dhaka_division_pipeline.py"
+      - "tests/test_merge_dhaka_division_batches.py"
+      - ".github/workflows/map-pipeline-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/map_pipeline/**"
+      - "tests/test_dhaka_map_pipeline.py"
+      - "tests/test_dhaka_division_pipeline.py"
+      - "tests/test_merge_dhaka_division_batches.py"
+      - ".github/workflows/map-pipeline-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fast-map-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  map-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install only map-test dependencies
+        run: python -m pip install osmium shapely trimesh mapbox-earcut
+      - name: Compile map pipeline scripts
+        run: |
+          python -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_division.py tools/map_pipeline/prepare_dhaka_division_pbf.py tools/map_pipeline/merge_dhaka_division_batches.py tools/map_pipeline/tile_grid.py
+      - name: Run offline map pipeline regression tests
+        run: |
+          python -m unittest discover -s tests -p 'test_dhaka*_pipeline.py' -v
+          python -m unittest discover -s tests -p 'test_merge_dhaka_division_batches.py' -v
