@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 from shapely.geometry import Polygon, box, shape
+from tools.map_pipeline.prepare_dhaka_division_pbf import FEATURE_KEYS, build_tag_filter_command
 from tools.map_pipeline.build_dhaka_division import (
     _clip_elements, _source_geometry, _replace_ground_with_boundary,
     order_tiles_shariatpur_first, select_tile_batch, effective_batch_limit, stage_gate_reached,
@@ -13,6 +14,23 @@ from tools.map_pipeline.build_dhaka_map import build_map
 
 
 class DhakaDivisionPipelineTests(unittest.TestCase):
+    def test_cached_pbf_filter_covers_every_builder_feature_key(self):
+        from tools.map_pipeline.build_dhaka_division import INTERESTING_KEYS
+        self.assertEqual(set(FEATURE_KEYS), INTERESTING_KEYS)
+        self.assertIn("building", FEATURE_KEYS)
+        self.assertIn("highway", FEATURE_KEYS)
+        self.assertIn("natural", FEATURE_KEYS)
+        self.assertIn("waterway", FEATURE_KEYS)
+        self.assertIn("power", FEATURE_KEYS)
+
+    def test_filtered_pbf_command_preserves_referenced_nodes_and_all_feature_keys(self):
+        command = build_tag_filter_command("osmium", Path("regional.osm.pbf"), Path("filtered.osm.pbf"))
+        self.assertEqual(command[:3], ["osmium", "tags-filter", "regional.osm.pbf"])
+        selectors = command[3:3 + len(FEATURE_KEYS)]
+        self.assertEqual(selectors, [f"nwr/{key}" for key in FEATURE_KEYS])
+        self.assertNotIn("-R", command)
+        self.assertEqual(command[-3:], ["--overwrite", "-o", "filtered.osm.pbf"])
+
     def test_osm_extract_includes_trees_power_grid_and_street_lamps(self):
         self.assertTrue(has_feature({"natural": "tree"}))
         self.assertTrue(has_feature({"power": "pole"}))
