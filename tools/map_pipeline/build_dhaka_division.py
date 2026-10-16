@@ -219,6 +219,11 @@ def build_boundary_for_stage(stage: str, division_boundary: Any, district_bounda
     raise ValueError(f"Unsupported map build stage: {stage}")
 
 
+def pipeline_commit_sha() -> str:
+    """Return the pinned map-pipeline revision recorded in every batch manifest."""
+    return os.environ.get("WSB_PIPELINE_COMMIT_SHA", os.environ.get("GITHUB_SHA", "local")).strip()
+
+
 def stage_gate_reached(offset: int, shariatpur_tile_count: int, stage: str) -> bool:
     """True when a Shariatpur-only sequence has reached the review boundary."""
     if offset < 0 or shariatpur_tile_count < 0:
@@ -446,7 +451,7 @@ def main() -> int:
             },
             "region_south_west_north_east": list((build_boundary.bounds[1], build_boundary.bounds[0], build_boundary.bounds[3], build_boundary.bounds[2])),
             "tile_edge_degrees": args.tile_degrees,
-        "pipeline_commit_sha": os.environ.get("WSB_PIPELINE_COMMIT_SHA", os.environ.get("GITHUB_SHA", "local")),
+        "pipeline_commit_sha": pipeline_commit_sha(),
             "build_stage": args.stage,
             "stage_gate_reached": True,
             "tile_count_intersecting_boundary": shariatpur_tile_count if args.stage == "shariatpur_review" else total_tiles,
@@ -584,6 +589,7 @@ def main() -> int:
         "region_south_west_north_east": list((build_boundary.bounds[1], build_boundary.bounds[0],
                                                 build_boundary.bounds[3], build_boundary.bounds[2])),
         "tile_edge_degrees": args.tile_degrees,
+        "pipeline_commit_sha": pipeline_commit_sha(),
         "build_stage": args.stage,
         "tile_count_intersecting_boundary": shariatpur_tile_count if args.stage == "shariatpur_review" else total_tiles,
         "tile_count_intersecting_division": total_tiles,
