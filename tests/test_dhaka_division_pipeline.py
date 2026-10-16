@@ -6,7 +6,7 @@ from shapely.geometry import Polygon, box, shape
 from tools.map_pipeline.build_dhaka_division import (
     _clip_elements, _source_geometry, _replace_ground_with_boundary,
     order_tiles_shariatpur_first, select_tile_batch, effective_batch_limit, stage_gate_reached,
-    SHARIATPUR_PRIORITY_LAT_LON, has_feature,
+    build_boundary_for_stage, SHARIATPUR_PRIORITY_LAT_LON, has_feature,
 )
 from tools.map_pipeline.build_dhaka_map import build_map
 
@@ -53,6 +53,14 @@ class DhakaDivisionPipelineTests(unittest.TestCase):
         self.assertFalse(stage_gate_reached(4, district_count, "full_division"))
         with self.assertRaises(ValueError):
             effective_batch_limit(-1, 3, district_count, "shariatpur_review")
+
+    def test_review_stage_uses_shariatpur_boundary_not_division_boundary(self):
+        division = box(89.0, 22.0, 92.0, 25.0)
+        district = box(90.30, 23.20, 90.38, 23.27)
+        self.assertIs(build_boundary_for_stage("shariatpur_review", division, district), district)
+        self.assertIs(build_boundary_for_stage("full_division", division, district), division)
+        with self.assertRaises(ValueError):
+            build_boundary_for_stage("unknown", division, district)
 
     def test_tile_batches_reject_invalid_limits(self):
         with self.assertRaises(ValueError):
