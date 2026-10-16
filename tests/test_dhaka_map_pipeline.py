@@ -124,6 +124,15 @@ class DhakaMapPipelineTests(unittest.TestCase):
                     {"lat": 23.8120, "lon": 90.4070}, {"lat": 23.8120, "lon": 90.4170},
                 ],
             },
+            {
+                "type": "way", "id": 2105,
+                "tags": {"natural": "wood", "name": "Mapped Woodland"},
+                "geometry": [
+                    {"lat": 23.8060, "lon": 90.4130}, {"lat": 23.8060, "lon": 90.4150},
+                    {"lat": 23.8075, "lon": 90.4150}, {"lat": 23.8075, "lon": 90.4130},
+                    {"lat": 23.8060, "lon": 90.4130},
+                ],
+            },
         ]
         self.assertEqual(waterway_width({"waterway": "river", "width": "35"}), 35.0)
         self.assertEqual(waterway_width({"waterway": "river"}), 180.0)
@@ -135,8 +144,11 @@ class DhakaMapPipelineTests(unittest.TestCase):
             self.assertEqual(counts["waterway_segments"], 1)
             self.assertEqual(counts["landuse_areas"], 2)  # farmland + mapped woodland
             self.assertEqual(counts["bridge_ways"], 1)
+            self.assertGreater(counts["procedural_vegetation_trees"], 0)
+            self.assertGreaterEqual(counts["vegetation_mesh_batches"], 1)
             scene = trimesh.load(out / "Dhaka_Explorable_Map.glb", force="scene")
             self.assertTrue(any(name.startswith("mapped_surface_") for name in scene.geometry))
+            self.assertTrue(any(name.startswith("procedural_vegetation_") for name in scene.geometry))
             source = json.loads((out / "Dhaka_OSM_Source.geojson").read_text(encoding="utf-8"))
             by_id = {feature["properties"]["osm_id"]: feature["geometry"]["type"] for feature in source["features"]}
             self.assertEqual(by_id[2101], "Polygon")
