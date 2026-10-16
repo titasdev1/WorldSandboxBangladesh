@@ -1,0 +1,1 @@
+Fixture only. Real map packs must include OSM and administrative-boundary attribution.
