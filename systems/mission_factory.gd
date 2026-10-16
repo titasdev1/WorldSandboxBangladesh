@@ -204,23 +204,64 @@ func _make_target_positions(mission: Dictionary) -> Array[Vector3]:
     var count := 2
     if kind in ["rescue", "escort"]:
         count = 3
-    # On the real map, use actual OSM-derived road positions supplied by the
-    # existing georeferenced loader. The fictional fallback uses local city space.
+
+    # Prefer actual nearby OSM road points on the streamed map, so repeatable
+    # jobs do not all route to the same three startup coordinates.
     if bool(world.get("real_dhaka_loaded")):
-        var mapped_targets: Array = world.get("real_mission_targets")
-        if not mapped_targets.is_empty():
-            var first := int(mission.get("id", 0)) % mapped_targets.size()
-            for i in range(mini(count, mapped_targets.size())):
-                var point: Variant = mapped_targets[(first + i) % mapped_targets.size()]
-                if point is Vector3:
+        var loader: Node = world.get("real_dhaka_loader") as Node
+        if is_instance_valid(loader) and loader.has_method("get_road_routes"):
+            var routes: Array = loader.call("get_road_routes")
+            var player_position: Vector3 = player.global_position if is_instance_valid(player) else Vector3.ZERO
+            var candidates: Array[Vector3] = []
+            for route in routes:
+                if not (route is Array):
+                    continue
+                for point in route:
+                    if not (point is Vector3):
+                        continue
+                    var distance := Vector2(point.x - player_position.x, point.z - player_position.z).length()
+                    if distance >= TARGET_RADIUS_MIN and distance <= TARGET_RADIUS_MAX:
+                        candidates.append(point)
+            candidates.shuffle()
+            for point in candidates:
+                var separated := true
+                for existing in positions:
+                    if Vector2(existing.x - point.x, existing.z - point.z).length() < 35.0:
+                        separated = false
+                        break
+                if separated:
                     positions.append(point)
+                if positions.size() >= count:
+                    break
+
+        # Fall back to the world-level mapped targets only when the loaded road
+        # window did not contain enough distinct destinations.
+        if positions.size() < count:
+            var mapped_targets: Array = world.get("real_mission_targets")
+            for point in mapped_targets:
+                if not (point is Vector3):
+                    continue
+                var player_position: Vector3 = player.global_position if is_instance_valid(player) else Vector3.ZERO
+                var distance := Vector2(point.x - player_position.x, point.z - player_position.z).length()
+                if distance < TARGET_RADIUS_MIN or distance > TARGET_RADIUS_MAX:
+                    continue
+                var separated := true
+                for existing in positions:
+                    if Vector2(existing.x - point.x, existing.z - point.z).length() < 35.0:
+                        separated = false
+                        break
+                if separated:
+                    positions.append(point)
+                if positions.size() >= count:
+                    break
+
     while positions.size() < count:
         var angle := rng.randf_range(0.0, TAU)
         var radius := rng.randf_range(TARGET_RADIUS_MIN, TARGET_RADIUS_MAX)
         var point := Vector3(cos(angle) * radius, 0, sin(angle) * radius)
         var too_close := false
         for existing in positions:
-            if existing.distance_to(point) < 35.0:
+            if Vector2(existing.x - point.x, existing.z - point.z).length() < 35.0:
                 too_close = true
                 break
         if not too_close:
