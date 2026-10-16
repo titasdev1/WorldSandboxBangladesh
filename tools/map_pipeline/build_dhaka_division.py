@@ -393,6 +393,9 @@ def main() -> int:
         if shariatpur_boundary.intersects(box(tile[1], tile[0], tile[3], tile[2]))
     )
     ordered_tiles = order_tiles_shariatpur_first(tiles, shariatpur_boundary)
+    build_boundary = build_boundary_for_stage(args.stage, boundary, shariatpur_boundary)
+    build_boundary_properties = shariatpur_properties if args.stage == "shariatpur_review" else boundary_properties
+    build_boundary_name = "Shariatpur District" if args.stage == "shariatpur_review" else "Dhaka Division"
     if stage_gate_reached(args.tile_offset, shariatpur_tile_count, args.stage):
         # A stale/queued dispatch from the previous workflow version must not
         # accidentally bake non-Shariatpur tiles. Emit an explicit successful
@@ -514,7 +517,7 @@ def main() -> int:
         tile_id = f"tile_{s:.4f}_{w:.4f}".replace(".", "p")
         tile_dir = args.out / tile_id
         tile_polygon = box(w, s, e, n)
-        boundary_tile = boundary.intersection(tile_polygon)
+        boundary_tile = build_boundary.intersection(tile_polygon)
         clipped = _clip_elements(candidates[index - 1], boundary_tile)
         if not clipped:
             tile_records.append({"tile_id": tile_id, "bbox_south_west_north_east": list(bbox),
