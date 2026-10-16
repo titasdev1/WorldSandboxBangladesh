@@ -25,7 +25,7 @@
     "015_UI",
     "017_SAVE_LOAD"
   ],
-  "next_priority": "REGENERATE_AND_INSPECT_SHARIATPUR_REVIEW_PACKAGE_AFTER_PR_59_MERGE",
+  "next_priority": "Validate APK summary workflow fix; inspect and regenerate Shariatpur review package, correct sequence metadata, and preserve pinned map until quality acceptance.",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -43,7 +43,7 @@
     "PR #59 merged as 30bc0e3b4f353d923923dc8707475b114cfe0a0c after its exact head 7d62ad457907a72094a6cbdc072ebbdd152d0066 passed fast map tests, Godot runtime validation, bounded map validation, and canonical Android export run 38892036942. Main-branch post-merge run is not yet independently observed.",
     "Shariatpur review artifact from run 38891159212 is REVIEW_REQUIRED: 60/60 tile offsets and GLBs present, but 3 tiles are ground-only; mapped street lamps 0, trees 2, 34,782 of 34,806 building heights estimated, licensed photorealistic façade imagery absent, and Android map-package integration/device performance unverified.",
     "Map artifact naming from run 38891159212 omitted its sequence suffix. Fix workflow metadata propagation without rebuilding tiles solely to rename the artifact.",
-    "Canonical Android run 38892036942 used debug-fallback signing (stable release keystore secrets were unavailable). APK ZIP integrity and v2/v3 signature verification passed, but a production-signed release artifact is still required before public release. Build log also emitted a shell '491470358: command not found' during asset-audit reporting after the APK checksum was recorded; inspect/fix this reporting warning even though the workflow completed successfully."
+    "APK summary shell-quoting defect fixed in .github/workflows/android.yml commit bf43113107353095891ae6255a6e08d07b55b3a5; awaiting a workflow run to verify no shell warning and correct summary output."
   ],
   "build_status": "PR_59_MERGED_CANONICAL_ANDROID_EXPORT_PASSED_POST_MERGE_MAIN_RUN_PENDING",
   "latest_verified_run": 38892036942,
@@ -70,10 +70,10 @@
   "asset_pipeline": "live_game_factory_installed",
   "audit": {
     "date": "2026-10-16",
-    "latest_audited_commit": "30bc0e3b4f353d923923dc8707475b114cfe0a0c",
+    "latest_audited_commit": "5df6c57a0a8fb702d7c9645d4ea7af86828abc48",
     "latest_audited_workflow_run": 38892036942,
-    "latest_audited_workflow_conclusion": "success_on_exact_PR_head_merged_as_30bc0e3; post-merge-main-run-not-yet-observed",
-    "verification_status": "PR #59 map pipeline tests, Godot import/startup, bounded map workflow, canonical Android export, APK integrity/checksum, and asset-size report steps passed on tested head 7d62ad4. Physical-device QA and newly regenerated Shariatpur package review remain pending.",
+    "latest_audited_workflow_conclusion": "latest_source_audit_includes_committed_APK_summary_fix; validation_run_pending",
+    "verification_status": "Previous PR-head Android build passed export, APK ZIP integrity and v2/v3 signature checks. Workflow summary shell-quoting fix is committed at bf43113107353095891ae6255a6e08d07b55b3a5; no post-fix Android run observed yet. Physical-device QA and regenerated Shariatpur package review remain pending.",
     "map_quality_gate": {
       "artifact_run": 38891159212,
       "status": "REVIEW_REQUIRED",
@@ -110,7 +110,9 @@
       "signature_v3": "PASS",
       "signing_mode": "debug-fallback",
       "production_signing": "NOT_CONFIGURED",
-      "report_warning": "Shell emitted '491470358: command not found' during size-audit reporting; investigate."
+      "report_warning": "Prior run emitted '491470358: command not found' in summary generation. Fixed in workflow source using printf; must verify in next run.",
+      "reporting_fix_commit": "bf43113107353095891ae6255a6e08d07b55b3a5",
+      "reporting_fix_status": "COMMITTED_AWAITING_WORKFLOW_VALIDATION"
     }
   }
 }
