@@ -19,8 +19,14 @@ on:
         required: true
         default: "8"
         type: string
+      build_stage:
+        description: "Build Shariatpur first and pause for polish/review; full division must be explicitly approved"
+        required: true
+        default: "shariatpur_review"
+        type: choice
+        options: ["shariatpur_review", "full_division"]
       continue_full_division:
-        description: "Automatically dispatch the next batch and assemble the full division map"
+        description: "Automatically dispatch the next batch within the selected build stage"
         required: true
         default: true
         type: boolean
@@ -72,6 +78,7 @@ jobs:
       sequence_id: ${{ inputs.sequence_id || github.run_id }}
       tile_degrees: ${{ inputs.tile_degrees || '0.05' }}
       max_tiles: ${{ inputs.max_tiles || (github.event_name == 'pull_request' && '2' || '8') }}
+      build_stage: ${{ inputs.build_stage || 'shariatpur_review' }}
     steps:
       - name: Checkout canonical repository
         uses: actions/checkout@v5
@@ -116,6 +123,7 @@ jobs:
             --tile-degrees "${{ inputs.tile_degrees || '0.05' }}" \
             --tile-offset "${{ inputs.tile_offset || '0' }}" \
             --max-tiles "${{ inputs.max_tiles || (github.event_name == 'pull_request' && '2' || '8') }}" \
+            --stage "${{ inputs.build_stage || 'shariatpur_review' }}" \
             --out build/dhaka-division
 
       - name: Verify map package and geographic provenance
@@ -160,9 +168,18 @@ jobs:
           offset = int(manifest["tile_batch_offset"])
           count = int(manifest["tile_batch_count"])
           total = int(manifest["tile_count_intersecting_boundary"])
-          next_offset = offset + count if offset + count < total else -1
+          shariatpur_total = int(manifest["tile_order_priority"]["tiles_intersecting_shariatpur_district"])
+          stage = manifest.get("build_stage", "shariatpur_review")
+          if stage == "shariatpur_review":
+              # This stage is deliberately a hard gate: no automatic dispatch into
+              # other districts until Shariatpur's standalone quality review passes.
+              next_offset = offset + count if offset + count < shariatpur_total else -1
+          else:
+              next_offset = offset + count if offset + count < total else -1
           print(f"next_offset={next_offset}")
           print(f"total_tiles={total}")
+          print(f"shariatpur_tiles={shariatpur_total}")
+          print(f"build_stage={stage}")
           PY
 
       - name: Upload Dhaka Division map batch
@@ -189,6 +206,7 @@ jobs:
           SEQUENCE_ID: ${{ inputs.sequence_id || github.run_id }}
           RETRY_COUNT: ${{ inputs.retry_count || '0' }}
           CONTINUE_FULL: ${{ inputs.continue_full_division || github.event_name == 'push' }}
+          BUILD_STAGE: ${{ inputs.build_stage || 'shariatpur_review' }}
         run: |
           set -euo pipefail
           NEXT_RETRY_COUNT=$((RETRY_COUNT + 1))
@@ -200,6 +218,7 @@ jobs:
               "tile_offset": "${TILE_OFFSET}",
               "max_tiles": "${MAX_TILES}",
               "continue_full_division": "${CONTINUE_FULL}",
+              "build_stage": "${BUILD_STAGE}",
               "sequence_id": "${SEQUENCE_ID}",
               "retry_count": "${NEXT_RETRY_COUNT}"
             }
@@ -220,6 +239,7 @@ jobs:
           TILE_DEGREES: ${{ needs.build-map.outputs.tile_degrees }}
           MAX_TILES: ${{ needs.build-map.outputs.max_tiles }}
           SEQUENCE_ID: ${{ needs.build-map.outputs.sequence_id }}
+          BUILD_STAGE: ${{ needs.build-map.outputs.build_stage }}
         run: |
           set -euo pipefail
           gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/dispatches" --input - <<EOF
@@ -230,6 +250,7 @@ jobs:
               "tile_offset": "${NEXT_OFFSET}",
               "max_tiles": "${MAX_TILES}",
               "continue_full_division": "true",
+              "build_stage": "${BUILD_STAGE}",
               "sequence_id": "${SEQUENCE_ID}",
               "retry_count": "0"
             }
