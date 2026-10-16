@@ -46,7 +46,7 @@ func open_interior(seed: Dictionary, exterior_position: Vector3, direction: Vect
     active_root.name = "GeneratedInterior_" + str(seed.get("osm_id", "place"))
     active_root.position = interior_origin
     # A stable per-building rotation makes layouts reproducible but not identical.
-    var building_id := abs(int(seed.get("osm_id", 1)))
+    var building_id: int = absi(int(seed.get("osm_id", 1)))
     active_root.rotation.y = float(building_id % 4) * PI * 0.5
     world.add_child(active_root)
     _build_room()
@@ -342,7 +342,7 @@ func _add_resident(category: String) -> void:
 
 func _fictional_name() -> String:
     var names := ["Rafiq Bhai", "Salma Khala", "Nusrat", "Jamal Uddin", "Mitu Apa", "Shuvo", "Farzana Begum", "Babul Mia", "Tania", "Kamal Chacha"]
-    var id := int(active_seed.get("osm_id", 0))
+    var id: int = int(active_seed.get("osm_id", 0))
     return names[abs(id) % names.size()]
 
 func _display_name() -> String:
@@ -388,7 +388,7 @@ func _talk_to_resident() -> void:
     dialogue_index += 1
     if category.contains("shop") or category in ["retail", "convenience", "supermarket"]:
         var player := _player()
-        var cash := int(world.get("cash"))
+        var cash: int = int(world.get("cash"))
         if is_instance_valid(player) and player.health < 100 and cash >= 20:
             world.set("cash", cash - 20)
             player.health = mini(100, player.health + 15)
