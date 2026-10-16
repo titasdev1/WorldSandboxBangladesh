@@ -93,6 +93,20 @@ if not any(
 ):
     raise SystemExit("PRODUCTION GATE FAILED: optional CC0 vehicle source/provenance is missing")
 
+# Require the 4,000-entry Deshi side-job system to be wired into the actual world/HUD.
+mission_factory_path = ROOT / "systems" / "mission_factory.gd"
+if not mission_factory_path.is_file():
+    raise SystemExit("PRODUCTION GATE FAILED: missing systems/mission_factory.gd")
+mission_factory_text = mission_factory_path.read_text(encoding="utf-8")
+hud_text = (ROOT / "hud.gd").read_text(encoding="utf-8")
+if 'load("res://systems/mission_factory.gd")' not in world_text or 'side_mission_factory.name = "MissionFactory"' not in world_text:
+    raise SystemExit("PRODUCTION GATE FAILED: Deshi MissionFactory is not instantiated in the canonical world")
+if 'get_node_or_null("MissionFactory")' not in hud_text:
+    raise SystemExit("PRODUCTION GATE FAILED: HUD does not read the active side-mission state")
+for token in ("MISSIONS_PER_CATALOGUE := 4000", "func _generate_catalogue()", "func _make_target_positions(", "get_road_routes"):
+    if token not in mission_factory_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: Deshi mission system missing {token}")
+
 # Keep feature modules as repository material, but don't pretend they are all integrated.
 features = sorted((ROOT / "features").glob("feature_*.gd"))
 if len(features) < 90:
