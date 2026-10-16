@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "026_COMBAT_LAB_AND_LAST_STAND_RULES",
+  "current_milestone": "027_SHARIATPUR_HYDROGRAPHY_FACADE_AND_COLLISION_PASS",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -25,7 +25,7 @@
     "015_UI",
     "017_SAVE_LOAD"
   ],
-  "next_priority": "027_VALIDATE_COMBAT_LOOP_AND_EXPAND_MISSION_DEPTH",
+  "next_priority": "REGENERATE_AND_INSPECT_SHARIATPUR_REVIEW_PACKAGE_AFTER_PR_59_MERGE",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -39,18 +39,21 @@
     "Build #220 passed Android export but its uploaded artifact container was 663,501,212 bytes; this is not a verified APK size. The PBR pipeline now excludes 8K maps and prefers 4K road / 2K other textures to control mobile payload and GPU memory.",
     "Six-mode lobby grid and Street Life selection are newly changed and require canonical build plus on-device layout QA.",
     "Build #223 passed the canonical Android workflow after adding exact APK/asset audit reporting. Audit report is uploaded as a separate 884-byte artifact; artifact-container size remains separate from actual APK size, and report payload has not yet been inspected directly.",
-    "Combat Lab / Last Stand controller merged in commit 123f84f; canonical Godot/Android validation and physical-device aiming/collision/performance QA are pending."
+    "Combat Lab / Last Stand controller merged in commit 123f84f; canonical Godot/Android validation and physical-device aiming/collision/performance QA are pending.",
+    "PR #59 merged as 30bc0e3b4f353d923923dc8707475b114cfe0a0c after its exact head 7d62ad457907a72094a6cbdc072ebbdd152d0066 passed fast map tests, Godot runtime validation, bounded map validation, and canonical Android export run 38892036942. Main-branch post-merge run is not yet independently observed.",
+    "Shariatpur review artifact from run 38891159212 is REVIEW_REQUIRED: 60/60 tile offsets and GLBs present, but 3 tiles are ground-only; mapped street lamps 0, trees 2, 34,782 of 34,806 building heights estimated, licensed photorealistic façade imagery absent, and Android map-package integration/device performance unverified.",
+    "Map artifact naming from run 38891159212 omitted its sequence suffix. Fix workflow metadata propagation without rebuilding tiles solely to rename the artifact."
   ],
-  "build_status": "combat_mode_rules_merged_pending_canonical_validation",
-  "latest_verified_run": 38513708962,
-  "latest_verified_commit": "54c1097254d7ee4f1595486a9082bb91c0676efe",
+  "build_status": "PR_59_MERGED_CANONICAL_ANDROID_EXPORT_PASSED_POST_MERGE_MAIN_RUN_PENDING",
+  "latest_verified_run": 38892036942,
+  "latest_verified_commit": "7d62ad457907a72094a6cbdc072ebbdd152d0066",
   "latest_build_artifact": {
-    "name": "WorldSandboxBangladesh-Android",
-    "artifact_id": 11871078329,
-    "size_bytes": 188983443,
-    "sha256": "sha256:f5dc5dd2815543dd4878af9e1b323074c5bea74175189cb02bfd4dac24581890",
-    "expires_at": "2027-01-12T04:53:08Z",
-    "note": "GitHub artifact container bytes; not the APK byte count."
+    "name": "WorldSandboxBangladesh-Canonical-Build",
+    "artifact_id": 12042499302,
+    "size_bytes": 483692566,
+    "sha256": "sha256:1a9de0c23730e6c2dc0d361e34d32600a4de48c3281f05c56ca1b74f0d7e5416",
+    "expires_at": "2027-01-14T11:10:35Z",
+    "note": "GitHub artifact container bytes for PR head 7d62ad4; not the APK's exact file size. APK integrity/checksum verification step passed in run 38892036942."
   },
   "save_system": "implemented_but_device_regression_pending",
   "finalization_status": "not_ready",
@@ -61,34 +64,36 @@
   "recovery_rule": "Preserve the existing playable boot path; each feature batch must pass Godot import/startup and Android export checks before being treated as verified.",
   "asset_pipeline": "live_game_factory_installed",
   "audit": {
-    "date": "2026-10-14",
-    "latest_audited_commit": "54c1097254d7ee4f1595486a9082bb91c0676efe",
-    "latest_audited_workflow_run": 38513708962,
-    "latest_audited_workflow_conclusion": "success",
-    "confirmed_parse_failures": [
-      "features/feature_003.gd: loop indentation",
-      "systems/game_factory.gd: untyped offset inference",
-      "player.gd: Variant type inference treated as error"
-    ],
-    "fixes_applied": [
-      "Corrected feature_003.gd loop indentation",
-      "Explicitly typed the procedural road offset",
-      "Used integer min helper for ammo reload calculation",
-      "Changed player movement to follow the rotated camera direction"
-    ],
-    "verification_status": "Run #223 passed Godot import/startup and Android export; asset audit report uploaded separately; combat-mode changes merged afterward and await the next canonical validation. Physical-device verification pending.",
-    "visual_batch": {
-      "date": "2026-10-13",
-      "branch": "production/recognizable-vehicles-humanoid-city-pass",
-      "changes_staged": [
-        "Replace single-box vehicle silhouettes with detailed custom rickshaw/CNG/bus/motorcycle/police models and rotating wheels",
-        "Use optional official Kenney CC0 car/truck models when available",
-        "Add reusable animated humanoid rig for player and inner/outer NPCs",
-        "Add building window facades and procedural sky/fog",
-        "Cache repeated materials to reduce allocation overhead",
-        "Add CI integration checks for visual systems"
+    "date": "2026-10-16",
+    "latest_audited_commit": "30bc0e3b4f353d923923dc8707475b114cfe0a0c",
+    "latest_audited_workflow_run": 38892036942,
+    "latest_audited_workflow_conclusion": "success_on_exact_PR_head_merged_as_30bc0e3; post-merge-main-run-not-yet-observed",
+    "verification_status": "PR #59 map pipeline tests, Godot import/startup, bounded map workflow, canonical Android export, APK integrity/checksum, and asset-size report steps passed on tested head 7d62ad4. Physical-device QA and newly regenerated Shariatpur package review remain pending.",
+    "map_quality_gate": {
+      "artifact_run": 38891159212,
+      "status": "REVIEW_REQUIRED",
+      "expected_tiles": 60,
+      "present_tiles": 60,
+      "tiles_with_renderable_osm_features": 57,
+      "ground_only_tiles": [
+        "tile_23p0335_90p3053",
+        "tile_23p0335_90p5053",
+        "tile_23p4335_90p3053"
       ],
-      "verification_status": "run 210 passed production gate, strict source-only Godot import/startup, Android export and artifact upload; optional CC0 download succeeded with 50 models; exporter logs dummy-renderer texture errors, so Android visual QA remains pending"
+      "building_footprints": 34806,
+      "road_ways": 3056,
+      "interior_anchors": 35303,
+      "estimated_building_heights": 34782,
+      "mapped_trees": 2,
+      "mapped_utility_poles": 35,
+      "mapped_street_lamps": 0,
+      "blockers": [
+        "Regenerate current Shariatpur review sequence after PR #59 merge",
+        "Inspect and fix missing sequence suffix in artifact name",
+        "Manual exterior/geometry review",
+        "Licensed façade imagery absent",
+        "Android integration and physical-device memory/FPS/touch QA pending"
+      ]
     }
   }
 }
