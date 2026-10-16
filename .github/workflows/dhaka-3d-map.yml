@@ -35,6 +35,11 @@ on:
         required: false
         default: ""
         type: string
+      assemble_only:
+        description: "Assemble an already completed Shariatpur batch sequence without rebuilding tiles"
+        required: false
+        default: false
+        type: boolean
       retry_count:
         description: "Internal bounded retry counter for a failed batch"
         required: false
@@ -70,6 +75,7 @@ concurrency:
 
 jobs:
   build-map:
+    if: ${{ !inputs.assemble_only && !(github.event_name == 'push' && contains(github.event.head_commit.message, '[assemble-shariatpur-review:')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     outputs:
@@ -237,7 +243,7 @@ jobs:
 
   continue-map:
     needs: build-map
-    if: success() && ((github.event_name == 'workflow_dispatch' && inputs.continue_full_division) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[build-shariatpur-review]')))
+    if: ${{ always() && (inputs.assemble_only || (github.event_name == 'push' && contains(github.event.head_commit.message, '[assemble-shariatpur-review:')) || (success() && ((github.event_name == 'workflow_dispatch' && inputs.continue_full_division) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[build-shariatpur-review]')))) ) }}
     runs-on: ubuntu-latest
     timeout-minutes: 50
     steps:
@@ -253,7 +259,7 @@ jobs:
         run: python -m pip install numpy trimesh
 
       - name: Dispatch the next bounded tile batch
-        if: needs.build-map.outputs.next_offset != '-1'
+        if: ${{ !inputs.assemble_only && !(github.event_name == 'push' && contains(github.event.head_commit.message, '[assemble-shariatpur-review:')) && needs.build-map.outputs.next_offset != '-1' }}
         env:
           GH_TOKEN: ${{ github.token }}
           NEXT_OFFSET: ${{ needs.build-map.outputs.next_offset }}
@@ -279,25 +285,32 @@ jobs:
           EOF
 
       - name: Mark Shariatpur review gate reached
-        if: needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'shariatpur_review'
+        if: ${{ inputs.assemble_only || (github.event_name == 'push' && contains(github.event.head_commit.message, '[assemble-shariatpur-review:')) || (needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'shariatpur_review') }}
         run: |
           echo "Shariatpur-first batch sequence reached its review gate."
           echo "Do not start the full Dhaka Division stage until exterior fidelity, coverage, interiors, and Android integration are reviewed."
 
       - name: Assemble complete Shariatpur District review package
-        if: needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'shariatpur_review' && needs.build-map.outputs.stage_gate_reached != 'true'
+        if: ${{ inputs.assemble_only || (github.event_name == 'push' && contains(github.event.head_commit.message, '[assemble-shariatpur-review:')) || (needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'shariatpur_review' && needs.build-map.outputs.stage_gate_reached != 'true') }}
         env:
           GH_TOKEN: ${{ github.token }}
-          SEQUENCE_ID: ${{ needs.build-map.outputs.sequence_id }}
+          SEQUENCE_ID: ${{ inputs.sequence_id || needs.build-map.outputs.sequence_id || github.run_id }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            marker_id="$(printf '%s' "${GITHUB_EVENT_HEAD_COMMIT_MESSAGE}" | sed -n 's/.*\[assemble-shariatpur-review:\([0-9][0-9]*\)\].*/\1/p')"
+            if [[ -n "${marker_id}" ]]; then SEQUENCE_ID="${marker_id}"; fi
+          fi
           mkdir -p build/shariatpur/batches
           gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/runs?branch=main&per_page=100" \
             --jq '.workflow_runs[] | [.id, .head_branch, (.conclusion // "")] | @tsv' > /tmp/map-runs.tsv
           prefix="Project-A-Square-Dhaka-Division-${SEQUENCE_ID}-batch-"
           while read -r run_id branch conclusion; do
             [[ "${branch}" == "main" ]] || continue
-            [[ "${conclusion}" == "success" || "${run_id}" == "${GITHUB_RUN_ID}" ]] || continue
+            build_conclusion="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs" --jq '.jobs[] | select(.name == "build-map") | .conclusion' | head -n 1)"
+            [[ "${build_conclusion}" == "success" ]] || continue
             while IFS= read -r artifact_name; do
               [[ "${artifact_name}" == "${prefix}"* ]] || continue
               offset="${artifact_name##*-batch-}"
@@ -314,14 +327,14 @@ jobs:
                 fi
               fi
             done < <(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts" --jq '.artifacts[] | select(.expired == false) | .name')
-          done < /tmp/map-runs.tsv
+          done < <(tac /tmp/map-runs.tsv)
           python tools/map_pipeline/merge_dhaka_division_batches.py \
             --batches-dir build/shariatpur/batches \
             --out build/shariatpur-full \
             --stage shariatpur_review
 
       - name: Upload complete Shariatpur District review package
-        if: needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'shariatpur_review' && needs.build-map.outputs.stage_gate_reached != 'true'
+        if: ${{ inputs.assemble_only || (github.event_name == 'push' && contains(github.event.head_commit.message, '[assemble-shariatpur-review:')) || (needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'shariatpur_review' && needs.build-map.outputs.stage_gate_reached != 'true') }}
         uses: actions/upload-artifact@v4
         with:
           name: Project-A-Square-Shariatpur-Review-Map-${{ needs.build-map.outputs.sequence_id }}
