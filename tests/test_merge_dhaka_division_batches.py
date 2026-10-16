@@ -40,11 +40,11 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
             batches = root / "batches"
             batches.mkdir()
             write_batch(batches, 0, [
-                {"tile_id": "tile_a", "status": "BAKED_FROM_OSM"},
-                {"tile_id": "tile_b", "status": "EMPTY"},
+                {"tile_id": "tile_a", "status": "BAKED_FROM_OSM", "feature_counts": {"building_footprints": 3, "road_ways": 2}},
+                {"tile_id": "tile_b", "status": "EMPTY", "feature_counts": {"building_footprints": 0, "road_ways": 0}},
             ], total=3, geometry_count=1)
             write_batch(batches, 2, [
-                {"tile_id": "tile_c", "status": "BAKED_FROM_OSM"},
+                {"tile_id": "tile_c", "status": "BAKED_FROM_OSM", "feature_counts": {"building_footprints": 4}},
             ], total=3, geometry_count=1)
             output = root / "full"
             summary = merge_batches(batches, output)
@@ -52,6 +52,8 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
             self.assertTrue(summary["complete_division_map"])
             self.assertEqual(manifest["tile_count_intersecting_boundary"], 3)
             self.assertEqual(manifest["tile_count_with_geometry"], 2)
+            self.assertEqual(manifest["feature_counts_across_tiles"]["building_footprints"], 7)
+            self.assertEqual(manifest["feature_counts_across_tiles"]["road_ways"], 2)
             self.assertEqual(len(manifest["tiles"]), 3)
             self.assertEqual(manifest["tile_batch_offsets"], [0, 2])
             self.assertEqual(len(list(output.rglob("Dhaka_Explorable_Map.glb"))), 2)
