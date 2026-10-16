@@ -1,6 +1,15 @@
 name: Build Android APK
 on:
   workflow_dispatch:
+    inputs:
+      map_package:
+        description: "Map to install for this Android build"
+        required: true
+        type: choice
+        default: greater_dhaka
+        options:
+          - greater_dhaka
+          - shariatpur_review
   pull_request:
     branches: [ main ]
     paths:
@@ -53,37 +62,64 @@ jobs:
         shell: bash
         run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/report_build_assets.py
 
-      # Pin the current map package so game-only builds do not rebuild or
-      # silently replace the world. Update this run ID only after a separately
-      # verified map release is intentionally promoted.
-      - name: Download the pinned existing Greater Dhaka map package
+      # The release default remains the pinned Greater Dhaka package. A manual
+      # review build can explicitly install the latest assembled Shariatpur-first
+      # district package without silently promoting it as a production map.
+      - name: Download selected map package
         uses: actions/download-artifact@v4
         with:
-          name: Project-A-Square-Greater-Dhaka-3D-Tiles
+          name: ${{ inputs.map_package == 'shariatpur_review' && 'Project-A-Square-Shariatpur-Review-Map-38896398155' || 'Project-A-Square-Greater-Dhaka-3D-Tiles' }}
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
-          run-id: 38618204090
-          path: build/greater-dhaka
+          run-id: ${{ inputs.map_package == 'shariatpur_review' && '38901386980' || '38618204090' }}
+          path: build/selected-map
 
-      - name: Install the unchanged map package into the game
+      - name: Install and validate selected map package
         shell: bash
+        env:
+          MAP_PACKAGE: ${{ inputs.map_package || 'greater_dhaka' }}
         run: |
           set -euo pipefail
-          test -s build/greater-dhaka/map_tiles_manifest.json
-          test -s build/greater-dhaka/ATTRIBUTION.txt
-          mkdir -p assets/world/dhaka_tiles
-          cp -a build/greater-dhaka/. assets/world/dhaka_tiles/
+          test -s build/selected-map/map_tiles_manifest.json
+          test -s build/selected-map/ATTRIBUTION.txt
           python3 - <<'PY'
           import json
+          import os
           from pathlib import Path
-          root = Path("assets/world/dhaka_tiles")
+          root = Path("build/selected-map")
           manifest = json.loads((root / "map_tiles_manifest.json").read_text())
           glbs = list(root.rglob("Dhaka_Explorable_Map.glb"))
           if not glbs or len(glbs) != manifest["tile_count_with_geometry"]:
-              raise SystemExit("Pinned Greater Dhaka map package failed integrity verification")
-          print(f"Preserved pinned map package: {len(glbs)} GLB tiles; {sum(p.stat().st_size for p in glbs):,} bytes")
+              raise SystemExit("Selected map package failed GLB/manifest integrity verification")
+          selected = os.environ["MAP_PACKAGE"]
+          if selected == "shariatpur_review":
+              report_path = root / "quality_gate_report.json"
+              if not report_path.is_file():
+                  raise SystemExit("Shariatpur review package has no quality gate report")
+              report = json.loads(report_path.read_text())
+              if manifest.get("build_stage") != "shariatpur_review" or not manifest.get("complete_district_map"):
+                  raise SystemExit("Selected Shariatpur package is not a complete district-stage package")
+              if report.get("status") != "REVIEW_REQUIRED":
+                  raise SystemExit("Unexpected Shariatpur quality status; inspect before packaging")
+              print("MAP QA MODE: Shariatpur district package is complete, but its visual/device review gate remains open.")
+          elif not manifest.get("tiles"):
+              raise SystemExit("Pinned Greater Dhaka package has no tile records")
+          print(f"Map package: {selected}")
+          print(f"GLB tiles: {len(glbs)}; bytes: {sum(p.stat().st_size for p in glbs):,}")
           print(f"Coverage: {manifest['region_south_west_north_east']}")
           PY
+          rm -rf assets/world/dhaka_tiles
+          mkdir -p assets/world/dhaka_tiles
+          cp -a build/selected-map/. assets/world/dhaka_tiles/
+          echo "WSB_MAP_PACKAGE=$MAP_PACKAGE" >> "$GITHUB_ENV"
+          {
+            echo "## Selected map package"
+            echo "- Source: $MAP_PACKAGE"
+            echo "- Tiles: $(find assets/world/dhaka_tiles -name 'Dhaka_Explorable_Map.glb' | wc -l)"
+            if [ "$MAP_PACKAGE" = "shariatpur_review" ]; then
+              echo "- Status: review build only; not promoted as a final map"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Restore Godot import cache for the pinned map assets
         uses: actions/cache@v4
@@ -261,13 +297,15 @@ jobs:
           cp build/apk-sha256.txt build/canonical_release/APK_SHA256.txt
           cp build/apk-zip-test.txt build/canonical_release/APK_ZIP_TEST.txt
           cp build/apk-signature-verification.txt build/canonical_release/APK_SIGNATURE_VERIFICATION.txt
-          cat > build/canonical_release/README.txt <<'EOF'
+          cat > build/canonical_release/README.txt <<EOF
           World Sandbox: Bangladesh / Project A-Square
           This artifact contains the Android APK and verification reports.
+          Map package selected by this build: ${WSB_MAP_PACKAGE:-greater_dhaka}
           Before publishing, CI tests the APK ZIP structure and Android signature.
           Compare the extracted APK SHA-256 against APK_SHA256.txt.
           The JSON report is build metadata, not a second game.
           Artifact-container size and APK file size are different measurements.
+          ${WSB_MAP_PACKAGE:+Map source recorded in the build summary.}
           EOF
           ls -lh build/canonical_release
 
