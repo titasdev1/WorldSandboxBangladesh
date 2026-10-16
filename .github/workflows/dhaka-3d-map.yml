@@ -186,10 +186,11 @@ jobs:
           TILE_OFFSET: ${{ inputs.tile_offset || '0' }}
           MAX_TILES: ${{ inputs.max_tiles || '8' }}
           SEQUENCE_ID: ${{ inputs.sequence_id || github.run_id }}
-          RETRY_COUNT: ${{ fromJSON(inputs.retry_count || '0') + 1 }}
+          RETRY_COUNT: ${{ inputs.retry_count || '0' }}
           CONTINUE_FULL: ${{ inputs.continue_full_division || github.event_name == 'push' }}
         run: |
           set -euo pipefail
+          NEXT_RETRY_COUNT=$((RETRY_COUNT + 1))
           gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/dispatches" --input - <<EOF
           {
             "ref": "main",
@@ -199,7 +200,7 @@ jobs:
               "max_tiles": "${MAX_TILES}",
               "continue_full_division": "${CONTINUE_FULL}",
               "sequence_id": "${SEQUENCE_ID}",
-              "retry_count": "${RETRY_COUNT}"
+              "retry_count": "${NEXT_RETRY_COUNT}"
             }
           }
           EOF
