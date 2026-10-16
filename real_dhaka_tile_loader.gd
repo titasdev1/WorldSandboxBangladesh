@@ -298,10 +298,55 @@ func _load_interior_anchors(record: Dictionary, player_position: Vector3) -> Arr
 		anchor.set_meta("interior_seed", seed.duplicate(true))
 		anchor.set_meta("exit_direction", placement["direction"])
 		anchor.set_meta("tile_id", tile_id)
+		# Orient the building-specific sign toward the nearby street.
+		var outward: Vector3 = placement["direction"]
+		anchor.rotation.y = atan2(outward.x, outward.z)
 		_world.add_child(anchor)
+		_add_mapped_exterior_sign(anchor, seed)
 		anchors.append(anchor)
 	record["interior_anchor_center"] = player_position
 	return anchors
+
+
+
+func _add_mapped_exterior_sign(anchor: Node3D, seed: Dictionary) -> void:
+	# Render actual OSM-mapped names when available. This is signage metadata,
+	# not a claim that the surrounding facade has been photogrammetrically scanned.
+	var tags: Dictionary = seed.get("building_tags", {})
+	var sign_text := str(tags.get("name:bn", "")).strip_edges()
+	if sign_text.is_empty():
+		sign_text = str(tags.get("name:en", tags.get("official_name", seed.get("name", "")))).strip_edges()
+	if sign_text.is_empty() or sign_text in ["Unnamed building", "Unnamed place"]:
+		sign_text = str(tags.get("brand", "")).strip_edges()
+	if sign_text.is_empty():
+		return
+
+	var sign_width := clampf(float(sign_text.length()) * 0.31, 1.5, 4.6)
+	var sign_root := Node3D.new()
+	sign_root.name = "MappedExteriorSign_" + str(seed.get("osm_id", "building"))
+	sign_root.position = Vector3(0.0, 2.55, -1.18)
+	anchor.add_child(sign_root)
+
+	var board := MeshInstance3D.new()
+	board.name = "MappedSignBoard"
+	var board_mesh := BoxMesh.new()
+	board_mesh.size = Vector3(sign_width, 0.72, 0.10)
+	board.mesh = board_mesh
+	var board_material := StandardMaterial3D.new()
+	var palette := [Color("#164f3c"), Color("#254c75"), Color("#783f32"), Color("#5d5431")]
+	board_material.albedo_color = palette[abs(int(seed.get("osm_id", 0))) % palette.size()]
+	board_material.roughness = 0.82
+	board.material_override = board_material
+	sign_root.add_child(board)
+
+	var label := Label3D.new()
+	label.name = "MappedBanglaOrOfficialName"
+	label.text = sign_text
+	label.font_size = 24
+	label.pixel_size = 0.007
+	label.modulate = Color("#fff3d2")
+	label.position = Vector3(0.0, 0.0, 0.061)
+	sign_root.add_child(label)
 
 
 func _get_nearby_road_routes(player_position: Vector3) -> Array:
