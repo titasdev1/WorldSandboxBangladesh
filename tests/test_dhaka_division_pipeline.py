@@ -110,6 +110,34 @@ class DhakaDivisionPipelineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             select_tile_batch([], 0, 0)
 
+    def test_landcover_area_is_clipped_as_polygon_and_keeps_inner_hole(self):
+        from tools.map_pipeline.build_dhaka_division import _clip_elements, _source_geometry
+        from shapely.geometry import Point, box
+
+        area = {
+            "type": "way", "id": 777,
+            "tags": {"landuse": "forest"},
+            "geometry": [
+                {"lat": 23.0, "lon": 90.0}, {"lat": 23.0, "lon": 92.0},
+                {"lat": 25.0, "lon": 92.0}, {"lat": 25.0, "lon": 90.0},
+                {"lat": 23.0, "lon": 90.0},
+            ],
+            "inner_rings": [[
+                {"lat": 23.5, "lon": 90.5}, {"lat": 23.5, "lon": 91.5},
+                {"lat": 24.5, "lon": 91.5}, {"lat": 24.5, "lon": 90.5},
+                {"lat": 23.5, "lon": 90.5},
+            ]],
+        }
+        geom = _source_geometry(area)
+        self.assertTrue(geom.geom_type == "Polygon")
+        self.assertEqual(len(geom.interiors), 1)
+        clipped = _clip_elements([area], box(90.25, 23.25, 91.75, 24.75))
+        self.assertEqual(len(clipped), 1)
+        clipped_geom = _source_geometry(clipped[0])
+        self.assertEqual(clipped_geom.geom_type, "Polygon")
+        self.assertEqual(len(clipped_geom.interiors), 1)
+        self.assertFalse(clipped_geom.contains(Point(91.0, 24.0)))
+
     def test_boundary_clip_removes_outside_nodes_and_clips_crossing_road(self):
         boundary = box(90.0, 23.0, 90.1, 23.1)
         elements = [
