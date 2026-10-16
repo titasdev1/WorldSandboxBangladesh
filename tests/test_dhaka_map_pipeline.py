@@ -219,6 +219,15 @@ class DhakaMapPipelineTests(unittest.TestCase):
             self.assertGreater(scene.bounds[1][1], scene.bounds[0][1])
             self.assertLess(scene.bounds[1][1], 260)
             self.assertEqual(manifest["feature_counts"]["building_footprints"], 2)
+            building_batches = [name for name in scene.geometry if name.startswith("mapped_buildings_")]
+            roof_batches = [name for name in scene.geometry if name.startswith("mapped_roofs_")]
+            self.assertGreaterEqual(len(building_batches), 1)
+            self.assertLessEqual(len(building_batches), 4)
+            self.assertGreaterEqual(len(roof_batches), 1)
+            self.assertLessEqual(len(roof_batches), 4)
+            self.assertEqual(manifest["feature_counts"]["building_mesh_batches"], len(building_batches))
+            self.assertEqual(manifest["feature_counts"]["roof_mesh_batches"], len(roof_batches))
+            self.assertFalse(any(name.startswith("building_") for name in scene.geometry))
             self.assertEqual(manifest["feature_counts"]["road_ways"], 1)
             self.assertEqual(manifest["feature_counts"]["interior_anchors"], 3)
             self.assertEqual(manifest["feature_counts"]["mapped_trees"], 1)
