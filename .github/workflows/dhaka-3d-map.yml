@@ -104,7 +104,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/osm/dhaka-division-envelope.osm.pbf
-          key: dhaka-division-osm-pbf-v1
+          key: dhaka-division-osm-pbf-filtered-v2
 
       - name: Prepare regional OSM extract on cache miss
         if: steps.regional-pbf-cache.outputs.cache-hit != 'true'
