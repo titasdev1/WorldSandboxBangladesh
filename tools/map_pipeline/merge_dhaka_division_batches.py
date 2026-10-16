@@ -182,6 +182,16 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
     building_count = int(feature_counts.get("building_footprints", 0))
     inferred_height_count = int(feature_counts.get("buildings_with_inferred_height", 0))
     inferred_height_percent = round(100.0 * inferred_height_count / max(1, building_count), 2)
+    ground_only_statuses = {
+        "GROUND_ONLY_NO_RENDERABLE_FEATURES",
+        "NO_MAPPED_FEATURES",
+        "NO_MAPPED_ROADS_OR_BUILDINGS",
+    }
+    ground_only_tiles = [
+        str(record.get("tile_id", "unknown"))
+        for record in all_records
+        if not record.get("glb") or record.get("status") in ground_only_statuses
+    ]
     boundary_metadata = boundary_record.get("metadata", {})
     boundary_license = str(boundary_metadata.get("boundary_license", boundary_record.get("license", "See manifest")))
     boundary_license_source = str(boundary_metadata.get("boundary_license_source", "See manifest"))
@@ -207,6 +217,9 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
             "glb_count_matches_manifest": True,
             "all_glbs_parse_and_contain_geometry": True,
             "mesh_geometry_count": mesh_geometry_count,
+            "all_tiles_have_renderable_osm_features": len(ground_only_tiles) == 0,
+            "ground_only_tiles_count": len(ground_only_tiles),
+            "ground_only_tiles": ground_only_tiles,
             "photorealistic_facade_imagery_mapped": False,
             "physical_android_integration_verified": False,
             "all_building_heights_verified_or_surveyed": building_count > 0 and inferred_height_count == 0,
@@ -219,7 +232,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "tiles_with_geometry": len(glbs),
         "tile_coverage_percent": round(100.0 * len(all_records) / max(1, total_tiles), 2),
         "feature_counts": feature_counts,
-        "note": "Tile coverage is geographic bookkeeping, not visual fidelity. The package is not final until licensed imagery, visual inspection, and canonical Android integration pass.",
+        "note": "Tile coverage is geographic bookkeeping, not visual fidelity. Ground-only tiles prevent holes but still lack mapped OSM detail. The package is not final until licensed imagery, visual inspection, and canonical Android integration pass.",
     }
     (out / "quality_gate_report.json").write_text(
         json.dumps(quality_report, ensure_ascii=False, indent=2), encoding="utf-8"
