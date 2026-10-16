@@ -208,7 +208,7 @@ jobs:
     needs: build-map
     if: success() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.continue_full_division))
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 120
     steps:
       - name: Dispatch the next bounded tile batch
         if: needs.build-map.outputs.next_offset != '-1'
@@ -271,6 +271,31 @@ jobs:
           python tools/map_pipeline/merge_dhaka_division_batches.py \
             --batches-dir build/complete/batches \
             --out build/dhaka-division-full
+
+      - name: Package complete map as an installable runtime PCK
+        if: needs.build-map.outputs.next_offset == '-1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/godot" build/map-packs
+          curl -L --fail --silent --show-error \
+            "https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip" \
+            -o "$RUNNER_TEMP/godot/godot.zip"
+          unzip -q "$RUNNER_TEMP/godot/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+          chmod +x "$GODOT"
+          "$GODOT" --headless --path . --script tools/map_pipeline/package_map_pack.gd -- --source build/dhaka-division-full --output build/map-packs/DhakaDivisionFull.pck
+          test -s build/map-packs/DhakaDivisionFull.pck
+
+      - name: Upload installable Dhaka Division map pack
+        if: needs.build-map.outputs.next_offset == '-1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project-A-Square-Dhaka-Division-Map-Pack-${{ needs.build-map.outputs.sequence_id }}
+          path: build/map-packs/DhakaDivisionFull.pck
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
 
       - name: Upload complete Dhaka Division map
         if: needs.build-map.outputs.next_offset == '-1'
