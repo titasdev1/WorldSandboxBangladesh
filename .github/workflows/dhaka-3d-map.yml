@@ -63,6 +63,9 @@ concurrency:
 
 jobs:
   build-map:
+    # Only main pushes start the expensive continuous full-division batch chain.
+    # Pull-request validation and explicit manual dispatch remain available.
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 300
     outputs:
