@@ -11,6 +11,7 @@ var reload_time := 0.0
 var fire_cooldown := 0.0
 var camera: Camera3D
 var camera_yaw := 0.0
+var camera_sensitivity := 0.12
 var camera_pitch := -28.0
 
 var camera_view_mode := "third_person"
@@ -49,11 +50,11 @@ func _ready():
 func _input(event):
  if event is InputEventScreenDrag:
   if event.position.x > get_viewport().get_visible_rect().size.x * 0.42:
-   camera_yaw -= event.relative.x * 0.12
-   camera_pitch = clamp(camera_pitch - event.relative.y * 0.12, -55.0, 15.0)
+   camera_yaw -= event.relative.x * camera_sensitivity
+   camera_pitch = clamp(camera_pitch - event.relative.y * camera_sensitivity, -55.0, 15.0)
  elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
-  camera_yaw -= event.relative.x * 0.12
-  camera_pitch = clamp(camera_pitch - event.relative.y * 0.12, -55.0, 15.0)
+  camera_yaw -= event.relative.x * camera_sensitivity
+  camera_pitch = clamp(camera_pitch - event.relative.y * camera_sensitivity, -55.0, 15.0)
 
 func _update_camera():
  if not camera:
