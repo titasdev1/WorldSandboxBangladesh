@@ -423,9 +423,10 @@ func try_fire():
  if not player:
   return
  wanted = min(5, wanted + 1)
- var origin = player.global_position + Vector3(0, 1.3, 0)
- var dir = -player.global_transform.basis.z
- var query = PhysicsRayQueryParameters3D.create(origin, origin + dir * 30.0)
+ var camera: Camera3D = player.get("camera") as Camera3D
+ var origin: Vector3 = camera.global_position if is_instance_valid(camera) else player.global_position + Vector3(0, 1.3, 0)
+ var dir: Vector3 = -camera.global_transform.basis.z.normalized() if is_instance_valid(camera) else -player.global_transform.basis.z.normalized()
+ var query = PhysicsRayQueryParameters3D.create(origin, origin + dir * 80.0)
  query.exclude = [player]
  var hit = get_world_3d().direct_space_state.intersect_ray(query)
  if hit and hit.collider and hit.collider is CharacterBody3D:
