@@ -3,6 +3,7 @@ extends CanvasLayer
 var stats: Label
 var mission: Label
 var status: Label
+var crosshair_label: Label
 var w
 var settings_panel: PanelContainer
 var quality_option: OptionButton
@@ -40,16 +41,16 @@ func _ready():
  status.add_theme_font_size_override("font_size", 16)
  add_child(status)
 
- var crosshair := Label.new()
- crosshair.name = "CombatCrosshair"
- crosshair.text = "+"
- crosshair.position = Vector2(632, 342)
- crosshair.add_theme_font_size_override("font_size", 28)
- crosshair.add_theme_color_override("font_color", Color("#e8f7ff"))
- crosshair.add_theme_color_override("font_shadow_color", Color("#07111b"))
- crosshair.add_theme_constant_override("shadow_offset_x", 1)
- crosshair.add_theme_constant_override("shadow_offset_y", 1)
- add_child(crosshair)
+ crosshair_label = Label.new()
+ crosshair_label.name = "CombatCrosshair"
+ crosshair_label.text = "+"
+ crosshair_label.position = Vector2(632, 342)
+ crosshair_label.add_theme_font_size_override("font_size", 28)
+ crosshair_label.add_theme_color_override("font_color", Color("#e8f7ff"))
+ crosshair_label.add_theme_color_override("font_shadow_color", Color("#07111b"))
+ crosshair_label.add_theme_constant_override("shadow_offset_x", 1)
+ crosshair_label.add_theme_constant_override("shadow_offset_y", 1)
+ add_child(crosshair_label)
 
  var hint = Label.new()
  hint.text = "CIRCULAR MOVE • DRAG TO LOOK • AIM • AUTO FIRE • RELOAD • VIEW: FPP/TPP"
@@ -254,6 +255,15 @@ func _process(_delta):
  if not _world_quality_applied and w.get_node_or_null("Sun"):
   _apply_quality(quality_option.selected)
   _world_quality_applied = true
+ if is_instance_valid(crosshair_label):
+  var marker_time: float = float(w.get("combat_hit_marker_time"))
+  if marker_time > 0.0:
+   crosshair_label.text = "×"
+   var marker_color := Color("#ffd34e") if bool(w.get("combat_hit_marker_headshot")) else Color("#ff6b6b")
+   crosshair_label.add_theme_color_override("font_color", marker_color)
+  else:
+   crosshair_label.text = "+"
+   crosshair_label.add_theme_color_override("font_color", Color("#e8f7ff"))
  if district_map:
   district_map.call("update_world", w)
  _update_interaction_prompt()
