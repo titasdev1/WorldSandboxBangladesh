@@ -15,6 +15,7 @@ var mission_target := Vector3(42, 0, 42)
 var real_mission_targets: Array[Vector3] = []
 var rng := RandomNumberGenerator.new()
 var police_timer := 0.0
+var gunfire_wanted_cooldown := 0.0
 var event_timer := 0.0
 var event_text := "CITY LIFE ACTIVE"
 var event_time_left := 0.0
@@ -371,6 +372,7 @@ func create_mission_marker():
  add_child(marker)
 
 func _process(delta):
+ gunfire_wanted_cooldown = maxf(0.0, gunfire_wanted_cooldown - delta)
  day_time = fmod(day_time + delta * 0.08, 24.0)
  event_time_left = max(0.0, event_time_left - delta)
  var sun = get_node_or_null("Sun")
@@ -422,7 +424,9 @@ func update_marker():
 func try_fire():
  if not player:
   return
- wanted = min(5, wanted + 1)
+ if gunfire_wanted_cooldown <= 0.0:
+  wanted = min(5, wanted + 1)
+  gunfire_wanted_cooldown = 2.5
  var camera: Camera3D = player.get("camera") as Camera3D
  var origin: Vector3 = camera.global_position if is_instance_valid(camera) else player.global_position + Vector3(0, 1.3, 0)
  var dir: Vector3 = -camera.global_transform.basis.z.normalized() if is_instance_valid(camera) else -player.global_transform.basis.z.normalized()
