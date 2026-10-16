@@ -183,6 +183,14 @@ def select_tile_batch(
     return ordered_tiles[offset:offset + limit]
 
 
+def build_boundary_for_stage(stage: str, division_boundary: Any, district_boundary: Any) -> Any:
+    if stage == "shariatpur_review":
+        return district_boundary
+    if stage == "full_division":
+        return division_boundary
+    raise ValueError(f"Unsupported map build stage: {stage}")
+
+
 def stage_gate_reached(offset: int, shariatpur_tile_count: int, stage: str) -> bool:
     """True when a Shariatpur-only sequence has reached the review boundary."""
     if offset < 0 or shariatpur_tile_count < 0:
