@@ -29,6 +29,11 @@ on:
         required: false
         default: ""
         type: string
+      retry_count:
+        description: "Internal bounded retry counter for a failed batch"
+        required: false
+        default: "0"
+        type: string
   pull_request:
     paths:
       - "tools/map_pipeline/**"
@@ -162,11 +167,42 @@ jobs:
       - name: Upload Dhaka Division map batch
         uses: actions/upload-artifact@v4
         with:
-          name: Project-A-Square-Dhaka-Division-${{ inputs.sequence_id || github.run_id }}-batch-${{ inputs.tile_offset || '0' }}
+          name: Project-A-Square-Dhaka-Division-${{ inputs.sequence_id || github.run_id }}-batch-${{ inputs.tile_offset || '0' }}-attempt-${{ inputs.retry_count || '0' }}
           path: build/dhaka-division/
           if-no-files-found: error
           retention-days: 90
           compression-level: 1
+
+  retry-map:
+    needs: build-map
+    if: failure() && github.event_name != 'pull_request' && fromJSON(inputs.retry_count || '0') < 2
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Retry the same bounded batch after a failed run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TILE_DEGREES: ${{ inputs.tile_degrees || '0.05' }}
+          TILE_OFFSET: ${{ inputs.tile_offset || '0' }}
+          MAX_TILES: ${{ inputs.max_tiles || '8' }}
+          SEQUENCE_ID: ${{ inputs.sequence_id || github.run_id }}
+          RETRY_COUNT: ${{ fromJSON(inputs.retry_count || '0') + 1 }}
+          CONTINUE_FULL: ${{ inputs.continue_full_division || github.event_name == 'push' }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/dispatches" --input - <<EOF
+          {
+            "ref": "main",
+            "inputs": {
+              "tile_degrees": "${TILE_DEGREES}",
+              "tile_offset": "${TILE_OFFSET}",
+              "max_tiles": "${MAX_TILES}",
+              "continue_full_division": "${CONTINUE_FULL}",
+              "sequence_id": "${SEQUENCE_ID}",
+              "retry_count": "${RETRY_COUNT}"
+            }
+          }
+          EOF
 
   continue-map:
     needs: build-map
@@ -192,7 +228,8 @@ jobs:
               "tile_offset": "${NEXT_OFFSET}",
               "max_tiles": "${MAX_TILES}",
               "continue_full_division": "true",
-              "sequence_id": "${SEQUENCE_ID}"
+              "sequence_id": "${SEQUENCE_ID}",
+              "retry_count": "0"
             }
           }
           EOF
@@ -217,6 +254,7 @@ jobs:
             while IFS= read -r artifact_name; do
               [[ "${artifact_name}" == "${prefix}"* ]] || continue
               offset="${artifact_name##*-batch-}"
+              offset="${offset%%-attempt-*}"
               destination="build/complete/batches/${offset}"
               mkdir -p "${destination}"
               gh run download "${run_id}" --repo "${GITHUB_REPOSITORY}" --name "${artifact_name}" --dir "${destination}"
