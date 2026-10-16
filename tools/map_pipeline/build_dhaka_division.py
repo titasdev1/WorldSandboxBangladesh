@@ -581,15 +581,15 @@ def main() -> int:
         "tiles": tile_records,
     }
     (args.out / "map_tiles_manifest.json").write_text(json.dumps(output_manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    boundary_license_text = str(boundary_properties.get("boundary_license", "See geoBoundaries metadata"))
+    boundary_license_text = str(build_boundary_properties.get("boundary_license", "See geoBoundaries metadata"))
+    boundary_type = "ADM2" if args.stage == "shariatpur_review" else "ADM1"
     (args.out / "ATTRIBUTION.txt").write_text(
         OSM_ATTRIBUTION + "\n" + BOUNDARY_ATTRIBUTION + "\n"
         + "OSM data license: ODbL 1.0.\n"
-        + f"geoBoundaries Dhaka Division boundary license: {boundary_license_text}.\n"
-        + f"Shariatpur District boundary used for tile ordering only: geoBoundaries gbOpen BGD ADM2, "
-        + f"boundary ID {shariatpur_properties.get('boundary_id', 'unspecified')}.\n"
-        + f"Shariatpur district-boundary license: {shariatpur_properties.get('boundary_license', 'See geoBoundaries metadata')}. "
-        + f"License source: {shariatpur_properties.get('boundary_license_source', 'See manifest')}.\n",
+        + f"Clipping boundary: {build_boundary_name} (geoBoundaries gbOpen BGD {boundary_type}).\n"
+        + f"Clipping boundary ID: {build_boundary_properties.get('boundary_id', 'unspecified')}.\n"
+        + f"Clipping boundary license: {boundary_license_text}. "
+        + f"License source: {build_boundary_properties.get('boundary_license_source', 'See manifest')}.\n",
         encoding="utf-8",
     )
     print(json.dumps({"output": str(args.out), "tiles": len(tiles), "tiles_with_geometry": valid,
