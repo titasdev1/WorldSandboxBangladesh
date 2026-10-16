@@ -12,6 +12,50 @@ from tools.map_pipeline.build_dhaka_map import DEFAULT_BBOX, build_map, building
 
 
 class DhakaMapPipelineTests(unittest.TestCase):
+    def test_relation_area_stitches_outer_segments_and_preserves_inner_holes(self):
+        from tools.map_pipeline.build_dhaka_map import relation_area_polygons
+        from shapely.geometry import Polygon, Point
+
+        def coords(points):
+            return [{"lat": lat, "lon": lon} for lat, lon in points]
+
+        outer_a = [(23.80, 90.40), (23.80, 90.42), (23.82, 90.42)]
+        outer_b = [(23.82, 90.42), (23.82, 90.40), (23.80, 90.40)]
+        inner = [(23.805, 90.405), (23.805, 90.415), (23.815, 90.415),
+                 (23.815, 90.405), (23.805, 90.405)]
+        relation = {
+            "type": "relation",
+            "members": [
+                {"type": "way", "role": "outer", "geometry": coords(outer_a)},
+                {"type": "way", "role": "outer", "geometry": coords(outer_b)},
+                {"type": "way", "role": "inner", "geometry": coords(inner)},
+            ],
+        }
+        origin_lat, origin_lon = 23.81, 90.41
+        bounds = Polygon([
+            local_xy(23.79, 90.39, origin_lat, origin_lon),
+            local_xy(23.79, 90.43, origin_lat, origin_lon),
+            local_xy(23.83, 90.43, origin_lat, origin_lon),
+            local_xy(23.83, 90.39, origin_lat, origin_lon),
+        ])
+        result = relation_area_polygons(relation, origin_lat, origin_lon, bounds)
+        self.assertEqual(len(result), 1)
+        self.assertGreater(result[0].area, 0)
+        hole_x, hole_y = local_xy(23.81, 90.41, origin_lat, origin_lon)
+        self.assertFalse(result[0].contains(Point(hole_x, hole_y)))
+
+    def test_relation_area_skips_unclosed_member_rings(self):
+        from tools.map_pipeline.build_dhaka_map import relation_area_polygons
+        from shapely.geometry import Polygon
+
+        relation = {"type": "relation", "members": [{
+            "type": "way", "role": "outer", "geometry": [
+                {"lat": 23.80, "lon": 90.40}, {"lat": 23.80, "lon": 90.42},
+            ],
+        }]}
+        bounds = Polygon([(0, 0), (1000, 0), (1000, 1000), (0, 1000)])
+        self.assertEqual(relation_area_polygons(relation, 23.81, 90.41, bounds), [])
+
     def test_default_tile_matches_existing_central_dhaka_anchor(self):
         self.assertEqual(DEFAULT_BBOX, (23.8043, 90.4065, 23.8163, 90.4185))
 
