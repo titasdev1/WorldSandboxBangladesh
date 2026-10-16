@@ -46,7 +46,7 @@ func _mount_external_map_packs() -> void:
 		if filename.get_extension().to_lower() != "pck":
 			continue
 		var pack_path := MAP_PACK_DIR + "/" + filename
-		if ProjectSettings.load_resource_pack(pack_path, true):
+		if ProjectSettings.load_resource_pack(ProjectSettings.globalize_path(pack_path), true):
 			_mounted_map_packs.append(pack_path)
 		else:
 			push_warning("Could not mount optional map pack: " + pack_path)
