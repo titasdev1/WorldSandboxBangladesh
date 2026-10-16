@@ -310,7 +310,10 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 lat, lon = el.get("lat"), el.get("lon")
                 if lat is not None and lon is not None:
                     x, y = local_xy(float(lat), float(lon), origin_lat, origin_lon)
-                    prop_kind = add_node_environment_prop(scene, x, y, tags, osm_id)
+                    # Keep multi-metre props inside the tile; a neighbouring tile owns edge-adjacent nodes.
+                    prop_kind = ""
+                    if abs(x) <= width / 2.0 - 1.1 and abs(y) <= depth / 2.0 - 1.1:
+                        prop_kind = add_node_environment_prop(scene, x, y, tags, osm_id)
                     if prop_kind == "tree":
                         trees += 1
                     elif prop_kind == "utility_pole":
@@ -370,7 +373,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 ]
             interior_seeds.append({
                 "osm_id": osm_id,
-                "name": name or tags.get("shop", tags.get("amenity", tags.get("building", "Unnamed building"))),
+                "name": name or tags.get("shop", tags.get("amenity", "Unnamed building")),
                 "category": interior_category,
                 "anchor_kind": "named_or_tagged" if has_specific_place_tags else "generic_building",
                 "floors_estimate": None if inferred else max(1, round(height / 3.1)),
