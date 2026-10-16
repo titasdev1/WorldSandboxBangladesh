@@ -15,7 +15,7 @@ def write_batch(root: Path, offset: int, records: list[dict], total: int, geomet
         if record.get("status") == "BAKED_FROM_OSM":
             tile_dir = batch / record["tile_id"]
             tile_dir.mkdir(parents=True)
-            (tile_dir / "Dhaka_Explorable_Map.glb").write_bytes(trimesh.creation.box().export(file_type="glb"))
+            (tile_dir / "Dhaka_Explorable_Map.glb").write_bytes(trimesh.Scene(trimesh.creation.box()).export(file_type="glb"))
     manifest = {
         "product": "test batch",
         "administrative_boundary": {"name": "Shariatpur District" if stage == "shariatpur_review" else "Dhaka Division"},
