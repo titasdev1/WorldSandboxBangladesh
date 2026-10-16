@@ -44,6 +44,7 @@ func open_interior(seed: Dictionary, exterior_position: Vector3, direction: Vect
     var interior_origin := Vector3(exterior_position.x, -300.0, exterior_position.z)
     active_root = Node3D.new()
     active_root.name = "GeneratedInterior_" + str(seed.get("osm_id", "place"))
+    active_root.position = interior_origin
     # A stable per-building rotation makes layouts reproducible but not identical.
     var building_id := abs(int(seed.get("osm_id", 1)))
     active_root.rotation.y = float(building_id % 4) * PI * 0.5
@@ -345,7 +346,10 @@ func _fictional_name() -> String:
     return names[abs(id) % names.size()]
 
 func _display_name() -> String:
-    var name := String(active_seed.get("name", "")).strip_edges()
+    var tags: Dictionary = active_seed.get("building_tags", {})
+    var name := String(tags.get("name:bn", active_seed.get("name", ""))).strip_edges()
+    if name.is_empty():
+        name = String(tags.get("name:en", tags.get("official_name", ""))).strip_edges()
     if name.is_empty() or name == "Unnamed building" or name == "Unnamed place":
         return String(active_seed.get("category", "Local place")).capitalize()
     return name
