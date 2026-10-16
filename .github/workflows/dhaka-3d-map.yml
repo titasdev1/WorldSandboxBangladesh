@@ -1,45 +1,71 @@
-name: Build Dhaka 3D Map Package
+name: Build Dhaka Division Real-World 3D Map
 
 on:
   workflow_dispatch:
     inputs:
-      south:
-        description: "South latitude"
+      tile_degrees:
+        description: "Tile edge in degrees (larger tiles build faster)"
+        required: true
+        default: "0.05"
+        type: choice
+        options: ["0.03", "0.05", "0.08"]
+      tile_offset:
+        description: "Batch offset in the complete Dhaka Division tile order (0 starts near Shariatpur)"
+        required: true
+        default: "0"
+        type: string
+      max_tiles:
+        description: "Tiles per batch; each batch has its own under-six-hour workflow run"
+        required: true
+        default: "8"
+        type: string
+      continue_full_division:
+        description: "Automatically dispatch the next batch and assemble the full division map"
+        required: true
+        default: true
+        type: boolean
+      sequence_id:
+        description: "Internal ID that ties sequential batch artifacts together"
         required: false
-        default: "23.8043"
-      west:
-        description: "West longitude"
-        required: false
-        default: "90.4065"
-      north:
-        description: "North latitude"
-        required: false
-        default: "23.8163"
-      east:
-        description: "East longitude"
-        required: false
-        default: "90.4185"
+        default: ""
+        type: string
   pull_request:
     paths:
       - "tools/map_pipeline/**"
       - "tests/test_dhaka_map_pipeline.py"
+      - "tests/test_dhaka_division_pipeline.py"
+      - "tests/test_merge_dhaka_division_batches.py"
       - ".github/workflows/dhaka-3d-map.yml"
+      - ".github/workflows/dhaka-division-map.yml"
       - "MAP_PIPELINE.md"
   push:
     branches: [main]
     paths:
       - "tools/map_pipeline/**"
       - "tests/test_dhaka_map_pipeline.py"
+      - "tests/test_dhaka_division_pipeline.py"
       - ".github/workflows/dhaka-3d-map.yml"
+      - ".github/workflows/dhaka-division-map.yml"
       - "MAP_PIPELINE.md"
 
 permissions:
+  actions: write
   contents: read
+
+concurrency:
+  group: dhaka-division-map-v2-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-map:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 300
+    outputs:
+      next_offset: ${{ steps.batch-meta.outputs.next_offset }}
+      total_tiles: ${{ steps.batch-meta.outputs.total_tiles }}
+      sequence_id: ${{ inputs.sequence_id || github.run_id }}
+      tile_degrees: ${{ inputs.tile_degrees || '0.05' }}
+      max_tiles: ${{ inputs.max_tiles || (github.event_name == 'pull_request' && '2' || '8') }}
     steps:
       - name: Checkout canonical repository
         uses: actions/checkout@v5
@@ -49,45 +75,165 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install geometry and GLB export dependencies
-        run: python -m pip install --upgrade pip shapely trimesh mapbox-earcut
-
-      - name: Run offline fixture tests
-        run: python -m unittest tests.test_dhaka_map_pipeline -v
-
-      - name: Fetch OSM data and build the real Dhaka map tile
-        shell: bash
-        env:
-          INPUT_SOUTH: ${{ inputs.south || '23.8043' }}
-          INPUT_WEST: ${{ inputs.west || '90.4065' }}
-          INPUT_NORTH: ${{ inputs.north || '23.8163' }}
-          INPUT_EAST: ${{ inputs.east || '90.4185' }}
+      - name: Install geometry and OSM dependencies
         run: |
-          python tools/map_pipeline/build_dhaka_map.py \
-            --bbox "$INPUT_SOUTH" "$INPUT_WEST" "$INPUT_NORTH" "$INPUT_EAST" \
-            --out build/dhaka-map
+          sudo apt-get update
+          sudo apt-get install -y osmium-tool
+          python -m pip install --upgrade pip
+          python -m pip install osmium shapely trimesh mapbox-earcut
+
+      # Cache a regional extract, not the full country PBF. This prevents each
+      # tile batch from scanning the entire Bangladesh extract from scratch.
+      # Bump the v1 key only when intentionally refreshing the source map data.
+      - name: Restore cached Dhaka Division OSM extract
+        id: regional-pbf-cache
+        uses: actions/cache@v4
+        with:
+          path: build/osm/dhaka-division-envelope.osm.pbf
+          key: dhaka-division-osm-pbf-v1
+
+      - name: Prepare regional OSM extract on cache miss
+        if: steps.regional-pbf-cache.outputs.cache-hit != 'true'
+        run: |
+          python tools/map_pipeline/prepare_dhaka_division_pbf.py --out build/osm/dhaka-division-envelope.osm.pbf
+
+      - name: Validate Python syntax and offline fixtures
+        run: |
+          python -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_division.py tools/map_pipeline/prepare_dhaka_division_pbf.py tools/map_pipeline/merge_dhaka_division_batches.py tools/map_pipeline/tile_grid.py
+          python -m unittest discover -s tests -p 'test_dhaka*_pipeline.py' -v
+          python -m unittest discover -s tests -p 'test_merge_dhaka_division_batches.py' -v
+
+      - name: Build boundary-clipped Dhaka Division tiles
+        run: |
+          python tools/map_pipeline/build_dhaka_division.py \
+            --pbf build/osm/dhaka-division-envelope.osm.pbf \
+            --tile-degrees "${{ inputs.tile_degrees || '0.05' }}" \
+            --tile-offset "${{ inputs.tile_offset || '0' }}" \
+            --max-tiles "${{ inputs.max_tiles || (github.event_name == 'pull_request' && '2' || '8') }}" \
+            --out build/dhaka-division
+
+      - name: Verify map package and geographic provenance
+        run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          m = json.loads(Path("build/dhaka-map/map_manifest.json").read_text())
-          glb = Path("build/dhaka-map/Dhaka_Explorable_Map.glb")
-          assert glb.exists() and glb.stat().st_size > 1000, "GLB export missing or empty"
-          assert m["feature_counts"]["building_footprints"] > 0, "No building footprints in output"
-          assert m["feature_counts"]["road_ways"] > 0, "No roads in output"
-          print(f"GLB bytes: {glb.stat().st_size}")
-          print(json.dumps(m["feature_counts"], indent=2))
+          root = Path("build/dhaka-division")
+          manifest = json.loads((root / "map_tiles_manifest.json").read_text())
+          glbs = list(root.rglob("Dhaka_Explorable_Map.glb"))
+          if not glbs:
+              raise SystemExit("No GLB tiles were produced")
+          if len(glbs) != manifest["tile_count_with_geometry"]:
+              raise SystemExit("Manifest GLB count mismatch")
+          if manifest.get("administrative_boundary", {}).get("name") != "Dhaka Division":
+              raise SystemExit("Administrative boundary metadata is missing")
+          if not (root / "ATTRIBUTION.txt").is_file():
+              raise SystemExit("Required attribution is missing")
+          print(json.dumps({
+            "boundary": manifest["administrative_boundary"]["name"],
+            "boundary_bbox": manifest["region_south_west_north_east"],
+            "tiles_intersecting_boundary": manifest["tile_count_intersecting_boundary"],
+            "tiles_with_geometry": len(glbs),
+            "source_elements_in_boundary_envelope": manifest["source_elements_in_boundary_envelope"],
+            "glb_bytes": sum(p.stat().st_size for p in glbs),
+          }, indent=2))
           PY
 
-      - name: Upload standalone map package
+      - name: Record batch metadata
+        id: batch-meta
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("build/dhaka-division/map_tiles_manifest.json").read_text())
+          offset = int(manifest["tile_batch_offset"])
+          count = int(manifest["tile_batch_count"])
+          total = int(manifest["tile_count_intersecting_boundary"])
+          next_offset = offset + count if offset + count < total else -1
+          print(f"next_offset={next_offset}")
+          print(f"total_tiles={total}")
+          PY
+
+      - name: Upload Dhaka Division map batch
         uses: actions/upload-artifact@v4
         with:
-          name: Dhaka-Explorable-3D-Map
-          path: |
-            build/dhaka-map/Dhaka_Explorable_Map.glb
-            build/dhaka-map/Dhaka_OSM_Source.geojson
-            build/dhaka-map/AI_Interior_Seeds.json
-            build/dhaka-map/map_manifest.json
-            build/dhaka-map/ATTRIBUTION.txt
+          name: Project-A-Square-Dhaka-Division-${{ inputs.sequence_id || github.run_id }}-batch-${{ inputs.tile_offset || '0' }}
+          path: build/dhaka-division/
           if-no-files-found: error
-          compression-level: 0
-          retention-days: 30
+          retention-days: 90
+          compression-level: 1
+
+  continue-map:
+    needs: build-map
+    if: success() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.continue_full_division))
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Dispatch the next bounded tile batch
+        if: needs.build-map.outputs.next_offset != '-1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT_OFFSET: ${{ needs.build-map.outputs.next_offset }}
+          TILE_DEGREES: ${{ needs.build-map.outputs.tile_degrees }}
+          MAX_TILES: ${{ needs.build-map.outputs.max_tiles }}
+          SEQUENCE_ID: ${{ needs.build-map.outputs.sequence_id }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/dispatches" --input - <<EOF
+          {
+            "ref": "main",
+            "inputs": {
+              "tile_degrees": "${TILE_DEGREES}",
+              "tile_offset": "${NEXT_OFFSET}",
+              "max_tiles": "${MAX_TILES}",
+              "continue_full_division": "true",
+              "sequence_id": "${SEQUENCE_ID}"
+            }
+          }
+          EOF
+
+      - name: Assemble all batches into one complete Dhaka Division map
+        if: needs.build-map.outputs.next_offset == '-1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SEQUENCE_ID: ${{ needs.build-map.outputs.sequence_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/complete/batches
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/runs?branch=main&per_page=100" \
+            --jq '.workflow_runs[] | [.id, .head_branch, (.conclusion // "")] | @tsv' > /tmp/map-runs.tsv
+          if ! grep -q "^${GITHUB_RUN_ID}[[:space:]]" /tmp/map-runs.tsv; then
+            printf '%s\tmain\tsuccess\n' "${GITHUB_RUN_ID}" >> /tmp/map-runs.tsv
+          fi
+          prefix="Project-A-Square-Dhaka-Division-${SEQUENCE_ID}-batch-"
+          while read -r run_id branch conclusion; do
+            [[ "${branch}" == "main" ]] || continue
+            [[ "${conclusion}" == "success" || "${run_id}" == "${GITHUB_RUN_ID}" ]] || continue
+            while IFS= read -r artifact_name; do
+              [[ "${artifact_name}" == "${prefix}"* ]] || continue
+              offset="${artifact_name##*-batch-}"
+              destination="build/complete/batches/${offset}"
+              mkdir -p "${destination}"
+              gh run download "${run_id}" --repo "${GITHUB_REPOSITORY}" --name "${artifact_name}" --dir "${destination}"
+              if [[ ! -f "${destination}/map_tiles_manifest.json" ]]; then
+                nested_manifest="$(find "${destination}" -mindepth 2 -name map_tiles_manifest.json -print -quit)"
+                if [[ -n "${nested_manifest}" ]]; then
+                  nested_root="$(dirname "${nested_manifest}")"
+                  find "${nested_root}" -mindepth 1 -maxdepth 1 -exec mv -t "${destination}" {} +
+                  rm -rf "${nested_root}"
+                fi
+              fi
+            done < <(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts" --jq '.artifacts[] | select(.expired == false) | .name')
+          done < /tmp/map-runs.tsv
+          python tools/map_pipeline/merge_dhaka_division_batches.py \
+            --batches-dir build/complete/batches \
+            --out build/dhaka-division-full
+
+      - name: Upload complete Dhaka Division map
+        if: needs.build-map.outputs.next_offset == '-1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project-A-Square-Dhaka-Division-Full-Map-${{ needs.build-map.outputs.sequence_id }}
+          path: build/dhaka-division-full/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 1
