@@ -90,5 +90,55 @@
       ],
       "verification_status": "run 210 passed production gate, strict source-only Godot import/startup, Android export and artifact upload; optional CC0 download succeeded with 50 models; exporter logs dummy-renderer texture errors, so Android visual QA remains pending"
     }
+  },
+  "current_audit": {
+    "date": "2026-10-16",
+    "status": "open_audit_not_release_ready",
+    "preservation_rule": "Keep one canonical Godot game and one canonical Android workflow. Update existing systems in place; preserve the previously verified Greater Dhaka package until a replacement map passes provenance, integration, and gameplay checks.",
+    "progress_snapshot": {
+      "overall_game_completion_estimate_percent": 30,
+      "overall_game_completion_note": "Provisional continuity estimate from the existing project status, not a measured quality score. Roadmap currently lists 2 of 22 milestones fully complete, 15 partially complete, and 5 not complete.",
+      "fully_complete_milestones": 2,
+      "partial_milestones": 15,
+      "incomplete_milestones": 5,
+      "new_dhaka_division_map_tiles_built": 2,
+      "dhaka_division_tiles_intersecting_boundary": 846,
+      "dhaka_division_tile_count_percent": 0.24,
+      "shariatpur_tiles_intersecting_boundary": 60,
+      "shariatpur_tile_count_percent": 3.33,
+      "note": "Tile percentages are counts, not proof of equivalent land-area coverage or a complete explorable map."
+    },
+    "preservation_and_workflow_audit": {
+      "canonical_android_workflow": ".github/workflows/android.yml",
+      "map_workflow": ".github/workflows/dhaka-3d-map.yml",
+      "pinned_existing_greater_dhaka_artifact_run": 38618204090,
+      "pinned_existing_greater_dhaka_artifact_bytes": 136677012,
+      "pinned_existing_greater_dhaka_note": "Still downloaded and installed by the canonical Android workflow; not replaced by the incomplete new division batch.",
+      "map_batch_run": 38873667410,
+      "map_batch_artifact_bytes": 1593701,
+      "map_batch_concurrency_issue": "Sequential dispatch used cancel-in-progress=true on a shared main-branch concurrency group. Fix proposed in PR #49; not yet merged at audit time.",
+      "android_controls_run": 38873911019,
+      "android_controls_status": "Android export in progress at audit time; no artifact uploaded yet.",
+      "locomotion_run": 38873496603,
+      "locomotion_status": "Godot validation and Android export passed; APK integrity/signature/ZIP checks passed.",
+      "locomotion_apk_bytes": 1735298582,
+      "locomotion_pbr_map_bytes": 779363817,
+      "locomotion_pbr_map_count": 21,
+      "pbr_issue": "The current source-resolution selection favored 8K maps despite the documented mobile budget. Fix proposed in PR #50: road up to 4K, other surfaces up to 2K, lower-resolution fallback.",
+      "physical_device_qa": "Not verified; no physical Android visual, touch, frame-time, or memory test is recorded."
+    },
+    "pending_prs": {
+      "map_batch_queue_fix": 49,
+      "mobile_pbr_resolution_budget": 50,
+      "procedural_locomotion_polish": 47,
+      "jump_crouch_camera_sensitivity": 48
+    },
+    "release_readiness": "not_ready",
+    "next_acceptance_gates": [
+      "Merge and validate the existing map workflow concurrency fix, then prove sequential batches continue and assemble.",
+      "Run the existing canonical Android workflow with the corrected PBR resolution budget; inspect exact APK and texture sizes.",
+      "Do not merge gameplay polish as release-ready until its build artifact passes size/integrity checks and no regressions are found.",
+      "Keep physical-device gameplay and performance marked unverified until actually tested."
+    ]
   }
 }
