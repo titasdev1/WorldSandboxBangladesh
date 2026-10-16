@@ -12,6 +12,19 @@ var camera: Camera3D
 var camera_yaw := 0.0
 var camera_pitch := -28.0
 
+var camera_view_mode := "third_person"
+
+func set_camera_view_mode(mode: String) -> void:
+ camera_view_mode = "first_person" if mode == "first_person" else "third_person"
+ var visual := get_node_or_null("HumanoidVisual")
+ if visual:
+  visual.visible = camera_view_mode != "first_person"
+ _update_camera()
+
+func toggle_camera_view_mode() -> String:
+ set_camera_view_mode("first_person" if camera_view_mode == "third_person" else "third_person")
+ return camera_view_mode
+
 func _ready():
  camera = Camera3D.new()
  camera.name = "ThirdPersonCamera"
@@ -39,6 +52,12 @@ func _update_camera():
  var yaw := deg_to_rad(camera_yaw)
  var pitch := deg_to_rad(camera_pitch)
  var target := global_position + Vector3(0, 1.0, 0)
+ if camera_view_mode == "first_person":
+  # Eye-height camera shares the orbit camera's yaw/pitch and movement basis.
+  var eye := global_position + Vector3(0, 1.58, 0)
+  camera.global_position = eye
+  camera.global_rotation = Vector3(deg_to_rad(-camera_pitch), yaw, 0.0)
+  return
  var camera_distance := 9.5
  if world:
   var interior_node: Node = world.get("interior_factory")
