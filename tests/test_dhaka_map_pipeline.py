@@ -19,6 +19,16 @@ class DhakaMapPipelineTests(unittest.TestCase):
         self.assertLessEqual(height, 3.25)
         self.assertTrue(inferred)
 
+    def test_height_provenance_does_not_label_estimates_as_placeholder_surveys(self):
+        from tools.map_pipeline.build_dhaka_map import building_height_source, building_floors_source
+
+        self.assertEqual(building_height_source({"building": "yes"}), "AREA_CATEGORY_ESTIMATE_UNVERIFIED")
+        self.assertEqual(building_floors_source({"building": "yes"}), "AREA_CATEGORY_ESTIMATE_UNVERIFIED")
+        self.assertEqual(building_height_source({"height": "18 m"}), "OSM_HEIGHT_TAG")
+        self.assertEqual(building_floors_source({"height": "18 m"}), "DERIVED_FROM_OSM_HEIGHT_TAG")
+        self.assertEqual(building_height_source({"building:levels": "5"}), "OSM_BUILDING_LEVELS_TAG")
+        self.assertEqual(building_floors_source({"building:levels": "5"}), "OSM_BUILDING_LEVELS_TAG")
+
     def test_tagged_building_levels_are_preserved_as_source_data(self):
         height, inferred = building_height({"building:levels": "5"}, 1001)
         self.assertAlmostEqual(height, 15.5)
@@ -56,6 +66,9 @@ class DhakaMapPipelineTests(unittest.TestCase):
             build_map(elements, Path(tmp), DEFAULT_BBOX)
             seeds = json.loads((Path(tmp) / "AI_Interior_Seeds.json").read_text(encoding="utf-8"))
             self.assertEqual(seeds[0]["signage_text"]["name:bn"], "দোকান")
+            self.assertEqual(seeds[0]["height_source"], "AREA_CATEGORY_ESTIMATE_UNVERIFIED")
+            self.assertEqual(seeds[0]["floors_source"], "AREA_CATEGORY_ESTIMATE_UNVERIFIED")
+            self.assertIsInstance(seeds[0]["floors_estimate"], int)
             self.assertEqual(seeds[0]["exterior_reference"]["image_tag"], "https://example.invalid/facade.jpg")
             self.assertFalse(seeds[0]["exterior_reference"]["downloaded_or_embedded"])
 
