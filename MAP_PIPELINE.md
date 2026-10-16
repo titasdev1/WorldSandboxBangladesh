@@ -64,3 +64,11 @@ Where OSM tags exist, natural=tree, power=pole / power=tower, man_made=utility_p
 The full-division batch chain is triggered only by the established map workflow on the main branch (or by an explicit manual dispatch). A pull-request run is a bounded validation build and must not silently replace the map already packaged in the game. Once the offline regression tests and canonical Godot/Android checks pass and this release-gate change is merged, the MAP_PIPELINE.md update triggers the first main-branch batch; the workflow then dispatches subsequent bounded batches automatically.
 
 The final map must not be promoted just because one batch succeeded. Promotion requires the final sequence artifact, complete offset coverage, manifest/GLB count agreement, all source attributions, and a successful in-game streaming/export check. The game's displayed project name remains unchanged until both the playable game base and Shariatpur map base are validated.
+
+## Installable map packs for future tile-only updates
+
+The canonical game can mount ordered runtime PCK files from `user://map_packs` before it reads the map manifest. This keeps the map-update contract separate from gameplay code. The full-division workflow publishes a raw map artifact for inspection and an installable `Project-A-Square-Dhaka-Division-Map-Pack-<sequence>` PCK artifact for the game.
+
+A full pack contains the complete map manifest and all tiles under the virtual path `res://assets/world/dhaka_tiles/`. A later delta pack may contain the complete updated manifest plus only new or replacement tile files; resources omitted from a delta remain available from the bundled map or earlier packs. Name packs so their lexical order matches intended precedence. The loader mounts them in that order with replacement enabled, then validates the merged manifest and every referenced GLB before switching from the fallback world.
+
+PCK generation is smoke-tested against a tiny fixture and the pack is mounted immediately after creation to verify that the manifest is actually readable. Never promote a map update based only on file size or successful packing: require complete manifest/GLB checks and runtime streaming validation.
