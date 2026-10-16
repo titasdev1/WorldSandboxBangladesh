@@ -50,3 +50,11 @@ The first tile batch is not a standalone Shariatpur deliverable. It is the begin
 When the full-division pipeline is merged and runs on `main`, it automatically dispatches the next tile batch after each successful batch. Every map-building run is limited to 300 minutes; the final assembly job is limited to 50 minutes, keeping each workflow run under six hours. Pull-request validation deliberately does not start the full chain.
 
 Each batch artifact is tagged with one sequence ID and its tile offset. The final run downloads only artifacts from that sequence, verifies every offset from zero through the full tile count is present exactly once, merges all GLBs/GeoJSON/interior seeds, and publishes a separate `Project-A-Square-Dhaka-Division-Full-Map-<sequence>` artifact. Missing batches, duplicate tile IDs, mixed tile sizes, missing attribution, or GLB/manifest count mismatches fail the assembly instead of being presented as a complete map.
+
+## Per-building interior anchors and mapped street props
+
+The tile exporter now emits a compact runtime-interior anchor for every mapped building footprint, not only named shops and amenities. Named/tagged places retain richer footprint data; unnamed buildings use a compact bounding-box anchor to avoid duplicating every polygon vertex in seed JSON. These anchors are generation metadata, not claims that the private interior is known.
+
+The canonical game's interior loader keeps only the nearest 24 entry triggers per loaded tile within a 220 m radius and refreshes the selection as the player moves. This makes more buildings reachable across a large district without creating thousands of active physics/interaction nodes at once. The room layouts and occupants are fictional game-authored content.
+
+Where OSM tags exist, natural=tree, power=pole / power=tower, man_made=utility_pole, and highway=street_lamp are baked as simple low-poly tree, utility-pole, or lamp props. Their shapes are approximate representations of mapped point features, not photographic or surveyed replicas. The manifest records separate counts for these categories. Tile-edge props are skipped when their geometry would cross the tile boundary; the neighbouring tile owns the nearby map region.
