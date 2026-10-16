@@ -43,7 +43,7 @@ To keep a single build below six hours:
 
 The Bangladesh-wide OSM PBF is reduced to a reusable rectangular extract of the Dhaka Division envelope using `osmium-tool`. The extract is cached under `dhaka-division-osm-pbf-v1` so later batches don't repeatedly scan the whole country. Bump that cache key only when deliberately refreshing the OSM source data. Final feature and terrain geometry remains clipped to the actual Dhaka Division polygon.
 
-The first tile batch is not a standalone Shariatpur deliverable. It is the beginning of the same full-division tile sequence, and the existing game's map remains unchanged until a complete, verified replacement package is intentionally promoted.
+**Shariatpur is a hard quality gate, not merely a priority label.** The default `shariatpur_review` stage emits the Shariatpur-intersecting tile sequence first and truncates the final batch at the district boundary. It then stops automatic continuation. Do not start `full_division` until the Shariatpur package has passed exterior-quality review, source/coverage audit, per-building interior review, and an Android integration/performance gate. The full-division stage must be explicitly selected after that review. A generated tile batch alone is not a polished district deliverable; the existing game's map remains unchanged until a complete, verified replacement package is intentionally promoted.
 
 ## Automatic full-division continuation
 
