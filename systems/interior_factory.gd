@@ -113,7 +113,7 @@ func _build_room() -> void:
 
     _build_furniture(category)
     _add_room_details(category)
-    _add_building_specific_details(category, room_width, room_depth, room_height, room_rng)
+    _add_building_specific_details(category, room_width, room_depth, room_height, room_rng, building_id)
     _add_resident(category)
     var light := OmniLight3D.new()
     light.name = "InteriorLight"
@@ -174,7 +174,7 @@ func _colour_from_osm_tags(tags: Dictionary) -> Color:
     return Color.TRANSPARENT
 
 
-func _add_building_specific_details(category: String, room_width: float, room_depth: float, room_height: float, room_rng: RandomNumberGenerator) -> void:
+func _add_building_specific_details(category: String, room_width: float, room_depth: float, room_height: float, room_rng: RandomNumberGenerator, building_id: int) -> void:
     var building_id: int = absi(int(active_seed.get("osm_id", 1)))
     var variant: int = building_id % 4
     # Per-building window count and placement are deterministic from the mapped OSM identity.
