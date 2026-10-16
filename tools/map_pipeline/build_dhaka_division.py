@@ -183,6 +183,17 @@ def select_tile_batch(
     return ordered_tiles[offset:offset + limit]
 
 
+def effective_batch_limit(offset: int, requested_limit: int, shariatpur_tile_count: int, stage: str) -> int:
+    """Prevent the default Shariatpur review stage's final batch spilling into other districts."""
+    if offset < 0 or requested_limit < 1 or shariatpur_tile_count < 0:
+        raise ValueError("offset and district tile count must be >= 0; requested limit must be >= 1")
+    if stage not in {"shariatpur_review", "full_division"}:
+        raise ValueError(f"Unsupported map build stage: {stage}")
+    if stage == "shariatpur_review" and offset < shariatpur_tile_count:
+        return min(requested_limit, shariatpur_tile_count - offset)
+    return requested_limit
+
+
 class RegionHandler(osmium.SimpleHandler):
     def __init__(self, bounds: tuple[float, float, float, float]):
         super().__init__()
@@ -365,9 +376,9 @@ def main() -> int:
         if shariatpur_boundary.intersects(box(tile[1], tile[0], tile[3], tile[2]))
     )
     ordered_tiles = order_tiles_shariatpur_first(tiles, shariatpur_boundary)
-    effective_limit = args.max_tiles
-    if args.stage == "shariatpur_review" and args.tile_offset < shariatpur_tile_count:
-        effective_limit = min(args.max_tiles, shariatpur_tile_count - args.tile_offset)
+    effective_limit = effective_batch_limit(
+        args.tile_offset, args.max_tiles, shariatpur_tile_count, args.stage
+    )
     tiles = select_tile_batch(ordered_tiles, args.tile_offset, effective_limit)
     if not tiles:
         raise RuntimeError(
