@@ -201,6 +201,118 @@ def extruded_polygon(geom: Polygon, height: float, color: tuple[int, int, int, i
     return result
 
 
+
+def load_facade_photo_catalog() -> dict[str, dict[str, Any]]:
+    """Load only locally downloaded, allowlisted photos; map aliases to exact matches."""
+    catalog_path = Path(os.environ.get("WSB_FACADE_IMAGE_CATALOG", "tools/map_pipeline/shariatpur_facade_images.json"))
+    image_dir = Path(os.environ.get("WSB_FACADE_IMAGE_DIR", "build/facade-images"))
+    if not catalog_path.is_file() or not image_dir.is_dir():
+        return {}
+    try:
+        from PIL import Image
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    for item in catalog.get("images", []):
+        filename = str(item.get("file_name", "")).strip()
+        path = image_dir / filename
+        if not filename or not path.is_file():
+            continue
+        try:
+            with Image.open(path) as source:
+                image = source.convert("RGB")
+                image.load()
+        except Exception:
+            continue
+        record = {"image": image, "metadata": item}
+        for alias in item.get("match_names", []):
+            normalized = str(alias).strip().casefold()
+            if normalized:
+                result[normalized] = record
+    return result
+
+
+def match_facade_photo(tags: dict[str, str], catalog: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    """Use strict aliases only; do not assign a landmark photo to a guessed building."""
+    for key in ("name", "name:bn", "official_name", "name:en"):
+        value = str(tags.get(key, "")).strip().casefold()
+        if value and value in catalog:
+            return catalog[value]
+    return None
+
+
+def facade_photo_panel(
+    polygon: Polygon | MultiPolygon,
+    building_height_m: float,
+    image: Any,
+    osm_id: int,
+    image_id: str,
+) -> trimesh.Trimesh | None:
+    """Place a licensed landmark photograph as a textured panel on its named building wall."""
+    if isinstance(polygon, MultiPolygon):
+        parts = [part for part in polygon.geoms if isinstance(part, Polygon) and not part.is_empty]
+        if not parts:
+            return None
+        part = max(parts, key=lambda item: item.area)
+    else:
+        part = polygon
+    coordinates = list(part.exterior.coords)
+    if len(coordinates) < 4:
+        return None
+    best = None
+    best_length = 0.0
+    for index in range(1, len(coordinates)):
+        start = np.asarray(coordinates[index - 1], dtype=np.float64)
+        end = np.asarray(coordinates[index], dtype=np.float64)
+        delta = end - start
+        length = float(np.linalg.norm(delta))
+        if length > best_length:
+            best = (start, end, delta / max(length, 1e-9), length)
+            best_length = length
+    if best is None or best_length < 2.0:
+        return None
+    start, end, tangent, wall_length = best
+    midpoint = (start + end) * 0.5
+    normal = np.asarray([-tangent[1], tangent[0]], dtype=np.float64)
+    centroid = np.asarray([part.centroid.x, part.centroid.y], dtype=np.float64)
+    if float(np.dot(normal, midpoint - centroid)) < 0.0:
+        normal *= -1.0
+    try:
+        image_width, image_height = image.size
+        aspect = float(image_width) / max(1.0, float(image_height))
+    except Exception:
+        return None
+    panel_height = min(max(1.6, float(building_height_m) * 0.78), max(1.0, float(building_height_m) - 0.35))
+    panel_width = min(wall_length * 0.82, panel_height * aspect)
+    if panel_width < 1.0 or panel_height < 1.0:
+        return None
+    center = midpoint + normal * 0.065
+    left = center - tangent * (panel_width * 0.5)
+    right = center + tangent * (panel_width * 0.5)
+    z_bottom = 0.22
+    z_top = z_bottom + panel_height
+    vertices = np.asarray([
+        [left[0], left[1], z_bottom],
+        [right[0], right[1], z_bottom],
+        [right[0], right[1], z_top],
+        [left[0], left[1], z_top],
+    ], dtype=np.float64)
+    faces = np.asarray([[0, 1, 2], [0, 2, 3]], dtype=np.int64)
+    material = trimesh.visual.material.PBRMaterial(
+        name=f"LicensedFacadePhoto_{image_id}",
+        baseColorTexture=image,
+        metallicFactor=0.0,
+        roughnessFactor=1.0,
+    )
+    panel = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+    panel.visual = trimesh.visual.texture.TextureVisuals(
+        uv=np.asarray([[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]], dtype=np.float64),
+        material=material,
+    )
+    panel.metadata["name"] = f"licensed_facade_photo_{image_id}_{osm_id}"
+    return panel
+
 def building_height(
     tags: dict[str, str], osm_id: int, footprint_area_m2: float | None = None
 ) -> tuple[float, bool]:
@@ -750,6 +862,9 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     tile_bounds = Polygon([(-width / 2, -depth / 2), (width / 2, -depth / 2),
                            (width / 2, depth / 2), (-width / 2, depth / 2)])
     scene = trimesh.Scene()
+    facade_photo_catalog = load_facade_photo_catalog()
+    facade_photo_matches: list[dict[str, Any]] = []
+    facade_photo_panels = 0
     ground = trimesh.creation.box(extents=(width, depth, 0.20))
     ground.apply_translation((0.0, 0.0, -0.10))
     color_mesh(ground, (104, 119, 91, 255))
@@ -845,6 +960,32 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             for mesh in extruded_polygon(polygon, height, facade_color, f"osm_building_{osm_id}"):
                 mesh.apply_translation((0.0, 0.0, 0.02))
                 building_meshes_by_color.setdefault(facade_color, []).append(mesh)
+            facade_photo = match_facade_photo(tags, facade_photo_catalog)
+            if facade_photo is not None:
+                photo_metadata: dict[str, Any] = facade_photo["metadata"]
+                photo_panel = facade_photo_panel(
+                    polygon, height, facade_photo["image"], osm_id, str(photo_metadata.get("id", "licensed_photo"))
+                )
+                if photo_panel is not None:
+                    scene.add_geometry(
+                        photo_panel,
+                        node_name=f"licensed_facade_photo_{photo_metadata.get('id')}_{osm_id}",
+                        geom_name=f"licensed_facade_photo_{photo_metadata.get('id')}_{osm_id}",
+                    )
+                    facade_photo_panels += 1
+                    match_record = {
+                        "osm_id": osm_id,
+                        "building_name": tags.get("name", tags.get("name:bn", tags.get("official_name", ""))),
+                        "image_id": photo_metadata.get("id"),
+                        "subject": photo_metadata.get("subject"),
+                        "source_page": photo_metadata.get("source_page"),
+                        "author": photo_metadata.get("author"),
+                        "license": photo_metadata.get("license"),
+                        "license_url": photo_metadata.get("license_url"),
+                        "attribution": photo_metadata.get("attribution"),
+                        "status": "EMBEDDED_TEXTURE_PANEL_REQUIRES_VISUAL_REVIEW",
+                    }
+                    facade_photo_matches.append(match_record)
             # Roof caps are batched by mapped colour to reduce mobile draw calls.
             mapped_roof_color = roof_color(tags, osm_id)
             for roof_mesh in extruded_polygon(polygon, 0.055, mapped_roof_color, f"osm_roof_{osm_id}"):
@@ -1122,10 +1263,12 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "extent_metres_approx": {"east_west": round(width, 1), "north_south": round(depth, 1)},
         "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "road_ways": roads,
                            "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places,
-                           "interior_anchors": len(interior_seeds), "mapped_trees": trees,
+                           "interior_anchors": len(interior_seeds), "licensed_facade_photo_panels": facade_photo_panels, "mapped_trees": trees,
                            "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color), "procedural_vegetation_trees": procedural_trees, "vegetation_mesh_batches": len(vegetation_meshes_by_color),
                             "water_polygons": water_polygons, "waterway_segments": waterway_segments,
                             "landuse_areas": landuse_areas, "railway_ways": railway_ways, "bridge_ways": bridge_ways},
+        "licensed_facade_photo_matches": facade_photo_matches,
+        "facade_photo_note": "Only exact OSM name aliases from the rights-reviewed catalog receive a photo panel. These are licensed reference-photo panels, not full photogrammetric facade reconstruction; visual identity, orientation, and building match must be reviewed.",
         "height_note": "OSM height/building:levels tags are used when present; otherwise footprint-area/building-category estimates with deterministic floor-height variation are flagged as inferred, not surveyed facts.",
         "hydrography_note": "Mapped OSM water polygons are kept to their source outlines. River/canal centerlines without mapped widths use type-based approximate widths and are not survey-grade water boundaries.",
          "visual_fidelity_note": "Real OSM road alignments, building footprints, mapped water and land-use surfaces, and tagged bridges are included. Mapped forest, orchard, park, scrub and farm polygons receive bounded deterministic low-poly tree props where individual OSM tree nodes are sparse; vegetation remains procedural rather than a surveyed inventory. Sufficiently large buildings receive lightweight procedural low-poly window panels; building, roof and vegetation meshes are batched by material colour to reduce mobile draw calls. Explicit facade/roof colour tags are used where available. Bangla/English names and exterior image references are preserved per building. This is not photorealistic street imagery; that requires separately licensed source data.",
