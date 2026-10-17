@@ -114,7 +114,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y osmium-tool
           python -m pip install --upgrade pip
-          python -m pip install osmium shapely trimesh mapbox-earcut
+          python -m pip install osmium shapely trimesh mapbox-earcut pillow
 
       # Cache a regional extract, not the full country PBF. This prevents each
       # tile batch from scanning the entire Bangladesh extract from scratch.
