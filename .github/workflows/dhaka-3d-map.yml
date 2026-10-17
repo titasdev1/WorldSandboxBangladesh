@@ -293,7 +293,7 @@ jobs:
       - name: Checkout pinned source commit for package assembly
         uses: actions/checkout@v5
         with:
-          ref: ${{ needs.build-map.outputs.source_commit }}
+          ref: ${{ needs.build-map.outputs.source_commit || inputs.source_commit || github.sha }}
 
       - name: Set up Python for package assembly
         uses: actions/setup-python@v6
