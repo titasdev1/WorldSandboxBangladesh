@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 ALLOWED_LICENSES = {"CC BY 4.0", "CC BY-SA 4.0"}
-ALLOWED_HOSTS = {"commons.wikimedia.org", "upload.wikimedia.org"}
+ALLOWED_HOSTS = {"commons.wikimedia.org", "upload.wikimedia.org", "thumb.wikimedia.org"}
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 
 
