@@ -142,7 +142,7 @@ def build_index(source: Path) -> dict[str, Any]:
                     },
                 }
     named_roads = sum(1 for road in roads.values() if road["name_status"] == "NAMED")
-    level_tagged = sum(1 for building in buildings.values() if building["floor_count_verified"])
+    level_tagged = sum(1 for building in buildings.values() if building["floor_count_tagged_in_source"])
     return {
         "schema_version": 1,
         "purpose": "real-world navigation, road labels, coordinate lookup, and floor-count evidence",
