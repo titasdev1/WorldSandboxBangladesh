@@ -70,5 +70,42 @@ class RealWorldNavigationIndexTests(unittest.TestCase):
         self.assertEqual(unknown["facade_reference"]["status"], "NO_FACADE_REFERENCE_IN_SOURCE")
 
 
+    def test_only_explicit_human_reviewed_floor_evidence_counts_as_verified(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "tile.geojson").write_text(json.dumps({
+                "type": "FeatureCollection",
+                "features": [{
+                    "type": "Feature", "id": "way/202",
+                    "properties": {"osm_id": 202, "tags": {"building": "apartments", "building:levels": "5"}},
+                    "geometry": {"type": "Polygon", "coordinates": [[
+                        [90.35, 23.22], [90.351, 23.22], [90.351, 23.221],
+                        [90.35, 23.221], [90.35, 23.22]
+                    ]]},
+                }],
+            }), encoding="utf-8")
+            evidence_path = root / "building_floor_evidence.json"
+            evidence_path.write_text(json.dumps({
+                "schema_version": 1,
+                "records": [{
+                    "osm_id": "way/202",
+                    "floor_count": 5,
+                    "evidence_source_url": "https://example.org/building-plan",
+                    "evidence_source_type": "official_building_profile",
+                    "reviewer": "map-reviewer",
+                    "reviewed_at": "2026-10-17",
+                    "evidence_notes": "Official plan lists five occupied storeys; roof levels excluded.",
+                    "verification_status": "INDEPENDENTLY_VERIFIED",
+                }],
+            }), encoding="utf-8")
+            report = build_index(root, evidence_path)
+        building = report["buildings"][0]
+        self.assertTrue(building["floor_count_independently_verified"])
+        self.assertEqual(building["independently_verified_floor_count"], 5)
+        self.assertEqual(report["counts"]["buildings_with_independently_verified_floor_count"], 1)
+        self.assertEqual(report["floor_evidence_validation"]["rejected_registry_records"], [])
+
+
+
 if __name__ == "__main__":
     unittest.main()
