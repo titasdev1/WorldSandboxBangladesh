@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "purpose": "Strictly name-matched, openly licensed Shariatpur landmark facade photo references. Only apply a photo when a source building name matches an alias exactly; never use as generic texture.",
+  "limitations": [
+    "These are landmark reference photographs, not a complete set for every Shariatpur building.",
+    "OSM name matching is not proof of surveyed coordinates; inspect the resulting GLB before release.",
+    "CC BY-SA 4.0 texture derivatives must remain available under compatible share-alike terms; keep each photo and attribution separate from unrelated game assets.",
+    "No Google Maps imagery is downloaded or redistributed."
+  ],
+  "images": [
+    {
+      "id": "bibir_hat_mosque_01",
+      "subject": "Bibir Hat Mosque, Shariatpur",
+      "match_names": [
+        "Bibir Hat Mosque",
+        "বিবির হাট মসজিদ",
+        "Bibir Hat Jame Mosque"
+      ],
+      "source_page": "https://commons.wikimedia.org/wiki/File:Bibir_Hat_Mosque_01.jpg",
+      "download_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Bibir_Hat_Mosque_01.jpg?width=1024",
+      "author": "Radman Siddiki (Wikimedia username: Redmin)",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "Photo: Radman Siddiki / Wikimedia Commons, Bibir Hat Mosque 01.jpg, CC BY-SA 4.0. Source: https://commons.wikimedia.org/wiki/File:Bibir_Hat_Mosque_01.jpg",
+      "file_name": "bibir_hat_mosque_01.jpg",
+      "status": "LICENSE_REVIEWED_FOR_CATALOG; BUILDING_MATCH_AND_TEXTURE_VISUAL_QA_REQUIRED"
+    },
+    {
+      "id": "rudrakar_moth_35",
+      "subject": "Rudrakar Moth (Rudrakar Abbey), Shariatpur",
+      "match_names": [
+        "Rudrakar Moth",
+        "Rudrakar Abbey",
+        "রুদ্রকর মঠ"
+      ],
+      "source_page": "https://commons.wikimedia.org/wiki/File:Rudrakar_Abbey_35.jpg",
+      "download_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Rudrakar_Abbey_35.jpg?width=1024",
+      "author": "Radman Siddiki (Wikimedia username: Redmin)",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "attribution": "Photo: Radman Siddiki / Wikimedia Commons, Rudrakar Abbey 35.jpg, CC BY 4.0. Source: https://commons.wikimedia.org/wiki/File:Rudrakar_Abbey_35.jpg",
+      "file_name": "rudrakar_moth_35.jpg",
+      "status": "LICENSE_REVIEWED_FOR_CATALOG; BUILDING_MATCH_AND_TEXTURE_VISUAL_QA_REQUIRED"
+    }
+  ]
+}
