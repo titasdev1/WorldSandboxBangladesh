@@ -102,3 +102,8 @@ Turn instructions are generated from road-name changes and geometry bends. This 
 The assembled package carries `building_floor_evidence.json`. A floor count is marked independently verified only when a record identifies an exact OSM feature, an HTTPS source, an approved evidence type, a human reviewer, a real review date, and evidence notes. The current Shariatpur registry is intentionally empty, so independently verified floor counts remain **0** until building-specific evidence is reviewed; OSM-tagged levels and height-derived estimates stay separate.
 
 The optional Shariatpur landmark photo pipeline downloads only the allowlisted Wikimedia Commons references in `shariatpur_facade_images.json`, retains author/license attribution, and applies a textured photo panel only on an exact building-name alias match. It is not photogrammetry, does not reconstruct every facade, and does not mark a building as visually verified. A full map build reports how many panels were actually embedded; zero is a valid outcome if imagery cannot be downloaded or no exact mapped name match exists.
+
+
+## Source-pinned Shariatpur rebuild trigger
+
+A feature-branch review bake is triggered only by an explicit commit message containing `[build-shariatpur-review]`. The first batch pins that exact commit SHA; continuation batches use the same source commit and assemble a full 60-tile Shariatpur review package. This trigger does not promote the package: it remains `REVIEW_REQUIRED` until visual exterior review, floor evidence, attribution checks, and Android/device QA pass.
