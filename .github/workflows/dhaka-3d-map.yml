@@ -261,7 +261,7 @@ jobs:
           NEXT_RETRY_COUNT=$((RETRY_COUNT + 1))
           gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/dispatches" --input - <<EOF
           {
-            "ref": "main",
+            "ref": "${GITHUB_REF_NAME}",
             "inputs": {
               "tile_degrees": "${TILE_DEGREES}",
               "tile_offset": "${TILE_OFFSET}",
@@ -308,7 +308,7 @@ jobs:
           set -euo pipefail
           gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/dispatches" --input - <<EOF
           {
-            "ref": "main",
+            "ref": "${GITHUB_REF_NAME}",
             "inputs": {
               "tile_degrees": "${TILE_DEGREES}",
               "tile_offset": "${NEXT_OFFSET}",
