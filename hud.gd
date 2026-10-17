@@ -184,11 +184,14 @@ func _teleport_to_named_place() -> void:
  if not is_instance_valid(loader) or not is_instance_valid(player) or not loader.has_method("search_named_place"):
   teleport_status.text = "Named-place search is unavailable in this build."
   return
- var matches: Array = loader.search_named_place(teleport_place_input.text, 5)
- if matches.is_empty():
-  teleport_status.text = "No mapped match. Try a shorter English/Bangla name or a road reference."
+ if not loader.has_method("resolve_named_place"):
+  teleport_status.text = "Named-place resolver is unavailable in this build."
   return
- var place: Dictionary = matches[0]
+ var resolved: Dictionary = loader.resolve_named_place(teleport_place_input.text)
+ if not bool(resolved.get("ok", false)):
+  teleport_status.text = str(resolved.get("message", "No mapped match."))
+  return
+ var place: Dictionary = resolved["place"]
  var result: Dictionary = loader.teleport_player_to_lat_lon(float(place["latitude"]), float(place["longitude"]), player)
  teleport_status.text = str(place["name"]) + " — " + str(result.get("message", "Teleport request finished.")) + "\nApproximate map point, not a surveyed entrance."
  if bool(result.get("ok", false)):
