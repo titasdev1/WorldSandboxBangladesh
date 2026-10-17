@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "029_SHARIATPUR_CLEAN_PROVENANCE_SEQUENCE_BATCH_0_VERIFIED",
+  "current_milestone": "030_REAL_WORLD_NAVIGATION_AND_LICENSED_FACADE_PHOTO_PIPELINE_PENDING_QA",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -23,9 +23,12 @@
     "013_VEHICLE_GAMEPLAY",
     "014_WORLD_SIMULATION",
     "015_UI",
-    "017_SAVE_LOAD"
+    "017_SAVE_LOAD",
+    "016_REAL_WORLD_NAVIGATION",
+    "018_LICENSED_LANDMARK_FACADE_PHOTO_PANELS",
+    "019_INDEPENDENT_FLOOR_EVIDENCE_GATE"
   ],
-  "next_priority": "Finish all 60 Shariatpur tiles in sequence 38920673926 using pinned source commit 65a3540c182aca78c5583bf48a83a9755b3f0f7e; assemble the complete package, inspect quality_gate_report.json, then build a candidate Android APK with that exact package and keep REVIEW_REQUIRED until visual/device QA.",
+  "next_priority": "Finish CI on PR #74, then run one pinned full 60-tile Shariatpur rebuild from the validated navigation/facade feature revision. Inspect the assembled quality_gate_report.json, actual licensed photo-panel counts and attribution, and independently verified floor count (must remain zero until evidence is reviewed). Build a Shariatpur review APK against that exact assembled package. Keep REVIEW_REQUIRED until manual exterior/entrance review and physical Android QA; do not expand to other districts before Shariatpur is polished.",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -41,13 +44,15 @@
     "Build #223 passed the canonical Android workflow after adding exact APK/asset audit reporting. Audit report is uploaded as a separate 884-byte artifact; artifact-container size remains separate from actual APK size, and report payload has not yet been inspected directly.",
     "Combat Lab / Last Stand controller merged in commit 123f84f; canonical Godot/Android validation and physical-device aiming/collision/performance QA are pending.",
     "PR #59 merged as 30bc0e3b4f353d923923dc8707475b114cfe0a0c after its exact head 7d62ad457907a72094a6cbdc072ebbdd152d0066 passed fast map tests, Godot runtime validation, bounded map validation, and canonical Android export run 38892036942. Main-branch post-merge run is not yet independently observed.",
-    "Shariatpur review artifact from run 38891159212 is REVIEW_REQUIRED: 60/60 tile offsets and GLBs present, but 3 tiles are ground-only; mapped street lamps 0, trees 2, 34,782 of 34,806 building heights estimated, licensed photorealistic façade imagery absent, and Android map-package integration/device performance unverified.",
-    "Map artifact naming from run 38891159212 omitted its sequence suffix. Fix workflow metadata propagation without rebuilding tiles solely to rename the artifact.",
     "APK summary shell-quoting defect fixed in .github/workflows/android.yml commit bf43113107353095891ae6255a6e08d07b55b3a5; awaiting a workflow run to verify no shell warning and correct summary output.",
     "Commit b1399551554e12bcfc8a230d650034552d6c566a fixes Shariatpur review artifact suffix fallback: explicit input sequence ID, build output sequence ID, then workflow run ID.",
-    "Fresh Shariatpur sequence 38920673926 is pinned to source commit 65a3540c182aca78c5583bf48a83a9755b3f0f7e. Batch 0 passed provenance/GLB checks: 8/60 tiles, all 8 with geometry; 2,241 buildings, 984 road ways, 1,444 water polygons, 520 land-use areas, 66 bridges, 12,813 facade-window panels, and 98 procedural vegetation trees. Batch 1 is running; full district assembly and Android integration are pending."
+    "Latest assembled Shariatpur review artifact is run 38938686805 / artifact 12063350032 (sequence 38933936478), 60/60 tiles present but status remains REVIEW_REQUIRED: 57/60 tiles have renderable OSM features and three tiles are ground-only.",
+    "Independent floor-evidence registry is intentionally empty; independently verified floor counts remain 0. Source-tagged building:levels and inferred heights must never be reported as independently verified.",
+    "Licensed Shariatpur facade-photo pipeline currently catalogs Bibir Hat Mosque (CC BY-SA 4.0) and Rudrakar Moth (CC BY 4.0); strict exact-name panels are optional until photos download and mapped names match. Panel integration tests pass, but full Shariatpur bake and visual identity QA are pending.",
+    "Offline named-place search and Dijkstra road-route guidance are implemented on the PR branch; turn directions are based on mapped geometry/name changes and do not yet enforce traffic, one-way, access, pedestrian-safety, or live traffic restrictions. Android build and physical-device QA are pending.",
+    "PR #74 is not merged. The new navigation and licensed facade-photo changes must pass the full Shariatpur rebuild and review APK gate before being treated as the canonical game base."
   ],
-  "build_status": "SHARIATPUR_CLEAN_SEQUENCE_RUNNING_BATCH_0_OF_60_VERIFIED; BATCH_1_RUNNING; NO_DISTRICT_ASSEMBLY_OR_APK_YET",
+  "build_status": "SHARIATPUR_60_TILE_ASSEMBLY_EXISTS_REVIEW_REQUIRED; NAVIGATION_AND_LICENSED_FACADE_PIPELINE_IN_PR_CI; FULL_BRANCH_REBUILD_AND_SHARIATPUR_REVIEW_APK_PENDING",
   "latest_verified_run": 38892036942,
   "latest_verified_commit": "7d62ad457907a72094a6cbdc072ebbdd152d0066",
   "latest_build_artifact": {
@@ -71,13 +76,13 @@
   "recovery_rule": "Preserve the existing playable boot path; each feature batch must pass Godot import/startup and Android export checks before being treated as verified.",
   "asset_pipeline": "live_game_factory_installed",
   "audit": {
-    "date": "2026-10-16",
-    "latest_audited_commit": "65a3540c182aca78c5583bf48a83a9755b3f0f7e",
-    "latest_audited_workflow_run": 38920673926,
-    "latest_audited_workflow_conclusion": "batch_0_success; batch_1_running",
-    "verification_status": "Fixed the missing pipeline_commit_sha in build_dhaka_division.py and added regression tests for manifest provenance and rejecting missing provenance. PR #64 merged as 65a3540c182aca78c5583bf48a83a9755b3f0f7e. Fast map tests and Godot runtime validation passed; map workflow run 38920245648 also passed on the PR revision. Clean Shariatpur sequence 38920673926 has produced a verified 8-tile batch; full 60-tile assembly, quality report, candidate APK, and device QA remain pending.",
+    "date": "2026-10-17",
+    "latest_audited_commit": "8f365949",
+    "latest_audited_workflow_run": 38938686805,
+    "latest_audited_workflow_conclusion": "Map package assembly success; visual/device quality gate remains REVIEW_REQUIRED.",
+    "verification_status": "The latest main-branch Shariatpur review package was assembled successfully in run 38938686805 (artifact 12063350032, sequence 38933936478). It contains 60/60 tile records and GLBs, but only 57/60 tiles contain renderable OSM features; three tiles are ground-only. The navigation/floor-evidence/licensed-landmark-photo work is being developed in PR #74 and is not merged or fully validated on the complete Shariatpur package yet. Do not promote the map until the feature branch is rebuilt into the full district package and a matching review APK passes visual/device QA.",
     "map_quality_gate": {
-      "artifact_run": 38891159212,
+      "artifact_run": 38938686805,
       "status": "REVIEW_REQUIRED",
       "expected_tiles": 60,
       "present_tiles": 60,
@@ -95,11 +100,11 @@
       "mapped_utility_poles": 35,
       "mapped_street_lamps": 0,
       "blockers": [
-        "Regenerate current Shariatpur review sequence after PR #59 merge",
-        "Inspect and fix missing sequence suffix in artifact name",
-        "Manual exterior/geometry review",
-        "Licensed façade imagery absent",
-        "Android integration and physical-device memory/FPS/touch QA pending"
+        "Three tiles remain ground-only: tile_23p0335_90p3053, tile_23p0335_90p5053, tile_23p4335_90p3053.",
+        "34,782 of 34,806 building heights remain estimated; independently verified floor counts are 0 until evidence is reviewed.",
+        "Licensed facade-photo panels are not yet baked and visually inspected in a fresh full Shariatpur build from PR #74.",
+        "Named-place routing is on the PR branch and needs full-package Android export, route sanity checks, and device QA.",
+        "Manual exterior/facade/entrance visual review and physical Android memory/FPS/touch QA remain required."
       ],
       "sequence_label_fix_commit": "b1399551554e12bcfc8a230d650034552d6c566a",
       "fresh_sequence_trigger_commit": "65a3540c182aca78c5583bf48a83a9755b3f0f7e",
@@ -107,7 +112,13 @@
       "fresh_sequence_run": 38920673926,
       "completed_tiles": 8,
       "total_tiles": 60,
-      "tile_count_percent": 13.33
+      "tile_count_percent": 100,
+      "artifact_id": 12063350032,
+      "artifact_name": "Project-A-Square-Shariatpur-Review-Map-38933936478",
+      "artifact_size_bytes": 22767552,
+      "artifact_sha256": "3783aaa961edb94fd3851d5a133aeda72d3ff246b36d4e61e4bda52c24bb0b39",
+      "independently_verified_floor_counts": 0,
+      "licensed_facade_photo_panels_embedded": "pending full Shariatpur rebuild"
     },
     "apk_verification": {
       "run_id": 38892036942,
@@ -124,49 +135,32 @@
       "reporting_fix_status": "COMMITTED_AWAITING_WORKFLOW_VALIDATION"
     },
     "active_shariatpur_sequence": {
-      "sequence_id": 38920673926,
-      "source_commit": "65a3540c182aca78c5583bf48a83a9755b3f0f7e",
+      "sequence_id": 38933936478,
+      "source_commit": "8f365949",
       "stage": "shariatpur_review",
       "total_tiles": 60,
-      "completed_tiles": 8,
-      "tile_count_percent": 13.33,
+      "completed_tiles": 60,
+      "tile_count_percent": 100,
       "completed_batch_offsets": [
-        0
+        0,
+        8,
+        16,
+        24,
+        32,
+        40,
+        48,
+        56
       ],
-      "current_batch_offset": 8,
-      "current_batch_run": 38921508958,
-      "batch_0_artifact_id": 12054956590,
-      "batch_0_artifact_name": "Project-A-Square-Dhaka-Division-38920673926-batch-0-attempt-0",
-      "batch_0_artifact_bytes": 3266023,
-      "batch_0_glb_bytes": 9111156,
-      "batch_0_tiles_with_geometry": 8,
-      "batch_0_source_elements_in_boundary_envelope": 7646,
-      "batch_0_feature_counts": {
-        "building_footprints": 2241,
-        "road_ways": 984,
-        "buildings_with_inferred_height": 2233,
-        "named_or_tagged_interaction_seeds": 280,
-        "interior_anchors": 2401,
-        "mapped_trees": 2,
-        "mapped_utility_poles": 16,
-        "mapped_street_lamps": 0,
-        "facade_window_panels": 12813,
-        "building_mesh_batches": 18,
-        "roof_mesh_batches": 18,
-        "procedural_vegetation_trees": 98,
-        "vegetation_mesh_batches": 3,
-        "water_polygons": 1444,
-        "waterway_segments": 32,
-        "landuse_areas": 520,
-        "railway_ways": 0,
-        "bridge_ways": 66
-      },
+      "final_assembly_run": 38938686805,
+      "final_artifact_id": 12063350032,
+      "final_artifact_size_bytes": 22767552,
+      "final_artifact_sha256": "3783aaa961edb94fd3851d5a133aeda72d3ff246b36d4e61e4bda52c24bb0b39",
+      "quality_gate_status": "REVIEW_REQUIRED",
       "blockers": [
-        "Only 8 of 60 tiles have been baked in the fresh sequence so far.",
-        "Full district assembly and quality report are not yet available.",
-        "Most building heights in batch 0 are inferred rather than verified.",
-        "Licensed photorealistic facade imagery is absent from OSM data.",
-        "Candidate Android APK and physical-device visual/performance/touch QA are pending."
+        "3 ground-only tiles",
+        "independently verified floor counts: 0",
+        "full photo-panel bake/visual QA pending",
+        "review APK and physical-device QA pending"
       ]
     }
   }
