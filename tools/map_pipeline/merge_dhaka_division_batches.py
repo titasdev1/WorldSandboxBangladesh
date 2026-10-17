@@ -171,7 +171,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "feature_counts_across_tiles": feature_counts,
         "licensed_facade_photo_matches": facade_photo_matches,
         "licensed_facade_photo_panels_embedded": int(feature_counts.get("licensed_facade_photo_panels", 0)),
-        "buildings_with_embedded_facade_photo_panel": embedded_building_count,
+        "buildings_with_embedded_facade_photo_panel": int(feature_counts.get("licensed_facade_photo_panels", 0)),
         "source_elements_processed_across_batches": source_element_count,
         "map_build_batch_count": len(batches),
         "pipeline_commit_sha": pipeline_commit_sha,
