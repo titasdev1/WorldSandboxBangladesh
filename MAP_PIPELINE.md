@@ -95,3 +95,10 @@ Important: the coordinate is a geometry-vertex mean, not a surveyed entrance or 
 The navigation index now retains source road polylines as WGS84 coordinate paths and indexes named POIs with English/Bangla names and category tags. The Android workflow rebuilds this index from the selected package's GeoJSON so an older pinned map can still gain search/routing metadata without silently changing its geometry. Runtime search and Dijkstra route planning use only indexed road segments; route endpoints and building points are approximate geometry-derived locations, not surveyed entrances. If source GeoJSON is absent, the build emits a warning and named search/route guidance remains unavailable rather than fabricating data.
 
 Turn instructions are generated from road-name changes and geometry bends. This is an offline mapped-road route, not a live traffic-aware service; one-way restrictions, access restrictions, sidewalk continuity, bridges, ferries, and pedestrian-safe crossings still require validation before claiming full turn-by-turn navigation is production-ready.
+
+
+## Evidence-driven building floors and landmark photo panels
+
+The assembled package carries `building_floor_evidence.json`. A floor count is marked independently verified only when a record identifies an exact OSM feature, an HTTPS source, an approved evidence type, a human reviewer, a real review date, and evidence notes. The current Shariatpur registry is intentionally empty, so independently verified floor counts remain **0** until building-specific evidence is reviewed; OSM-tagged levels and height-derived estimates stay separate.
+
+The optional Shariatpur landmark photo pipeline downloads only the allowlisted Wikimedia Commons references in `shariatpur_facade_images.json`, retains author/license attribution, and applies a textured photo panel only on an exact building-name alias match. It is not photogrammetry, does not reconstruct every facade, and does not mark a building as visually verified. A full map build reports how many panels were actually embedded; zero is a valid outcome if imagery cannot be downloaded or no exact mapped name match exists.
