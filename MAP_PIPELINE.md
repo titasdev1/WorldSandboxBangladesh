@@ -63,3 +63,28 @@ Where OSM tags exist, natural=tree, power=pole / power=tower, man_made=utility_p
 ## 2026-10-16 sequence-label correction
 
 The final Shariatpur review artifact name now resolves its sequence ID from the explicit workflow input first, the build job output second, and the current workflow run ID as a safe fallback. This prevents an empty suffix when assembling an already completed sequence without rebuilding tiles. The next fresh Shariatpur-only sequence will verify the artifact naming fix and regenerate the review package from the merged geometry/collision pipeline. The quality report remains review-required until its coverage, geometry, licensed visual reference, and Android integration checks pass.
+
+## Real-world navigation and building-evidence index (2026-10)
+
+The new `tools/map_pipeline/build_real_world_navigation_index.py` builds a machine-readable index from source GeoJSON. It preserves mapped road names (including `name:bn` and `ref`), source road class, approximate WGS84 feature coordinates, building names/types, tagged `building:levels`, roof levels, height evidence, and per-building facade-reference status. It explicitly marks roads unnamed in source, buildings without floor evidence, and facades without a verified licensed reference. It never fabricates names or floor counts.
+
+Example after extracting a map package:
+
+```bash
+python3 tools/map_pipeline/build_real_world_navigation_index.py \
+  --source build/selected-map \
+  --out build/selected-map/real_world_navigation_index.json
+```
+
+Important: the coordinate is a geometry-vertex mean, not a surveyed entrance or guaranteed navigable destination. The output is an auditable metadata foundation; it is **not yet proof of runtime road labels, teleport-to-coordinate, or floor-aware GLB rendering**. Those require game integration and tests against the real map loader.
+
+### Required fidelity gates
+
+1. **Road labels:** show mapped `name`, `name:bn`, and `ref` from OSM in world labels, minimap, search, and directions. Keep unknown roads explicitly unnamed; never infer official names from nearby labels.
+2. **Coordinates and teleport:** retain each tile's WGS84 origin/bounds and a consistent WGS84-to-local transform. Teleport accepts latitude/longitude or a selected named place, resolves the nearest valid walkable road/sidewalk position, rejects points outside loaded/available coverage, and displays the destination. Never teleport to a raw map centroid if it is inside a building/water.
+3. **Floor count before height:** use `building:levels` as primary source, `roof:levels` separately, and `height` only as secondary evidence. Preserve source and confidence per building. If no tagged count exists, mark it missing and research only from permitted references; do not convert a generic estimated height into a claimed real floor count.
+4. **Facade identity:** keep a building-specific imagery-reference record with source URL, license/terms, attribution, capture date where available, and review status. A reference photo is not automatically licensed for texture use. Google Maps may be consulted only within its terms; do not scrape, extract, or redistribute its imagery/3D tiles. Prefer owner-provided/commissioned photos, open-licensed images with compatible terms, or a licensed runtime provider.
+5. **Minimap/navigation:** player marker and heading, north orientation, scale, road names, nearby named landmarks, destination marker, route line, and teleport/search controls must be integrated into the same canonical HUD and verified on Android.
+6. **Ground-only recovery:** the three Shariatpur ground-only tiles must be investigated against fresh OSM/authorized data. Empty-source tiles must not be populated with invented roads/buildings merely to make the coverage statistic look better.
+7. **Acceptance:** run offline tests, regenerate the Shariatpur package from a pinned source revision, inspect road-name/floor-count coverage, compare representative blocks against lawful references, then run Android export and physical-device visual/performance/touch QA. The map stays review-required until these gates pass.
+
