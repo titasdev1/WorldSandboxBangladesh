@@ -171,6 +171,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "feature_counts_across_tiles": feature_counts,
         "licensed_facade_photo_matches": facade_photo_matches,
         "licensed_facade_photo_panels_embedded": int(feature_counts.get("licensed_facade_photo_panels", 0)),
+        "buildings_with_embedded_facade_photo_panel": embedded_building_count,
         "source_elements_processed_across_batches": source_element_count,
         "map_build_batch_count": len(batches),
         "pipeline_commit_sha": pipeline_commit_sha,
@@ -244,6 +245,28 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
             attribution_text += "\n" + entry + "\n"
     (out / "ATTRIBUTION.txt").write_text(attribution_text, encoding="utf-8")
     navigation_index = build_index(out)
+    embedded_photo_by_osm_id = {
+        "way/" + str(match.get("osm_id", "")): match
+        for match in facade_photo_matches
+        if str(match.get("osm_id", "")).strip()
+    }
+    embedded_building_count = 0
+    for building in navigation_index.get("buildings", []):
+        photo_match = embedded_photo_by_osm_id.get(str(building.get("osm_id", "")))
+        if not isinstance(photo_match, dict):
+            continue
+        reference = building.setdefault("facade_reference", {})
+        reference.update({
+            "source_page": photo_match.get("source_page"),
+            "author": photo_match.get("author"),
+            "license": photo_match.get("license"),
+            "license_url": photo_match.get("license_url"),
+            "attribution": photo_match.get("attribution"),
+            "status": "LICENSED_PHOTO_PANEL_EMBEDDED_REVIEW_REQUIRED",
+            "visual_identity_verified": False,
+        })
+        embedded_building_count += 1
+    navigation_index["counts"]["buildings_with_embedded_facade_photo_panel"] = embedded_building_count
     (out / "real_world_navigation_index.json").write_text(
         json.dumps(navigation_index, ensure_ascii=False, indent=2), encoding="utf-8"
     )
