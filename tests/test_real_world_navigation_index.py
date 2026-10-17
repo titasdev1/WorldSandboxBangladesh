@@ -47,9 +47,12 @@ class RealWorldNavigationIndexTests(unittest.TestCase):
         unknown = next(b for b in report["buildings"] if b["osm_id"] == "way/303")
         self.assertEqual(known["levels"], 5)
         self.assertTrue(known["floor_count_verified"])
+        self.assertEqual(known["facade_reference"]["image_url"], "https://example.invalid/building.jpg")
+        self.assertEqual(known["facade_reference"]["status"], "REFERENCE_REQUIRES_LICENSE_REVIEW")
+        self.assertEqual(report["counts"]["buildings_with_any_facade_reference"], 1)
         self.assertIsNone(unknown["levels"])
         self.assertFalse(unknown["floor_count_verified"])
-        self.assertEqual(unknown["facade_reference"]["status"], "NO_VERIFIED_FACADE_REFERENCE")
+        self.assertEqual(unknown["facade_reference"]["status"], "NO_FACADE_REFERENCE_IN_SOURCE")
 
 
 if __name__ == "__main__":
