@@ -169,18 +169,18 @@ jobs:
               --source assets/world/dhaka_tiles \
               --out assets/world/dhaka_tiles/real_world_navigation_index.json
             python3 - <<'PY'
-            import json
-            from pathlib import Path
-            report = json.loads(Path("assets/world/dhaka_tiles/real_world_navigation_index.json").read_text(encoding="utf-8"))
-            counts = report.get("counts", {})
-            print("Offline navigation index:", json.dumps({
-                "named_roads": counts.get("named_roads", 0),
-                "unnamed_roads": counts.get("unnamed_roads", 0),
-                "named_places": counts.get("named_places", 0),
-                "buildings_with_source_floor_count": counts.get("buildings_with_source_floor_count", 0),
-                "independently_verified_floor_counts": counts.get("buildings_with_independently_verified_floor_count", 0),
-            }, ensure_ascii=False))
-            PY
+          import json
+          from pathlib import Path
+          report = json.loads(Path("assets/world/dhaka_tiles/real_world_navigation_index.json").read_text(encoding="utf-8"))
+          counts = report.get("counts", {})
+          print("Offline navigation index:", json.dumps({
+              "named_roads": counts.get("named_roads", 0),
+              "unnamed_roads": counts.get("unnamed_roads", 0),
+              "named_places": counts.get("named_places", 0),
+              "buildings_with_source_floor_count": counts.get("buildings_with_source_floor_count", 0),
+              "independently_verified_floor_counts": counts.get("buildings_with_independently_verified_floor_count", 0),
+          }, ensure_ascii=False))
+          PY
           else
             echo "::warning::Selected map package has no source GeoJSON; named search and offline routing will be unavailable."
           fi
