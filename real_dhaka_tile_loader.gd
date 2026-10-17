@@ -276,6 +276,15 @@ func search_named_place(query: String, limit := 8) -> Array[Dictionary]:
 	return results
 
 
+func resolve_named_place(query: String) -> Dictionary:
+	var matches := search_named_place(query, 8)
+	if matches.is_empty():
+		return {"ok": false, "message": "No mapped named place matches that search."}
+	if matches.size() > 1 and int(matches[0].get("score", 0)) == int(matches[1].get("score", 0)):
+		return {"ok": false, "message": "Search is ambiguous. Add more of the English or Bangla name before teleporting or navigating."}
+	return {"ok": true, "place": matches[0]}
+
+
 func get_navigation_route() -> Array[Vector3]:
 	return _navigation_route.duplicate()
 
@@ -285,14 +294,16 @@ func get_navigation_steps() -> Array[Dictionary]:
 
 
 func navigate_to_named_place(query: String, start_player: Node3D) -> Dictionary:
+	_navigation_route.clear()
+	_navigation_steps.clear()
 	if not _ready_for_streaming or not is_instance_valid(start_player):
 		return {"ok": false, "message": "Real-world map is not loaded."}
 	if _navigation_graph.is_empty():
 		return {"ok": false, "message": "Offline road graph is missing. Rebuild the map package with the navigation index."}
-	var matches := search_named_place(query, 1)
-	if matches.is_empty():
-		return {"ok": false, "message": "No mapped named place matches that search."}
-	var place: Dictionary = matches[0]
+	var resolved := resolve_named_place(query)
+	if not bool(resolved.get("ok", false)):
+		return resolved
+	var place: Dictionary = resolved["place"]
 	var destination := _geo_to_world(float(place["latitude"]), float(place["longitude"]))
 	var start_node := _nearest_navigation_node(start_player.global_position)
 	var destination_node := _nearest_navigation_node(destination)
