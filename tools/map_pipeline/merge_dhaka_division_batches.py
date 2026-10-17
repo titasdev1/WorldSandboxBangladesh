@@ -244,7 +244,11 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
             seen_photo_attributions.add(entry)
             attribution_text += "\n" + entry + "\n"
     (out / "ATTRIBUTION.txt").write_text(attribution_text, encoding="utf-8")
-    navigation_index = build_index(out)
+    floor_evidence_source = pathlib.Path(__file__).resolve().with_name("shariatpur_floor_evidence.json")
+    floor_evidence_package = out / "building_floor_evidence.json"
+    if floor_evidence_source.is_file():
+        shutil.copy2(floor_evidence_source, floor_evidence_package)
+    navigation_index = build_index(out, floor_evidence_package if floor_evidence_package.is_file() else None)
     embedded_photo_by_osm_id = {
         "way/" + str(match.get("osm_id", "")): match
         for match in facade_photo_matches
