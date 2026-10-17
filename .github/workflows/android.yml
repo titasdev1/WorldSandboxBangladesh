@@ -53,6 +53,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          # The Shariatpur review package must be checked against current map-pipeline history.
+          fetch-depth: 0
 
       - name: Run production preflight gate
         shell: bash
@@ -127,6 +130,33 @@ jobs:
               pipeline_sha = str(manifest.get("pipeline_commit_sha", "")).strip()
               if not pipeline_sha:
                   raise SystemExit("Shariatpur package lacks pipeline_commit_sha; rebuild with the provenance gate")
+              # A self-consistent manifest can still be stale after the map pipeline changes.
+              # Fail closed if any map-generation source/workflow changed after this package's
+              # pinned source commit. Game-only commits do not invalidate the baked geometry.
+              import subprocess
+              try:
+                  subprocess.run(
+                      ["git", "cat-file", "-e", f"{pipeline_sha}^{{commit}}"],
+                      check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                  )
+              except subprocess.CalledProcessError:
+                  raise SystemExit("Shariatpur package pipeline commit is not present in checked-out history")
+              ancestor = subprocess.run(
+                  ["git", "merge-base", "--is-ancestor", pipeline_sha, os.environ["GITHUB_SHA"]],
+                  check=False,
+              )
+              if ancestor.returncode != 0:
+                  raise SystemExit("Shariatpur package source commit is not an ancestor of this build; refusing stale/foreign package")
+              changed = subprocess.run(
+                  ["git", "diff", "--quiet", f"{pipeline_sha}..{os.environ['GITHUB_SHA']}", "--",
+                   "tools/map_pipeline", ".github/workflows/dhaka-3d-map.yml",
+                   ".github/workflows/map-pipeline-tests.yml"],
+                  check=False,
+              )
+              if changed.returncode == 1:
+                  raise SystemExit("Shariatpur package is stale: map-generation source changed after its pinned pipeline commit; rebake Shariatpur")
+              if changed.returncode != 0:
+                  raise SystemExit("Could not verify Shariatpur map-package freshness; refusing candidate APK")
               report_path = root / "quality_gate_report.json"
               if not report_path.is_file():
                   raise SystemExit("Shariatpur review package has no quality gate report")
