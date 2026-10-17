@@ -125,7 +125,7 @@ def build_index(source: Path) -> dict[str, Any]:
                     "coordinates": center,
                     "source_file": str(path.relative_to(source)),
                     "floor_count_source": evidence,
-                    "floor_count_verified": levels is not None,
+                    "floor_count_tagged_in_source": levels is not None,\n                    "floor_count_independently_verified": False,
                     "facade_reference": {
                         "image_url": tags.get("image"),
                         "wikimedia_commons": tags.get("wikimedia_commons"),
@@ -152,7 +152,7 @@ def build_index(source: Path) -> dict[str, Any]:
             "named_roads": named_roads,
             "unnamed_roads": len(roads) - named_roads,
             "buildings": len(buildings),
-            "buildings_with_source_floor_count": level_tagged,
+            "buildings_with_source_floor_count": level_tagged,\n            "buildings_with_independently_verified_floor_count": 0,
             "buildings_missing_source_floor_count": len(buildings) - level_tagged,
             "buildings_with_any_facade_reference": sum(1 for building in buildings.values() if building["facade_reference"]["status"] == "REFERENCE_REQUIRES_LICENSE_REVIEW"),
             "buildings_with_verified_facade_reference": 0,
@@ -160,7 +160,7 @@ def build_index(source: Path) -> dict[str, Any]:
         "roads": sorted(roads.values(), key=lambda item: item["osm_id"]),
         "buildings": sorted(buildings.values(), key=lambda item: item["osm_id"]),
         "limitations": [
-            "OSM name/level tags are source evidence, not guaranteed complete or independently surveyed.",
+            "OSM name/level tags are source evidence, not guaranteed complete or independently surveyed; independently verified floor-count total remains zero until checked against reliable references.",
             "Coordinate labels are approximate feature points, not surveyed entrances.",
             "Missing floor counts must be researched from permitted street imagery, building photos, plans, or field evidence; do not silently guess.",
             "Facade imagery must be individually rights-cleared for in-game use. Google Maps imagery may be used only as permitted for reference and must not be scraped or redistributed.",
