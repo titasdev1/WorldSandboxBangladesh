@@ -23,7 +23,7 @@ class RealWorldNavigationIndexTests(unittest.TestCase):
                     {
                         "type": "Feature", "id": "way/202",
                         "properties": {"osm_id": 202, "tags": {
-                            "building": "apartments", "building:levels": "5", "height": "16"
+                            "building": "apartments", "building:levels": "5", "height": "16", "image": "https://example.invalid/building.jpg"
                         }},
                         "geometry": {"type": "Polygon", "coordinates": [[[90.35, 23.22], [90.351, 23.22],
                             [90.351, 23.221], [90.35, 23.221], [90.35, 23.22]]]},
