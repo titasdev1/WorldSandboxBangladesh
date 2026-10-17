@@ -437,7 +437,14 @@ func _build_turn_instructions(node_path: Array, road_names: Array) -> void:
 			elif next_name != current_name:
 				instruction = "Continue onto %s for about %.0f m" % [next_name, group_distance]
 			else:
-				instruction = "Follow the bend on %s for about %.0f m" % [current_name, group_distance]
+				var before: Vector3 = _navigation_node_positions[node_path[maxi(0, i - 1)]]
+				var at: Vector3 = _navigation_node_positions[node_path[i]]
+				var after: Vector3 = _navigation_node_positions[node_path[mini(node_path.size() - 1, i + 1)]]
+				var incoming := Vector2(at.x - before.x, at.z - before.z).normalized()
+				var outgoing := Vector2(after.x - at.x, after.z - at.z).normalized()
+				var signed_turn := incoming.angle_to(outgoing)
+				var turn_word := "left" if signed_turn < 0.0 else "right"
+				instruction = "Turn %s and follow %s for about %.0f m" % [turn_word, current_name, group_distance]
 			_navigation_steps.append({"instruction": instruction, "distance_m": group_distance})
 			group_start = i
 			group_distance = 0.0
