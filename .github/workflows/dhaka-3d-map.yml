@@ -74,9 +74,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: dhaka-division-map-v2-${{ github.ref }}-${{ inputs.sequence_id || github.run_id }}
-  # Sequential batches must not cancel the previous run after dispatching the next.
-  cancel-in-progress: false
+  group: dhaka-division-map-v2-${{ github.ref }}-${{ inputs.sequence_id || (github.event_name == 'pull_request' && 'pr-check') || github.run_id }}
+  # A newer PR revision supersedes an old bounded build; chained batches are never cancelled.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-map:
