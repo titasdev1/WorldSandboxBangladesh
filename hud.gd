@@ -19,6 +19,10 @@ var district_map: Control
 var map_button: Button
 var interaction_button: Button
 var driving_status: Label
+var teleport_panel: PanelContainer
+var teleport_lat_input: LineEdit
+var teleport_lon_input: LineEdit
+var teleport_status: Label
 
 func _ready():
  w = get_parent()
@@ -105,6 +109,73 @@ func _build_navigation_map() -> void:
  map_button.add_theme_font_size_override("font_size", 17)
  map_button.pressed.connect(_toggle_map)
  add_child(map_button)
+
+func _build_teleport_ui() -> void:
+ var teleport_button := Button.new()
+ teleport_button.name = "TeleportOpenButton"
+ teleport_button.text = "TELEPORT"
+ teleport_button.position = Vector2(790, 18)
+ teleport_button.size = Vector2(125, 44)
+ teleport_button.add_theme_font_size_override("font_size", 16)
+ teleport_button.pressed.connect(func(): teleport_panel.visible = not teleport_panel.visible)
+ add_child(teleport_button)
+
+ teleport_panel = PanelContainer.new()
+ teleport_panel.name = "CoordinateTeleportPanel"
+ teleport_panel.position = Vector2(720, 125)
+ teleport_panel.size = Vector2(300, 235)
+ teleport_panel.custom_minimum_size = Vector2(300, 235)
+ teleport_panel.visible = false
+ teleport_panel.z_index = 40
+ add_child(teleport_panel)
+ var column := VBoxContainer.new()
+ column.add_theme_constant_override("separation", 8)
+ teleport_panel.add_child(column)
+ var heading := Label.new()
+ heading.text = "TELEPORT TO REAL-WORLD COORDINATES"
+ heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ column.add_child(heading)
+ teleport_lat_input = LineEdit.new()
+ teleport_lat_input.placeholder_text = "Latitude (e.g. 23.216700)"
+ teleport_lat_input.text = "23.216700"
+ column.add_child(teleport_lat_input)
+ teleport_lon_input = LineEdit.new()
+ teleport_lon_input.placeholder_text = "Longitude (e.g. 90.350000)"
+ teleport_lon_input.text = "90.350000"
+ column.add_child(teleport_lon_input)
+ var go_button := Button.new()
+ go_button.text = "TELEPORT NEAR ROAD"
+ go_button.pressed.connect(_teleport_to_coordinates)
+ column.add_child(go_button)
+ teleport_status = Label.new()
+ teleport_status.text = "Requires a loaded real-world map package."
+ teleport_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ column.add_child(teleport_status)
+ var close_button := Button.new()
+ close_button.text = "CLOSE"
+ close_button.pressed.connect(func(): teleport_panel.visible = false)
+ column.add_child(close_button)
+
+func _teleport_to_coordinates() -> void:
+ if not is_instance_valid(w) or not is_instance_valid(teleport_status):
+  return
+ if not bool(w.get("real_dhaka_loaded")):
+  teleport_status.text = "Real-world map is not loaded; teleport is unavailable in fallback city."
+  return
+ var latitude := teleport_lat_input.text.strip_edges().to_float()
+ var longitude := teleport_lon_input.text.strip_edges().to_float()
+ if latitude < -90.0 or latitude > 90.0 or longitude < -180.0 or longitude > 180.0:
+  teleport_status.text = "Enter valid latitude and longitude."
+  return
+ var loader = w.get("real_dhaka_loader")
+ var player = w.get("player")
+ if not is_instance_valid(loader) or not is_instance_valid(player) or not loader.has_method("teleport_player_to_lat_lon"):
+  teleport_status.text = "Coordinate teleport service is unavailable."
+  return
+ var result: Dictionary = loader.teleport_player_to_lat_lon(latitude, longitude, player)
+ teleport_status.text = str(result.get("message", "Teleport request finished."))
+ if bool(result.get("ok", false)):
+  teleport_panel.visible = false
 
 func _toggle_map() -> void:
  if not district_map:
