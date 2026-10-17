@@ -85,6 +85,16 @@ func _draw() -> void:
      var label_position := _world_to_panel(Vector2(midpoint.x, midpoint.z), center, pixels_per_m)
      if map_rect.has_point(label_position):
       draw_string(ThemeDB.fallback_font, label_position + Vector2(4, -4), str(road_label.get("name", "")), HORIZONTAL_ALIGNMENT_LEFT, 145.0, 11, Color("#f1e7bf"))
+
+   if loader.has_method("get_navigation_route"):
+    var nav_route: Array = loader.get_navigation_route()
+    for i in range(1, nav_route.size()):
+     var route_a: Vector3 = nav_route[i - 1]
+     var route_b: Vector3 = nav_route[i]
+     var panel_a := _world_to_panel(Vector2(route_a.x, route_a.z), center, pixels_per_m)
+     var panel_b := _world_to_panel(Vector2(route_b.x, route_b.z), center, pixels_per_m)
+     draw_line(panel_a, panel_b, Color("#ffcf5c"), 4.0 if expanded else 2.5, true)
+
  else:
   for i in range(-3,4):
    var road_coord := float(i) * 24.0
@@ -127,6 +137,19 @@ func _draw() -> void:
    if is_instance_valid(loader) and loader.has_method("world_to_lat_lon"):
     var lat_lon: Vector2 = loader.world_to_lat_lon(_player_position)
     draw_string(ThemeDB.fallback_font, Vector2(margin+4, margin+34), "%.6f, %.6f" % [lat_lon.x, lat_lon.y], HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color("#b6d8e5"))
+
+func set_navigation_target(place: Dictionary) -> void:
+ if not is_instance_valid(world):
+  return
+ var loader = world.get("real_dhaka_loader")
+ if not is_instance_valid(loader) or not loader.has_method("lat_lon_to_world"):
+  return
+ if not place.has("latitude") or not place.has("longitude"):
+  return
+ _target_position = loader.lat_lon_to_world(float(place["latitude"]), float(place["longitude"]))
+ _has_target = true
+ queue_redraw()
+
 
 func _world_to_panel(point: Vector2, center: Vector2, scale_value: float) -> Vector2:
  return center + Vector2(point.x - _player_position.x, point.y - _player_position.z) * scale_value
