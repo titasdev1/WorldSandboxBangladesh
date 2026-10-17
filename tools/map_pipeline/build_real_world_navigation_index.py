@@ -284,7 +284,7 @@ def build_index(source: Path, floor_evidence_path: Path | None = None) -> dict[s
             "Coordinate labels are approximate feature points, not surveyed entrances.",
             "Missing floor counts must be researched from permitted street imagery, building photos, plans, or field evidence; do not silently guess.",
             "Facade imagery must be individually rights-cleared for in-game use. Google Maps imagery may be used only as permitted for reference and must not be scraped or redistributed.",
-            "This index is metadata output; runtime road-label, teleport, and building rendering integration still requires a separate tested game change.",
+            "The runtime consumes this index for road labels, coordinate/named-place teleport, and offline route guidance; full-package visual and physical-device QA is still required.",
         ],
     }
 
