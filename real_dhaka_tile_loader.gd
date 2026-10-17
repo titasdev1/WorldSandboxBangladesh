@@ -31,6 +31,7 @@ var _navigation_graph: Dictionary = {}
 var _navigation_node_positions: Dictionary = {}
 var _navigation_route: Array[Vector3] = []
 var _navigation_steps: Array[Dictionary] = []
+var _navigation_mode := "driving"
 var _region_bounds_lat_lon: Array[float] = []
 var _manifest_origin_lat := GAME_ORIGIN_LAT
 var _manifest_origin_lon := GAME_ORIGIN_LON
@@ -159,6 +160,38 @@ func get_road_labels() -> Array:
 	return result
 
 
+func get_navigation_mode() -> String:
+	return _navigation_mode
+
+
+func set_navigation_mode(mode: String) -> void:
+	var normalized := "walking" if mode.strip_edges().to_lower() == "walking" else "driving"
+	if normalized == _navigation_mode:
+		return
+	_navigation_mode = normalized
+	_navigation_route.clear()
+	_navigation_steps.clear()
+	if not _navigation_index.is_empty():
+		_load_navigation_index()
+
+
+func _first_nonempty_road_tag(road: Dictionary, keys: Array) -> String:
+	for key in keys:
+		var value := str(road.get(str(key), "")).strip_edges().to_lower()
+		if not value.is_empty():
+			return value
+	return ""
+
+
+func _road_allowed_for_current_mode(road: Dictionary) -> bool:
+	var access_value := ""
+	if _navigation_mode == "walking":
+		access_value = _first_nonempty_road_tag(road, ["foot", "access"])
+	else:
+		access_value = _first_nonempty_road_tag(road, ["motor_vehicle", "vehicle", "access"])
+	return not ["no", "private", "restricted", "customers"].has(access_value)
+
+
 func _load_navigation_index() -> void:
 	_navigation_index.clear()
 	_navigation_graph.clear()
@@ -177,6 +210,8 @@ func _load_navigation_index() -> void:
 		return
 	for road in roads:
 		if not (road is Dictionary):
+			continue
+		if not _road_allowed_for_current_mode(road):
 			continue
 		var road_name := _road_display_name(road)
 		var paths: Variant = road.get("geometry_paths", [])
@@ -209,8 +244,15 @@ func _load_navigation_index() -> void:
 					_navigation_graph[a_key] = []
 				if not _navigation_graph.has(b_key):
 					_navigation_graph[b_key] = []
-				_navigation_graph[a_key].append({"to": b_key, "distance": segment_distance, "road_name": road_name})
-				_navigation_graph[b_key].append({"to": a_key, "distance": segment_distance, "road_name": road_name})
+				var direction := str(road.get("oneway_foot" if _navigation_mode == "walking" else "oneway", "")).strip_edges().to_lower()
+				if _navigation_mode == "driving" and direction.is_empty() and str(road.get("junction", "")).to_lower() == "roundabout":
+					direction = "yes"
+				var add_forward := not ["-1", "reverse"].has(direction)
+				var add_reverse := not ["yes", "1", "true"].has(direction)
+				if add_forward:
+					_navigation_graph[a_key].append({"to": b_key, "distance": segment_distance, "road_name": road_name})
+				if add_reverse:
+					_navigation_graph[b_key].append({"to": a_key, "distance": segment_distance, "road_name": road_name})
 
 
 func _road_display_name(road: Dictionary) -> String:
