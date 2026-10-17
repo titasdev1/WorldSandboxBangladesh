@@ -1,0 +1,44 @@
+name: Licensed Facade Photo Diagnostics
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "tools/map_pipeline/fetch_licensed_facade_images.py"
+      - "tools/map_pipeline/shariatpur_facade_images.json"
+  push:
+    branches: [main, "feature/real-world-navigation-floor-fidelity-verified"]
+    paths:
+      - "tools/map_pipeline/fetch_licensed_facade_images.py"
+      - "tools/map_pipeline/shariatpur_facade_images.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Download allowlisted open-license facade photos and report failures
+        run: |
+          python tools/map_pipeline/fetch_licensed_facade_images.py \
+            --catalog tools/map_pipeline/shariatpur_facade_images.json \
+            --out build/facade-images \
+            --allow-missing
+      - name: Upload source/license report
+        uses: actions/upload-artifact@v4
+        with:
+          name: licensed-facade-photo-diagnostics-\${{ github.run_id }}
+          path: |
+            build/facade-images/facade_image_download_report.json
+            build/facade-images/ATTRIBUTION.txt
+          if-no-files-found: error
+          retention-days: 14
