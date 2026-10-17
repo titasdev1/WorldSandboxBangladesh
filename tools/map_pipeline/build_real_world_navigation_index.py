@@ -124,7 +124,11 @@ def _validated_floor_evidence(path: Path | None) -> tuple[dict[str, dict[str, An
         reviewed_at = str(record.get("reviewed_at", "")).strip()
         notes = str(record.get("evidence_notes", "")).strip()
         valid_count = isinstance(floor_count, int) and not isinstance(floor_count, bool) and 1 <= floor_count <= 200
-        valid_date = len(reviewed_at) == 10 and reviewed_at[4:5] == "-" and reviewed_at[7:8] == "-"
+        try:
+            datetime.date.fromisoformat(reviewed_at)
+            valid_date = len(reviewed_at) == 10
+        except ValueError:
+            valid_date = False
         if not osm_id:
             reason = "missing osm_id"
         elif not valid_count:
