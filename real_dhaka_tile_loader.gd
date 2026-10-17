@@ -413,48 +413,37 @@ func _build_turn_instructions(node_path: Array, road_names: Array) -> void:
 	if node_path.size() < 2:
 		_navigation_steps.append({"instruction": "You are already at the nearest mapped road node.", "distance_m": 0.0})
 		return
-	var group_start := 0
 	var current_name := str(road_names[0]) if not road_names.is_empty() else "unnamed road"
 	var group_distance := 0.0
 	for i in range(1, node_path.size()):
 		var a: Vector3 = _navigation_node_positions[node_path[i - 1]]
 		var b: Vector3 = _navigation_node_positions[node_path[i]]
 		group_distance += Vector2(b.x - a.x, b.z - a.z).length()
-		var should_split := i == node_path.size() - 1
+		if i >= node_path.size() - 1:
+			break
 		var next_name := str(road_names[i]) if i < road_names.size() else current_name
-		if i < node_path.size() - 1 and i < road_names.size():
-			var before: Vector3 = _navigation_node_positions[node_path[i - 1]]
-			var at: Vector3 = _navigation_node_positions[node_path[i]]
-			var after: Vector3 = _navigation_node_positions[node_path[i + 1]]
-			var incoming := Vector2(at.x - before.x, at.z - before.z).normalized()
-			var outgoing := Vector2(after.x - at.x, after.z - at.z).normalized()
-			var angle := absf(rad_to_deg(incoming.angle_to(outgoing)))
-			should_split = next_name != current_name or angle >= 32.0
-		if should_split:
-			var instruction := ""
-			if _navigation_steps.is_empty():
-				instruction = "Start on %s for about %.0f m" % [current_name, group_distance]
-			elif next_name != current_name:
-				instruction = "Continue onto %s for about %.0f m" % [next_name, group_distance]
-			else:
-				var before: Vector3 = _navigation_node_positions[node_path[maxi(0, i - 1)]]
-				var at: Vector3 = _navigation_node_positions[node_path[i]]
-				var after: Vector3 = _navigation_node_positions[node_path[mini(node_path.size() - 1, i + 1)]]
-				var incoming := Vector2(at.x - before.x, at.z - before.z).normalized()
-				var outgoing := Vector2(after.x - at.x, after.z - at.z).normalized()
-				var signed_turn := incoming.angle_to(outgoing)
+		var before: Vector3 = _navigation_node_positions[node_path[i - 1]]
+		var at: Vector3 = _navigation_node_positions[node_path[i]]
+		var after: Vector3 = _navigation_node_positions[node_path[i + 1]]
+		var incoming := Vector2(at.x - before.x, at.z - before.z).normalized()
+		var outgoing := Vector2(after.x - at.x, after.z - at.z).normalized()
+		var signed_turn := incoming.angle_to(outgoing)
+		var angle := absf(rad_to_deg(signed_turn))
+		var split_for_turn := angle >= 32.0
+		if next_name != current_name or split_for_turn:
+			var instruction := "Continue on %s for about %.0f m" % [current_name, group_distance]
+			if split_for_turn:
 				var turn_word := "left" if signed_turn < 0.0 else "right"
-				instruction = "Turn %s and follow %s for about %.0f m" % [turn_word, current_name, group_distance]
+				instruction += ", then turn %s onto %s" % [turn_word, next_name]
+			elif next_name != current_name:
+				instruction += ", then continue onto %s" % next_name
 			_navigation_steps.append({"instruction": instruction, "distance_m": group_distance})
-			group_start = i
-			group_distance = 0.0
 			current_name = next_name
-	if not _navigation_steps.is_empty():
-		var last: Dictionary = _navigation_steps[_navigation_steps.size() - 1]
-		last["instruction"] = str(last["instruction"]) + "; destination is near the road, not a surveyed entrance."
-		_navigation_steps[_navigation_steps.size() - 1] = last
-
-
+			group_distance = 0.0
+	_navigation_steps.append({
+		"instruction": "Continue on %s for about %.0f m; destination is near the mapped road, not a surveyed entrance." % [current_name, group_distance],
+		"distance_m": group_distance,
+	})
 func teleport_player_to_lat_lon(lat: float, lon: float, target_player: Node3D) -> Dictionary:
 	if not _ready_for_streaming or not is_instance_valid(target_player):
 		return {"ok": false, "message": "Real-world map is not loaded."}
