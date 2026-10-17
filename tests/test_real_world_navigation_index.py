@@ -107,5 +107,39 @@ class RealWorldNavigationIndexTests(unittest.TestCase):
 
 
 
+    def test_indexes_building_parts_and_keeps_way_relation_ids_distinct(self):
+        polygon = {"type": "Polygon", "coordinates": [[
+            [90.35, 23.22], [90.351, 23.22], [90.351, 23.221],
+            [90.35, 23.221], [90.35, 23.22]
+        ]]}
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "tile.geojson").write_text(json.dumps({
+                "type": "FeatureCollection",
+                "features": [
+                    {"type": "Feature", "id": "way/202",
+                     "properties": {"osm_id": 202, "tags": {"building": "apartments"}},
+                     "geometry": polygon},
+                    {"type": "Feature", "id": "relation/202",
+                     "properties": {"osm_id": 202, "tags": {"building": "yes"}},
+                     "geometry": polygon},
+                    {"type": "Feature", "id": "way/404",
+                     "properties": {"osm_id": 404, "tags": {"building:part": "wall"}},
+                     "geometry": polygon},
+                ],
+            }), encoding="utf-8")
+            report = build_index(root)
+        self.assertEqual(report["counts"]["buildings"], 3)
+        self.assertEqual(
+            {item["osm_id"] for item in report["buildings"]},
+            {"way/202", "relation/202", "way/404"},
+        )
+        self.assertEqual(
+            next(item for item in report["buildings"] if item["osm_id"] == "way/404")["building_type"],
+            "wall",
+        )
+
+
+
 if __name__ == "__main__":
     unittest.main()
