@@ -133,13 +133,23 @@ jobs:
 
       - name: Validate Python syntax and offline fixtures
         run: |
-          python -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_division.py tools/map_pipeline/prepare_dhaka_division_pbf.py tools/map_pipeline/merge_dhaka_division_batches.py tools/map_pipeline/tile_grid.py
+          python -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_division.py tools/map_pipeline/prepare_dhaka_division_pbf.py tools/map_pipeline/merge_dhaka_division_batches.py tools/map_pipeline/tile_grid.py tools/map_pipeline/build_real_world_navigation_index.py tools/map_pipeline/fetch_licensed_facade_images.py
           python -m unittest discover -s tests -p 'test_dhaka*_pipeline.py' -v
           python -m unittest discover -s tests -p 'test_merge_dhaka_division_batches.py' -v
+
+      - name: Fetch allowlisted Shariatpur landmark facade photos
+        shell: bash
+        run: |
+          python tools/map_pipeline/fetch_licensed_facade_images.py \
+            --catalog tools/map_pipeline/shariatpur_facade_images.json \
+            --out build/facade-images \
+            --allow-missing
 
       - name: Build boundary-clipped Dhaka Division tiles
         env:
           WSB_PIPELINE_COMMIT_SHA: ${{ inputs.source_commit || github.sha }}
+          WSB_FACADE_IMAGE_DIR: build/facade-images
+          WSB_FACADE_IMAGE_CATALOG: tools/map_pipeline/shariatpur_facade_images.json
         run: |
           python tools/map_pipeline/build_dhaka_division.py \
             --pbf build/osm/dhaka-division-envelope.osm.pbf \
