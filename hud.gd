@@ -24,6 +24,7 @@ var teleport_lat_input: LineEdit
 var teleport_lon_input: LineEdit
 var teleport_status: Label
 var teleport_place_input: LineEdit
+var navigation_mode_button: Button
 
 func _ready():
  w = get_parent()
@@ -147,6 +148,11 @@ func _build_teleport_ui() -> void:
  navigate_button.text = "NAVIGATE TO PLACE"
  navigate_button.pressed.connect(_navigate_to_named_place)
  column.add_child(navigate_button)
+ navigation_mode_button = Button.new()
+ navigation_mode_button.name = "NavigationModeToggle"
+ navigation_mode_button.text = "ROUTE MODE: DRIVE"
+ navigation_mode_button.pressed.connect(_toggle_navigation_mode)
+ column.add_child(navigation_mode_button)
  teleport_lat_input = LineEdit.new()
  teleport_lat_input.placeholder_text = "Latitude (e.g. 23.216700)"
  teleport_lat_input.text = "23.216700"
@@ -217,6 +223,21 @@ func _navigate_to_named_place() -> void:
  teleport_status.text = "\n".join(lines)
  if district_map and district_map.has_method("set_navigation_target"):
   district_map.call("set_navigation_target", result.get("place", {}))
+
+func _toggle_navigation_mode() -> void:
+	if not is_instance_valid(w):
+		return
+	var loader = w.get("real_dhaka_loader")
+	if not is_instance_valid(loader) or not loader.has_method("set_navigation_mode"):
+		if is_instance_valid(teleport_status):
+			teleport_status.text = "Route mode switching is unavailable in this build."
+		return
+	var next_mode := "walking" if str(loader.get_navigation_mode()) == "driving" else "driving"
+	loader.set_navigation_mode(next_mode)
+	navigation_mode_button.text = "ROUTE MODE: WALK" if next_mode == "walking" else "ROUTE MODE: DRIVE"
+	if is_instance_valid(teleport_status):
+		teleport_status.text = "Route mode: " + next_mode.capitalize() + ". Calculate a new route to apply the updated road restrictions."
+
 
 func _teleport_to_coordinates() -> void:
  if not is_instance_valid(w) or not is_instance_valid(teleport_status):
