@@ -16,7 +16,7 @@ class RealWorldNavigationIndexTests(unittest.TestCase):
                     {
                         "type": "Feature", "id": "way/101",
                         "properties": {"osm_id": 101, "tags": {
-                            "highway": "primary", "name": "Palong Road", "name:bn": "পালং সড়ক"
+                            "highway": "primary", "name": "Palong Road", "name:bn": "পালং সড়ক", "oneway": "yes", "motor_vehicle": "no", "surface": "asphalt"
                         }},
                         "geometry": {"type": "LineString", "coordinates": [[90.35, 23.22], [90.36, 23.23]]},
                     },
@@ -48,6 +48,9 @@ class RealWorldNavigationIndexTests(unittest.TestCase):
         self.assertEqual(report["counts"]["named_roads"], 1)
         self.assertEqual(report["roads"][0]["name"], "Palong Road")
         self.assertEqual(report["roads"][0]["name_bn"], "পালং সড়ক")
+        self.assertEqual(report["roads"][0]["oneway"], "yes")
+        self.assertEqual(report["roads"][0]["motor_vehicle"], "no")
+        self.assertEqual(report["roads"][0]["surface"], "asphalt")
         self.assertAlmostEqual(report["roads"][0]["coordinates"]["longitude"], 90.355)
         self.assertEqual(report["roads"][0]["geometry_paths"], [[[90.35, 23.22], [90.36, 23.23]]])
         self.assertEqual(report["counts"]["named_places"], 1)
