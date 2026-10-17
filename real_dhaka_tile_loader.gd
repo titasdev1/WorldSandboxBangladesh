@@ -549,6 +549,9 @@ func _load_road_routes(record: Dictionary) -> void:
 	_road_routes_by_tile[tile_id] = routes
 	_road_labels_by_tile[tile_id] = labels
 
+func lat_lon_to_world(lat: float, lon: float) -> Vector3:
+	return _geo_to_world(lat, lon)
+
 func world_to_lat_lon(position: Vector3) -> Vector2:
 	var latitude := _manifest_origin_lat - rad_to_deg(position.z / EARTH_RADIUS_M)
 	var longitude := _manifest_origin_lon + rad_to_deg(position.x / (EARTH_RADIUS_M * cos(deg_to_rad(_manifest_origin_lat))))
