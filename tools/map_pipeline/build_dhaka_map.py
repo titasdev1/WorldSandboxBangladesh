@@ -558,6 +558,7 @@ def facade_window_geometry(
     # one or two window rows. This is still a facade cue, not proof of surveyed floors;
     # the source floor count and confidence remain in the per-building metadata.
     floor_rows = min(12, max(1, int(round(height / 3.1))))
+    max_window_panels = max(8, floor_rows * 2)
     for part in parts:
         if not isinstance(part, Polygon) or part.area < 20.0:
             continue
@@ -591,7 +592,7 @@ def facade_window_geometry(
                     cx = p1[0] + (p2[0] - p1[0]) * fraction + nx * 0.035
                     cy = p1[1] + (p2[1] - p1[1]) * fraction + ny * 0.035
                     window_centers.append((cx, cy, center_z, window_width, angle))
-                    if len(window_centers) >= 8:
+                    if len(window_centers) >= max_window_panels:
                         break
                 if len(window_centers) >= 8:
                     break
