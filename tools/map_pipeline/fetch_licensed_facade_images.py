@@ -90,7 +90,11 @@ def download_catalog(catalog_path: Path, output_dir: Path, allow_missing: bool) 
         json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     (output_dir / "ATTRIBUTION.txt").write_text("\n".join(attribution_lines).rstrip() + "\n", encoding="utf-8")
-    print(json.dumps({"downloaded_count": len(results), "failed_count": len(failures)}, ensure_ascii=False))
+    print(json.dumps({
+        "downloaded_count": len(results),
+        "failed_count": len(failures),
+        "failures": failures,
+    }, ensure_ascii=False))
     if failures and not allow_missing:
         return report
     return report
