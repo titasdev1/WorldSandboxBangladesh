@@ -1276,11 +1276,20 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "engine_import": "Import Dhaka_Explorable_Map.glb as a Godot MeshInstance3D/scene; retain GeoJSON and manifest for labels, navigation and source attribution.",
     }
     (output_dir / "map_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    (output_dir / "ATTRIBUTION.txt").write_text(
+    attribution_text = (
         OSM_COPYRIGHT + "\nData license: Open Database License (ODbL) 1.0.\n"
-        "Source data is modified into a local 3D representation. See https://www.openstreetmap.org/copyright\n",
-        encoding="utf-8",
+        "Source data is modified into a local 3D representation. See https://www.openstreetmap.org/copyright\n"
     )
+    seen_photo_attributions: set[str] = set()
+    for match in facade_photo_matches:
+        attribution = str(match.get("attribution", "")).strip()
+        license_name = str(match.get("license", "")).strip()
+        license_url = str(match.get("license_url", "")).strip()
+        entry = f"{attribution}\nLicense: {license_name} — {license_url}"
+        if attribution and entry not in seen_photo_attributions:
+            seen_photo_attributions.add(entry)
+            attribution_text += "\n" + entry + "\n"
+    (output_dir / "ATTRIBUTION.txt").write_text(attribution_text, encoding="utf-8")
     return manifest
 
 
