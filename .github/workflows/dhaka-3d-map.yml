@@ -60,7 +60,7 @@ on:
       - ".github/workflows/dhaka-division-map.yml"
       - "MAP_PIPELINE.md"
   push:
-    branches: [main]
+    branches: [main, "feature/real-world-navigation-floor-fidelity-verified"]
     paths:
       - "tools/map_pipeline/**"
       - "tests/test_dhaka_map_pipeline.py"
