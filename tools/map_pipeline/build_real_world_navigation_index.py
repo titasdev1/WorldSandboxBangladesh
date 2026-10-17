@@ -55,6 +55,28 @@ def _coords(geometry: dict[str, Any] | None) -> list[tuple[float, float]]:
     return found
 
 
+
+def _line_paths(geometry: dict[str, Any] | None) -> list[list[list[float]]]:
+    """Preserve road polylines for an offline routing graph (WGS84 lon/lat)."""
+    if not isinstance(geometry, dict):
+        return []
+    kind = geometry.get("type")
+    coordinates = geometry.get("coordinates", [])
+    raw_paths = [coordinates] if kind == "LineString" else (coordinates if kind == "MultiLineString" else [])
+    result: list[list[list[float]]] = []
+    for path in raw_paths:
+        if not isinstance(path, list):
+            continue
+        points: list[list[float]] = []
+        for point in path:
+            if isinstance(point, (list, tuple)) and len(point) >= 2:
+                lon, lat = point[0], point[1]
+                if isinstance(lon, (int, float)) and isinstance(lat, (int, float)) and -180 <= lon <= 180 and -90 <= lat <= 90:
+                    points.append([round(float(lon), 7), round(float(lat), 7)])
+        if len(points) >= 2:
+            result.append(points)
+    return result
+
 def _centroid(coords: list[tuple[float, float]]) -> dict[str, float] | None:
     if not coords:
         return None
@@ -78,6 +100,7 @@ def _positive_number(value: Any) -> float | None:
 def build_index(source: Path) -> dict[str, Any]:
     roads: dict[str, dict[str, Any]] = {}
     buildings: dict[str, dict[str, Any]] = {}
+    places: dict[str, dict[str, Any]] = {}
     source_files = 0
     for path in sorted(source.rglob("*.geojson")):
         if "node_modules" in path.parts or ".git" in path.parts:
@@ -103,8 +126,22 @@ def build_index(source: Path) -> dict[str, Any]:
                     "ref": tags.get("ref"),
                     "highway_class": highway,
                     "coordinates": center,
+                    "geometry_paths": _line_paths(geom),
                     "source_file": str(path.relative_to(source)),
                     "name_status": "NAMED" if tags.get("name") or tags.get("name:bn") or tags.get("ref") else "UNNAMED_IN_SOURCE",
+                }
+            place_keys = ("amenity", "shop", "tourism", "leisure", "office", "healthcare", "education", "public_transport", "railway", "historic", "craft", "emergency")
+            if center and any(tags.get(k) for k in place_keys) and any(tags.get(k) for k in ("name", "name:bn", "official_name", "brand")):
+                key = str(feature.get("id", osm_id))
+                places[key] = {
+                    "osm_id": key,
+                    "name": tags.get("name"),
+                    "name_bn": tags.get("name:bn"),
+                    "official_name": tags.get("official_name"),
+                    "brand": tags.get("brand"),
+                    "categories": {k: tags[k] for k in place_keys if tags.get(k)},
+                    "coordinates": center,
+                    "source_file": str(path.relative_to(source)),
                 }
             if "building" in tags and coords:
                 key = f"way/{osm_id}"
@@ -117,6 +154,8 @@ def build_index(source: Path) -> dict[str, Any]:
                 buildings[key] = {
                     "osm_id": key,
                     "name": tags.get("name"),
+                    "name_bn": tags.get("name:bn"),
+                    "official_name": tags.get("official_name"),
                     "building_type": tags.get("building"),
                     "levels": int(levels) if levels is not None and levels.is_integer() else levels,
                     "roof_levels": roof_levels,
@@ -153,6 +192,7 @@ def build_index(source: Path) -> dict[str, Any]:
             "named_roads": named_roads,
             "unnamed_roads": len(roads) - named_roads,
             "buildings": len(buildings),
+            "named_places": len(places),
             "buildings_with_source_floor_count": level_tagged,
             "buildings_with_independently_verified_floor_count": 0,
             "buildings_missing_source_floor_count": len(buildings) - level_tagged,
@@ -161,6 +201,7 @@ def build_index(source: Path) -> dict[str, Any]:
         },
         "roads": sorted(roads.values(), key=lambda item: item["osm_id"]),
         "buildings": sorted(buildings.values(), key=lambda item: item["osm_id"]),
+        "places": sorted(places.values(), key=lambda item: item["osm_id"]),
         "limitations": [
             "OSM name/level tags are source evidence, not guaranteed complete or independently surveyed; independently verified floor-count total remains zero until checked against reliable references.",
             "Coordinate labels are approximate feature points, not surveyed entrances.",
