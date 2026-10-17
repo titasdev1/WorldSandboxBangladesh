@@ -36,7 +36,7 @@ jobs:
       - name: Upload source/license report
         uses: actions/upload-artifact@v4
         with:
-          name: licensed-facade-photo-diagnostics-\${{ github.run_id }}
+          name: licensed-facade-photo-diagnostics-${{ github.run_id }}
           path: |
             build/facade-images/facade_image_download_report.json
             build/facade-images/ATTRIBUTION.txt
