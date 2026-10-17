@@ -554,7 +554,10 @@ def facade_window_geometry(
         return None
     parts = list(geometry.geoms) if isinstance(geometry, MultiPolygon) else [geometry]
     window_centers: list[tuple[float, float, float, float, float]] = []
-    # Preserve visible vertical floor rhythm instead of flattening every building to\n    # one or two window rows. This is still a facade cue, not proof of surveyed floors;\n    # the source floor count and confidence remain in the per-building metadata.\n    floor_rows = min(12, max(1, int(round(height / 3.1))))
+    # Preserve visible vertical floor rhythm instead of flattening every building to
+    # one or two window rows. This is still a facade cue, not proof of surveyed floors;
+    # the source floor count and confidence remain in the per-building metadata.
+    floor_rows = min(12, max(1, int(round(height / 3.1))))
     for part in parts:
         if not isinstance(part, Polygon) or part.area < 20.0:
             continue
