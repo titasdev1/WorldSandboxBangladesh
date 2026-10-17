@@ -116,6 +116,16 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
             else:
                 shutil.copy2(source, destination)
 
+    facade_photo_matches: list[dict[str, Any]] = []
+    for tile_manifest_path in sorted(out.rglob("map_manifest.json")):
+        try:
+            tile_manifest = json.loads(tile_manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        matches = tile_manifest.get("licensed_facade_photo_matches", [])
+        if isinstance(matches, list):
+            facade_photo_matches.extend(item for item in matches if isinstance(item, dict))
+
     attribution_source = next((path / "ATTRIBUTION.txt" for _, path, _ in batches if (path / "ATTRIBUTION.txt").is_file()), None)
     if attribution_source is None:
         raise RuntimeError("No batch contains required attribution")
@@ -159,6 +169,8 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "tile_count_intersecting_build_boundary": total_tiles,
         "tile_count_with_geometry": geometry_count,
         "feature_counts_across_tiles": feature_counts,
+        "licensed_facade_photo_matches": facade_photo_matches,
+        "licensed_facade_photo_panels_embedded": int(feature_counts.get("licensed_facade_photo_panels", 0)),
         "source_elements_processed_across_batches": source_element_count,
         "map_build_batch_count": len(batches),
         "pipeline_commit_sha": pipeline_commit_sha,
@@ -169,7 +181,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
             "All generated batches for every tile intersecting the Shariatpur District boundary "
             "are present. Tile geometry is clipped to the district polygon. This is geographic coverage, "
             "not proof that every real-world feature is mapped or that exteriors are photorealistic. "
-            "Licensed façade imagery, surveyed heights, actual interiors, and real residents are not supplied by OSM."
+            "OSM does not supply licensed facade photography, surveyed heights, actual private interiors, or real residents. Strict-name CC-licensed landmark photo panels may be embedded when downloaded and matched; they are not full photogrammetric exteriors."
             if stage == "shariatpur_review"
             else "All generated batches for every tile intersecting the Dhaka Division administrative boundary "
             "are present in this package. The map is based on mapped OpenStreetMap features and is not proof "
@@ -213,15 +225,24 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
     boundary_license = str(boundary_metadata.get("boundary_license", boundary_record.get("license", "See manifest")))
     boundary_license_source = str(boundary_metadata.get("boundary_license_source", "See manifest"))
     boundary_id = str(boundary_metadata.get("boundary_id", "unspecified"))
-    (out / "ATTRIBUTION.txt").write_text(
+    attribution_text = (
         "© OpenStreetMap contributors — https://www.openstreetmap.org/copyright\n"
         + boundary_attribution + "\n"
         + "OSM data license: ODbL 1.0.\n"
         + f"Clipping boundary: {expected_boundary_name} (geoBoundaries gbOpen BGD {boundary_type}).\n"
         + f"Clipping boundary ID: {boundary_id}.\n"
-        + f"Clipping boundary license: {boundary_license}. License source: {boundary_license_source}.\n",
-        encoding="utf-8",
+        + f"Clipping boundary license: {boundary_license}. License source: {boundary_license_source}.\n"
     )
+    seen_photo_attributions: set[str] = set()
+    for match in facade_photo_matches:
+        attribution = str(match.get("attribution", "")).strip()
+        license_name = str(match.get("license", "")).strip()
+        license_url = str(match.get("license_url", "")).strip()
+        entry = f"{attribution}\nLicense: {license_name} — {license_url}"
+        if attribution and entry not in seen_photo_attributions:
+            seen_photo_attributions.add(entry)
+            attribution_text += "\n" + entry + "\n"
+    (out / "ATTRIBUTION.txt").write_text(attribution_text, encoding="utf-8")
     navigation_index = build_index(out)
     (out / "real_world_navigation_index.json").write_text(
         json.dumps(navigation_index, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -243,6 +264,9 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
             "ground_only_tiles_count": len(ground_only_tiles),
             "ground_only_tiles": ground_only_tiles,
             "photorealistic_facade_imagery_mapped": False,
+            "licensed_facade_photo_panels_embedded": int(feature_counts.get("licensed_facade_photo_panels", 0)) > 0,
+            "licensed_facade_photo_panel_count": int(feature_counts.get("licensed_facade_photo_panels", 0)),
+            "facade_photo_panel_visual_review_required": True,
             "physical_android_integration_verified": False,
             "all_building_heights_verified_or_surveyed": building_count > 0 and inferred_height_count == 0,
             "estimated_building_heights_count": inferred_height_count,
