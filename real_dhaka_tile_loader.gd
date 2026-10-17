@@ -24,6 +24,11 @@ var _mounted_map_packs: Array[String] = []
 var _loaded: Dictionary = {}
 var _road_routes_by_tile: Dictionary = {}
 var _road_labels_by_tile: Dictionary = {}
+var _navigation_index: Dictionary = {}
+var _navigation_graph: Dictionary = {}
+var _navigation_node_positions: Dictionary = {}
+var _navigation_route: Array[Vector3] = []
+var _navigation_steps: Array[Dictionary] = []
 var _region_bounds_lat_lon: Array[float] = []
 var _manifest_origin_lat := GAME_ORIGIN_LAT
 var _manifest_origin_lon := GAME_ORIGIN_LON
@@ -114,6 +119,7 @@ func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.j
 	if valid_records.is_empty():
 		return false
 	_records = valid_records
+	_load_navigation_index()
 	_ready_for_streaming = true
 	_stream_tiles(Vector3.ZERO)
 	return true
@@ -149,6 +155,298 @@ func get_road_labels() -> Array:
 	for labels in _road_labels_by_tile.values():
 		result.append_array(labels)
 	return result
+
+
+func _load_navigation_index() -> void:
+	_navigation_index.clear()
+	_navigation_graph.clear()
+	_navigation_node_positions.clear()
+	var index_path := MAP_ROOT + "/real_world_navigation_index.json"
+	if not FileAccess.file_exists(index_path):
+		push_warning("Map has no named-place/routing index; coordinate teleport remains available.")
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(index_path))
+	if not (parsed is Dictionary):
+		push_warning("Named-place/routing index is invalid JSON.")
+		return
+	_navigation_index = parsed
+	var roads: Variant = _navigation_index.get("roads", [])
+	if not (roads is Array):
+		return
+	for road in roads:
+		if not (road is Dictionary):
+			continue
+		var road_name := _road_display_name(road)
+		var paths: Variant = road.get("geometry_paths", [])
+		if not (paths is Array):
+			continue
+		for path in paths:
+			if not (path is Array) or path.size() < 2:
+				continue
+			for i in range(1, path.size()):
+				var a: Variant = path[i - 1]
+				var b: Variant = path[i]
+				if not (a is Array and a.size() >= 2 and b is Array and b.size() >= 2):
+					continue
+				var a_lon := float(a[0])
+				var a_lat := float(a[1])
+				var b_lon := float(b[0])
+				var b_lat := float(b[1])
+				var a_key := _geo_node_key(a_lat, a_lon)
+				var b_key := _geo_node_key(b_lat, b_lon)
+				if a_key == b_key:
+					continue
+				var a_world := _geo_to_world(a_lat, a_lon)
+				var b_world := _geo_to_world(b_lat, b_lon)
+				_navigation_node_positions[a_key] = a_world
+				_navigation_node_positions[b_key] = b_world
+				var segment_distance := Vector2(a_world.x - b_world.x, a_world.z - b_world.z).length()
+				if segment_distance < 0.2:
+					continue
+				if not _navigation_graph.has(a_key):
+					_navigation_graph[a_key] = []
+				if not _navigation_graph.has(b_key):
+					_navigation_graph[b_key] = []
+				_navigation_graph[a_key].append({"to": b_key, "distance": segment_distance, "road_name": road_name})
+				_navigation_graph[b_key].append({"to": a_key, "distance": segment_distance, "road_name": road_name})
+
+
+func _road_display_name(road: Dictionary) -> String:
+	for key in ["name_bn", "name", "official_name", "ref"]:
+		var value := str(road.get(key, "")).strip_edges()
+		if not value.is_empty():
+			return value
+	return "unnamed road"
+
+
+func _geo_node_key(lat: float, lon: float) -> String:
+	return "%.6f,%.6f" % [lat, lon]
+
+
+func search_named_place(query: String, limit := 8) -> Array[Dictionary]:
+	var normalized := query.strip_edges().to_lower()
+	var results: Array[Dictionary] = []
+	if normalized.is_empty():
+		return results
+	for group_name in ["places", "buildings", "roads"]:
+		var records: Variant = _navigation_index.get(group_name, [])
+		if not (records is Array):
+			continue
+		for record in records:
+			if not (record is Dictionary):
+				continue
+			var coords: Variant = record.get("coordinates", {})
+			if not (coords is Dictionary) or not coords.has("latitude") or not coords.has("longitude"):
+				continue
+			var matched_name := ""
+			var best_score := 0
+			for field in ["name_bn", "name", "official_name", "brand", "ref"]:
+				var candidate := str(record.get(field, "")).strip_edges()
+				if candidate.is_empty():
+					continue
+				var candidate_lower := candidate.to_lower()
+				var score := 0
+				if candidate_lower == normalized:
+					score = 100
+				elif candidate_lower.begins_with(normalized):
+					score = 70
+				elif candidate_lower.contains(normalized):
+					score = 45
+				if score > best_score:
+					best_score = score
+					matched_name = candidate
+			if best_score == 0:
+				continue
+			results.append({
+				"name": matched_name,
+				"kind": group_name.trim_suffix("s"),
+				"latitude": float(coords["latitude"]),
+				"longitude": float(coords["longitude"]),
+				"score": best_score,
+				"coordinate_method": str(coords.get("coordinate_method", "source geometry vertex mean approximation")),
+				"source_id": str(record.get("osm_id", "")),
+			})
+	results.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if int(a["score"]) != int(b["score"]):
+			return int(a["score"]) > int(b["score"])
+		return str(a["name"]).length() < str(b["name"]).length()
+	)
+	if results.size() > limit:
+		return results.slice(0, limit)
+	return results
+
+
+func get_navigation_route() -> Array[Vector3]:
+	return _navigation_route.duplicate()
+
+
+func get_navigation_steps() -> Array[Dictionary]:
+	return _navigation_steps.duplicate(true)
+
+
+func navigate_to_named_place(query: String, start_player: Node3D) -> Dictionary:
+	if not _ready_for_streaming or not is_instance_valid(start_player):
+		return {"ok": false, "message": "Real-world map is not loaded."}
+	if _navigation_graph.is_empty():
+		return {"ok": false, "message": "Offline road graph is missing. Rebuild the map package with the navigation index."}
+	var matches := search_named_place(query, 1)
+	if matches.is_empty():
+		return {"ok": false, "message": "No mapped named place matches that search."}
+	var place: Dictionary = matches[0]
+	var destination := _geo_to_world(float(place["latitude"]), float(place["longitude"]))
+	var start_node := _nearest_navigation_node(start_player.global_position)
+	var destination_node := _nearest_navigation_node(destination)
+	if start_node.is_empty() or destination_node.is_empty():
+		return {"ok": false, "message": "No mapped road node is available near the start or destination."}
+	var route_result := _shortest_road_path(start_node, destination_node)
+	if not bool(route_result.get("ok", false)):
+		return route_result
+	_navigation_route.clear()
+	_navigation_steps.clear()
+	var node_path: Array = route_result.get("nodes", [])
+	var edge_names: Array = route_result.get("road_names", [])
+	for node_id in node_path:
+		_navigation_route.append(_navigation_node_positions[node_id])
+	_build_turn_instructions(node_path, edge_names)
+	var total_distance := float(route_result.get("distance_m", 0.0))
+	return {
+		"ok": true,
+		"message": "Route to %s: %.0f m, %d instructions. Destination point is approximate; follow the mapped road." % [str(place["name"]), total_distance, _navigation_steps.size()],
+		"place": place,
+		"distance_m": total_distance,
+		"steps": get_navigation_steps(),
+	}
+
+
+func _nearest_navigation_node(position: Vector3) -> String:
+	var best_key := ""
+	var best_distance := INF
+	for node_id in _navigation_node_positions.keys():
+		var point: Vector3 = _navigation_node_positions[node_id]
+		var distance := Vector2(point.x - position.x, point.z - position.z).length()
+		if distance < best_distance:
+			best_distance = distance
+			best_key = str(node_id)
+	return best_key if best_distance <= 2500.0 else ""
+
+
+func _heap_push(heap: Array, item: Array) -> void:
+	heap.append(item)
+	var index := heap.size() - 1
+	while index > 0:
+		var parent := int((index - 1) / 2)
+		if float(heap[parent][0]) <= float(heap[index][0]):
+			break
+		var swap_value = heap[parent]
+		heap[parent] = heap[index]
+		heap[index] = swap_value
+		index = parent
+
+
+func _heap_pop(heap: Array) -> Array:
+	if heap.is_empty():
+		return []
+	var result: Array = heap[0]
+	var last = heap.pop_back()
+	if not heap.is_empty():
+		heap[0] = last
+		var index := 0
+		while true:
+			var left := index * 2 + 1
+			var right := left + 1
+			var smallest := index
+			if left < heap.size() and float(heap[left][0]) < float(heap[smallest][0]):
+				smallest = left
+			if right < heap.size() and float(heap[right][0]) < float(heap[smallest][0]):
+				smallest = right
+			if smallest == index:
+				break
+			var swap_value = heap[index]
+			heap[index] = heap[smallest]
+			heap[smallest] = swap_value
+			index = smallest
+	return result
+
+
+func _shortest_road_path(start_node: String, target_node: String) -> Dictionary:
+	if start_node == target_node:
+		return {"ok": true, "nodes": [start_node], "road_names": [], "distance_m": 0.0}
+	var distances: Dictionary = {start_node: 0.0}
+	var previous: Dictionary = {}
+	var previous_road: Dictionary = {}
+	var heap: Array = []
+	_heap_push(heap, [0.0, start_node])
+	while not heap.is_empty():
+		var current_entry := _heap_pop(heap)
+		var current_distance := float(current_entry[0])
+		var current := str(current_entry[1])
+		if current_distance > float(distances.get(current, INF)):
+			continue
+		if current == target_node:
+			break
+		var edges: Array = _navigation_graph.get(current, [])
+		for edge in edges:
+			var neighbor := str(edge.get("to", ""))
+			var candidate := current_distance + float(edge.get("distance", INF))
+			if candidate < float(distances.get(neighbor, INF)):
+				distances[neighbor] = candidate
+				previous[neighbor] = current
+				previous_road[neighbor] = str(edge.get("road_name", "unnamed road"))
+				_heap_push(heap, [candidate, neighbor])
+	if not distances.has(target_node):
+		return {"ok": false, "message": "No connected road route was found in the indexed map."}
+	var reversed_nodes: Array[String] = [target_node]
+	var reversed_names: Array[String] = []
+	var cursor := target_node
+	while cursor != start_node:
+		if not previous.has(cursor):
+			return {"ok": false, "message": "Road route reconstruction failed safely."}
+		reversed_names.append(str(previous_road.get(cursor, "unnamed road")))
+		cursor = str(previous[cursor])
+		reversed_nodes.append(cursor)
+	reversed_nodes.reverse()
+	reversed_names.reverse()
+	return {"ok": true, "nodes": reversed_nodes, "road_names": reversed_names, "distance_m": float(distances[target_node])}
+
+
+func _build_turn_instructions(node_path: Array, road_names: Array) -> void:
+	if node_path.size() < 2:
+		_navigation_steps.append({"instruction": "You are already at the nearest mapped road node.", "distance_m": 0.0})
+		return
+	var group_start := 0
+	var current_name := str(road_names[0]) if not road_names.is_empty() else "unnamed road"
+	var group_distance := 0.0
+	for i in range(1, node_path.size()):
+		var a: Vector3 = _navigation_node_positions[node_path[i - 1]]
+		var b: Vector3 = _navigation_node_positions[node_path[i]]
+		group_distance += Vector2(b.x - a.x, b.z - a.z).length()
+		var should_split := i == node_path.size() - 1
+		var next_name := str(road_names[i]) if i < road_names.size() else current_name
+		if i < node_path.size() - 1 and i < road_names.size():
+			var before: Vector3 = _navigation_node_positions[node_path[i - 1]]
+			var at: Vector3 = _navigation_node_positions[node_path[i]]
+			var after: Vector3 = _navigation_node_positions[node_path[i + 1]]
+			var incoming := Vector2(at.x - before.x, at.z - before.z).normalized()
+			var outgoing := Vector2(after.x - at.x, after.z - at.z).normalized()
+			var angle := absf(rad_to_deg(incoming.angle_to(outgoing)))
+			should_split = next_name != current_name or angle >= 32.0
+		if should_split:
+			var instruction := ""
+			if _navigation_steps.is_empty():
+				instruction = "Start on %s for about %.0f m" % [current_name, group_distance]
+			elif next_name != current_name:
+				instruction = "Continue onto %s for about %.0f m" % [next_name, group_distance]
+			else:
+				instruction = "Follow the bend on %s for about %.0f m" % [current_name, group_distance]
+			_navigation_steps.append({"instruction": instruction, "distance_m": group_distance})
+			group_start = i
+			group_distance = 0.0
+			current_name = next_name
+	if not _navigation_steps.is_empty():
+		var last: Dictionary = _navigation_steps[_navigation_steps.size() - 1]
+		last["instruction"] = str(last["instruction"]) + "; destination is near the road, not a surveyed entrance."
+		_navigation_steps[_navigation_steps.size() - 1] = last
+
 
 func teleport_player_to_lat_lon(lat: float, lon: float, target_player: Node3D) -> Dictionary:
 	if not _ready_for_streaming or not is_instance_valid(target_player):
