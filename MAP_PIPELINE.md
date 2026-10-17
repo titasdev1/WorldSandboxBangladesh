@@ -107,3 +107,6 @@ The optional Shariatpur landmark photo pipeline downloads only the allowlisted W
 ## Source-pinned Shariatpur rebuild trigger
 
 A feature-branch review bake is triggered only by an explicit commit message containing `[build-shariatpur-review]`. The first batch pins that exact commit SHA; continuation batches use the same source commit and assemble a full 60-tile Shariatpur review package. This trigger does not promote the package: it remains `REVIEW_REQUIRED` until visual exterior review, floor evidence, attribution checks, and Android/device QA pass.
+
+
+The source-pinned continuation now dispatches on the same branch as the initial review build, so the same Pillow dependency, licensed-image fetch step, and map-pipeline code are used by every batch. A failed continuation from an older workflow revision is not considered a completed Shariatpur build.
