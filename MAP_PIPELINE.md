@@ -88,3 +88,10 @@ Important: the coordinate is a geometry-vertex mean, not a surveyed entrance or 
 6. **Ground-only recovery:** the three Shariatpur ground-only tiles must be investigated against fresh OSM/authorized data. Empty-source tiles must not be populated with invented roads/buildings merely to make the coverage statistic look better.
 7. **Acceptance:** run offline tests, regenerate the Shariatpur package from a pinned source revision, inspect road-name/floor-count coverage, compare representative blocks against lawful references, then run Android export and physical-device visual/performance/touch QA. The map stays review-required until these gates pass.
 
+
+
+## Named-place search and offline route graph
+
+The navigation index now retains source road polylines as WGS84 coordinate paths and indexes named POIs with English/Bangla names and category tags. The Android workflow rebuilds this index from the selected package's GeoJSON so an older pinned map can still gain search/routing metadata without silently changing its geometry. Runtime search and Dijkstra route planning use only indexed road segments; route endpoints and building points are approximate geometry-derived locations, not surveyed entrances. If source GeoJSON is absent, the build emits a warning and named search/route guidance remains unavailable rather than fabricating data.
+
+Turn instructions are generated from road-name changes and geometry bends. This is an offline mapped-road route, not a live traffic-aware service; one-way restrictions, access restrictions, sidewalk continuity, bridges, ferries, and pedestrian-safe crossings still require validation before claiming full turn-by-turn navigation is production-ready.
