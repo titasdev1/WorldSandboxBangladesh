@@ -225,18 +225,18 @@ func _navigate_to_named_place() -> void:
   district_map.call("set_navigation_target", result.get("place", {}))
 
 func _toggle_navigation_mode() -> void:
-	if not is_instance_valid(w):
-		return
-	var loader = w.get("real_dhaka_loader")
-	if not is_instance_valid(loader) or not loader.has_method("set_navigation_mode"):
-		if is_instance_valid(teleport_status):
-			teleport_status.text = "Route mode switching is unavailable in this build."
-		return
-	var next_mode := "walking" if str(loader.get_navigation_mode()) == "driving" else "driving"
-	loader.set_navigation_mode(next_mode)
-	navigation_mode_button.text = "ROUTE MODE: WALK" if next_mode == "walking" else "ROUTE MODE: DRIVE"
-	if is_instance_valid(teleport_status):
-		teleport_status.text = "Route mode: " + next_mode.capitalize() + ". Calculate a new route to apply the updated road restrictions."
+ if not is_instance_valid(w):
+  return
+ var loader = w.get("real_dhaka_loader")
+ if not is_instance_valid(loader) or not loader.has_method("set_navigation_mode"):
+  if is_instance_valid(teleport_status):
+   teleport_status.text = "Route mode switching is unavailable in this build."
+  return
+ var next_mode := "walking" if str(loader.get_navigation_mode()) == "driving" else "driving"
+ loader.set_navigation_mode(next_mode)
+ navigation_mode_button.text = "ROUTE MODE: WALK" if next_mode == "walking" else "ROUTE MODE: DRIVE"
+ if is_instance_valid(teleport_status):
+  teleport_status.text = "Route mode: " + next_mode.capitalize() + ". Calculate a new route to apply the updated road restrictions."
 
 
 func _teleport_to_coordinates() -> void:
