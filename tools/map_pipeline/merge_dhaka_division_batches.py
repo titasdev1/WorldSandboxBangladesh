@@ -253,6 +253,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
             "unnamed_road_count_in_source": navigation_index["counts"]["unnamed_roads"],
             "buildings_with_source_floor_count": navigation_index["counts"]["buildings_with_source_floor_count"],
             "buildings_missing_source_floor_count": navigation_index["counts"]["buildings_missing_source_floor_count"],
+            "facade_references_requiring_license_review": navigation_index["counts"]["buildings_with_any_facade_reference"],
             "verified_facade_reference_count": navigation_index["counts"]["buildings_with_verified_facade_reference"],
         },
         "tiles_expected": total_tiles,
