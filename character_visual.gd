@@ -122,34 +122,56 @@ func _process(delta: float) -> void:
     var actor := get_parent()
     if not is_instance_valid(actor) or not actor is CharacterBody3D:
         return
+
     var body := actor as CharacterBody3D
     var planar_speed := Vector2(body.velocity.x, body.velocity.z).length()
     animation_time += delta
 
-    # Subtle breathing and head settling keep idle characters from looking frozen.
-    var idle_weight := 1.0 - clampf(planar_speed / 1.6, 0.0, 1.0)
-    if is_instance_valid(_torso):
-        _torso.position.y = 1.18 + sin(animation_time * 2.2) * 0.018 * idle_weight
-        _torso.rotation.z = sin(animation_time * 1.1) * 0.012 * idle_weight
-    if is_instance_valid(_head):
-        _head.rotation.z = sin(animation_time * 0.8 + 0.7) * 0.018 * idle_weight
+    # Smooth the gait envelope so starting/stopping does not snap the limbs.
+    var move_weight := clampf(inverse_lerp(0.10, 0.65, planar_speed), 0.0, 1.0)
+    var sprint_weight := clampf(inverse_lerp(7.0, 10.5, planar_speed), 0.0, 1.0)
+    var gait_rate := lerpf(5.5, 12.5, clampf(planar_speed / 11.0, 0.0, 1.0))
+    gait_time += delta * gait_rate * move_weight
 
-    if planar_speed > 0.15:
-        gait_time += delta * clampf(planar_speed * 1.8, 2.0, 14.0)
-        var run_blend := clampf(planar_speed / 7.0, 0.0, 1.0)
-        var swing := sin(gait_time) * lerpf(0.42, 0.68, run_blend)
-        left_leg.rotation.x = swing
-        right_leg.rotation.x = -swing
-        left_arm.rotation.x = -swing * 0.8
-        right_arm.rotation.x = swing * 0.8
-        # A restrained counter-swing adds weight without changing locomotion.
-        left_arm.rotation.z = lerpf(left_arm.rotation.z, -0.06 * run_blend, delta * 5.0)
-        right_arm.rotation.z = lerpf(right_arm.rotation.z, 0.06 * run_blend, delta * 5.0)
-        rotation.y = lerp_angle(rotation.y, atan2(-body.velocity.x, -body.velocity.z), minf(delta * 9.0, 1.0))
+    # Rest pose: breathing, tiny head motion, and soft recovery to neutral.
+    var idle_weight := 1.0 - move_weight
+    var breath := sin(animation_time * 2.15)
+    if is_instance_valid(_torso):
+        _torso.position.y = 1.18 + breath * 0.018 * idle_weight
+        _torso.rotation.z = sin(animation_time * 1.1) * 0.012 * idle_weight
+        # A small forward lean builds with speed; sprint has a stronger center of mass.
+        var target_pitch := -0.035 * move_weight - 0.10 * sprint_weight
+        _torso.rotation.x = lerpf(_torso.rotation.x, target_pitch + sin(gait_time * 2.0) * 0.025 * move_weight, minf(delta * 8.0, 1.0))
+        # Light vertical impact on alternating steps sells weight without moving the actor capsule.
+        var step_bob := absf(sin(gait_time)) * (0.018 + 0.022 * sprint_weight) * move_weight
+        _torso.position.y = lerpf(_torso.position.y, 1.18 + step_bob + breath * 0.018 * idle_weight, minf(delta * 14.0, 1.0))
+    if is_instance_valid(_head):
+        var head_counter := -sin(gait_time) * 0.025 * move_weight
+        _head.rotation.z = lerpf(_head.rotation.z, sin(animation_time * 0.8 + 0.7) * 0.018 * idle_weight, minf(delta * 5.0, 1.0))
+        _head.rotation.x = lerpf(_head.rotation.x, head_counter, minf(delta * 8.0, 1.0))
+
+    if move_weight > 0.01:
+        var stride := sin(gait_time)
+        var leg_amplitude := lerpf(0.38, 0.66, sprint_weight)
+        var arm_amplitude := lerpf(0.30, 0.52, sprint_weight)
+        left_leg.rotation.x = stride * leg_amplitude * move_weight
+        right_leg.rotation.x = -stride * leg_amplitude * move_weight
+        left_arm.rotation.x = -stride * arm_amplitude * move_weight
+        right_arm.rotation.x = stride * arm_amplitude * move_weight
+
+        # Arms tuck inward slightly during a sprint; ease the target to avoid jitter.
+        left_arm.rotation.z = lerpf(left_arm.rotation.z, -0.035 - 0.07 * sprint_weight, minf(delta * 7.0, 1.0))
+        right_arm.rotation.z = lerpf(right_arm.rotation.z, 0.035 + 0.07 * sprint_weight, minf(delta * 7.0, 1.0))
+
+        # Follow travel direction smoothly. The player controller remains authoritative.
+        var desired_yaw := atan2(-body.velocity.x, -body.velocity.z)
+        rotation.y = lerp_angle(rotation.y, desired_yaw, minf(delta * 9.0, 1.0))
     else:
-        left_leg.rotation.x = move_toward(left_leg.rotation.x, 0.0, delta * 2.5)
-        right_leg.rotation.x = move_toward(right_leg.rotation.x, 0.0, delta * 2.5)
-        left_arm.rotation.x = move_toward(left_arm.rotation.x, 0.0, delta * 2.5)
-        right_arm.rotation.x = move_toward(right_arm.rotation.x, 0.0, delta * 2.5)
+        left_leg.rotation.x = move_toward(left_leg.rotation.x, 0.0, delta * 3.4)
+        right_leg.rotation.x = move_toward(right_leg.rotation.x, 0.0, delta * 3.4)
+        left_arm.rotation.x = move_toward(left_arm.rotation.x, 0.0, delta * 3.4)
+        right_arm.rotation.x = move_toward(right_arm.rotation.x, 0.0, delta * 3.4)
         left_arm.rotation.z = move_toward(left_arm.rotation.z, sin(animation_time * 1.1) * 0.018, delta * 2.0)
         right_arm.rotation.z = move_toward(right_arm.rotation.z, -sin(animation_time * 1.1) * 0.018, delta * 2.0)
+        if is_instance_valid(_torso):
+            _torso.rotation.x = lerpf(_torso.rotation.x, 0.0, minf(delta * 4.0, 1.0))
