@@ -12,6 +12,8 @@ from typing import Any
 import numpy as np
 import trimesh
 
+from tools.map_pipeline.build_real_world_navigation_index import build_index
+
 
 def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "full_division") -> dict[str, Any]:
     if stage not in {"shariatpur_review", "full_division"}:
@@ -220,6 +222,10 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         + f"Clipping boundary license: {boundary_license}. License source: {boundary_license_source}.\n",
         encoding="utf-8",
     )
+    navigation_index = build_index(out)
+    (out / "real_world_navigation_index.json").write_text(
+        json.dumps(navigation_index, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     quality_report = {
         "build_stage": stage,
         "pipeline_commit_sha": pipeline_commit_sha,
@@ -242,6 +248,12 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
             "estimated_building_heights_count": inferred_height_count,
             "estimated_building_heights_percent": inferred_height_percent,
             "manual_visual_review_required": True,
+            "navigation_index_written": (out / "real_world_navigation_index.json").is_file(),
+            "named_road_count_in_source": navigation_index["counts"]["named_roads"],
+            "unnamed_road_count_in_source": navigation_index["counts"]["unnamed_roads"],
+            "buildings_with_source_floor_count": navigation_index["counts"]["buildings_with_source_floor_count"],
+            "buildings_missing_source_floor_count": navigation_index["counts"]["buildings_missing_source_floor_count"],
+            "verified_facade_reference_count": navigation_index["counts"]["buildings_with_verified_facade_reference"],
         },
         "tiles_expected": total_tiles,
         "tiles_in_manifest": len(all_records),
@@ -263,6 +275,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "mesh_geometry_count": mesh_geometry_count,
         "feature_counts": feature_counts,
         "quality_gate_status": quality_report["status"],
+        "navigation_index_counts": navigation_index["counts"],
         "batch_count": len(batches),
         "glb_bytes": sum(path.stat().st_size for path in glbs),
     }
