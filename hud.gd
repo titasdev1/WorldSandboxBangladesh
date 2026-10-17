@@ -23,6 +23,7 @@ var teleport_panel: PanelContainer
 var teleport_lat_input: LineEdit
 var teleport_lon_input: LineEdit
 var teleport_status: Label
+var teleport_place_input: LineEdit
 
 func _ready():
  w = get_parent()
@@ -123,8 +124,8 @@ func _build_teleport_ui() -> void:
  teleport_panel = PanelContainer.new()
  teleport_panel.name = "CoordinateTeleportPanel"
  teleport_panel.position = Vector2(720, 125)
- teleport_panel.size = Vector2(300, 235)
- teleport_panel.custom_minimum_size = Vector2(300, 235)
+ teleport_panel.size = Vector2(310, 390)
+ teleport_panel.custom_minimum_size = Vector2(310, 390)
  teleport_panel.visible = false
  teleport_panel.z_index = 40
  add_child(teleport_panel)
@@ -155,6 +156,46 @@ func _build_teleport_ui() -> void:
  close_button.text = "CLOSE"
  close_button.pressed.connect(func(): teleport_panel.visible = false)
  column.add_child(close_button)
+
+
+func _teleport_to_named_place() -> void:
+	if not is_instance_valid(w) or not is_instance_valid(teleport_status):
+		return
+	var loader = w.get("real_dhaka_loader")
+	var player = w.get("player")
+	if not is_instance_valid(loader) or not is_instance_valid(player) or not loader.has_method("search_named_place"):
+		teleport_status.text = "Named-place search is unavailable in this build."
+		return
+	var matches: Array = loader.search_named_place(teleport_place_input.text, 5)
+	if matches.is_empty():
+		teleport_status.text = "No mapped match. Try a shorter English/Bangla name or a road reference."
+		return
+	var place: Dictionary = matches[0]
+	var result: Dictionary = loader.teleport_player_to_lat_lon(float(place["latitude"]), float(place["longitude"]), player)
+	teleport_status.text = str(place["name"]) + " — " + str(result.get("message", "Teleport request finished.")) + "\nApproximate map point, not a surveyed entrance."
+	if bool(result.get("ok", false)):
+		teleport_panel.visible = false
+
+
+func _navigate_to_named_place() -> void:
+	if not is_instance_valid(w) or not is_instance_valid(teleport_status):
+		return
+	var loader = w.get("real_dhaka_loader")
+	var player = w.get("player")
+	if not is_instance_valid(loader) or not is_instance_valid(player) or not loader.has_method("navigate_to_named_place"):
+		teleport_status.text = "Turn-by-turn navigation is unavailable in this build."
+		return
+	var result: Dictionary = loader.navigate_to_named_place(teleport_place_input.text, player)
+	if not bool(result.get("ok", false)):
+		teleport_status.text = str(result.get("message", "No route available."))
+		return
+	var lines: Array[String] = [str(result.get("message", "Route ready."))]
+	for step in result.get("steps", []):
+		if step is Dictionary:
+			lines.append("• " + str(step.get("instruction", "")))
+	teleport_status.text = "\n".join(lines)
+	if district_map and district_map.has_method("set_navigation_target"):
+		district_map.call("set_navigation_target", result.get("place", {}))
 
 func _teleport_to_coordinates() -> void:
  if not is_instance_valid(w) or not is_instance_valid(teleport_status):
