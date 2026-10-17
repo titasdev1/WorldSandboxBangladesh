@@ -351,11 +351,11 @@ jobs:
             if [[ -n "${marker_id}" ]]; then SEQUENCE_ID="${marker_id}"; fi
           fi
           mkdir -p build/shariatpur/batches
-          gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/runs?branch=main&per_page=100" \
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/runs?branch=${GITHUB_REF_NAME}&per_page=100" \
             --jq '.workflow_runs[] | [.id, .head_branch, (.conclusion // "")] | @tsv' > /tmp/map-runs.tsv
           prefix="Project-A-Square-Dhaka-Division-${SEQUENCE_ID}-batch-"
           while read -r run_id branch conclusion; do
-            [[ "${branch}" == "main" ]] || continue
+            [[ "${branch}" == "${GITHUB_REF_NAME}" ]] || continue
             build_conclusion="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs" --jq '.jobs[] | select(.name == "build-map") | .conclusion' | head -n 1)"
             [[ "${build_conclusion}" == "success" ]] || continue
             while IFS= read -r artifact_name; do
