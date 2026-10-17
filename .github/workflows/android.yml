@@ -60,7 +60,7 @@ jobs:
 
       - name: Validate asset pipeline Python syntax
         shell: bash
-        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/report_build_assets.py
+        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py
 
       # The release default remains the pinned Greater Dhaka package. A manual
       # review build can explicitly install the latest assembled Shariatpur-first
@@ -159,6 +159,31 @@ jobs:
               echo "- Status: review build only; not promoted as a final map"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build named-place and road-routing index for selected map
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find assets/world/dhaka_tiles -type f -name '*.geojson' -print -quit | grep -q .; then
+            python3 tools/map_pipeline/build_real_world_navigation_index.py \
+              --source assets/world/dhaka_tiles \
+              --out assets/world/dhaka_tiles/real_world_navigation_index.json
+            python3 - <<'PY'
+            import json
+            from pathlib import Path
+            report = json.loads(Path("assets/world/dhaka_tiles/real_world_navigation_index.json").read_text(encoding="utf-8"))
+            counts = report.get("counts", {})
+            print("Offline navigation index:", json.dumps({
+                "named_roads": counts.get("named_roads", 0),
+                "unnamed_roads": counts.get("unnamed_roads", 0),
+                "named_places": counts.get("named_places", 0),
+                "buildings_with_source_floor_count": counts.get("buildings_with_source_floor_count", 0),
+                "independently_verified_floor_counts": counts.get("buildings_with_independently_verified_floor_count", 0),
+            }, ensure_ascii=False))
+            PY
+          else
+            echo "::warning::Selected map package has no source GeoJSON; named search and offline routing will be unavailable."
+          fi
 
       - name: Restore Godot import cache for the pinned map assets
         uses: actions/cache@v4
