@@ -123,9 +123,9 @@ func _build_teleport_ui() -> void:
 
  teleport_panel = PanelContainer.new()
  teleport_panel.name = "CoordinateTeleportPanel"
- teleport_panel.position = Vector2(720, 125)
- teleport_panel.size = Vector2(310, 390)
- teleport_panel.custom_minimum_size = Vector2(310, 390)
+ teleport_panel.position = Vector2(690, 125)
+ teleport_panel.size = Vector2(320, 520)
+ teleport_panel.custom_minimum_size = Vector2(320, 520)
  teleport_panel.visible = false
  teleport_panel.z_index = 40
  add_child(teleport_panel)
@@ -136,6 +136,17 @@ func _build_teleport_ui() -> void:
  heading.text = "TELEPORT TO REAL-WORLD COORDINATES"
  heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
  column.add_child(heading)
+ teleport_place_input = LineEdit.new()
+ teleport_place_input.placeholder_text = "Search mapped place / road (Bangla or English)"
+ column.add_child(teleport_place_input)
+ var named_teleport_button := Button.new()
+ named_teleport_button.text = "FIND PLACE + TELEPORT"
+ named_teleport_button.pressed.connect(_teleport_to_named_place)
+ column.add_child(named_teleport_button)
+ var navigate_button := Button.new()
+ navigate_button.text = "NAVIGATE TO PLACE"
+ navigate_button.pressed.connect(_navigate_to_named_place)
+ column.add_child(navigate_button)
  teleport_lat_input = LineEdit.new()
  teleport_lat_input.placeholder_text = "Latitude (e.g. 23.216700)"
  teleport_lat_input.text = "23.216700"
@@ -151,7 +162,14 @@ func _build_teleport_ui() -> void:
  teleport_status = Label.new()
  teleport_status.text = "Requires a loaded real-world map package."
  teleport_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
- column.add_child(teleport_status)
+ teleport_status.custom_minimum_size = Vector2(280, 120)
+ teleport_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ var directions_scroll := ScrollContainer.new()
+ directions_scroll.name = "NavigationDirectionsScroll"
+ directions_scroll.custom_minimum_size = Vector2(285, 120)
+ directions_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+ directions_scroll.add_child(teleport_status)
+ column.add_child(directions_scroll)
  var close_button := Button.new()
  close_button.text = "CLOSE"
  close_button.pressed.connect(func(): teleport_panel.visible = false)
