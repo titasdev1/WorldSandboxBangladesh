@@ -375,5 +375,58 @@ class DhakaMapPipelineTests(unittest.TestCase):
 
 
 
+    def test_named_landmark_photo_is_embedded_in_glb_with_license_provenance(self):
+        from PIL import Image
+
+        south, west, north, east = DEFAULT_BBOX
+        elements = [{
+            "type": "way",
+            "id": 88001,
+            "tags": {"building": "mosque", "building:levels": "1", "name": "Bibir Hat Mosque"},
+            "geometry": [
+                {"lat": 23.8092, "lon": 90.4115},
+                {"lat": 23.8092, "lon": 90.4120},
+                {"lat": 23.8097, "lon": 90.4120},
+                {"lat": 23.8097, "lon": 90.4115},
+                {"lat": 23.8092, "lon": 90.4115},
+            ],
+        }]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            photo_dir = root / "photos"
+            photo_dir.mkdir()
+            Image.new("RGB", (640, 480), (180, 120, 80)).save(photo_dir / "bibir.jpg", format="JPEG")
+            catalog_path = root / "catalog.json"
+            catalog_path.write_text(json.dumps({
+                "images": [{
+                    "id": "bibir_hat_mosque_01",
+                    "subject": "Bibir Hat Mosque, Shariatpur",
+                    "match_names": ["Bibir Hat Mosque"],
+                    "file_name": "bibir.jpg",
+                    "source_page": "https://commons.wikimedia.org/wiki/File:Bibir_Hat_Mosque_01.jpg",
+                    "author": "Radman Siddiki",
+                    "license": "CC BY-SA 4.0",
+                    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+                    "attribution": "Photo: Radman Siddiki / Wikimedia Commons, CC BY-SA 4.0",
+                }]
+            }), encoding="utf-8")
+            out = root / "map"
+            with patch.dict(os.environ, {
+                "WSB_FACADE_IMAGE_DIR": str(photo_dir),
+                "WSB_FACADE_IMAGE_CATALOG": str(catalog_path),
+            }):
+                manifest = build_map(elements, out, DEFAULT_BBOX)
+            self.assertEqual(manifest["feature_counts"]["licensed_facade_photo_panels"], 1)
+            self.assertEqual(manifest["licensed_facade_photo_matches"][0]["license"], "CC BY-SA 4.0")
+            scene = trimesh.load(out / "Dhaka_Explorable_Map.glb", force="scene")
+            photo_meshes = [mesh for name, mesh in scene.geometry.items() if "licensed_facade_photo" in name]
+            self.assertEqual(len(photo_meshes), 1)
+            self.assertEqual(photo_meshes[0].visual.kind, "texture")
+            attribution = (out / "ATTRIBUTION.txt").read_text(encoding="utf-8")
+            self.assertIn("Radman Siddiki", attribution)
+            self.assertIn("CC BY-SA 4.0", attribution)
+
+
+
 if __name__ == "__main__":
     unittest.main()
