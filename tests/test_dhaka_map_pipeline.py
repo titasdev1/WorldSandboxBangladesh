@@ -8,7 +8,7 @@ from pathlib import Path
 import trimesh
 from shapely.geometry import shape
 
-from tools.map_pipeline.build_dhaka_map import DEFAULT_BBOX, build_map, building_height, local_xy
+from tools.map_pipeline.build_dhaka_map import DEFAULT_BBOX, build_map, building_height, local_xy, facade_photo_panel, match_facade_photo
 
 
 class DhakaMapPipelineTests(unittest.TestCase):
@@ -319,6 +319,8 @@ class DhakaMapPipelineTests(unittest.TestCase):
             self.assertGreater(scene.bounds[1][1], scene.bounds[0][1])
             self.assertLess(scene.bounds[1][1], 260)
             self.assertEqual(manifest["feature_counts"]["building_footprints"], 2)
+            self.assertEqual(manifest["feature_counts"]["licensed_facade_photo_panels"], 0)
+            self.assertEqual(manifest["licensed_facade_photo_matches"], [])
             building_batches = [name for name in scene.geometry if name.startswith("mapped_buildings_")]
             roof_batches = [name for name in scene.geometry if name.startswith("mapped_roofs_")]
             self.assertGreaterEqual(len(building_batches), 1)
@@ -350,6 +352,27 @@ class DhakaMapPipelineTests(unittest.TestCase):
             self.assertEqual(generic["category"], "building")
             self.assertEqual(len(generic["footprint_local_m"]), 4)
             self.assertIn("OpenStreetMap", (out / "map_manifest.json").read_text())
+
+
+    def test_licensed_facade_photo_panel_is_textured_and_exact_name_only(self):
+        from PIL import Image
+        from shapely.geometry import Polygon
+
+        image = Image.new("RGB", (640, 480), (180, 120, 80))
+        polygon = Polygon([(0, 0), (18, 0), (18, 9), (0, 9)])
+        panel = facade_photo_panel(polygon, 6.0, image, 77, "fixture_photo")
+        self.assertIsNotNone(panel)
+        self.assertEqual(len(panel.vertices), 4)
+        self.assertEqual(panel.visual.kind, "texture")
+        self.assertEqual(panel.visual.uv.shape, (4, 2))
+
+        catalog = {
+            "bibir hat mosque": {"metadata": {"id": "bibir_hat_mosque_01"}, "image": image},
+        }
+        self.assertIsNotNone(match_facade_photo({"name": "Bibir Hat Mosque"}, catalog))
+        self.assertIsNone(match_facade_photo({"name": "nearby mosque"}, catalog))
+        self.assertIsNone(match_facade_photo({"amenity": "place_of_worship"}, catalog))
+
 
 
 if __name__ == "__main__":
