@@ -198,8 +198,9 @@ def build_index(source: Path, floor_evidence_path: Path | None = None) -> dict[s
                     "coordinates": center,
                     "source_file": str(path.relative_to(source)),
                 }
-            if "building" in tags and coords:
-                key = f"way/{osm_id}"
+            if ("building" in tags or "building:part" in tags) and coords:
+                feature_id = str(feature.get("id", ""))
+                key = feature_id if feature_id.startswith(("way/", "relation/")) else f"way/{osm_id}"
                 levels = _positive_number(tags.get("building:levels"))
                 roof_levels = _positive_number(tags.get("roof:levels"))
                 height = _positive_number(tags.get("height"))
@@ -211,7 +212,7 @@ def build_index(source: Path, floor_evidence_path: Path | None = None) -> dict[s
                     "name": tags.get("name"),
                     "name_bn": tags.get("name:bn"),
                     "official_name": tags.get("official_name"),
-                    "building_type": tags.get("building"),
+                    "building_type": tags.get("building", tags.get("building:part")),
                     "levels": int(levels) if levels is not None and levels.is_integer() else levels,
                     "roof_levels": roof_levels,
                     "height_m": height,
