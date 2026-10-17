@@ -84,9 +84,8 @@ jobs:
           set -euo pipefail
           # Never pin a stale review artifact: find the newest non-expired, main-branch
           # district package by creation time, then download that exact workflow run.
-          review_branch="${GITHUB_HEAD_REF:-main}"
           artifact_record="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
-            --jq --arg review_branch "${review_branch}" '.artifacts[] | select(.expired == false) | select(.name | startswith("Project-A-Square-Shariatpur-Review-Map-")) | select(.workflow_run.head_branch == "main" or .workflow_run.head_branch == $review_branch) | [.workflow_run.id, .name, .created_at] | @tsv' \
+            --jq '.artifacts[] | select(.expired == false) | select(.name | startswith("Project-A-Square-Shariatpur-Review-Map-")) | select(.workflow_run.head_branch == "main" or .workflow_run.head_branch == (env.GITHUB_HEAD_REF // "main")) | [.workflow_run.id, .name, .created_at] | @tsv' \
             | sort -k3,3 | tail -n 1)"
           if [[ -z "${artifact_record}" ]]; then
             echo "No assembled Shariatpur review package exists yet; finish the Shariatpur tile sequence first." >&2
