@@ -93,6 +93,19 @@ class DhakaMapPipelineTests(unittest.TestCase):
         self.assertAlmostEqual(height, 15.5)
         self.assertFalse(inferred)
 
+    def test_facade_floor_bands_scale_with_building_floor_count_cue(self):
+        from shapely.geometry import box
+        from tools.map_pipeline.build_dhaka_map import facade_window_geometry
+
+        footprint = box(10.0, 10.0, 30.0, 30.0)
+        tile_bounds = box(0.0, 0.0, 100.0, 100.0)
+        two_floor = facade_window_geometry(footprint, 6.2, 101, tile_bounds)
+        five_floor = facade_window_geometry(footprint, 15.5, 102, tile_bounds)
+        self.assertIsNotNone(two_floor)
+        self.assertIsNotNone(five_floor)
+        self.assertGreater(five_floor[3], two_floor[3],
+                           "Facade geometry should show more vertical floor bands for taller/tagged buildings")
+
     def test_area_and_category_estimate_varies_untagged_building_silhouettes(self):
         small, small_inferred = building_height({"building": "yes"}, 101, 24.0)
         large, large_inferred = building_height({"building": "yes"}, 102, 420.0)
