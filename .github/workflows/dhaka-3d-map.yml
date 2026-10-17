@@ -140,6 +140,15 @@ jobs:
       - name: Fetch allowlisted Shariatpur landmark facade photos
         shell: bash
         run: |
+          # The source commit may predate the Wikimedia thumbnail-host allowlist;
+          # patch the checked-out helper for this build without changing map geometry.
+          python - <<'PY'
+          from pathlib import Path
+          helper = Path("tools/map_pipeline/fetch_licensed_facade_images.py")
+          source = helper.read_text(encoding="utf-8")
+          source = source.replace('"upload.wikimedia.org"}', '"upload.wikimedia.org", "thumb.wikimedia.org"}')
+          helper.write_text(source, encoding="utf-8")
+          PY
           python tools/map_pipeline/fetch_licensed_facade_images.py \
             --catalog tools/map_pipeline/shariatpur_facade_images.json \
             --out build/facade-images \
