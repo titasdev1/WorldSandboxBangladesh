@@ -62,11 +62,11 @@ jobs:
         shell: bash
         run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py
 
-      # The release default remains the pinned Greater Dhaka package. A manual
-      # review build can explicitly install the latest assembled Shariatpur-first
-      # district package without silently promoting it as a production map.
+      # Release/push builds retain Greater Dhaka by default. PR validation uses the
+      # latest assembled Shariatpur review package so map/game changes are tested
+      # together without promoting the review map as a production release.
       - name: Download pinned Greater Dhaka map package
-        if: ${{ !(inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) }}
+        if: ${{ !(inputs.map_package == 'shariatpur_review' || github.event_name == 'pull_request' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) }}
         uses: actions/download-artifact@v4
         with:
           name: Project-A-Square-Greater-Dhaka-3D-Tiles
@@ -76,7 +76,7 @@ jobs:
           path: build/selected-map
 
       - name: Download latest assembled Shariatpur review package
-        if: ${{ inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]')) }}
+        if: ${{ inputs.map_package == 'shariatpur_review' || github.event_name == 'pull_request' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]')) }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -103,7 +103,7 @@ jobs:
       - name: Install and validate selected map package
         shell: bash
         env:
-          MAP_PACKAGE: ${{ (inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && 'shariatpur_review' || 'greater_dhaka' }}
+          MAP_PACKAGE: ${{ (inputs.map_package == 'shariatpur_review' || github.event_name == 'pull_request' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && 'shariatpur_review' || 'greater_dhaka' }}
         run: |
           set -euo pipefail
           test -s build/selected-map/map_tiles_manifest.json
