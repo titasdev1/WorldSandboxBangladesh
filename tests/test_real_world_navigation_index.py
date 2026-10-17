@@ -21,6 +21,13 @@ class RealWorldNavigationIndexTests(unittest.TestCase):
                         "geometry": {"type": "LineString", "coordinates": [[90.35, 23.22], [90.36, 23.23]]},
                     },
                     {
+                        "type": "Feature", "id": "node/909",
+                        "properties": {"osm_id": 909, "tags": {
+                            "amenity": "school", "name": "Palong Model School", "name:bn": "পালং মডেল স্কুল"
+                        }},
+                        "geometry": {"type": "Point", "coordinates": [90.356, 23.222]},
+                    },
+                    {
                         "type": "Feature", "id": "way/202",
                         "properties": {"osm_id": 202, "tags": {
                             "building": "apartments", "building:levels": "5", "height": "16", "image": "https://example.invalid/building.jpg"
@@ -42,6 +49,11 @@ class RealWorldNavigationIndexTests(unittest.TestCase):
         self.assertEqual(report["roads"][0]["name"], "Palong Road")
         self.assertEqual(report["roads"][0]["name_bn"], "পালং সড়ক")
         self.assertAlmostEqual(report["roads"][0]["coordinates"]["longitude"], 90.355)
+        self.assertEqual(report["roads"][0]["geometry_paths"], [[[90.35, 23.22], [90.36, 23.23]]])
+        self.assertEqual(report["counts"]["named_places"], 1)
+        self.assertEqual(report["places"][0]["name"], "Palong Model School")
+        self.assertEqual(report["places"][0]["name_bn"], "পালং মডেল স্কুল")
+        self.assertAlmostEqual(report["places"][0]["coordinates"]["latitude"], 23.222)
         self.assertEqual(report["counts"]["buildings_with_source_floor_count"], 1)
         known = next(b for b in report["buildings"] if b["osm_id"] == "way/202")
         unknown = next(b for b in report["buildings"] if b["osm_id"] == "way/303")
