@@ -47,3 +47,4 @@ jobs:
           python -m unittest discover -s tests -p 'test_dhaka*_pipeline.py' -v
           python -m unittest discover -s tests -p 'test_merge_dhaka_division_batches.py' -v
           python -m unittest discover -s tests -p 'test_real_world_navigation_index.py' -v
+          python -m unittest discover -s tests -p 'test_pbr_resolution_budget.py' -v
