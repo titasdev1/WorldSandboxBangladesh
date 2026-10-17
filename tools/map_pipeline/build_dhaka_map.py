@@ -594,11 +594,11 @@ def facade_window_geometry(
                     window_centers.append((cx, cy, center_z, window_width, angle))
                     if len(window_centers) >= max_window_panels:
                         break
-                if len(window_centers) >= 8:
+                if len(window_centers) >= max_window_panels:
                     break
-            if len(window_centers) >= 8:
+            if len(window_centers) >= max_window_panels:
                 break
-        if len(window_centers) >= 8:
+        if len(window_centers) >= max_window_panels:
             break
     if not window_centers:
         return None
