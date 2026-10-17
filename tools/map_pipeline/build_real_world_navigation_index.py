@@ -97,7 +97,57 @@ def _positive_number(value: Any) -> float | None:
     return result if math.isfinite(result) and result > 0 else None
 
 
-def build_index(source: Path) -> dict[str, Any]:
+
+def _validated_floor_evidence(path: Path | None) -> tuple[dict[str, dict[str, Any]], list[dict[str, str]]]:
+    if path is None or not path.is_file():
+        return {}, []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {}, [{"osm_id": "", "reason": f"cannot read evidence registry: {exc}"}]
+    records = payload.get("records", []) if isinstance(payload, dict) else []
+    verified: dict[str, dict[str, Any]] = {}
+    rejected: list[dict[str, str]] = []
+    allowed_sources = {
+        "official_plan", "official_building_profile", "licensed_street_imagery",
+        "owner_photograph", "field_survey", "building_documentation",
+    }
+    for record in records if isinstance(records, list) else []:
+        if not isinstance(record, dict):
+            rejected.append({"osm_id": "", "reason": "record is not an object"})
+            continue
+        osm_id = str(record.get("osm_id", "")).strip()
+        floor_count = record.get("floor_count")
+        source_url = str(record.get("evidence_source_url", "")).strip()
+        source_type = str(record.get("evidence_source_type", "")).strip()
+        reviewer = str(record.get("reviewer", "")).strip()
+        reviewed_at = str(record.get("reviewed_at", "")).strip()
+        notes = str(record.get("evidence_notes", "")).strip()
+        valid_count = isinstance(floor_count, int) and not isinstance(floor_count, bool) and 1 <= floor_count <= 200
+        valid_date = len(reviewed_at) == 10 and reviewed_at[4:5] == "-" and reviewed_at[7:8] == "-"
+        if not osm_id:
+            reason = "missing osm_id"
+        elif not valid_count:
+            reason = "floor_count must be an integer from 1 to 200"
+        elif not source_url.startswith("https://"):
+            reason = "evidence_source_url must be HTTPS"
+        elif source_type not in allowed_sources:
+            reason = "evidence_source_type is not an approved evidence class"
+        elif not reviewer:
+            reason = "missing human reviewer"
+        elif not valid_date:
+            reason = "reviewed_at must use YYYY-MM-DD"
+        elif not notes:
+            reason = "missing evidence_notes"
+        elif str(record.get("verification_status", "")) != "INDEPENDENTLY_VERIFIED":
+            reason = "verification_status must explicitly be INDEPENDENTLY_VERIFIED"
+        else:
+            verified[osm_id] = record
+            continue
+        rejected.append({"osm_id": osm_id, "reason": reason})
+    return verified, rejected
+
+def build_index(source: Path, floor_evidence_path: Path | None = None) -> dict[str, Any]:
     roads: dict[str, dict[str, Any]] = {}
     buildings: dict[str, dict[str, Any]] = {}
     places: dict[str, dict[str, Any]] = {}
@@ -180,13 +230,34 @@ def build_index(source: Path) -> dict[str, Any]:
                         "status": "REFERENCE_REQUIRES_LICENSE_REVIEW" if any(tags.get(k) for k in ("image", "wikimedia_commons", "mapillary")) else "NO_FACADE_REFERENCE_IN_SOURCE",
                     },
                 }
+    verified_evidence, rejected_evidence = _validated_floor_evidence(floor_evidence_path)
+    for building in buildings.values():
+        evidence = verified_evidence.get(str(building["osm_id"]))
+        if evidence is None:
+            continue
+        building["floor_count_independently_verified"] = True
+        building["independently_verified_floor_count"] = int(evidence["floor_count"])
+        building["floor_count_verification"] = {
+            "status": "INDEPENDENTLY_VERIFIED",
+            "evidence_source_url": evidence["evidence_source_url"],
+            "evidence_source_type": evidence["evidence_source_type"],
+            "reviewer": evidence["reviewer"],
+            "reviewed_at": evidence["reviewed_at"],
+            "evidence_notes": evidence["evidence_notes"],
+        }
     named_roads = sum(1 for road in roads.values() if road["name_status"] == "NAMED")
     level_tagged = sum(1 for building in buildings.values() if building["floor_count_tagged_in_source"])
+    independently_verified = sum(1 for building in buildings.values() if building["floor_count_independently_verified"])
     return {
         "schema_version": 1,
         "purpose": "real-world navigation, road labels, coordinate lookup, and floor-count evidence",
         "coordinate_system": "WGS84 longitude/latitude from source GeoJSON; point is approximate geometry vertex mean",
         "source_files_scanned": source_files,
+        "floor_evidence_validation": {
+            "accepted_registry_records": len(verified_evidence),
+            "applied_to_mapped_buildings": independently_verified,
+            "rejected_registry_records": rejected_evidence,
+        },
         "counts": {
             "roads": len(roads),
             "named_roads": named_roads,
@@ -194,7 +265,7 @@ def build_index(source: Path) -> dict[str, Any]:
             "buildings": len(buildings),
             "named_places": len(places),
             "buildings_with_source_floor_count": level_tagged,
-            "buildings_with_independently_verified_floor_count": 0,
+            "buildings_with_independently_verified_floor_count": independently_verified,
             "buildings_missing_source_floor_count": len(buildings) - level_tagged,
             "buildings_with_any_facade_reference": sum(1 for building in buildings.values() if building["facade_reference"]["status"] == "REFERENCE_REQUIRES_LICENSE_REVIEW"),
             "buildings_with_verified_facade_reference": 0,
@@ -216,10 +287,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True, help="Map package directory containing source GeoJSON")
     parser.add_argument("--out", type=Path, required=True, help="Output JSON path")
+    parser.add_argument("--floor-evidence", type=Path, help="Human-reviewed evidence registry; only validated records are applied")
     args = parser.parse_args()
     if not args.source.is_dir():
         parser.error(f"source directory does not exist: {args.source}")
-    report = build_index(args.source)
+    evidence_path = args.floor_evidence
+    if evidence_path is None and (args.source / "building_floor_evidence.json").is_file():
+        evidence_path = args.source / "building_floor_evidence.json"
+    report = build_index(args.source, evidence_path)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report["counts"], ensure_ascii=False, sort_keys=True))
