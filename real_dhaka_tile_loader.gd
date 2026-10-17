@@ -23,6 +23,8 @@ var _records: Array[Dictionary] = []
 var _mounted_map_packs: Array[String] = []
 var _loaded: Dictionary = {}
 var _road_routes_by_tile: Dictionary = {}
+var _road_labels_by_tile: Dictionary = {}
+var _region_bounds_lat_lon: Array[float] = []
 var _manifest_origin_lat := GAME_ORIGIN_LAT
 var _manifest_origin_lon := GAME_ORIGIN_LON
 var _stream_clock := 0.0
@@ -69,6 +71,7 @@ func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.j
 	var tiles: Variant = manifest.get("tiles", [])
 	if not (region is Array and region.size() == 4 and tiles is Array and not tiles.is_empty()):
 		return false
+	_region_bounds_lat_lon = [float(region[0]), float(region[1]), float(region[2]), float(region[3])]
 	# District review packs carry their own local origin so the player at world
 	# origin streams Shariatpur immediately. Older/full-division packages safely
 	# fall back to the established central-Dhaka coordinates.
@@ -141,6 +144,42 @@ func get_road_routes() -> Array:
 		result.append_array(routes)
 	return result
 
+func get_road_labels() -> Array:
+	var result: Array = []
+	for labels in _road_labels_by_tile.values():
+		result.append_array(labels)
+	return result
+
+func teleport_player_to_lat_lon(lat: float, lon: float, target_player: Node3D) -> Dictionary:
+	if not _ready_for_streaming or not is_instance_valid(target_player):
+		return {"ok": false, "message": "Real-world map is not loaded."}
+	if _region_bounds_lat_lon.size() != 4:
+		return {"ok": false, "message": "Map has no verified geographic bounds."}
+	if lat < _region_bounds_lat_lon[0] or lat > _region_bounds_lat_lon[2] or lon < _region_bounds_lat_lon[1] or lon > _region_bounds_lat_lon[3]:
+		return {"ok": false, "message": "Coordinates are outside the installed map coverage."}
+	var destination := _geo_to_world(lat, lon)
+	_stream_tiles(destination)
+	var best_point := Vector3.ZERO
+	var best_distance := INF
+	var best_side := Vector3.ZERO
+	for route in get_road_routes():
+		for index in range(route.size()):
+			var point: Vector3 = route[index]
+			var distance := Vector2(point.x - destination.x, point.z - destination.z).length()
+			if distance < best_distance:
+				best_distance = distance
+				best_point = point
+				var before: Vector3 = route[maxi(0, index - 1)]
+				var after: Vector3 = route[mini(route.size() - 1, index + 1)]
+				var direction := (after - before).normalized()
+				best_side = Vector3(-direction.z, 0.0, direction.x)
+	if best_distance > 350.0:
+		return {"ok": false, "message": "No mapped road is close enough to this coordinate."}
+	# Spawn beside, not on the centreline. Collision/navigation QA is still required.
+	target_player.global_position = best_point + best_side * 3.0 + Vector3(0.0, 0.35, 0.0)
+	_stream_tiles(target_player.global_position)
+	return {"ok": true, "message": "Teleported near %.6f, %.6f" % [lat, lon], "distance_m": best_distance}
+
 func _load_road_routes(record: Dictionary) -> void:
 	var tile_id := str(record.get("tile_id", ""))
 	var relative_geojson := str(record.get("geojson", ""))
@@ -156,6 +195,7 @@ func _load_road_routes(record: Dictionary) -> void:
 	if not (features is Array):
 		return
 	var routes: Array = []
+	var labels: Array[Dictionary] = []
 	for feature in features:
 		if not (feature is Dictionary):
 			continue
@@ -193,7 +233,16 @@ func _load_road_routes(record: Dictionary) -> void:
 				route_length += route[i - 1].distance_to(route[i])
 			if route_length >= 22.0:
 				routes.append(route)
+				var tag_data: Dictionary = properties.get("tags", {}) if properties.get("tags", {}) is Dictionary else {}
+				var road_name := str(properties.get("name:bn", tag_data.get("name:bn", ""))).strip_edges()
+				if road_name.is_empty():
+					road_name = str(properties.get("name", tag_data.get("name", ""))).strip_edges()
+				if road_name.is_empty():
+					road_name = str(properties.get("ref", tag_data.get("ref", ""))).strip_edges()
+				if not road_name.is_empty():
+					labels.append({"name": road_name, "points": route})
 	_road_routes_by_tile[tile_id] = routes
+	_road_labels_by_tile[tile_id] = labels
 
 func _geo_to_world(lat: float, lon: float) -> Vector3:
 	var x := deg_to_rad(lon - _manifest_origin_lon) * EARTH_RADIUS_M * cos(deg_to_rad(_manifest_origin_lat))
@@ -221,6 +270,7 @@ func _stream_tiles(player_position: Vector3) -> void:
 					anchor.queue_free()
 			_loaded.erase(key)
 			_road_routes_by_tile.erase(key)
+			_road_labels_by_tile.erase(key)
 	for key in desired.keys():
 		if _loaded.has(key):
 			continue
