@@ -16,7 +16,7 @@ func configure(w) -> void:
 func start_mode(mode_id: String) -> void:
     _clear_combat_entities()
     active_mode = mode_id
-    active = mode_id == "survival" or mode_id == "arena_training"
+    active = mode_id in ["survival", "arena_training", "street_skirmish"]
     wave = 0
     kills = 0
     target_goal = 0
@@ -38,6 +38,15 @@ func start_mode(mode_id: String) -> void:
             var offset := Vector3(cos(angle) * 13.0, 0.0, sin(angle) * 13.0)
             _spawn_enemy(world.player.global_position + offset, true)
         world.event_text = "COMBAT LAB: ELIMINATE 6 PRACTICE TARGETS"
+    elif mode_id == "street_skirmish":
+        target_goal = 10
+        alive_enemies = target_goal
+        for i in range(target_goal):
+            var angle := TAU * (float(i) + 0.25) / float(target_goal)
+            var radius := 22.0 + float(i % 3) * 5.0
+            var offset := Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
+            _spawn_enemy(world.player.global_position + offset, false)
+        world.event_text = "STREET SKIRMISH: ELIMINATE 10 ENEMIES"
     else:
         wave = 1
         _spawn_wave()
@@ -93,6 +102,16 @@ func enemy_defeated(enemy: Node) -> void:
         else:
             world.event_text = "TARGET DOWN • %d/%d" % [kills, target_goal]
             world.event_time_left = 2.0
+    elif active_mode == "street_skirmish":
+        if kills >= target_goal:
+            active = false
+            run_over = true
+            world.cash += 300
+            world.event_text = "STREET SKIRMISH WON • 10/10 • +৳300"
+            world.event_time_left = 10.0
+        else:
+            world.event_text = "SKIRMISH • %d/10 ELIMINATIONS" % [kills]
+            world.event_time_left = 2.0
     elif active_mode == "survival":
         alive_enemies = maxi(0, alive_enemies - 1)
         if alive_enemies == 0:
@@ -121,6 +140,10 @@ func update(delta: float) -> void:
 func get_status_text() -> String:
     if active_mode == "arena_training":
         return "COMBAT LAB • %d/%d TARGETS" % [kills, target_goal]
+    if active_mode == "street_skirmish":
+        if run_over:
+            return "STREET SKIRMISH • VICTORY • %d/10 ELIMINATIONS" % kills
+        return "STREET SKIRMISH • %d/10 ELIMINATIONS" % kills
     if active_mode == "survival":
         if run_over and wave >= 3:
             return "LAST STAND • VICTORY • %d ELIMINATIONS" % kills
