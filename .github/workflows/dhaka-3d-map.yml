@@ -375,7 +375,7 @@ jobs:
               fi
             done < <(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts" --jq '.artifacts[] | select(.expired == false) | .name')
           done < <(tac /tmp/map-runs.tsv)
-          python tools/map_pipeline/merge_dhaka_division_batches.py \
+          PYTHONPATH="${GITHUB_WORKSPACE}" python tools/map_pipeline/merge_dhaka_division_batches.py \
             --batches-dir build/shariatpur/batches \
             --out build/shariatpur-full \
             --stage shariatpur_review
