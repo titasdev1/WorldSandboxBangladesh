@@ -482,7 +482,7 @@ func _process(_delta):
   mission.text = "STORY %d/3: %s    Rickshaw fare ৳%d → offer ৳%d" % [w.mission_stage + 1, stage_names[w.mission_stage], w.fare_requested, w.bargain_offer]
  else:
   mission.text = "STORY COMPLETE  +৳1000   FREE ROAM"
- if w.combat_controller and w.combat_controller.active_mode in ["survival", "arena_training"]:
+ if w.combat_controller and w.combat_controller.active_mode in ["survival", "arena_training", "street_skirmish"]:
   mission.text = w.combat_controller.get_status_text()
  var ammo_text = "%d/%d" % [w.player.ammo, w.player.reserve_ammo] if w.player else "30/120"
  var reload_text = " • RELOADING" if w.player and w.player.reload_time > 0.0 else ""
@@ -561,7 +561,7 @@ func _build_lobby_ui() -> void:
   {"id":"survival", "title":"LAST STAND", "subtitle":"03  /  SOLO COMBAT", "desc":"Enter the current combat sandbox. A full shrinking-zone battle royale and downloadable arenas are not implemented yet."},
   {"id":"arena_training", "title":"COMBAT LAB", "subtitle":"04  /  OFFLINE PRACTICE", "desc":"Practice movement, camera control and shooting against the current sandbox systems; no online matchmaking yet."},
   {"id":"street_life", "title":"STREET LIFE", "subtitle":"05  /  CITY ACTIVITIES", "desc":"Focus on city exploration, market stalls, local economy, transport interactions and dynamic street events."},
-  {"id":"district_explorer", "title":"DISTRICT ATLAS", "subtitle":"06  /  NAVIGATION", "desc":"Learn the fictional starter city's named districts and follow map markers. Licensed Bangladesh geodata is a later integration."}
+  {"id":"street_skirmish", "title":"STREET SKIRMISH", "subtitle":"06  /  OFFLINE COMBAT", "desc":"Fight a ten-enemy round in the city, track eliminations, and earn a cash reward. Solo offline prototype; no online matchmaking."}
  ]
  mode_buttons.clear()
  for mode in modes:
@@ -701,6 +701,12 @@ func _enter_selected_mode() -> void:
   elif selected_mode == "survival":
    w.mission_active = false
    w.event_text = "SOLO SURVIVAL PROTOTYPE • NO ONLINE PLAY"
+  elif selected_mode == "street_skirmish":
+   w.mission_active = false
+   w.event_text = "STREET SKIRMISH • ELIMINATE 10 ENEMIES"
+  elif selected_mode == "district_explorer":
+   w.mission_active = true
+   w.event_text = "DISTRICT ATLAS: FOLLOW THE CITY MARKER"
   else:
    w.mission_active = false
    w.event_text = "OFFLINE ARENA TRAINING • ONLINE MATCHES NOT AVAILABLE"
