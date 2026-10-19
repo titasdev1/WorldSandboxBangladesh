@@ -28,6 +28,12 @@ var navigation_mode_button: Button
 var mode_menu_button: Button
 var replay_round_button: Button
 var save_feedback_label: Label
+var shop_button: Button
+var shop_panel: PanelContainer
+var shop_item_option: OptionButton
+var shop_money_label: Label
+var shop_inventory_label: Label
+var shop_status_label: Label
 
 func _ready():
  w = get_parent()
@@ -97,7 +103,9 @@ func _ready():
  _build_settings_ui()
  _load_graphics_settings()
  _build_navigation_map()
+ _build_teleport_ui()
  _build_lobby_ui()
+ _build_shop_ui()
  _build_round_controls()
  get_tree().paused = true
 
@@ -122,11 +130,20 @@ func _build_teleport_ui() -> void:
  var teleport_button := Button.new()
  teleport_button.name = "TeleportOpenButton"
  teleport_button.text = "TELEPORT"
- teleport_button.position = Vector2(785, 18)
+ teleport_button.position = Vector2(675, 18)
  teleport_button.size = Vector2(120, 44)
  teleport_button.add_theme_font_size_override("font_size", 15)
  teleport_button.pressed.connect(func(): teleport_panel.visible = not teleport_panel.visible)
  add_child(teleport_button)
+ shop_button = Button.new()
+ shop_button.name = "ShopButton"
+ shop_button.text = "SHOP"
+ shop_button.position = Vector2(805, 18)
+ shop_button.size = Vector2(100, 44)
+ shop_button.add_theme_font_size_override("font_size", 15)
+ shop_button.process_mode = Node.PROCESS_MODE_ALWAYS
+ shop_button.pressed.connect(_toggle_shop_panel)
+ add_child(shop_button)
 
  teleport_panel = PanelContainer.new()
  teleport_panel.name = "CoordinateTeleportPanel"
@@ -632,6 +649,12 @@ func _build_lobby_ui() -> void:
  note.add_theme_color_override("font_color", Color("#a7bacb"))
  note.add_theme_font_size_override("font_size", 13)
  footer.add_child(note)
+ var shop_lobby_button := Button.new()
+ shop_lobby_button.text = "SHOP"
+ shop_lobby_button.custom_minimum_size = Vector2(88, 52)
+ shop_lobby_button.add_theme_font_size_override("font_size", 15)
+ shop_lobby_button.pressed.connect(_open_shop_panel)
+ footer.add_child(shop_lobby_button)
 
  var save_button := Button.new()
  save_button.text = "SAVE"
@@ -687,6 +710,144 @@ func _set_save_feedback(message: String, success: bool) -> void:
   return
  save_feedback_label.text = message
  save_feedback_label.add_theme_color_override("font_color", Color("#50d7e9") if success else Color("#ffb39d"))
+
+
+func _build_shop_ui() -> void:
+ shop_panel = PanelContainer.new()
+ shop_panel.name = "ShopInventoryPanel"
+ shop_panel.position = Vector2(360, 112)
+ shop_panel.size = Vector2(560, 470)
+ shop_panel.custom_minimum_size = Vector2(560, 470)
+ shop_panel.z_index = 200
+ shop_panel.visible = false
+ shop_panel.process_mode = Node.PROCESS_MODE_ALWAYS
+ add_child(shop_panel)
+ var layout := VBoxContainer.new()
+ layout.add_theme_constant_override("separation", 12)
+ shop_panel.add_child(layout)
+ var heading := Label.new()
+ heading.text = "DHAKA MARKET • SHOP & INVENTORY"
+ heading.add_theme_font_size_override("font_size", 24)
+ layout.add_child(heading)
+ shop_money_label = Label.new()
+ shop_money_label.add_theme_font_size_override("font_size", 19)
+ layout.add_child(shop_money_label)
+ shop_item_option = OptionButton.new()
+ shop_item_option.custom_minimum_size = Vector2(500, 48)
+ shop_item_option.add_theme_font_size_override("font_size", 17)
+ var system: Node = w.get("shop_system") as Node if is_instance_valid(w) else null
+ for item_id in ["water", "snack", "medkit", "ammo_box", "fuel"]:
+  if not is_instance_valid(system):
+   continue
+  var stock_data: Dictionary = system.get("stock")
+  if not stock_data.has(item_id):
+   continue
+  var record: Dictionary = stock_data[item_id]
+  var index := shop_item_option.get_item_count()
+  shop_item_option.add_item("%s • BUY ৳%d / SELL ৳%d" % [str(record.get("label", item_id)), int(record.get("price", 0)), int(record.get("sell_price", 0))])
+  shop_item_option.set_item_metadata(index, item_id)
+ layout.add_child(shop_item_option)
+ var actions := HBoxContainer.new()
+ actions.add_theme_constant_override("separation", 10)
+ layout.add_child(actions)
+ var buy_button := Button.new()
+ buy_button.text = "BUY 1"
+ buy_button.custom_minimum_size = Vector2(150, 52)
+ buy_button.pressed.connect(func(): _shop_action("buy"))
+ actions.add_child(buy_button)
+ var use_button := Button.new()
+ use_button.text = "USE"
+ use_button.custom_minimum_size = Vector2(150, 52)
+ use_button.pressed.connect(func(): _shop_action("use"))
+ actions.add_child(use_button)
+ var sell_button := Button.new()
+ sell_button.text = "SELL 1"
+ sell_button.custom_minimum_size = Vector2(150, 52)
+ sell_button.pressed.connect(func(): _shop_action("sell"))
+ actions.add_child(sell_button)
+ shop_inventory_label = Label.new()
+ shop_inventory_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ shop_inventory_label.custom_minimum_size = Vector2(500, 72)
+ shop_inventory_label.add_theme_font_size_override("font_size", 16)
+ layout.add_child(shop_inventory_label)
+ shop_status_label = Label.new()
+ shop_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ shop_status_label.custom_minimum_size = Vector2(500, 46)
+ shop_status_label.add_theme_font_size_override("font_size", 15)
+ layout.add_child(shop_status_label)
+ var close_button := Button.new()
+ close_button.text = "CLOSE SHOP"
+ close_button.custom_minimum_size = Vector2(180, 42)
+ close_button.pressed.connect(_close_shop_panel)
+ layout.add_child(close_button)
+ _refresh_shop_panel()
+
+
+func _open_shop_panel() -> void:
+ if not is_instance_valid(shop_panel):
+  return
+ _release_gameplay_inputs()
+ if is_instance_valid(lobby_overlay):
+  lobby_overlay.visible = false
+ shop_panel.visible = true
+ get_tree().paused = true
+ _refresh_shop_panel()
+
+
+func _toggle_shop_panel() -> void:
+ if not is_instance_valid(shop_panel):
+  return
+ if shop_panel.visible:
+  _close_shop_panel()
+ else:
+  _open_shop_panel()
+
+
+func _close_shop_panel() -> void:
+ if is_instance_valid(shop_panel):
+  shop_panel.visible = false
+ get_tree().paused = is_instance_valid(lobby_overlay) and lobby_overlay.visible
+
+
+func _shop_action(action: String) -> void:
+ if not is_instance_valid(w) or not is_instance_valid(shop_item_option):
+  return
+ var index := shop_item_option.selected
+ if index < 0:
+  return
+ var item_id := str(shop_item_option.get_item_metadata(index))
+ var system: Node = w.get("shop_system") as Node
+ if not is_instance_valid(system):
+  return
+ match action:
+  "buy":
+   system.call("buy", w, item_id)
+  "use":
+   system.call("use", w, item_id)
+  "sell":
+   system.call("sell", w, item_id)
+ _refresh_shop_panel()
+
+
+func _refresh_shop_panel() -> void:
+ if not is_instance_valid(w) or not is_instance_valid(shop_panel):
+  return
+ var system: Node = w.get("shop_system") as Node
+ var bag: Node = w.get("inventory_system") as Node
+ if not is_instance_valid(system) or not is_instance_valid(bag):
+  return
+ if is_instance_valid(shop_money_label):
+  shop_money_label.text = "AVAILABLE CASH: ৳%d" % int(w.get("cash"))
+ if is_instance_valid(shop_inventory_label):
+  var entries: Array[String] = []
+  for item_id in ["water", "snack", "medkit", "ammo_box", "fuel"]:
+   var amount := int(bag.call("count", item_id))
+   if amount > 0:
+    var record: Dictionary = system.get("stock").get(item_id, {})
+    entries.append("%s ×%d" % [str(record.get("label", item_id)), amount])
+  shop_inventory_label.text = "YOUR BAG: " + (" • ".join(entries) if not entries.is_empty() else "EMPTY")
+ if is_instance_valid(shop_status_label):
+  shop_status_label.text = str(system.get("last_message"))
 
 
 func _build_round_controls() -> void:
