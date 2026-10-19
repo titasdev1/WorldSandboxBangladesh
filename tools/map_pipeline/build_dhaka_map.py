@@ -202,6 +202,15 @@ def extruded_polygon(geom: Polygon, height: float, color: tuple[int, int, int, i
 
 
 
+def normalize_facade_name(value: Any) -> str:
+    """Normalize Unicode and spacing without weakening exact landmark-name matching."""
+    import unicodedata
+
+    text = unicodedata.normalize("NFKC", str(value or ""))
+    text = text.replace("\u200b", "").replace("\ufeff", "")
+    return " ".join(text.split()).casefold()
+
+
 def load_facade_photo_catalog() -> dict[str, dict[str, Any]]:
     """Load only locally downloaded, allowlisted photos; map aliases to exact matches."""
     catalog_path = Path(os.environ.get("WSB_FACADE_IMAGE_CATALOG", "tools/map_pipeline/shariatpur_facade_images.json"))
@@ -227,7 +236,7 @@ def load_facade_photo_catalog() -> dict[str, dict[str, Any]]:
             continue
         record = {"image": image, "metadata": item}
         for alias in item.get("match_names", []):
-            normalized = str(alias).strip().casefold()
+            normalized = normalize_facade_name(alias)
             if normalized:
                 result[normalized] = record
     return result
@@ -236,7 +245,7 @@ def load_facade_photo_catalog() -> dict[str, dict[str, Any]]:
 def match_facade_photo(tags: dict[str, str], catalog: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
     """Use strict aliases only; do not assign a landmark photo to a guessed building."""
     for key in ("name", "name:bn", "official_name", "name:en"):
-        value = str(tags.get(key, "")).strip().casefold()
+        value = normalize_facade_name(tags.get(key, ""))
         if value and value in catalog:
             return catalog[value]
     return None
