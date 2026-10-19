@@ -184,12 +184,25 @@ func _first_nonempty_road_tag(road: Dictionary, keys: Array) -> String:
 
 
 func _road_allowed_for_current_mode(road: Dictionary) -> bool:
-	var access_value := ""
+	var highway_class := str(road.get("highway_class", "")).strip_edges().to_lower()
+	var blocked_access := ["no", "private", "restricted", "customers"]
+	var explicit_motor_permission := ["yes", "designated", "permissive", "destination", "delivery"]
 	if _navigation_mode == "walking":
-		access_value = _first_nonempty_road_tag(road, ["foot", "access"])
-	else:
-		access_value = _first_nonempty_road_tag(road, ["motor_vehicle", "vehicle", "access"])
-	return not ["no", "private", "restricted", "customers"].has(access_value)
+		var foot_access := _first_nonempty_road_tag(road, ["foot", "access"])
+		# Do not route pedestrians onto motorways unless a specific foot permission
+		# overrides the general default. The foot tag has priority over access.
+		if highway_class in ["motorway", "motorway_link"] and not explicit_motor_permission.has(foot_access):
+			return false
+		return not blocked_access.has(foot_access)
+	# Motorcar is more specific than motor_vehicle, vehicle, and general access.
+	var motor_access := _first_nonempty_road_tag(road, ["motorcar", "motor_vehicle", "vehicle"])
+	# OSM footways, pedestrian zones, stairs, cycleways, and platforms are not
+	# ordinary car routes. Respect explicit motor permission where a local road
+	# is intentionally tagged as an exception.
+	if highway_class in ["footway", "pedestrian", "steps", "cycleway", "bridleway", "corridor", "platform", "path"] and not explicit_motor_permission.has(motor_access):
+		return false
+	var access_value := _first_nonempty_road_tag(road, ["motorcar", "motor_vehicle", "vehicle", "access"])
+	return not blocked_access.has(access_value)
 
 
 func _load_navigation_index() -> void:
