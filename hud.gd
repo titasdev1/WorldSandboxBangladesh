@@ -98,6 +98,7 @@ func _ready():
  _build_navigation_map()
  _build_lobby_ui()
  _build_round_controls()
+ get_tree().paused = true
 
 func _build_navigation_map() -> void:
  district_map = Control.new()
