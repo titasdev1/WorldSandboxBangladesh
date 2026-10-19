@@ -78,9 +78,13 @@ if "city_asset_factory.configure(self)" not in world_text or "spawn_building(Vec
 if "real_dhaka_loader.configure(self)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: real-Dhaka tile loader is not wired into the canonical world")
 
-# The mission and interior modules must be reachable from the canonical game.
-if 'load("res://systems/mission_factory.gd").new()' not in world_text or 'mission_factory_node.name = "MissionFactory"' not in world_text:
-    raise SystemExit("PRODUCTION GATE FAILED: Deshi mission factory is not instantiated in the canonical world")
+# Main.tscn owns one mission factory; dynamic clones duplicate the 4,000-job
+# catalogue and target markers and can create hidden CPU/memory load on mobile.
+main_scene_text = (ROOT / "Main.tscn").read_text(encoding="utf-8")
+if '[node name="MissionFactory" type="Node3D" parent="."]' not in main_scene_text or 'path="res://systems/mission_factory.gd"' not in main_scene_text:
+    raise SystemExit("PRODUCTION GATE FAILED: Main.tscn must own the canonical MissionFactory node")
+if "side_mission_factory" in world_text or "mission_factory_node" in world_text:
+    raise SystemExit("PRODUCTION GATE FAILED: duplicate runtime MissionFactory instances are forbidden")
 hud_text = (ROOT / "hud.gd").read_text(encoding="utf-8")
 if 'get_node_or_null("MissionFactory")' not in hud_text or "DESHI JOB %04d/4000" not in hud_text:
     raise SystemExit("PRODUCTION GATE FAILED: Deshi mission catalogue is not visible in the HUD")
@@ -130,10 +134,8 @@ if not mission_factory_path.is_file():
     raise SystemExit("PRODUCTION GATE FAILED: missing systems/mission_factory.gd")
 mission_factory_text = mission_factory_path.read_text(encoding="utf-8")
 hud_text = (ROOT / "hud.gd").read_text(encoding="utf-8")
-if 'load("res://systems/mission_factory.gd")' not in world_text or 'side_mission_factory.name = "MissionFactory"' not in world_text:
-    raise SystemExit("PRODUCTION GATE FAILED: Deshi MissionFactory is not instantiated in the canonical world")
 if 'get_node_or_null("MissionFactory")' not in hud_text:
-    raise SystemExit("PRODUCTION GATE FAILED: HUD does not read the active side-mission state")
+    raise SystemExit("PRODUCTION GATE FAILED: HUD does not read the canonical side-mission state")
 for token in ("MISSIONS_PER_CATALOGUE := 4000", "func _generate_catalogue()", "func _make_target_positions(", "get_road_routes"):
     if token not in mission_factory_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: Deshi mission system missing {token}")

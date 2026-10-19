@@ -62,10 +62,6 @@ func _ready():
   var street_life = load("res://street_life_factory.gd").new()
   street_life.build(self)
  spawn_player()
- # Instantiate the cumulative Deshi mission catalogue in the canonical world.
- var side_mission_factory = load("res://systems/mission_factory.gd").new()
- side_mission_factory.name = "MissionFactory"
- add_child(side_mission_factory)
  spawn_traffic()
  spawn_npcs()
  _configure_real_missions()
@@ -715,9 +711,6 @@ func _setup_a_square():
     add_child(gameplay_director)
     gameplay_director.configure(self, player, district_factory)
     # Register the catalogue under the node name used by HUD/save persistence.
-    var mission_factory_node = load("res://systems/mission_factory.gd").new()
-    mission_factory_node.name = "MissionFactory"
-    add_child(mission_factory_node)
     # Keep the data-driven Deshi mission catalogue in this canonical world.
     # It shares the same player, streamed map, HUD, economy, and progression.
     
