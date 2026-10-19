@@ -25,6 +25,8 @@ var teleport_lon_input: LineEdit
 var teleport_status: Label
 var teleport_place_input: LineEdit
 var navigation_mode_button: Button
+var mode_menu_button: Button
+var replay_round_button: Button
 
 func _ready():
  w = get_parent()
@@ -95,6 +97,7 @@ func _ready():
  _load_graphics_settings()
  _build_navigation_map()
  _build_lobby_ui()
+ _build_round_controls()
 
 func _build_navigation_map() -> void:
  district_map = Control.new()
@@ -454,6 +457,10 @@ func _process(_delta):
    crosshair_label.add_theme_color_override("font_color", Color("#e8f7ff"))
  if district_map:
   district_map.call("update_world", w)
+ if replay_round_button:
+  var combat = w.get("combat_controller")
+  var current_combat_mode := String(combat.get("active_mode")) if is_instance_valid(combat) else ""
+  replay_round_button.visible = is_instance_valid(combat) and bool(combat.get("run_over")) and current_combat_mode in ["survival", "arena_training", "street_skirmish"]
  _update_interaction_prompt()
  var health_value: int = w.player.health if w.player else 100
  stats.text = "৳ %d    Health: %d    Wanted: %d/5    Weather: %s" % [w.cash, health_value, w.wanted, "RAIN" if w.rain else "CLEAR"]
@@ -515,6 +522,7 @@ func _build_lobby_ui() -> void:
  lobby_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
  lobby_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
  lobby_overlay.z_index = 100
+ lobby_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
  add_child(lobby_overlay)
 
  var panel := PanelContainer.new()
@@ -633,6 +641,48 @@ func _build_lobby_ui() -> void:
  footer.add_child(play)
 
 
+func _build_round_controls() -> void:
+ mode_menu_button = Button.new()
+ mode_menu_button.name = "ModeMenuButton"
+ mode_menu_button.text = "MODES"
+ mode_menu_button.position = Vector2(1105, 18)
+ mode_menu_button.size = Vector2(140, 44)
+ mode_menu_button.add_theme_font_size_override("font_size", 17)
+ mode_menu_button.pressed.connect(_show_mode_lobby)
+ add_child(mode_menu_button)
+
+ replay_round_button = Button.new()
+ replay_round_button.name = "ReplayCombatRoundButton"
+ replay_round_button.text = "PLAY ANOTHER ROUND"
+ replay_round_button.position = Vector2(500, 610)
+ replay_round_button.size = Vector2(280, 52)
+ replay_round_button.add_theme_font_size_override("font_size", 19)
+ replay_round_button.visible = false
+ replay_round_button.pressed.connect(_replay_combat_round)
+ add_child(replay_round_button)
+
+func _show_mode_lobby() -> void:
+ if not is_instance_valid(lobby_overlay):
+  return
+ lobby_overlay.visible = true
+ get_tree().paused = true
+
+func _replay_combat_round() -> void:
+ if not is_instance_valid(w):
+  return
+ var combat = w.get("combat_controller")
+ if not is_instance_valid(combat):
+  return
+ var mode_id := String(combat.get("active_mode"))
+ if mode_id not in ["survival", "arena_training", "street_skirmish"]:
+  return
+ selected_mode = mode_id
+ w.set("game_mode", mode_id)
+ combat.call("start_mode", mode_id)
+ get_tree().paused = false
+ if replay_round_button:
+  replay_round_button.visible = false
+
 func _update_interaction_prompt() -> void:
  if not w or not w.player or not interaction_button or not driving_status:
   return
@@ -684,6 +734,7 @@ func _select_lobby_mode(mode_id: String, selected_button: Button) -> void:
   button.button_pressed = button == selected_button
 
 func _enter_selected_mode() -> void:
+ get_tree().paused = false
  if w:
   w.game_mode = selected_mode
   if selected_mode == "free_roam":
