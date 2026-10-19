@@ -30,12 +30,21 @@ var interior_factory
 var real_dhaka_loader
 var real_dhaka_loaded := false
 var save_location_status := ""
+var inventory_system: Node
+var shop_system: Node
+var occupied_vehicle: Node3D
 
 var road_x := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 var road_z := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 
 func _ready():
  rng.randomize()
+ inventory_system = load("res://inventory_system.gd").new()
+ inventory_system.name = "InventorySystem"
+ add_child(inventory_system)
+ shop_system = load("res://shop_system.gd").new()
+ shop_system.name = "ShopSystem"
+ add_child(shop_system)
  pbr_surface_factory = load("res://pbr_surface_factory.gd").new()
  pbr_surface_factory.name = "PBRSurfaceFactory"
  add_child(pbr_surface_factory)
@@ -637,6 +646,21 @@ func try_vehicle_interaction():
     nearest = node
  if nearest:
   nearest.enter_player(player)
+
+func refuel_nearest_vehicle(from_position: Vector3, amount: float) -> bool:
+ var nearest: Node3D = null
+ var best_distance := 6.0
+ for node in get_children():
+  if not (node is Node3D) or not node.has_method("refuel") or bool(node.get("occupied")):
+   continue
+  var distance := node.global_position.distance_to(from_position)
+  if distance < best_distance:
+   nearest = node
+   best_distance = distance
+ if not is_instance_valid(nearest):
+  return false
+ return bool(nearest.call("refuel", amount))
+
 
 func is_red_for_axis(_axis: String, _vehicle_position: Vector3) -> bool:
  return false
