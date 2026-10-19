@@ -412,6 +412,25 @@ jobs:
           overwrite_files: true
           files: build/Android/world_sandbox_bangladesh.apk
 
+      # Manual Shariatpur review builds need a directly installable APK too.
+      # GitHub Actions artifacts are ZIP containers; this release asset is the APK itself.
+      - name: Publish direct Shariatpur dispatch candidate APK
+        if: github.event_name == 'workflow_dispatch' && inputs.map_package == 'shariatpur_review'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: shariatpur-review-run-${{ github.run_id }}
+          target_commitish: ${{ github.sha }}
+          name: "World Sandbox: Bangladesh — Shariatpur Review Candidate (Run ${{ github.run_number }})"
+          body: |
+            Direct Android APK candidate built by manually dispatched workflow run ${{ github.run_id }}.
+            Source branch: ${{ github.ref_name }}
+            Source commit: ${{ github.sha }}
+            This is a review build, not a completed dream-game release. The Shariatpur gate remains REVIEW_REQUIRED until the map, visual fidelity, and physical-device checks pass.
+            APK signature and ZIP structure are checked by CI; gameplay and performance still require physical-device testing.
+          prerelease: true
+          make_latest: false
+          files: build/Android/world_sandbox_bangladesh.apk
+
       - name: Upload small verification reports separately
         uses: actions/upload-artifact@v4
         with:
