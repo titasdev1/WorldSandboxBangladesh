@@ -349,7 +349,7 @@ jobs:
       - name: Verify selected map and core art are embedded in the exported APK
         shell: bash
         env:
-          MAP_PACKAGE: ${{ env.WSB_MAP_PACKAGE }}
+          MAP_PACKAGE: ${{ (inputs.map_package == 'shariatpur_review' || github.event_name == 'pull_request' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && 'shariatpur_review' || 'greater_dhaka' }}
         run: |
           set -euo pipefail
           python3 tools/verify_apk_contents.py --apk build/Android/world_sandbox_bangladesh.apk --map-package "$MAP_PACKAGE" | tee build/apk-content-verification.txt
