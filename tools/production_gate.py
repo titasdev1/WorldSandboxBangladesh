@@ -136,6 +136,23 @@ mission_factory_text = mission_factory_path.read_text(encoding="utf-8")
 hud_text = (ROOT / "hud.gd").read_text(encoding="utf-8")
 if 'get_node_or_null("MissionFactory")' not in hud_text:
     raise SystemExit("PRODUCTION GATE FAILED: HUD does not read the canonical side-mission state")
+inventory_text = (ROOT / "inventory_system.gd").read_text(encoding="utf-8")
+shop_text = (ROOT / "shop_system.gd").read_text(encoding="utf-8")
+vehicle_text = (ROOT / "vehicle.gd").read_text(encoding="utf-8")
+player_text = (ROOT / "player.gd").read_text(encoding="utf-8")
+save_text = (ROOT / "save_system.gd").read_text(encoding="utf-8")
+if 'load("res://inventory_system.gd").new()' not in world_text or 'load("res://shop_system.gd").new()' not in world_text:
+    raise SystemExit("PRODUCTION GATE FAILED: live inventory/shop services are not attached to the canonical world")
+if "func buy(" not in shop_text or "func sell(" not in shop_text or "func use(" not in shop_text or 'bag.call("add"' not in shop_text:
+    raise SystemExit("PRODUCTION GATE FAILED: market transactions must buy, sell and use items against real inventory")
+if "func _build_shop_ui()" not in hud_text or 'shop_button.text = "SHOP"' not in hud_text or "func _shop_action(" not in hud_text:
+    raise SystemExit("PRODUCTION GATE FAILED: market actions are not reachable from the gameplay HUD")
+if "var stamina := 100.0" not in player_text or "var sprinting :=" not in player_text:
+    raise SystemExit("PRODUCTION GATE FAILED: sprint stamina is not simulated")
+if "var fuel := 100.0" not in vehicle_text or "func refuel(amount: float)" not in vehicle_text or "func refuel_nearest_vehicle(" not in world_text:
+    raise SystemExit("PRODUCTION GATE FAILED: vehicle fuel/refuelling loop is incomplete")
+if '"inventory": inventory_state' not in save_text or 'restore_persistence_state", saved_inventory' not in save_text:
+    raise SystemExit("PRODUCTION GATE FAILED: inventory is not saved and restored")
 for token in ("MISSIONS_PER_CATALOGUE := 4000", "func _generate_catalogue()", "func _make_target_positions(", "get_road_routes"):
     if token not in mission_factory_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: Deshi mission system missing {token}")
