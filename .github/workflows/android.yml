@@ -60,7 +60,7 @@ jobs:
 
       - name: Validate asset pipeline Python syntax
         shell: bash
-        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py
+        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py
 
       # Release/push builds retain Greater Dhaka by default. PR validation uses the
       # latest assembled Shariatpur review package so map/game changes are tested
@@ -346,6 +346,15 @@ jobs:
             printf -- '- Android signature verification: PASS\n'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Verify selected map and core art are embedded in the exported APK
+        shell: bash
+        env:
+          MAP_PACKAGE: ${{ env.WSB_MAP_PACKAGE }}
+        run: |
+          set -euo pipefail
+          python3 tools/verify_apk_contents.py --apk build/Android/world_sandbox_bangladesh.apk --map-package "$MAP_PACKAGE" | tee build/apk-content-verification.txt
+          cat build/apk-content-verification.txt >> "$GITHUB_STEP_SUMMARY"
+
       - name: Report exact APK and included asset sizes
         shell: bash
         run: python3 tools/report_build_assets.py
@@ -361,6 +370,7 @@ jobs:
           cp build/apk-sha256.txt build/canonical_release/APK_SHA256.txt
           cp build/apk-zip-test.txt build/canonical_release/APK_ZIP_TEST.txt
           cp build/apk-signature-verification.txt build/canonical_release/APK_SIGNATURE_VERIFICATION.txt
+          cp build/apk-content-verification.txt build/canonical_release/APK_CONTENT_VERIFICATION.txt
           cat > build/canonical_release/README.txt <<EOF
           World Sandbox: Bangladesh / Project A-Square
           This artifact contains the Android APK and verification reports.
@@ -439,5 +449,6 @@ jobs:
             build/apk-sha256.txt
             build/apk-zip-test.txt
             build/apk-signature-verification.txt
+            build/apk-content-verification.txt
             build/asset_build_report.json
           if-no-files-found: error
