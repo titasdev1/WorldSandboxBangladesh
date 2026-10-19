@@ -9,6 +9,7 @@ var target_goal := 0
 var alive_enemies := 0
 var intermission := 0.0
 var run_over := false
+var reward_paid := false
 
 func configure(w) -> void:
     world = w
@@ -23,6 +24,7 @@ func start_mode(mode_id: String) -> void:
     alive_enemies = 0
     intermission = 0.0
     run_over = false
+    reward_paid = false
     if is_instance_valid(world) and is_instance_valid(world.player):
         world.player.health = 100
         world.player.ammo = 30
@@ -92,25 +94,32 @@ func _spawn_enemy(at: Vector3, is_practice_target: bool) -> void:
     enemy.add_to_group("combat_enemy")
 
 func enemy_defeated(enemy: Node) -> void:
+    # A queued/dead enemy must never award duplicate score or cash.
+    if not active or run_over or not is_instance_valid(enemy):
+        return
     kills += 1
     if active_mode == "arena_training":
+        alive_enemies = maxi(0, alive_enemies - 1)
         if kills >= target_goal:
             active = false
             run_over = true
             world.event_text = "COMBAT LAB COMPLETE • %d/%d TARGETS" % [kills, target_goal]
             world.event_time_left = 8.0
         else:
-            world.event_text = "TARGET DOWN • %d/%d" % [kills, target_goal]
+            world.event_text = "TARGET DOWN • %d/%d • %d LEFT" % [kills, target_goal, alive_enemies]
             world.event_time_left = 2.0
     elif active_mode == "street_skirmish":
+        alive_enemies = maxi(0, alive_enemies - 1)
         if kills >= target_goal:
             active = false
             run_over = true
-            world.cash += 300
+            if not reward_paid:
+                world.cash += 300
+                reward_paid = true
             world.event_text = "STREET SKIRMISH WON • 10/10 • +৳300"
             world.event_time_left = 10.0
         else:
-            world.event_text = "SKIRMISH • %d/10 ELIMINATIONS" % [kills]
+            world.event_text = "SKIRMISH • %d/%d • %d ENEMIES LEFT" % [kills, target_goal, alive_enemies]
             world.event_time_left = 2.0
     elif active_mode == "survival":
         alive_enemies = maxi(0, alive_enemies - 1)
@@ -118,7 +127,9 @@ func enemy_defeated(enemy: Node) -> void:
             if wave >= 3:
                 active = false
                 run_over = true
-                world.cash += 500
+                if not reward_paid:
+                    world.cash += 500
+                    reward_paid = true
                 world.event_text = "LAST STAND VICTORY • +৳500"
                 world.event_time_left = 10.0
             else:
@@ -139,11 +150,11 @@ func update(delta: float) -> void:
 
 func get_status_text() -> String:
     if active_mode == "arena_training":
-        return "COMBAT LAB • %d/%d TARGETS" % [kills, target_goal]
+        return ("COMBAT LAB • COMPLETE • %d/%d" % [kills, target_goal]) if run_over else ("COMBAT LAB • %d/%d • %d LEFT" % [kills, target_goal, alive_enemies])
     if active_mode == "street_skirmish":
         if run_over:
-            return "STREET SKIRMISH • VICTORY • %d/10 ELIMINATIONS" % kills
-        return "STREET SKIRMISH • %d/10 ELIMINATIONS" % kills
+            return "STREET SKIRMISH • VICTORY • %d/10" % kills
+        return "STREET SKIRMISH • %d/10 ELIMINATIONS • %d LEFT" % [kills, alive_enemies]
     if active_mode == "survival":
         if run_over and wave >= 3:
             return "LAST STAND • VICTORY • %d ELIMINATIONS" % kills
