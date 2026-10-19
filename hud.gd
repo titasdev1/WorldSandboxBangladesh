@@ -662,9 +662,22 @@ func _build_round_controls() -> void:
  replay_round_button.pressed.connect(_replay_combat_round)
  add_child(replay_round_button)
 
+func _release_gameplay_inputs() -> void:
+ # Opening menus during a multitouch gesture must not leave movement/fire held.
+ var actions := [
+  "move_left", "move_right", "move_forward", "move_back",
+  "sprint", "fire", "aim", "reload", "jump", "crouch", "interact"
+ ]
+ for action_name in actions:
+  Input.action_release(action_name)
+ for stick in get_tree().get_nodes_in_group("movement_stick"):
+  if is_instance_valid(stick) and stick.has_method("_release_stick"):
+   stick.call("_release_stick")
+
 func _show_mode_lobby() -> void:
  if not is_instance_valid(lobby_overlay):
   return
+ _release_gameplay_inputs()
  lobby_overlay.visible = true
  get_tree().paused = true
 
@@ -677,6 +690,7 @@ func _replay_combat_round() -> void:
  var mode_id := String(combat.get("active_mode"))
  if mode_id not in ["survival", "arena_training", "street_skirmish"]:
   return
+ _release_gameplay_inputs()
  selected_mode = mode_id
  w.set("game_mode", mode_id)
  combat.call("start_mode", mode_id)
@@ -736,6 +750,7 @@ func _select_lobby_mode(mode_id: String, selected_button: Button) -> void:
 
 func _enter_selected_mode() -> void:
  get_tree().paused = false
+ _release_gameplay_inputs()
  if w:
   w.game_mode = selected_mode
   if selected_mode == "free_roam":
