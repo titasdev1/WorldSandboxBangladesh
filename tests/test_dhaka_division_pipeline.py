@@ -9,8 +9,54 @@ from tools.map_pipeline.build_dhaka_division import (
     order_tiles_shariatpur_first, select_tile_batch, effective_batch_limit, stage_gate_reached,
     build_boundary_for_stage, SHARIATPUR_PRIORITY_LAT_LON, has_feature,
     boundary_attribution_for_stage, tile_status_from_counts, pipeline_commit_sha,
+    validate_shariatpur_release_approval,
 )
 from tools.map_pipeline.build_dhaka_map import build_map
+
+
+class ShariatpurReleaseGateTests(unittest.TestCase):
+    def test_current_unapproved_shariatpur_package_blocks_division_expansion(self):
+        import json
+        with tempfile.TemporaryDirectory() as temp:
+            approval = Path(temp) / "approval.json"
+            approval.write_text(json.dumps({
+                "status": "BLOCKED",
+                "checks": {
+                    "all_tiles_have_renderable_osm_features": False,
+                    "all_building_floor_counts_independently_verified": False,
+                    "licensed_facade_imagery_visual_review_complete": False,
+                    "named_place_search_and_turn_navigation_qa_passed": False,
+                    "physical_android_integration_and_performance_passed": False,
+                },
+            }), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "no later tiles will be built"):
+                validate_shariatpur_release_approval(approval)
+
+    def test_missing_approval_file_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            approval = Path(temp) / "missing.json"
+            with self.assertRaisesRegex(RuntimeError, "approval evidence file is missing"):
+                validate_shariatpur_release_approval(approval)
+
+    def test_all_checks_need_documented_human_review_before_approval(self):
+        import json
+        with tempfile.TemporaryDirectory() as temp:
+            approval = Path(temp) / "approval.json"
+            approval.write_text(json.dumps({
+                "status": "APPROVED",
+                "reviewed_at": "2026-10-19",
+                "reviewer": "QA reviewer",
+                "review_evidence_url": "https://example.org/shariatpur-qa",
+                "checks": {
+                    "all_tiles_have_renderable_osm_features": True,
+                    "all_building_floor_counts_independently_verified": True,
+                    "licensed_facade_imagery_visual_review_complete": True,
+                    "named_place_search_and_turn_navigation_qa_passed": True,
+                    "physical_android_integration_and_performance_passed": True,
+                },
+            }), encoding="utf-8")
+            result = validate_shariatpur_release_approval(approval)
+            self.assertEqual(result["status"], "APPROVED")
 
 
 class DhakaDivisionPipelineTests(unittest.TestCase):
