@@ -2,6 +2,8 @@ extends CharacterBody3D
 
 var world
 var speed := 4.0
+var fuel := 100.0
+var engine_empty_notified := false
 var lane_axis := "z"
 var vehicle_type := "Car"
 var body_size := Vector3(2.0, 1.0, 4.0)
@@ -342,8 +344,17 @@ func _animate_wheels(delta: float) -> void:
 func _drive_player_vehicle(delta: float) -> void:
     var steer: float = Input.get_axis("move_left", "move_right")
     var throttle: float = Input.get_axis("move_back", "move_forward")
-    if absf(throttle) > 0.01:
+    if absf(throttle) > 0.01 and fuel > 0.01:
         speed = move_toward(speed, throttle * 14.0, delta * 10.0)
+        fuel = maxf(0.0, fuel - delta * (0.55 + absf(speed) * 0.045))
+        if fuel <= 0.01:
+            speed = move_toward(speed, 0.0, delta * 10.0)
+    elif fuel <= 0.01:
+        speed = move_toward(speed, 0.0, delta * 12.0)
+        if not engine_empty_notified and is_instance_valid(world):
+            world.set("event_text", "FUEL EMPTY • REFUEL OR EXIT VEHICLE")
+            world.set("event_time_left", 5.0)
+            engine_empty_notified = true
     else:
         speed = move_toward(speed, 0.0, delta * 3.0)
     var steering_strength: float = clampf(absf(speed) / 8.0, 0.25, 1.0)
@@ -356,6 +367,17 @@ func _drive_player_vehicle(delta: float) -> void:
     if Input.is_action_just_pressed("interact"):
         exit_player()
 
+
+func refuel(amount: float) -> bool:
+    if amount <= 0.0 or fuel >= 99.9:
+        return false
+    fuel = minf(100.0, fuel + amount)
+    engine_empty_notified = false
+    if is_instance_valid(world) and occupied:
+        world.set("event_text", "VEHICLE REFUELLED • %d%%" % roundi(fuel))
+        world.set("event_time_left", 3.0)
+    return true
+
 func on_hit() -> void:
     if world:
         world.cash += 20
@@ -366,6 +388,8 @@ func enter_player(p: CharacterBody3D) -> bool:
     if occupied or not is_instance_valid(p):
         return false
     occupied = true
+    if is_instance_valid(world):
+        world.set("occupied_vehicle", self)
     p.visible = false
     p.set_physics_process(false)
     speed = 0.0
@@ -381,6 +405,8 @@ func exit_player() -> void:
         return
     var p: CharacterBody3D = world.player
     occupied = false
+    if is_instance_valid(world) and world.get("occupied_vehicle") == self:
+        world.set("occupied_vehicle", null)
     p.visible = true
     p.set_physics_process(true)
     p.global_position = global_position + global_transform.basis.x * 2.5 + Vector3(0, 0.1, 0)
