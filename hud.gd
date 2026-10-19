@@ -27,6 +27,7 @@ var teleport_place_input: LineEdit
 var navigation_mode_button: Button
 var mode_menu_button: Button
 var replay_round_button: Button
+var save_feedback_label: Label
 
 func _ready():
  w = get_parent()
@@ -104,15 +105,16 @@ func _build_navigation_map() -> void:
  district_map = Control.new()
  district_map.set_script(load("res://district_map_display.gd"))
  district_map.name = "DistrictMapDisplay"
+ district_map.add_to_group("district_map_display")
  district_map.position = Vector2(1015, 78)
  district_map.size = Vector2(230, 230)
  district_map.z_index = 5
  add_child(district_map)
  map_button = Button.new()
  map_button.text = "CITY MAP"
- map_button.position = Vector2(955, 18)
- map_button.size = Vector2(140, 44)
- map_button.add_theme_font_size_override("font_size", 17)
+ map_button.position = Vector2(915, 18)
+ map_button.size = Vector2(100, 44)
+ map_button.add_theme_font_size_override("font_size", 15)
  map_button.pressed.connect(_toggle_map)
  add_child(map_button)
 
@@ -120,9 +122,9 @@ func _build_teleport_ui() -> void:
  var teleport_button := Button.new()
  teleport_button.name = "TeleportOpenButton"
  teleport_button.text = "TELEPORT"
- teleport_button.position = Vector2(790, 18)
- teleport_button.size = Vector2(125, 44)
- teleport_button.add_theme_font_size_override("font_size", 16)
+ teleport_button.position = Vector2(785, 18)
+ teleport_button.size = Vector2(120, 44)
+ teleport_button.add_theme_font_size_override("font_size", 15)
  teleport_button.pressed.connect(func(): teleport_panel.visible = not teleport_panel.visible)
  add_child(teleport_button)
 
@@ -274,9 +276,9 @@ func _toggle_map() -> void:
 func _build_settings_ui() -> void:
  var settings_button := Button.new()
  settings_button.text = "SETTINGS"
- settings_button.position = Vector2(1110, 18)
- settings_button.size = Vector2(140, 44)
- settings_button.add_theme_font_size_override("font_size", 17)
+ settings_button.position = Vector2(1025, 18)
+ settings_button.size = Vector2(100, 44)
+ settings_button.add_theme_font_size_override("font_size", 15)
  settings_button.pressed.connect(_toggle_settings)
  add_child(settings_button)
 
@@ -631,7 +633,29 @@ func _build_lobby_ui() -> void:
  note.add_theme_font_size_override("font_size", 13)
  footer.add_child(note)
 
- var play := Button.new()
+ var save_button := Button.new()
+ save_button.text = "SAVE"
+ save_button.custom_minimum_size = Vector2(88, 52)
+ save_button.add_theme_font_size_override("font_size", 15)
+ save_button.pressed.connect(_save_progress_from_lobby)
+ footer.add_child(save_button)
+
+ var load_button := Button.new()
+ load_button.text = "LOAD"
+ load_button.custom_minimum_size = Vector2(88, 52)
+ load_button.add_theme_font_size_override("font_size", 15)
+ load_button.pressed.connect(_load_progress_from_lobby)
+ footer.add_child(load_button)
+
+ save_feedback_label = Label.new()
+ save_feedback_label.text = "LOCAL SAVE"
+ save_feedback_label.custom_minimum_size = Vector2(112, 0)
+ save_feedback_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ save_feedback_label.add_theme_font_size_override("font_size", 12)
+ save_feedback_label.add_theme_color_override("font_color", Color("#50d7e9"))
+ footer.add_child(save_feedback_label)
+
+var play := Button.new()
  play.text = "ENTER CITY  →"
  play.custom_minimum_size = Vector2(210, 58)
  play.add_theme_font_size_override("font_size", 20)
@@ -642,13 +666,36 @@ func _build_lobby_ui() -> void:
  footer.add_child(play)
 
 
+func _save_progress_from_lobby() -> void:
+ if not is_instance_valid(w) or not w.has_method("save_game_progress"):
+  _set_save_feedback("SAVE UNAVAILABLE", false)
+  return
+ var saved: bool = w.call("save_game_progress", true)
+ _set_save_feedback("SAVED TO THIS DEVICE" if saved else "SAVE FAILED", saved)
+
+
+func _load_progress_from_lobby() -> void:
+ if not is_instance_valid(w) or not w.has_method("load_saved_progress"):
+  _set_save_feedback("LOAD UNAVAILABLE", false)
+  return
+ var restored: bool = w.call("load_saved_progress")
+ _set_save_feedback("PROGRESS LOADED" if restored else "NO VALID SAVE", restored)
+
+
+func _set_save_feedback(message: String, success: bool) -> void:
+ if not is_instance_valid(save_feedback_label):
+  return
+ save_feedback_label.text = message
+ save_feedback_label.add_theme_color_override("font_color", Color("#50d7e9") if success else Color("#ffb39d"))
+
+
 func _build_round_controls() -> void:
  mode_menu_button = Button.new()
  mode_menu_button.name = "ModeMenuButton"
  mode_menu_button.text = "MODES"
- mode_menu_button.position = Vector2(1105, 18)
- mode_menu_button.size = Vector2(140, 44)
- mode_menu_button.add_theme_font_size_override("font_size", 17)
+ mode_menu_button.position = Vector2(1135, 18)
+ mode_menu_button.size = Vector2(110, 44)
+ mode_menu_button.add_theme_font_size_override("font_size", 16)
  mode_menu_button.pressed.connect(_show_mode_lobby)
  add_child(mode_menu_button)
 

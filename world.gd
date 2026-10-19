@@ -29,6 +29,7 @@ var combat_controller
 var interior_factory
 var real_dhaka_loader
 var real_dhaka_loaded := false
+var save_location_status := ""
 
 var road_x := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 var road_z := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
@@ -75,6 +76,68 @@ func _ready():
  combat_controller.name = "CombatModeController"
  add_child(combat_controller)
  combat_controller.configure(self)
+ call_deferred("_load_saved_session")
+
+func _load_saved_session() -> void:
+ await get_tree().process_frame
+ await get_tree().process_frame
+ if SaveSystem.load_world(self):
+  event_text = "PROGRESS RESTORED • " + str(save_location_status)
+  event_time_left = 8.0
+
+
+func save_game_progress(show_feedback := true) -> bool:
+ var saved := SaveSystem.save_world(self)
+ if show_feedback:
+  event_text = "GAME SAVED TO THIS DEVICE" if saved else "SAVE FAILED • CHECK DEVICE STORAGE"
+  event_time_left = 6.0
+ return saved
+
+
+func load_saved_progress() -> bool:
+ var restored := SaveSystem.load_world(self)
+ if restored:
+  event_text = "PROGRESS LOADED • " + str(save_location_status)
+ else:
+  event_text = "NO VALID SAVE FOUND"
+ event_time_left = 7.0
+ return restored
+
+
+func _notification(what: int) -> void:
+ if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED:
+  save_game_progress(false)
+
+
+func refresh_mission_targets_after_load() -> void:
+ if not real_dhaka_loaded or not is_instance_valid(real_dhaka_loader) or not is_instance_valid(player):
+  return
+ var candidates: Array[Vector3] = []
+ for route in real_dhaka_loader.get_road_routes():
+  if not route is Array:
+   continue
+  for point in route:
+   if not point is Vector3:
+    continue
+   var distance := Vector2(point.x - player.global_position.x, point.z - player.global_position.z).length()
+   if distance < 25.0 or distance > 220.0:
+    continue
+   var unique := true
+   for existing in candidates:
+    if Vector2(existing.x - point.x, existing.z - point.z).length() < 18.0:
+     unique = false
+     break
+   if unique:
+    candidates.append(point)
+ candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
+  return a.distance_to(player.global_position) < b.distance_to(player.global_position)
+ )
+ real_mission_targets.clear()
+ for i in range(mini(3, candidates.size())):
+  real_mission_targets.append(candidates[i])
+ if not real_mission_targets.is_empty():
+  mission_target = real_mission_targets[clampi(mission_stage, 0, real_mission_targets.size() - 1)]
+
 
 func make_mat(c: Color, roughness := 0.8, metallic := 0.0) -> StandardMaterial3D:
  var key := c.to_html(true) + ":" + str(roughness) + ":" + str(metallic)
@@ -513,6 +576,10 @@ func _process(delta):
  _update_a_square_systems(delta)
  if combat_controller and combat_controller.has_method("update"):
   combat_controller.update(delta)
+ autosave_timer += delta
+ if autosave_timer >= AUTOSAVE_INTERVAL:
+  autosave_timer = 0.0
+  save_game_progress(false)
  if real_dhaka_loaded:
   mapped_traffic_maintenance_timer += delta
   if mapped_traffic_maintenance_timer >= 5.0:
@@ -583,6 +650,8 @@ func is_red_for_axis(_axis: String, _vehicle_position: Vector3) -> bool:
 var district_factory
 var gameplay_director
 var city_stream_timer := 0.0
+var autosave_timer := 0.0
+const AUTOSAVE_INTERVAL := 60.0
 var mapped_traffic_maintenance_timer := 0.0
 const TARGET_MAPPED_TRAFFIC_COUNT := 30
 
@@ -647,10 +716,7 @@ func _setup_a_square():
     gameplay_director.configure(self, player, district_factory)
     # Keep the data-driven Deshi mission catalogue in this canonical world.
     # It shares the same player, streamed map, HUD, economy, and progression.
-    var mission_factory_node = load("res://systems/mission_factory.gd").new()
-    mission_factory_node.name = "MissionFactory"
-    add_child(mission_factory_node)
-
+    
 func _update_a_square_systems(delta):
     city_stream_timer += delta
     if city_stream_timer >= 0.5:

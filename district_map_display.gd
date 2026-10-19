@@ -54,6 +54,30 @@ func update_world(target_world: Node) -> void:
    _has_target = true
  queue_redraw()
 
+func get_persistence_state() -> Dictionary:
+ var names: Array[String] = []
+ for district_name in discovered.keys():
+  names.append(str(district_name))
+ names.sort()
+ return {"schema_version": 1, "discovered_districts": names, "current_district": current_district}
+
+
+func restore_persistence_state(state: Dictionary) -> void:
+ discovered.clear()
+ var allowed_names: Array[String] = []
+ for district in DISTRICTS:
+  allowed_names.append(str(district.name))
+ var saved_names: Variant = state.get("discovered_districts", [])
+ if saved_names is Array:
+  for district_name in saved_names:
+   var name_text := str(district_name)
+   if allowed_names.has(name_text):
+    discovered[name_text] = true
+ var saved_current := str(state.get("current_district", "Noborongo City"))
+ current_district = saved_current if allowed_names.has(saved_current) else "Noborongo City"
+ queue_redraw()
+
+
 func _draw() -> void:
  var bounds := Rect2(Vector2.ZERO, size)
  draw_rect(bounds, Color(0.015,0.035,0.055,0.94), true)

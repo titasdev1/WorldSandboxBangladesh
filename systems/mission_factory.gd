@@ -55,6 +55,8 @@ var cooldown := 0.0
 var missions: Array[Dictionary] = []
 var target_positions: Array[Vector3] = []
 var target_step := 0
+var completed_mission_count := 0
+var completed_mission_ids: Array[int] = []
 
 func _ready() -> void:
     call_deferred("_bootstrap")
@@ -72,6 +74,11 @@ func _bootstrap() -> void:
     set_meta("mission_count", missions.size())
     set_meta("mission_catalogue_kind", "procedural_deshi_side_jobs")
     set_meta("mission_catalogue_combinations", "10 clients × 10 job types × 10 place archetypes × 4 story beats")
+    if has_meta("pending_mission_restore"):
+        var pending_state: Variant = get_meta("pending_mission_restore")
+        remove_meta("pending_mission_restore")
+        if pending_state is Dictionary:
+            restore_persistence_state(pending_state)
 
 func _generate_catalogue() -> void:
     missions.clear()
@@ -304,6 +311,11 @@ func _on_target_entered(body: Node3D) -> void:
         ])
         world.set("event_time_left", 6.0)
         return
+    completed_mission_count += 1
+    var completed_id := int(m.id)
+    if not completed_mission_ids.has(completed_id):
+        completed_mission_ids.append(completed_id)
+        completed_mission_ids.sort()
     var cash := int(world.get("cash"))
     world.set("cash", cash + int(m.reward))
     world.set("event_text", "%s COMPLETE • +৳%d • JOB %04d/4000" % [
@@ -320,6 +332,106 @@ func _on_target_entered(body: Node3D) -> void:
         active_target.queue_free()
         active_target = null
     _set_marker(Vector3(0, 0.2, -12), Color("#ffd34e"))
+
+func get_persistence_state() -> Dictionary:
+    var saved_positions: Array[Dictionary] = []
+    var loader: Node = null
+    if is_instance_valid(world):
+        loader = world.get("real_dhaka_loader") as Node
+    var geo_mode := is_instance_valid(world) and bool(world.get("real_dhaka_loaded")) and is_instance_valid(loader) and loader.has_method("world_to_lat_lon")
+    for point in target_positions:
+        if geo_mode:
+            var ll: Variant = loader.call("world_to_lat_lon", point)
+            if ll is Vector2:
+                saved_positions.append({"coordinates": "wgs84", "latitude": ll.x, "longitude": ll.y, "height": point.y})
+        else:
+            saved_positions.append({"coordinates": "world", "position": [point.x, point.y, point.z]})
+    return {
+        "schema_version": 1, "active_index": active_index,
+        "next_mission_index": next_mission_index, "target_step": target_step,
+        "target_positions": saved_positions,
+        "completed_mission_count": completed_mission_count,
+        "completed_mission_ids": completed_mission_ids.duplicate()
+    }
+
+
+func restore_persistence_state(state: Dictionary) -> void:
+    if missions.is_empty():
+        set_meta("pending_mission_restore", state.duplicate(true))
+        return
+    if is_instance_valid(active_target):
+        active_target.queue_free()
+    active_target = null
+    target_positions.clear()
+    active_index = -1
+    target_step = 0
+    completed_mission_count = clampi(int(state.get("completed_mission_count", 0)), 0, 1000000)
+    completed_mission_ids.clear()
+    var saved_ids: Variant = state.get("completed_mission_ids", [])
+    if saved_ids is Array:
+        for raw_id in saved_ids:
+            if typeof(raw_id) not in [TYPE_INT, TYPE_FLOAT]:
+                continue
+            var mission_id := int(raw_id)
+            if mission_id >= 0 and mission_id < MISSIONS_PER_CATALOGUE and not completed_mission_ids.has(mission_id):
+                completed_mission_ids.append(mission_id)
+                if completed_mission_ids.size() >= MISSIONS_PER_CATALOGUE:
+                    break
+    completed_mission_ids.sort()
+    next_mission_index = posmod(int(state.get("next_mission_index", 0)), missions.size())
+    var requested_active := int(state.get("active_index", -1))
+    if requested_active < 0 or requested_active >= missions.size():
+        _set_marker(Vector3(0, 0.2, -12), Color("#ffd34e"))
+        return
+
+    active_index = requested_active
+    var saved_positions: Variant = state.get("target_positions", [])
+    var restored_positions: Array[Vector3] = []
+    var loader: Node = null
+    if is_instance_valid(world):
+        loader = world.get("real_dhaka_loader") as Node
+    var real_map := is_instance_valid(world) and bool(world.get("real_dhaka_loaded")) and is_instance_valid(loader)
+    var bounds: Variant = loader.get("_region_bounds_lat_lon") if real_map else []
+    if saved_positions is Array:
+        for item in saved_positions:
+            if not (item is Dictionary):
+                continue
+            if str(item.get("coordinates", "")) == "wgs84" and real_map and loader.has_method("lat_lon_to_world"):
+                var lat := float(item.get("latitude", 1000.0))
+                var lon := float(item.get("longitude", 1000.0))
+                if lat < -90.0 or lat > 90.0 or lon < -180.0 or lon > 180.0:
+                    continue
+                if not (bounds is Array and bounds.size() == 4 and lat >= float(bounds[0]) and lat <= float(bounds[2]) and lon >= float(bounds[1]) and lon <= float(bounds[3])):
+                    continue
+                var point: Vector3 = loader.call("lat_lon_to_world", lat, lon)
+                point.y = float(item.get("height", 0.0))
+                restored_positions.append(point)
+            elif str(item.get("coordinates", "")) == "world" and not real_map:
+                var raw_position: Variant = item.get("position", [])
+                if raw_position is Array and raw_position.size() == 3:
+                    restored_positions.append(Vector3(float(raw_position[0]), float(raw_position[1]), float(raw_position[2])))
+    var expected_count := 3 if String(missions[active_index].get("kind", "")) in ["rescue", "escort"] else 2
+    if restored_positions.size() == expected_count:
+        target_positions = restored_positions
+    else:
+        target_positions = _make_target_positions(missions[active_index])
+    if target_positions.is_empty():
+        active_index = -1
+        return
+    target_step = clampi(int(state.get("target_step", 0)), 0, target_positions.size() - 1)
+    active_target = _create_target_area()
+    active_target.position = target_positions[target_step]
+    active_target.body_entered.connect(_on_target_entered)
+    add_child(active_target)
+    _set_marker(active_target.position, Color("#4de3ff"))
+    if is_instance_valid(world):
+        var active_mission: Dictionary = missions[active_index]
+        world.set("event_text", "%s RESUMED • STOP %d/%d: %s" % [
+            active_mission.title, target_step + 1, target_positions.size(),
+            _objective_for_step(active_mission, target_step)
+        ])
+        world.set("event_time_left", 7.0)
+
 
 func get_active_mission() -> Dictionary:
     if active_index < 0 or active_index >= missions.size():
