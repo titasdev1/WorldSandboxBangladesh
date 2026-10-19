@@ -16,7 +16,7 @@ class RealWorldNavigationIndexTests(unittest.TestCase):
                     {
                         "type": "Feature", "id": "way/101",
                         "properties": {"osm_id": 101, "tags": {
-                            "highway": "primary", "name": "Palong Road", "name:bn": "পালং সড়ক", "oneway": "yes", "motor_vehicle": "no", "surface": "asphalt"
+                            "highway": "primary", "name": "Palong Road", "name:bn": "পালং সড়ক", "oneway": "yes", "motorcar": "yes", "motor_vehicle": "no", "motor_vehicle:conditional": "delivery @ (06:00-10:00)", "foot:conditional": "no @ (wet)", "bicycle": "designated", "sidewalk": "both", "surface": "asphalt", "smoothness": "good", "lit": "yes"
                         }},
                         "geometry": {"type": "LineString", "coordinates": [[90.35, 23.22], [90.36, 23.23]]},
                     },
@@ -49,7 +49,14 @@ class RealWorldNavigationIndexTests(unittest.TestCase):
         self.assertEqual(report["roads"][0]["name"], "Palong Road")
         self.assertEqual(report["roads"][0]["name_bn"], "পালং সড়ক")
         self.assertEqual(report["roads"][0]["oneway"], "yes")
+        self.assertEqual(report["roads"][0]["motorcar"], "yes")
         self.assertEqual(report["roads"][0]["motor_vehicle"], "no")
+        self.assertEqual(report["roads"][0]["motor_vehicle_conditional"], "delivery @ (06:00-10:00)")
+        self.assertEqual(report["roads"][0]["foot_conditional"], "no @ (wet)")
+        self.assertEqual(report["roads"][0]["bicycle"], "designated")
+        self.assertEqual(report["roads"][0]["sidewalk"], "both")
+        self.assertEqual(report["roads"][0]["smoothness"], "good")
+        self.assertEqual(report["roads"][0]["lit"], "yes")
         self.assertEqual(report["roads"][0]["surface"], "asphalt")
         self.assertAlmostEqual(report["roads"][0]["coordinates"]["longitude"], 90.355)
         self.assertEqual(report["roads"][0]["geometry_paths"], [[[90.35, 23.22], [90.36, 23.23]]])
