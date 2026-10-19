@@ -787,8 +787,6 @@ func _open_shop_panel() -> void:
  if not is_instance_valid(shop_panel):
   return
  _release_gameplay_inputs()
- if is_instance_valid(lobby_overlay):
-  lobby_overlay.visible = false
  shop_panel.visible = true
  get_tree().paused = true
  _refresh_shop_panel()
