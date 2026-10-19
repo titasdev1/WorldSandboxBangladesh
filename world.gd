@@ -653,7 +653,7 @@ func refuel_nearest_vehicle(from_position: Vector3, amount: float) -> bool:
  for node in get_children():
   if not (node is Node3D) or not node.has_method("refuel") or bool(node.get("occupied")):
    continue
-  var distance := node.global_position.distance_to(from_position)
+  var distance: float = node.global_position.distance_to(from_position)
   if distance < best_distance:
    nearest = node
    best_distance = distance
