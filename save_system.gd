@@ -41,7 +41,7 @@ static func save_world(world: Node) -> bool:
  var inventory_state: Dictionary = {}
  var inventory_node: Node = world.get("inventory_system") as Node
  if is_instance_valid(inventory_node) and inventory_node.has_method("get_persistence_state"):
- 	inventory_state = inventory_node.call("get_persistence_state")
+  inventory_state = inventory_node.call("get_persistence_state")
  var side_missions: Dictionary = {}
  var factory: Node = world.get_node_or_null("MissionFactory")
  if is_instance_valid(factory) and factory.has_method("get_persistence_state"):
@@ -171,7 +171,7 @@ static func load_world(world: Node) -> bool:
  var inventory_node: Node = world.get("inventory_system") as Node
  var saved_inventory: Variant = data.get("inventory", {})
  if is_instance_valid(inventory_node) and saved_inventory is Dictionary and inventory_node.has_method("restore_persistence_state"):
- 	inventory_node.call("restore_persistence_state", saved_inventory)
+  inventory_node.call("restore_persistence_state", saved_inventory)
  var loader: Node = world.get("real_dhaka_loader") as Node
  var restored := false
  var map_context := str(data.get("map_context", "procedural_fallback"))
