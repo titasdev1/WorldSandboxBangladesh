@@ -26,6 +26,8 @@ func buy(world: Node, item: String, amount := 1) -> bool:
   _notify(world, "BAG FULL • MAX %d PER ITEM" % InventorySystem.MAX_STACK)
   return false
  world.set("cash", int(world.get("cash")) - total)
+ if world.has_method("save_game_progress"):
+  world.call("save_game_progress", false)
  _notify(world, "BOUGHT %s ×%d • -৳%d" % [str(entry.get("label", key)), quantity, total])
  return true
 
@@ -42,6 +44,8 @@ func sell(world: Node, item: String, amount := 1) -> bool:
   return false
  var payout := int(entry.get("sell_price", 0)) * quantity
  world.set("cash", int(world.get("cash")) + payout)
+ if world.has_method("save_game_progress"):
+  world.call("save_game_progress", false)
  _notify(world, "SOLD %s ×%d • +৳%d" % [str(entry.get("label", key)), quantity, payout])
  return true
 
@@ -100,6 +104,8 @@ func use(world: Node, item: String) -> bool:
  if not applied:
   return false
  bag.call("consume", key, 1)
+ if world.has_method("save_game_progress"):
+  world.call("save_game_progress", false)
  _notify(world, "USED %s" % str(stock[key].get("label", key)).to_upper())
  return true
 
