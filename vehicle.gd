@@ -18,6 +18,8 @@ var indicator_time := 0.0
 var route_points: Array = []
 var route_index := 0
 var route_direction := 1
+var route_oneway := false
+var route_id := ""
 
 func _ready() -> void:
     cruise_speed = speed
@@ -296,12 +298,22 @@ func _follow_mapped_route(delta: float) -> void:
     if to_target.length() < maxf(1.6, speed * delta * 1.4):
         if route_direction > 0:
             if route_index >= route_points.size() - 1:
+                if route_oneway:
+                    if is_instance_valid(world) and world.has_method("advance_mapped_traffic_route") and world.advance_mapped_traffic_route(self):
+                        return
+                    queue_free()
+                    return
                 route_direction = -1
                 route_index = maxi(0, route_points.size() - 2)
             else:
                 route_index += 1
         else:
             if route_index <= 0:
+                if route_oneway:
+                    if is_instance_valid(world) and world.has_method("advance_mapped_traffic_route") and world.advance_mapped_traffic_route(self):
+                        return
+                    queue_free()
+                    return
                 route_direction = 1
                 route_index = mini(1, route_points.size() - 1)
             else:

@@ -249,30 +249,12 @@ func spawn_player():
 
 func spawn_traffic():
  if real_dhaka_loaded and real_dhaka_loader:
-  var mapped_routes: Array = real_dhaka_loader.get_road_routes()
+  var mapped_routes: Array = real_dhaka_loader.get_vehicle_route_records()
   if mapped_routes.is_empty():
-   push_warning("Real Dhaka map loaded but no usable OSM road paths were found for traffic.")
+   push_warning("Real map loaded but no access-allowed OSM road paths were found for traffic.")
    return
-  var mapped_types = [
-   {"name":"Rickshaw","size":Vector3(1.5, 1.5, 2.5), "speed":2.8, "color":Color("#168447")},
-   {"name":"CNG","size":Vector3(1.8, 1.5, 3.0), "speed":3.5, "color":Color("#168b70")},
-   {"name":"Car","size":Vector3(2.1, 1.0, 4.0), "speed":4.2, "color":Color("#d94a45")},
-   {"name":"Bus","size":Vector3(2.5, 2.6, 7.0), "speed":2.6, "color":Color("#d5a629")},
-   {"name":"Motorcycle","size":Vector3(1.0, 1.2, 2.1), "speed":4.8, "color":Color("#3d4248")}
-  ]
-  for i in range(30):
-   var t: Dictionary = mapped_types[rng.randi_range(0, mapped_types.size() - 1)]
-   var v = CharacterBody3D.new()
-   v.set_script(load("res://vehicle.gd"))
-   v.world = self
-   v.vehicle_type = t.name
-   v.speed = float(t.speed) * rng.randf_range(0.8, 1.2)
-   v.route_points = mapped_routes[rng.randi_range(0, mapped_routes.size() - 1)].duplicate()
-   v.route_index = rng.randi_range(0, v.route_points.size() - 1)
-   v.body_size = t.size
-   v.body_color = t.color
-   v.position = v.route_points[v.route_index]
-   add_child(v)
+  for i in range(TARGET_MAPPED_TRAFFIC_COUNT):
+   _spawn_mapped_traffic_vehicle(mapped_routes)
   return
  var types = [
   {"name":"Rickshaw","size":Vector3(1.5, 1.5, 2.5), "speed":4.2, "color":Color("#168447")},
@@ -297,6 +279,125 @@ func spawn_traffic():
   v.body_size = t.size
   v.body_color = t.color
   add_child(v)
+
+func _configure_mapped_vehicle_route(vehicle_node: Node3D, road: Dictionary) -> bool:
+ var points: Array = road.get("points", [])
+ if points.size() < 2:
+  return false
+ vehicle_node.set("route_points", points.duplicate())
+ vehicle_node.set("route_oneway", bool(road.get("one_way", false)))
+ vehicle_node.set("route_id", str(road.get("route_id", "")))
+ var one_way := bool(road.get("one_way", false))
+ var direction := int(road.get("one_way_direction", 1)) if one_way else (1 if rng.randi_range(0, 1) == 0 else -1)
+ vehicle_node.set("route_direction", direction)
+ var start_index := rng.randi_range(0, points.size() - 2) if direction > 0 else rng.randi_range(1, points.size() - 1)
+ vehicle_node.set("route_index", start_index)
+ vehicle_node.position = points[start_index]
+ return true
+
+
+func _spawn_mapped_traffic_vehicle(route_records: Array = []) -> void:
+ if not real_dhaka_loaded or not is_instance_valid(real_dhaka_loader):
+  return
+ var available: Array = route_records if not route_records.is_empty() else real_dhaka_loader.get_vehicle_route_records()
+ var candidates: Array[Dictionary] = []
+ for item in available:
+  if item is Dictionary and item.get("points", []) is Array and item["points"].size() >= 2:
+   candidates.append(item)
+ if candidates.is_empty():
+  return
+ var mapped_types := [
+  {"name":"Rickshaw","size":Vector3(1.5, 1.5, 2.5), "speed":2.8, "color":Color("#168447")},
+  {"name":"CNG","size":Vector3(1.8, 1.5, 3.0), "speed":3.5, "color":Color("#168b70")},
+  {"name":"Car","size":Vector3(2.1, 1.0, 4.0), "speed":4.2, "color":Color("#d94a45")},
+  {"name":"Bus","size":Vector3(2.5, 2.6, 7.0), "speed":2.6, "color":Color("#d5a629")},
+  {"name":"Motorcycle","size":Vector3(1.0, 1.2, 2.1), "speed":4.8, "color":Color("#3d4248")}
+ ]
+ var selected_type: Dictionary = mapped_types[rng.randi_range(0, mapped_types.size() - 1)]
+ var selected_road: Dictionary = candidates[rng.randi_range(0, candidates.size() - 1)]
+ var v := CharacterBody3D.new()
+ v.set_script(load("res://vehicle.gd"))
+ v.world = self
+ v.vehicle_type = selected_type.name
+ v.speed = float(selected_type.speed) * rng.randf_range(0.8, 1.2)
+ v.body_size = selected_type.size
+ v.body_color = selected_type.color
+ if not _configure_mapped_vehicle_route(v, selected_road):
+  v.free()
+  return
+ v.add_to_group("mapped_traffic_vehicle")
+ add_child(v)
+
+
+func _spawn_mapped_police_vehicle(route_records: Array = []) -> void:
+ if not real_dhaka_loaded or not is_instance_valid(real_dhaka_loader):
+  return
+ var available: Array = route_records if not route_records.is_empty() else real_dhaka_loader.get_vehicle_route_records()
+ var candidates: Array[Dictionary] = []
+ for item in available:
+  if item is Dictionary and item.get("points", []) is Array and item["points"].size() >= 2:
+   candidates.append(item)
+ if candidates.is_empty():
+  return
+ var road: Dictionary = candidates[rng.randi_range(0, candidates.size() - 1)]
+ var v := CharacterBody3D.new()
+ v.set_script(load("res://vehicle.gd"))
+ v.world = self
+ v.vehicle_type = "Police"
+ v.speed = 4.5
+ v.body_size = Vector3(2.1, 1.0, 4.0)
+ v.body_color = Color("#263d8f")
+ v.is_police = true
+ if not _configure_mapped_vehicle_route(v, road):
+  v.free()
+  return
+ v.add_to_group("mapped_police_vehicle")
+ add_child(v)
+
+
+func advance_mapped_traffic_route(vehicle_node: Node3D) -> bool:
+ if not real_dhaka_loaded or not is_instance_valid(real_dhaka_loader) or not is_instance_valid(vehicle_node):
+  return false
+ var points: Array = vehicle_node.get("route_points")
+ if points.size() < 2:
+  return false
+ var direction := int(vehicle_node.get("route_direction"))
+ var endpoint: Vector3 = points[points.size() - 1] if direction > 0 else points[0]
+ var current_id := str(vehicle_node.get("route_id"))
+ var available: Array = real_dhaka_loader.get_vehicle_route_records()
+ var best_record: Dictionary = {}
+ var best_direction := 1
+ var best_distance := 18.0
+ for candidate in available:
+  if not candidate is Dictionary or str(candidate.get("route_id", "")) == current_id:
+   continue
+  var next_points: Array = candidate.get("points", [])
+  if next_points.size() < 2:
+   continue
+  var is_oneway := bool(candidate.get("one_way", false))
+  var candidate_direction := int(candidate.get("one_way_direction", 1)) if is_oneway else 1
+  var entry_index := 0 if candidate_direction > 0 else next_points.size() - 1
+  if not is_oneway:
+   var to_start := Vector2(next_points[0].x - endpoint.x, next_points[0].z - endpoint.z).length()
+   var to_end := Vector2(next_points[next_points.size() - 1].x - endpoint.x, next_points[next_points.size() - 1].z - endpoint.z).length()
+   entry_index = next_points.size() - 1 if to_end < to_start else 0
+   candidate_direction = -1 if entry_index == next_points.size() - 1 else 1
+  var entry: Vector3 = next_points[entry_index]
+  var distance := Vector2(entry.x - endpoint.x, entry.z - endpoint.z).length()
+  if distance < best_distance:
+   best_distance = distance
+   best_record = candidate
+   best_direction = candidate_direction
+ if best_record.is_empty():
+  return false
+ var next_points: Array = best_record["points"]
+ vehicle_node.set("route_points", next_points.duplicate())
+ vehicle_node.set("route_oneway", bool(best_record.get("one_way", false)))
+ vehicle_node.set("route_id", str(best_record.get("route_id", "")))
+ vehicle_node.set("route_direction", best_direction)
+ vehicle_node.set("route_index", 0 if best_direction > 0 else next_points.size() - 1)
+ return true
+
 
 func spawn_npcs():
  var mapped_routes: Array = []
@@ -337,22 +438,11 @@ func spawn_npcs():
 
 func spawn_police():
  if real_dhaka_loaded and real_dhaka_loader:
-  var mapped_routes: Array = real_dhaka_loader.get_road_routes()
+  var mapped_routes: Array = real_dhaka_loader.get_vehicle_route_records()
   if mapped_routes.is_empty():
    return
   for i in range(3):
-   var v = CharacterBody3D.new()
-   v.set_script(load("res://vehicle.gd"))
-   v.world = self
-   v.vehicle_type = "Police"
-   v.speed = 4.5
-   v.body_size = Vector3(2.1, 1.0, 4.0)
-   v.body_color = Color("#263d8f")
-   v.is_police = true
-   v.route_points = mapped_routes[rng.randi_range(0, mapped_routes.size() - 1)].duplicate()
-   v.route_index = rng.randi_range(0, v.route_points.size() - 1)
-   v.position = v.route_points[v.route_index]
-   add_child(v)
+   _spawn_mapped_police_vehicle(mapped_routes)
   return
  for i in range(3):
   var v = CharacterBody3D.new()
@@ -423,6 +513,16 @@ func _process(delta):
  _update_a_square_systems(delta)
  if combat_controller and combat_controller.has_method("update"):
   combat_controller.update(delta)
+ if real_dhaka_loaded:
+  mapped_traffic_maintenance_timer += delta
+  if mapped_traffic_maintenance_timer >= 5.0:
+   mapped_traffic_maintenance_timer = 0.0
+   var traffic_count := get_tree().get_nodes_in_group("mapped_traffic_vehicle").size()
+   if traffic_count < TARGET_MAPPED_TRAFFIC_COUNT:
+    _spawn_mapped_traffic_vehicle()
+   var police_count := get_tree().get_nodes_in_group("mapped_police_vehicle").size()
+   if police_count < 3:
+    _spawn_mapped_police_vehicle()
 
 func update_marker():
  var marker = get_node_or_null("MissionMarker")
@@ -483,6 +583,8 @@ func is_red_for_axis(_axis: String, _vehicle_position: Vector3) -> bool:
 var district_factory
 var gameplay_director
 var city_stream_timer := 0.0
+var mapped_traffic_maintenance_timer := 0.0
+const TARGET_MAPPED_TRAFFIC_COUNT := 30
 
 func _configure_real_missions() -> void:
     if not real_dhaka_loaded or not real_dhaka_loader:

@@ -25,6 +25,7 @@ var _records: Array[Dictionary] = []
 var _mounted_map_packs: Array[String] = []
 var _loaded: Dictionary = {}
 var _road_routes_by_tile: Dictionary = {}
+var _vehicle_route_records_by_tile: Dictionary = {}
 var _road_labels_by_tile: Dictionary = {}
 var _navigation_index: Dictionary = {}
 var _navigation_graph: Dictionary = {}
@@ -151,6 +152,15 @@ func get_road_routes() -> Array:
 	var result: Array = []
 	for routes in _road_routes_by_tile.values():
 		result.append_array(routes)
+	return result
+
+
+func get_vehicle_route_records() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for records in _vehicle_route_records_by_tile.values():
+		for route_record in records:
+			if route_record is Dictionary:
+				result.append(route_record)
 	return result
 
 func get_road_labels() -> Array:
@@ -542,6 +552,19 @@ func teleport_player_to_lat_lon(lat: float, lon: float, target_player: Node3D) -
 	_stream_tiles(target_player.global_position)
 	return {"ok": true, "message": "Teleported near %.6f, %.6f" % [lat, lon], "distance_m": best_distance}
 
+func _road_source_tag(properties: Dictionary, tag_data: Dictionary, key: String, fallback := "") -> String:
+	return str(tag_data.get(key, properties.get(key, fallback))).strip_edges()
+
+
+func _vehicle_road_is_allowed(properties: Dictionary, tag_data: Dictionary, highway_type: String) -> bool:
+	var access := _road_source_tag(properties, tag_data, "motorcar",
+		_road_source_tag(properties, tag_data, "motor_vehicle",
+		_road_source_tag(properties, tag_data, "vehicle", _road_source_tag(properties, tag_data, "access")))).to_lower()
+	if highway_type in ["footway", "path", "steps", "pedestrian", "cycleway", "bridleway", "corridor", "platform"]:
+		return ["yes", "designated", "permissive", "destination", "delivery"].has(access)
+	return not ["no", "private", "restricted", "customers"].has(access)
+
+
 func _load_road_routes(record: Dictionary) -> void:
 	var tile_id := str(record.get("tile_id", ""))
 	var relative_geojson := str(record.get("geojson", ""))
@@ -557,6 +580,7 @@ func _load_road_routes(record: Dictionary) -> void:
 	if not (features is Array):
 		return
 	var routes: Array = []
+	var vehicle_route_records: Array[Dictionary] = []
 	var labels: Array[Dictionary] = []
 	for feature in features:
 		if not (feature is Dictionary):
@@ -564,9 +588,8 @@ func _load_road_routes(record: Dictionary) -> void:
 		var properties: Variant = feature.get("properties", {})
 		if not (properties is Dictionary) or not properties.has("highway"):
 			continue
-		var highway_type := str(properties.get("highway", ""))
-		if highway_type in ["footway", "path", "steps", "pedestrian", "cycleway", "bridleway", "corridor", "platform"]:
-			continue
+		var tag_data: Dictionary = properties.get("tags", {}) if properties.get("tags", {}) is Dictionary else {}
+		var highway_type := str(properties.get("highway", tag_data.get("highway", ""))).to_lower()
 		var geometry: Variant = feature.get("geometry", {})
 		if not (geometry is Dictionary):
 			continue
@@ -577,7 +600,19 @@ func _load_road_routes(record: Dictionary) -> void:
 			lines.append(coordinates)
 		elif geometry_type == "MultiLineString" and coordinates is Array:
 			lines.append_array(coordinates)
-		for line in lines:
+		var source_id := str(properties.get("osm_id", properties.get("id", feature.get("id", "unknown"))))
+		var road_name := _road_source_tag(properties, tag_data, "name:bn")
+		if road_name.is_empty():
+			road_name = _road_source_tag(properties, tag_data, "name")
+		if road_name.is_empty():
+			road_name = _road_source_tag(properties, tag_data, "ref")
+		var raw_oneway := _road_source_tag(properties, tag_data, "oneway").to_lower()
+		if raw_oneway.is_empty() and _road_source_tag(properties, tag_data, "junction").to_lower() == "roundabout":
+			raw_oneway = "yes"
+		var is_oneway := raw_oneway in ["yes", "1", "true", "-1", "reverse"]
+		var oneway_direction := -1 if raw_oneway in ["-1", "reverse"] else 1
+		for line_index in range(lines.size()):
+			var line: Variant = lines[line_index]
 			if not (line is Array) or line.size() < 2:
 				continue
 			var route: Array[Vector3] = []
@@ -593,17 +628,22 @@ func _load_road_routes(record: Dictionary) -> void:
 			var route_length := 0.0
 			for i in range(1, route.size()):
 				route_length += route[i - 1].distance_to(route[i])
-			if route_length >= 22.0:
-				routes.append(route)
-				var tag_data: Dictionary = properties.get("tags", {}) if properties.get("tags", {}) is Dictionary else {}
-				var road_name := str(properties.get("name:bn", tag_data.get("name:bn", ""))).strip_edges()
-				if road_name.is_empty():
-					road_name = str(properties.get("name", tag_data.get("name", ""))).strip_edges()
-				if road_name.is_empty():
-					road_name = str(properties.get("ref", tag_data.get("ref", ""))).strip_edges()
-				if not road_name.is_empty():
-					labels.append({"name": road_name, "points": route})
+			if route_length < 22.0:
+				continue
+			routes.append(route)
+			if _vehicle_road_is_allowed(properties, tag_data, highway_type):
+				vehicle_route_records.append({
+					"route_id": "%s:%s:%d" % [tile_id, source_id, line_index],
+					"points": route,
+					"one_way": is_oneway,
+					"one_way_direction": oneway_direction,
+					"highway_class": highway_type,
+					"road_name": road_name,
+				})
+			if not road_name.is_empty():
+				labels.append({"name": road_name, "points": route})
 	_road_routes_by_tile[tile_id] = routes
+	_vehicle_route_records_by_tile[tile_id] = vehicle_route_records
 	_road_labels_by_tile[tile_id] = labels
 
 func lat_lon_to_world(lat: float, lon: float) -> Vector3:
@@ -640,6 +680,7 @@ func _stream_tiles(player_position: Vector3) -> void:
 					anchor.queue_free()
 			_loaded.erase(key)
 			_road_routes_by_tile.erase(key)
+			_vehicle_route_records_by_tile.erase(key)
 			_road_labels_by_tile.erase(key)
 	# Load nearest missing tiles first, with a bounded per-tick budget.
 	var pending_keys: Array[String] = []
