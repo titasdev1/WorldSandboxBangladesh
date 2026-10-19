@@ -110,9 +110,9 @@ func _physics_process(delta):
  _set_crouched(Input.is_action_pressed("crouch"))
  var sprinting := Input.is_action_pressed("sprint") and not _is_crouched and dir.length_squared() > 0.001 and stamina > 0.1
  if sprinting:
- 	stamina = maxf(0.0, stamina - 24.0 * delta)
+  stamina = maxf(0.0, stamina - 24.0 * delta)
  else:
- 	stamina = minf(100.0, stamina + 12.0 * delta)
+  stamina = minf(100.0, stamina + 12.0 * delta)
  var current_speed: float = crouch_speed if _is_crouched else (sprint_speed if sprinting else speed)
  velocity.x = dir.x * current_speed
  velocity.z = dir.z * current_speed
