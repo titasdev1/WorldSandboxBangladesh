@@ -714,6 +714,10 @@ func _setup_a_square():
     gameplay_director.name = "GameplayDirector"
     add_child(gameplay_director)
     gameplay_director.configure(self, player, district_factory)
+    # Register the catalogue under the node name used by HUD/save persistence.
+    var mission_factory_node = load("res://systems/mission_factory.gd").new()
+    mission_factory_node.name = "MissionFactory"
+    add_child(mission_factory_node)
     # Keep the data-driven Deshi mission catalogue in this canonical world.
     # It shares the same player, streamed map, HUD, economy, and progression.
     

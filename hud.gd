@@ -655,7 +655,7 @@ func _build_lobby_ui() -> void:
  save_feedback_label.add_theme_color_override("font_color", Color("#50d7e9"))
  footer.add_child(save_feedback_label)
 
-var play := Button.new()
+ var play := Button.new()
  play.text = "ENTER CITY  →"
  play.custom_minimum_size = Vector2(210, 58)
  play.add_theme_font_size_override("font_size", 20)
