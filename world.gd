@@ -432,7 +432,7 @@ func update_marker():
 func try_fire():
  if not player:
   return
- var controlled_combat_mode: bool = is_instance_valid(combat_controller) and String(combat_controller.active_mode) in ["survival", "arena_training", "street_skirmish"]
+ var controlled_combat_mode: bool = is_instance_valid(combat_controller) and bool(combat_controller.active) and not bool(combat_controller.run_over) and String(combat_controller.active_mode) in ["survival", "arena_training", "street_skirmish"]
  if not controlled_combat_mode and gunfire_wanted_cooldown <= 0.0:
   wanted = min(5, wanted + 1)
   gunfire_wanted_cooldown = 2.5
