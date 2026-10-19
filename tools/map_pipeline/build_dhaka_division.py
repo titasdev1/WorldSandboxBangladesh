@@ -69,6 +69,49 @@ def boundary_attribution_for_stage(stage: str) -> str:
     )
 
 
+def validate_shariatpur_release_approval(path: pathlib.Path | None = None) -> dict[str, Any]:
+    """Require documented Shariatpur release evidence before building other districts.
+
+    A successful tile export is not enough: this project requires every Shariatpur
+    tile, building-floor record, facade review, navigation test, and Android-device
+    check to pass before the map footprint may expand.
+    """
+    approval_path = path or (ROOT / "tools/map_pipeline/shariatpur_release_approval.json")
+    if not approval_path.is_file():
+        raise RuntimeError(
+            "Shariatpur release gate BLOCKED: approval evidence file is missing. "
+            "Finish and independently review Shariatpur before selecting full_division."
+        )
+    try:
+        approval = json.loads(approval_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Shariatpur release gate BLOCKED: invalid approval JSON: {exc}") from exc
+    required_checks = (
+        "all_tiles_have_renderable_osm_features",
+        "all_building_floor_counts_independently_verified",
+        "licensed_facade_imagery_visual_review_complete",
+        "named_place_search_and_turn_navigation_qa_passed",
+        "physical_android_integration_and_performance_passed",
+    )
+    checks = approval.get("checks", {}) if isinstance(approval, dict) else {}
+    missing = [name for name in required_checks if checks.get(name) is not True]
+    if approval.get("status") != "APPROVED" or missing:
+        details = ", ".join(missing) if missing else "status is not APPROVED"
+        raise RuntimeError(
+            "Shariatpur release gate BLOCKED; no later tiles will be built. "
+            f"Outstanding acceptance checks: {details}."
+        )
+    reviewed_at = str(approval.get("reviewed_at", "")).strip()
+    reviewer = str(approval.get("reviewer", "")).strip()
+    evidence = str(approval.get("review_evidence_url", "")).strip()
+    if not reviewed_at or not reviewer or not evidence.startswith("https://"):
+        raise RuntimeError(
+            "Shariatpur release gate BLOCKED: approval needs reviewed_at, reviewer, "
+            "and an HTTPS review_evidence_url."
+        )
+    return approval
+
+
 def download(url: str, path: pathlib.Path, min_bytes: int = 1000) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and path.stat().st_size >= min_bytes:
@@ -412,6 +455,11 @@ def main() -> int:
                         default="shariatpur_review",
                         help="Stop after Shariatpur for quality review unless full_division is explicitly selected")
     args = parser.parse_args()
+    if args.stage == "full_division":
+        approval = validate_shariatpur_release_approval()
+        print("Shariatpur release gate APPROVED by %s on %s; evidence: %s" % (
+            approval["reviewer"], approval["reviewed_at"], approval["review_evidence_url"]
+        ), flush=True)
     if not 0.01 <= args.tile_degrees <= 0.08:
         parser.error("--tile-degrees must be between 0.01 and 0.08 degrees")
     if args.tile_offset < 0:
