@@ -45,6 +45,18 @@ The Bangladesh-wide OSM PBF is reduced to a reusable rectangular extract of the 
 
 **Shariatpur is a hard quality gate, not merely a priority label.** The default `shariatpur_review` stage emits only tiles intersecting Shariatpur, clips the GLB ground and mapped features to the actual district polygon, and truncates the final batch at the district boundary. It then assembles a standalone `Project-A-Square-Shariatpur-Review-Map-<sequence>` package and stops. Do not start `full_division` until the Shariatpur package has passed exterior-quality review, source/coverage audit, per-building interior review, and an Android integration/performance gate. The full-division stage must be explicitly selected after that review. A generated district package is still not a polished photorealistic replica: licensed façade imagery, visual review, and device integration are separate acceptance gates. The existing game's map remains unchanged until a complete, verified replacement package is intentionally promoted.
 
+## Enforced Shariatpur release gate
+
+The `full_division` stage is now fail-closed in `tools/map_pipeline/build_dhaka_division.py`. It checks `tools/map_pipeline/shariatpur_release_approval.json` before downloading or building any later tiles. The checked-in approval record is deliberately `BLOCKED` until a reviewer documents all of these outcomes:
+
+- Every Shariatpur tile has renderable mapped features; no ground-only tile remains.
+- Every mapped building has an independently verified floor count supported by a valid evidence-registry record.
+- Licensed facade imagery has been matched to the correct mapped building and passed visual review.
+- Named-place search, coordinate teleport, turn instructions, route rendering, and the player-following minimap pass integrated QA.
+- The canonical Android build passes physical-device integration and performance checks.
+
+An APK export, estimated heights, downloaded-but-unmatched photographs, or 100% tile bookkeeping cannot approve the district. Approval must include a reviewer, date, and HTTPS link to evidence for the exact package and revision. Until then, later Dhaka Division tiles are intentionally blocked to preserve the Shariatpur-first requirement.
+
 ## Automatic full-division continuation
 
 Normal push and pull-request events build only two tiles as bounded validation; they never start a second automatic sequence. To deliberately start a fresh Shariatpur review sequence without manually dispatching the workflow, make a change to a tracked map path with a commit message containing `[build-shariatpur-review]`. That opt-in sequence uses eight tiles per batch, retries a failed batch, clips the ground and mapped features to Shariatpur District, and stops at the district boundary. It assembles `Project-A-Square-Shariatpur-Review-Map-<sequence>` with `quality_gate_report.json`; the report remains `REVIEW_REQUIRED` until visual review, licensed façade imagery, and Android integration are validated. Do not start `full_division` until that gate passes. Every map-building run is limited to 300 minutes; each assembly job is limited to 50 minutes.
