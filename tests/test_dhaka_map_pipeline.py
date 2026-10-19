@@ -354,6 +354,18 @@ class DhakaMapPipelineTests(unittest.TestCase):
             self.assertIn("OpenStreetMap", (out / "map_manifest.json").read_text())
 
 
+    def test_facade_alias_matching_normalizes_unicode_and_whitespace_but_stays_exact(self):
+        from tools.map_pipeline.build_dhaka_map import normalize_facade_name
+
+        catalog = {
+            normalize_facade_name("বিবির হাট মসজিদ"): {"metadata": {"id": "bibir_hat_mosque_01"}},
+            normalize_facade_name("Bibir Hat Mosque"): {"metadata": {"id": "bibir_hat_mosque_01"}},
+        }
+        self.assertIsNotNone(match_facade_photo({"name": "  BIBIR   HAT MOSQUE  "}, catalog))
+        self.assertIsNotNone(match_facade_photo({"name:bn": "বিবির  হাট মসজিদ"}, catalog))
+        self.assertIsNone(match_facade_photo({"name": "nearby mosque"}, catalog))
+        self.assertEqual(normalize_facade_name("A\\u200b  B"), "a b")
+
     def test_licensed_facade_photo_panel_is_textured_and_exact_name_only(self):
         from PIL import Image
         from shapely.geometry import Polygon
