@@ -5,6 +5,7 @@ var speed := 7.0
 var sprint_speed := 11.0
 var gravity := 20.0
 var health := 100
+var stamina := 100.0
 var ammo := 30
 var reserve_ammo := 120
 var reload_time := 0.0
@@ -107,7 +108,12 @@ func _physics_process(delta):
  var dir := (right * input_vec.x + forward * -input_vec.y).normalized()
  # Hold crouch to lower the profile and reduce movement speed; sprint is disabled while crouched.
  _set_crouched(Input.is_action_pressed("crouch"))
- var current_speed: float = crouch_speed if _is_crouched else (sprint_speed if Input.is_action_pressed("sprint") else speed)
+ var sprinting := Input.is_action_pressed("sprint") and not _is_crouched and dir.length_squared() > 0.001 and stamina > 0.1
+ if sprinting:
+ 	stamina = maxf(0.0, stamina - 24.0 * delta)
+ else:
+ 	stamina = minf(100.0, stamina + 12.0 * delta)
+ var current_speed: float = crouch_speed if _is_crouched else (sprint_speed if sprinting else speed)
  velocity.x = dir.x * current_speed
  velocity.z = dir.z * current_speed
  if Input.is_action_just_pressed("jump") and is_on_floor() and not _is_crouched:
