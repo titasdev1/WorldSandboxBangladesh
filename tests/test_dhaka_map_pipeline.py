@@ -364,7 +364,7 @@ class DhakaMapPipelineTests(unittest.TestCase):
         self.assertIsNotNone(match_facade_photo({"name": "  BIBIR   HAT MOSQUE  "}, catalog))
         self.assertIsNotNone(match_facade_photo({"name:bn": "বিবির  হাট মসজিদ"}, catalog))
         self.assertIsNone(match_facade_photo({"name": "nearby mosque"}, catalog))
-        self.assertEqual(normalize_facade_name("A\\u200b  B"), "a b")
+        self.assertEqual(normalize_facade_name("A\u200b  B"), "a b")
 
     def test_licensed_facade_photo_panel_is_textured_and_exact_name_only(self):
         from PIL import Image
