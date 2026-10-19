@@ -38,6 +38,10 @@ static func save_world(world: Node) -> bool:
  else:
   var mt: Vector3 = world.get("mission_target")
   local_target = [mt.x, mt.y, mt.z]
+ var inventory_state: Dictionary = {}
+ var inventory_node: Node = world.get("inventory_system") as Node
+ if is_instance_valid(inventory_node) and inventory_node.has_method("get_persistence_state"):
+ 	inventory_state = inventory_node.call("get_persistence_state")
  var side_missions: Dictionary = {}
  var factory: Node = world.get_node_or_null("MissionFactory")
  if is_instance_valid(factory) and factory.has_method("get_persistence_state"):
@@ -61,7 +65,8 @@ static func save_world(world: Node) -> bool:
   "player_position": [player_position.x, player_position.y, player_position.z],
   "player_lat_lon": player_ll, "player_health": int(player.get("health")),
   "player_ammo": int(player.get("ammo")), "player_reserve_ammo": int(player.get("reserve_ammo")),
-  "side_missions": side_missions, "district_discovery": discovery
+  "player_stamina": float(player.get("stamina")),
+  "inventory": inventory_state, "side_missions": side_missions, "district_discovery": discovery
  }
  return _atomic_write(JSON.stringify(data))
 
@@ -160,8 +165,13 @@ static func load_world(world: Node) -> bool:
  if not is_instance_valid(player):
   return false
  player.set("health", _safe_int(data.get("player_health", 100), 100, 1, 100))
+ player.set("stamina", clampf(float(data.get("player_stamina", 100.0)), 0.0, 100.0))
  player.set("ammo", _safe_int(data.get("player_ammo", player.get("ammo")), int(player.get("ammo")), 0, 999))
  player.set("reserve_ammo", _safe_int(data.get("player_reserve_ammo", player.get("reserve_ammo")), int(player.get("reserve_ammo")), 0, 9999))
+ var inventory_node: Node = world.get("inventory_system") as Node
+ var saved_inventory: Variant = data.get("inventory", {})
+ if is_instance_valid(inventory_node) and saved_inventory is Dictionary and inventory_node.has_method("restore_persistence_state"):
+ 	inventory_node.call("restore_persistence_state", saved_inventory)
  var loader: Node = world.get("real_dhaka_loader") as Node
  var restored := false
  var map_context := str(data.get("map_context", "procedural_fallback"))
