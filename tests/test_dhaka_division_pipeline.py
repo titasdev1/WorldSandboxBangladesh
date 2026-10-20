@@ -269,6 +269,21 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("local_xy(", map_builder)
         self.assertIn("building_height(tags, osm_id, polygon.area)", map_builder)
 
+    def test_mapped_interior_interaction_uses_the_baked_door_anchor(self):
+        loader = (self.ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
+        map_builder = (self.ROOT / "tools" / "map_pipeline" / "build_dhaka_map.py").read_text(encoding="utf-8")
+        self.assertIn("def facade_door_geometry(", map_builder)
+        self.assertIn('"door_anchor_local_m": door_anchor_local_m', map_builder)
+        self.assertIn('"door_outward_xy": door_outward_xy', map_builder)
+        placement_start = loader.index("func _interior_anchor_placement(")
+        placement_end = loader.index("func _add_walkable_collisions(", placement_start)
+        placement = loader[placement_start:placement_end]
+        self.assertIn('seed.get("door_anchor_local_m", [])', placement)
+        self.assertIn('seed.get("door_outward_xy", [])', placement)
+        self.assertIn("var approach_distance := 1.25", placement)
+        self.assertIn("var footprint: Array = seed.get(\\"footprint_local_m\\", [])", placement)
+        # Previous packages still load via the explicit backward-compatible fallback.
+
     def test_hud_touch_buttons_do_not_send_their_drags_to_camera_look(self):
         player = (self.ROOT / "player.gd").read_text(encoding="utf-8")
         hud = (self.ROOT / "hud.gd").read_text(encoding="utf-8")
