@@ -68,7 +68,9 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("hub_position = best_point + sidewalk_side * 8.0", hub_code)
         self.assertIn("hub_created = true", hub_code)
         self.assertIn('if not hub_created and is_instance_valid(world) and bool(world.get("real_dhaka_loaded")):', missions)
-        self.assertIn("if real_dhaka_loaded and not mapped_routes.is_empty():", world)
+        self.assertIn("if real_dhaka_loaded and mapped_routes.is_empty():", world)
+        self.assertIn('npc.add_to_group("mapped_road_npc")', world)
+        self.assertIn('get_tree().get_nodes_in_group("mapped_road_npc").size()', world)
 
     def test_real_world_map_suppresses_fictional_factory_overlays(self):
         factories = [
