@@ -123,6 +123,32 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("get_road_routes()", world)
 
 
+    def test_licensed_interior_reference_photo_flows_from_map_bake_to_android_runtime(self):
+        map_builder = (self.ROOT / "tools" / "map_pipeline" / "build_dhaka_map.py").read_text(encoding="utf-8")
+        map_merger = (self.ROOT / "tools" / "map_pipeline" / "merge_dhaka_division_batches.py").read_text(encoding="utf-8")
+        interior = (self.ROOT / "systems" / "interior_factory.gd").read_text(encoding="utf-8")
+        verifier = (self.ROOT / "tools" / "verify_apk_contents.py").read_text(encoding="utf-8")
+        catalog = json.loads((self.ROOT / "tools" / "map_pipeline" / "shariatpur_facade_images.json").read_text(encoding="utf-8"))
+        mosque = next(item for item in catalog["images"] if item["id"] == "bibir_hat_mosque_01")
+
+        self.assertFalse(mosque["facade_eligible"])
+        self.assertEqual(mosque["view_type"], "unverified")
+        self.assertTrue(mosque["interior_reference_eligible"])
+        self.assertEqual(mosque["interior_view_type"], "interior")
+        self.assertEqual(mosque["interior_visual_qa"], "passed")
+        self.assertIn("def load_interior_reference_catalog(", map_builder)
+        self.assertIn("interior_reference_photo_matches", map_builder)
+        self.assertIn('"sha256": hashlib.sha256(image_bytes).hexdigest()', map_builder)
+        self.assertIn("interior_reference_photo_matches", map_merger)
+        self.assertIn("Use restriction: INTERIOR REFERENCE ONLY", map_merger)
+        self.assertIn("func _add_licensed_interior_photo_reference(", interior)
+        self.assertIn('ResourceLoader.load(texture_path) as Texture2D', interior)
+        self.assertIn('photo_record.get("asset_relative_path", "")', interior)
+        self.assertIn('panel.set_meta("use", "INTERIOR_REFERENCE_ONLY")', interior)
+        self.assertIn('hashlib.sha256(photo_data).hexdigest()', verifier)
+        self.assertIn("exact mapped building's runtime interior seed", verifier)
+        self.assertNotIn("ImageTexture.create_from_image(image)", interior)
+
     def test_hud_touch_buttons_do_not_send_their_drags_to_camera_look(self):
         player = (self.ROOT / "player.gd").read_text(encoding="utf-8")
         hud = (self.ROOT / "hud.gd").read_text(encoding="utf-8")
