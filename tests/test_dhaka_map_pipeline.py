@@ -366,6 +366,16 @@ class DhakaMapPipelineTests(unittest.TestCase):
         self.assertIsNone(match_facade_photo({"name": "nearby mosque"}, catalog))
         self.assertEqual(normalize_facade_name("A\u200b  B"), "a b")
 
+    def test_shariatpur_catalog_keeps_unverified_photos_out_of_facade_bake(self):
+        catalog_path = Path(__file__).resolve().parents[1] / "tools" / "map_pipeline" / "shariatpur_facade_images.json"
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        self.assertGreaterEqual(len(catalog["images"]), 2)
+        for image in catalog["images"]:
+            self.assertIs(image.get("facade_eligible"), False, image.get("id"))
+            self.assertEqual(image.get("view_type"), "unverified", image.get("id"))
+            self.assertEqual(image.get("visual_qa"), "pending", image.get("id"))
+        self.assertIn("interior photograph", " ".join(catalog.get("limitations", [])).lower())
+
     def test_unverified_or_interior_photos_are_not_loaded_as_facade_textures(self):
         from PIL import Image
         from tools.map_pipeline.build_dhaka_map import load_facade_photo_catalog
