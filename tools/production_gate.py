@@ -272,7 +272,7 @@ for token in (
         raise SystemExit(f"PRODUCTION GATE FAILED: map bake is missing source-aware house roof geometry: {token}")
 if "@export var is_player_character := false" not in character_text or "func _add_clothing_and_face_detail() -> void:" not in character_text:
     raise SystemExit("PRODUCTION GATE FAILED: the hero character detail pass is missing.")
-for token in ("LeftEyeWhite", "NoseBridge", "ChestPocket_L", "ShoeSole", "RadioBody", "WristWatch"):
+for token in ("LeftEyeWhite", "NoseBridge", "ChestPocket_%s", "ShoeSole", "RadioBody", "WristWatch"):
     if token not in character_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: hero visual detail missing {token}.")
 if "visual.is_player_character = true" not in world_text or "camera_distance := 4.8 if Input.is_action_pressed" not in player_text or "else 7.4" not in player_text:
