@@ -598,7 +598,9 @@ def procedural_roof_mesh(geometry: Any, wall_height_m: float, shape_name: str, o
     try:
         mesh.fix_normals()
     except Exception:
-        return None
+        # Open roof shells are not watertight solids. Preserve valid triangles
+        # if a trimesh release cannot orient an open multi-face shell.
+        pass
     if not np.isfinite(mesh.vertices).all() or mesh.area < 1.0:
         return None
     mesh.metadata["roof_shape"] = shape_name
