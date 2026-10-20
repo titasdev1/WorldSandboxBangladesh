@@ -463,7 +463,7 @@ class DhakaMapPipelineTests(unittest.TestCase):
         polygon = Polygon([(0, 0), (9, 0), (9, 6), (0, 6)])
         roof = procedural_roof_mesh(polygon, 3.2, gabled_shape, 5101)
         self.assertIsNotNone(roof)
-        self.assertTrue(roof.is_watertight is False or roof.is_watertight is True)
+        self.assertFalse(roof.is_watertight)  # The roof shell is an outer skin; walls/ceiling are separate geometry.
         self.assertGreater(float(roof.vertices[:, 2].max()), 3.28)
         self.assertTrue(__import__("numpy").isfinite(roof.vertices).all())
         self.assertEqual(roof.metadata["roof_shape"], "gabled")
