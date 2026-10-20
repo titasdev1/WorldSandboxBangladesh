@@ -78,30 +78,41 @@ jobs:
           path: build/selected-map
 
       - name: Download latest assembled Shariatpur review package
+        id: map-selection
         if: ${{ inputs.map_package == 'shariatpur_review' || github.event_name == 'pull_request' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]')) }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # Select the freshest complete district assembly from main or the branch
-          # being built. workflow_dispatch has no GITHUB_HEAD_REF, so use GITHUB_REF_NAME.
+          # Prefer this exact development branch. Fall back to main only for CI
+          # validation; release steps below require a branch-matched map artifact.
           map_source_branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-main}}"
           export MAP_SOURCE_BRANCH="${map_source_branch}"
+          artifact_query='.artifacts[] | select(.expired == false) | select(.name | startswith("Project-A-Square-Shariatpur-Review-Map-"))'
           artifact_record="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
-            --jq '.artifacts[] | select(.expired == false) | select(.name | startswith("Project-A-Square-Shariatpur-Review-Map-")) | select(.workflow_run.head_branch == "main" or .workflow_run.head_branch == env.MAP_SOURCE_BRANCH) | [.workflow_run.id, .name, .created_at] | @tsv' \
+            --jq "${artifact_query} | select(.workflow_run.head_branch == env.MAP_SOURCE_BRANCH) | [.workflow_run.id, .name, .created_at] | @tsv" \
             | sort -k3,3 | tail -n 1)"
+          if [[ -z "${artifact_record}" && "${map_source_branch}" != "main" ]]; then
+            echo "No complete Shariatpur artifact yet for ${map_source_branch}; using main only for non-release validation."
+            artifact_record="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
+              --jq "${artifact_query} | select(.workflow_run.head_branch == \"main\") | [.workflow_run.id, .name, .created_at] | @tsv" \
+              | sort -k3,3 | tail -n 1)"
+          fi
           if [[ -z "${artifact_record}" ]]; then
-            echo "No assembled Shariatpur review package exists yet; finish the Shariatpur tile sequence first." >&2
+            echo "No assembled Shariatpur review package exists yet; finish the district tile sequence first." >&2
             exit 1
           fi
           read -r map_run_id map_artifact_name map_created_at <<< "${artifact_record}"
+          map_run_branch="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${map_run_id}" --jq '.head_branch')"
           run_conclusion="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${map_run_id}" --jq '.conclusion')"
           if [[ "${run_conclusion}" != "success" ]]; then
-            echo "Latest Shariatpur package came from a non-successful workflow run; refusing promotion." >&2
+            echo "Selected Shariatpur package came from a non-successful workflow run; refusing promotion." >&2
             exit 1
           fi
-          echo "Selected Shariatpur package: ${map_artifact_name} (run ${map_run_id}, created ${map_created_at})"
+          echo "Selected Shariatpur package: ${map_artifact_name} (branch ${map_run_branch}, run ${map_run_id}, created ${map_created_at})"
+          echo "source_branch=${map_run_branch}" >> "$GITHUB_OUTPUT"
+          echo "source_run_id=${map_run_id}" >> "$GITHUB_OUTPUT"
           gh run download "${map_run_id}" --repo "${GITHUB_REPOSITORY}" --name "${map_artifact_name}" --dir build/selected-map
 
       - name: Install and validate selected map package
@@ -429,7 +440,7 @@ jobs:
       # Manual Shariatpur review builds need a directly installable APK too.
       # GitHub Actions artifacts are ZIP containers; this release asset is the APK itself.
       - name: Publish direct Shariatpur dispatch candidate APK
-        if: github.event_name == 'workflow_dispatch' && inputs.map_package == 'shariatpur_review'
+        if: github.event_name == 'workflow_dispatch' && inputs.map_package == 'shariatpur_review' && steps.map-selection.outputs.source_branch == github.ref_name
         uses: softprops/action-gh-release@v2
         with:
           tag_name: shariatpur-review-candidate
@@ -448,7 +459,7 @@ jobs:
 
       # The pull-request artifact is a ZIP; publish the verified APK file itself as a replaceable preview asset.
       - name: Publish direct Shariatpur pull-request APK preview
-        if: github.event_name == 'pull_request' && github.head_ref == 'feature/real-world-navigation-floor-fidelity-verified'
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/real-world-navigation-floor-fidelity-verified' && steps.map-selection.outputs.source_branch == github.head_ref
         uses: softprops/action-gh-release@v2
         with:
           tag_name: shariatpur-review-candidate
