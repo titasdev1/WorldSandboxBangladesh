@@ -441,6 +441,24 @@ jobs:
           make_latest: false
           files: build/Android/world_sandbox_bangladesh.apk
 
+      # The pull-request artifact is a ZIP; publish the verified APK file itself as a replaceable preview asset.
+      - name: Publish direct Shariatpur pull-request APK preview
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/real-world-navigation-floor-fidelity-verified'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: shariatpur-review-candidate
+          target_commitish: ${{ github.event.pull_request.head.sha }}
+          name: "World Sandbox: Bangladesh — Shariatpur Direct APK Preview"
+          body: |
+            Direct APK preview generated from the Project A-Square Shariatpur development branch.
+            The APK-content integration gate, APK ZIP integrity test, and Android signature verification must pass before this release step runs.
+            The package contains the current Shariatpur review map, not a production-approved map. Floor-count verification, visual facade review, and physical-device gameplay/performance QA remain incomplete.
+            Preview source commit: ${{ github.event.pull_request.head.sha }}
+          prerelease: true
+          make_latest: false
+          overwrite_files: true
+          files: build/Android/world_sandbox_bangladesh.apk
+
       - name: Upload small verification reports separately
         uses: actions/upload-artifact@v4
         with:
