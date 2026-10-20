@@ -85,6 +85,11 @@ if "mesh_bounds.get_endpoint(endpoint_index)" not in city_factory_text or "insta
     raise SystemExit("PRODUCTION GATE FAILED: authored building scale/ground alignment is incomplete")
 if "target_size.x / 8.0" in city_factory_text or "target_size.y / 12.0" in city_factory_text:
     raise SystemExit("PRODUCTION GATE FAILED: stale guessed authored-building scale heuristic remains")
+character_visual_text = (ROOT / "character_visual.gd").read_text(encoding="utf-8")
+if "scale = Vector3(0.90, 0.90, 0.90)" not in character_visual_text or "position.y = -0.065" not in character_visual_text:
+    raise SystemExit("PRODUCTION GATE FAILED: character render scale/ground alignment regressed")
+if "var hair_mesh := SphereMesh.new()" not in character_visual_text or "hair_node.scale.y = 0.68" not in character_visual_text:
+    raise SystemExit("PRODUCTION GATE FAILED: invalid tall hair capsule regressed the character silhouette")
 map_builder_text = (ROOT / "tools/map_pipeline/build_dhaka_map.py").read_text(encoding="utf-8")
 if "edge_clipped_roofs_suppressed" not in map_builder_text or "roof_within_tile" not in map_builder_text:
     raise SystemExit("PRODUCTION GATE FAILED: clipped pitched roofs may exceed map tile boundaries")

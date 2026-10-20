@@ -18,6 +18,11 @@ var _torso: Node3D
 var _head: Node3D
 
 func _ready() -> void:
+    # The mesh authoring coordinates were about 2.1 m tall while the controller
+    # capsule is 1.8 m. Normalize the rendered body to human scale and align the
+    # shoe soles with the actor origin instead of making buildings look tiny.
+    scale = Vector3(0.90, 0.90, 0.90)
+    position.y = -0.065
     _build_body()
     _torso = get_node_or_null("ClothedTorso") as Node3D
     _head = get_node_or_null("Head") as Node3D
@@ -81,7 +86,18 @@ func _build_body() -> void:
     _capsule(self, "ClothedTorso", Vector3(0, 1.18, 0), 0.29, 0.82, outfit_color)
     _capsule(self, "Neck", Vector3(0, 1.61, 0), 0.105, 0.20, skin_color)
     _capsule(self, "Head", Vector3(0, 1.82, 0), 0.215, 0.43, skin_color)
-    _capsule(self, "Hair", Vector3(0, 2.005, 0.018), 0.222, 0.19, hair_color)
+    # A flattened sphere cap avoids the invalid-height capsule that previously
+    # made the hair/head silhouette extend far above the 1.8 m controller.
+    var hair_node := MeshInstance3D.new()
+    hair_node.name = "Hair"
+    var hair_mesh := SphereMesh.new()
+    hair_mesh.radius = 0.222
+    hair_mesh.height = 0.39
+    hair_node.mesh = hair_mesh
+    hair_node.position = Vector3(0, 1.99, 0.018)
+    hair_node.scale.y = 0.68
+    hair_node.material_override = _material(hair_color)
+    add_child(hair_node)
     # Simple face details face toward Godot's forward axis (-Z).
     _box(self, "LeftEye", Vector3(-0.075, 1.84, -0.195), Vector3(0.035, 0.045, 0.025), Color("#241c19"))
     _box(self, "RightEye", Vector3(0.075, 1.84, -0.195), Vector3(0.035, 0.045, 0.025), Color("#241c19"))
