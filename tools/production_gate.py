@@ -134,6 +134,22 @@ for relative_path, fictional_call, expected_status in factory_specs:
 if "get_vehicle_route_records()" not in world_text or "_spawn_mapped_traffic_vehicle(mapped_routes)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: real-map road traffic no longer uses mapped road routes")
 
+respawn_start = world_text.find("func respawn_player():")
+respawn_end = world_text.find("func try_vehicle_interaction():", respawn_start)
+if respawn_start < 0 or respawn_end < 0:
+    raise SystemExit("PRODUCTION GATE FAILED: canonical player respawn system is missing")
+respawn_text = world_text[respawn_start:respawn_end]
+for token in (
+    "player.global_position = _nearest_mapped_respawn_position(player.global_position)",
+    "func _nearest_mapped_respawn_position(",
+    'real_dhaka_loader.call("get_nearby_road_points"',
+    "best_side * 3.0",
+):
+    if token not in respawn_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: real-map respawn is missing mapped-road behaviour {token}")
+if "player.position = Vector3(0, 0, -12)" not in respawn_text:
+    raise SystemExit("PRODUCTION GATE FAILED: fictional fallback starter-city respawn is missing for non-map mode")
+
 # The mapped NPC population may retry as more road tiles stream in, but it must
 # never fall back to random fictional-city coordinates in real-map mode.
 npc_start = world_text.find("func spawn_npcs():")
