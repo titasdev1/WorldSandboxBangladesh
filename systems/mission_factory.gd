@@ -57,6 +57,8 @@ var target_positions: Array[Vector3] = []
 var target_step := 0
 var completed_mission_count := 0
 var completed_mission_ids: Array[int] = []
+var hub_created := false
+var hub_retry_clock := 0.0
 
 func _ready() -> void:
     call_deferred("_bootstrap")
@@ -70,7 +72,7 @@ func _bootstrap() -> void:
     rng.seed = 918273
     _generate_catalogue()
     _create_hub()
-    set_meta("mission_factory_status", "live")
+    set_meta("mission_factory_status", "live" if hub_created else "waiting_for_mapped_road_for_job_board")
     set_meta("mission_count", missions.size())
     set_meta("mission_catalogue_kind", "procedural_deshi_side_jobs")
     set_meta("mission_catalogue_combinations", "10 clients × 10 job types × 10 place archetypes × 4 story beats")
@@ -128,6 +130,41 @@ func _generate_catalogue() -> void:
         ])
 
 func _create_hub() -> void:
+    if hub_created or not is_instance_valid(world):
+        return
+    var hub_position := Vector3(6, 0.2, -12)
+    if bool(world.get("real_dhaka_loaded")):
+        # A real Shariatpur build has no fictional-city coordinate origin for
+        # a job board. Place this gameplay kiosk beside an actual mapped road.
+        var loader: Node = world.get("real_dhaka_loader") as Node
+        if not is_instance_valid(loader) or not loader.has_method("get_road_routes") or not is_instance_valid(player):
+            set_meta("mission_board_status", "waiting_for_mapped_road")
+            return
+        var best_point := Vector3.ZERO
+        var best_distance := INF
+        var best_direction := Vector3.ZERO
+        for route in loader.call("get_road_routes"):
+            if not (route is Array) or route.size() < 2:
+                continue
+            for point_index in range(route.size()):
+                var road_point: Vector3 = route[point_index]
+                var distance := Vector2(road_point.x - player.global_position.x, road_point.z - player.global_position.z).length()
+                if distance >= best_distance:
+                    continue
+                var before: Vector3 = route[maxi(0, point_index - 1)]
+                var after: Vector3 = route[mini(route.size() - 1, point_index + 1)]
+                var direction := Vector3(after.x - before.x, 0.0, after.z - before.z).normalized()
+                if direction.length_squared() < 0.001:
+                    continue
+                best_distance = distance
+                best_point = road_point
+                best_direction = direction
+        if best_distance > 60.0 or best_direction.length_squared() < 0.001:
+            set_meta("mission_board_status", "waiting_for_mapped_road")
+            return
+        var sidewalk_side := Vector3(-best_direction.z, 0.0, best_direction.x)
+        hub_position = best_point + sidewalk_side * 8.0 + Vector3(0.0, 0.2, 0.0)
+
     var hub := Area3D.new()
     hub.name = "MissionBoard"
     var shape := CollisionShape3D.new()
@@ -135,12 +172,12 @@ func _create_hub() -> void:
     sphere.radius = 4.0
     shape.shape = sphere
     hub.add_child(shape)
-    hub.position = Vector3(6, 0.2, -12)
+    hub.position = hub_position
     hub.body_entered.connect(_on_hub_entered)
     add_child(hub)
 
-    # A visible, original job-board kiosk makes the mission system discoverable
-    # instead of relying on an invisible trigger or debug-only interaction.
+    # This small gameplay kiosk is deliberately beside the road; it is not
+    # represented as a surveyed real-world building or facade replacement.
     var board := MeshInstance3D.new()
     board.name = "DeshiJobBoardVisual"
     var board_mesh := BoxMesh.new()
@@ -172,6 +209,8 @@ func _create_hub() -> void:
     add_child(subtitle)
 
     marker_node = _marker(hub.position, Color("#ffd34e"), Vector3(1.8, 1.0, 1.8))
+    hub_created = true
+    set_meta("mission_board_status", "mapped_roadside_kiosk" if bool(world.get("real_dhaka_loaded")) else "starter_city_kiosk")
 
 func _on_hub_entered(body: Node3D) -> void:
     if body != player or cooldown > 0.0 or active_index >= 0:
@@ -505,6 +544,11 @@ func _process(delta: float) -> void:
     cooldown = max(0.0, cooldown - delta)
     if not is_instance_valid(player) and is_instance_valid(world):
         player = world.get("player")
+    if not hub_created and is_instance_valid(world) and bool(world.get("real_dhaka_loaded")):
+        hub_retry_clock += delta
+        if hub_retry_clock >= 2.0:
+            hub_retry_clock = 0.0
+            _create_hub()
 
 func _marker(pos: Vector3, color: Color, scale: Vector3) -> MeshInstance3D:
     var mesh := MeshInstance3D.new()
