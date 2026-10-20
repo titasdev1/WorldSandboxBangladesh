@@ -281,7 +281,7 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn('seed.get("door_anchor_local_m", [])', placement)
         self.assertIn('seed.get("door_outward_xy", [])', placement)
         self.assertIn("var approach_distance := 1.25", placement)
-        self.assertIn("var footprint: Array = seed.get(\\"footprint_local_m\\", [])", placement)
+        self.assertIn('var footprint: Array = seed.get("footprint_local_m", [])', placement)
         # Previous packages still load via the explicit backward-compatible fallback.
 
     def test_hud_touch_buttons_do_not_send_their_drags_to_camera_look(self):
