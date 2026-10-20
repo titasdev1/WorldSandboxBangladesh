@@ -22,6 +22,7 @@ on:
       - "tools/fetch_*.py"
       - "tools/report_build_assets.py"
       - "tools/production_gate.py"
+      - "tools/map_pipeline/shariatpur_facade_images.json"
       - "development_state.json"
       - ".github/workflows/android.yml"
   push:
@@ -36,6 +37,7 @@ on:
       - "tools/fetch_*.py"
       - "tools/report_build_assets.py"
       - "tools/production_gate.py"
+      - "tools/map_pipeline/shariatpur_facade_images.json"
       - "development_state.json"
 
 permissions:
@@ -82,10 +84,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # Never pin a stale review artifact: find the newest non-expired, main-branch
-          # district package by creation time, then download that exact workflow run.
+          # Select the freshest complete district assembly from main or the branch
+          # being built. workflow_dispatch has no GITHUB_HEAD_REF, so use GITHUB_REF_NAME.
+          map_source_branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-main}}"
+          export MAP_SOURCE_BRANCH="${map_source_branch}"
           artifact_record="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
-            --jq '.artifacts[] | select(.expired == false) | select(.name | startswith("Project-A-Square-Shariatpur-Review-Map-")) | select(.workflow_run.head_branch == "main" or .workflow_run.head_branch == (env.GITHUB_HEAD_REF // "main")) | [.workflow_run.id, .name, .created_at] | @tsv' \
+            --jq '.artifacts[] | select(.expired == false) | select(.name | startswith("Project-A-Square-Shariatpur-Review-Map-")) | select(.workflow_run.head_branch == "main" or .workflow_run.head_branch == env.MAP_SOURCE_BRANCH) | [.workflow_run.id, .name, .created_at] | @tsv' \
             | sort -k3,3 | tail -n 1)"
           if [[ -z "${artifact_record}" ]]; then
             echo "No assembled Shariatpur review package exists yet; finish the Shariatpur tile sequence first." >&2
@@ -428,9 +432,9 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.map_package == 'shariatpur_review'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: shariatpur-review-run-${{ github.run_id }}
+          tag_name: shariatpur-review-candidate
           target_commitish: ${{ github.sha }}
-          name: "World Sandbox: Bangladesh — Shariatpur Review Candidate (Run ${{ github.run_number }})"
+          name: "World Sandbox: Bangladesh — Shariatpur Review Candidate"
           body: |
             Direct Android APK candidate built by manually dispatched workflow run ${{ github.run_id }}.
             Source branch: ${{ github.ref_name }}
@@ -439,6 +443,7 @@ jobs:
             APK signature and ZIP structure are checked by CI; gameplay and performance still require physical-device testing.
           prerelease: true
           make_latest: false
+          overwrite_files: true
           files: build/Android/world_sandbox_bangladesh.apk
 
       # The pull-request artifact is a ZIP; publish the verified APK file itself as a replaceable preview asset.
