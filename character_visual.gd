@@ -86,7 +86,6 @@ func _build_body() -> void:
     _box(self, "LeftEye", Vector3(-0.075, 1.84, -0.195), Vector3(0.035, 0.045, 0.025), Color("#241c19"))
     _box(self, "RightEye", Vector3(0.075, 1.84, -0.195), Vector3(0.035, 0.045, 0.025), Color("#241c19"))
     _box(self, "Belt", Vector3(0, 0.91, 0), Vector3(0.48, 0.09, 0.31), Color("#302b29"))
-    _add_clothing_and_face_detail()
 
     left_arm = Node3D.new()
     left_arm.name = "LeftArmPivot"
@@ -115,6 +114,9 @@ func _build_body() -> void:
     add_child(right_leg)
     _capsule(right_leg, "RightTrouser", Vector3(0, -0.30, 0), 0.13, 0.66, outfit_color.darkened(0.24))
     _box(right_leg, "RightShoe", Vector3(0, -0.66, -0.055), Vector3(0.23, 0.13, 0.34), Color("#242629"))
+
+    # Build fine clothing parts only after both arm and leg pivots are alive.
+    _add_clothing_and_face_detail()
 
     if has_satchel:
         _box(self, "Satchel", Vector3(0.30, 1.02, 0.19), Vector3(0.27, 0.34, 0.14), Color("#8c5a36"))
