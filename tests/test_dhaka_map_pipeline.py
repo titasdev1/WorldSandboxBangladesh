@@ -487,8 +487,9 @@ class DhakaMapPipelineTests(unittest.TestCase):
                 interior_catalog = load_interior_reference_catalog()
                 match = match_named_image({"name:bn": "বুড়িরহাট ঐতিহাসিক জামে মসজিদ"}, interior_catalog)
                 self.assertIsNotNone(match)
-                self.assertEqual(match["metadata"]["use"] if "use" in match["metadata"] else "INTERIOR_REFERENCE_ONLY",
-                                 "INTERIOR_REFERENCE_ONLY")
+                self.assertTrue(match["metadata"]["interior_reference_eligible"])
+                self.assertEqual(match["metadata"]["interior_view_type"], "interior")
+                self.assertEqual(match["metadata"]["interior_visual_qa"], "passed")
                 self.assertEqual(match["metadata"]["license"], "CC BY-SA 4.0")
 
     def test_interior_photo_is_baked_as_a_separate_asset_linked_to_its_mapped_building(self):
