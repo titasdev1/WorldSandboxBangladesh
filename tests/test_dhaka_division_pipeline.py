@@ -1,6 +1,10 @@
+import hashlib
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 from shapely.geometry import Polygon, box, shape
@@ -123,6 +127,98 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("_spawn_mapped_traffic_vehicle(mapped_routes)", world)
         self.assertIn("get_road_routes()", world)
 
+
+    def _make_minimal_shariatpur_apk(self, apk_path: Path, photo_sha_override: str | None = None) -> None:
+        image_bytes = b"licensed-photo-bytes-for-apk-integration-test"
+        import hashlib
+        image_sha = photo_sha_override or hashlib.sha256(image_bytes).hexdigest()
+        tile_ids = [f"tile_{i:02d}" for i in range(60)]
+        photo_tile = tile_ids[0]
+        relative_photo_path = "landmark_reference_photos/mosque-interior.jpg"
+        match = {
+            "osm_id": 12345,
+            "building_name": "বুড়িরহাট ঐতিহাসিক জামে মসজিদ",
+            "image_id": "burirhat_mosque_interior_01",
+            "tile_id": photo_tile,
+            "asset_relative_path": relative_photo_path,
+            "sha256": image_sha,
+            "source_page": "https://commons.wikimedia.org/wiki/File:Bibir_Hat_Mosque_01.jpg",
+            "author": "Radman Siddiki",
+            "license": "CC BY-SA 4.0",
+            "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+            "attribution": "Photo: Radman Siddiki / Wikimedia Commons, CC BY-SA 4.0",
+            "use": "INTERIOR_REFERENCE_ONLY",
+            "visual_identity_verified": True,
+        }
+        manifest = {
+            "build_stage": "shariatpur_review",
+            "complete_district_map": True,
+            "tile_count_with_geometry": 60,
+            "tile_count_total": 60,
+            "tiles": [{"tile_id": item} for item in tile_ids],
+            "interior_reference_photo_matches": [match],
+            "interior_reference_photos_embedded": 1,
+            "licensed_facade_photo_matches": [],
+        }
+        navigation = {"counts": {
+            "named_places": 12,
+            "named_roads": 14,
+            "buildings_with_source_floor_count": 22,
+            "buildings_with_independently_verified_floor_count": 0,
+        }}
+        map_root = "assets/assets/world/dhaka_tiles/"
+        with zipfile.ZipFile(apk_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr(map_root + "map_tiles_manifest.json", json.dumps(manifest))
+            archive.writestr(map_root + "real_world_navigation_index.json", json.dumps(navigation))
+            for tile_id in tile_ids:
+                archive.writestr(map_root + tile_id + "/map_manifest.json", "{}")
+                archive.writestr(map_root + tile_id + "/Dhaka_Explorable_Map.glb.import", "remap")
+                archive.writestr("assets/.godot/imported/Dhaka_Explorable_Map.glb-" + tile_id + ".scn", "scene")
+            seed = [{
+                "osm_id": 12345,
+                "interior_reference_photo": {
+                    "image_id": match["image_id"],
+                    "asset_relative_path": relative_photo_path,
+                    "use": "INTERIOR_REFERENCE_ONLY",
+                },
+            }]
+            archive.writestr(map_root + photo_tile + "/AI_Interior_Seeds.json", json.dumps(seed))
+            archive.writestr(map_root + photo_tile + "/" + relative_photo_path, image_bytes)
+            for pack_manifest in (
+                "assets/external_content/kenney_car_kit/asset_manifest.json",
+                "assets/external_content/kenney_city_kit_commercial/asset_manifest.json",
+                "assets/external_content/kenney_city_kit_industrial/asset_manifest.json",
+                "assets/external_content/kenney_city_kit_suburban/asset_manifest.json",
+                "assets/external_content/polyhaven_pbr/asset_manifest.json",
+            ):
+                archive.writestr(pack_manifest, "{}")
+
+    def test_android_apk_verifier_confirms_interior_photo_bytes_and_seed_link(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            apk_path = root / "candidate.apk"
+            self._make_minimal_shariatpur_apk(apk_path)
+            verifier = self.ROOT / "tools" / "verify_apk_contents.py"
+            result = subprocess.run(
+                [sys.executable, str(verifier), "--apk", str(apk_path), "--map-package", "shariatpur_review"],
+                cwd=root, capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + "\n" + result.stderr)
+            self.assertIn("APK content integration: PASS", result.stdout)
+            self.assertIn("Interior reference photo assets SHA-256 verified and linked to runtime seeds: 1/1", result.stdout)
+
+    def test_android_apk_verifier_rejects_wrong_interior_photo_hash(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            apk_path = root / "candidate.apk"
+            self._make_minimal_shariatpur_apk(apk_path, "0" * 64)
+            verifier = self.ROOT / "tools" / "verify_apk_contents.py"
+            result = subprocess.run(
+                [sys.executable, str(verifier), "--apk", str(apk_path), "--map-package", "shariatpur_review"],
+                cwd=root, capture_output=True, text=True, check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("licensed interior photo checksum mismatch", result.stderr)
 
     def test_licensed_interior_reference_photo_flows_from_map_bake_to_android_runtime(self):
         map_builder = (self.ROOT / "tools" / "map_pipeline" / "build_dhaka_map.py").read_text(encoding="utf-8")
