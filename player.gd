@@ -51,7 +51,10 @@ func _ready():
  add_child(camera)
  camera.make_current()
 
-func _input(event):
+func _unhandled_input(event):
+ # Let on-screen HUD controls consume their own touch gestures first. Only
+ # unhandled drags on the open right-hand look area should rotate the camera;
+ # dragging FIRE/AIM/RELOAD must not accidentally move the view.
  if event is InputEventScreenDrag:
   if event.position.x > get_viewport().get_visible_rect().size.x * 0.42:
    camera_yaw -= event.relative.x * camera_sensitivity
