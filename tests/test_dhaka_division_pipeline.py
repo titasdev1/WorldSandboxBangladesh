@@ -57,6 +57,15 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("_navigation_recalc_clock = 0.0", loader)
         self.assertIn("leave the last valid route visible", loader)
 
+    def test_hud_touch_buttons_do_not_send_their_drags_to_camera_look(self):
+        player = (self.ROOT / "player.gd").read_text(encoding="utf-8")
+        hud = (self.ROOT / "hud.gd").read_text(encoding="utf-8")
+        self.assertIn("func _unhandled_input(event):", player)
+        self.assertIn("Let on-screen HUD controls consume their own touch gestures first.", player)
+        self.assertIn("stick.set_script(load(\"res://virtual_stick.gd\"))", hud)
+        self.assertIn('add_touch_button("FIRE"', hud)
+        self.assertIn('add_touch_button("AIM"', hud)
+
     def test_main_story_requires_mapped_targets_and_routes_each_stage(self):
         world = (self.ROOT / "world.gd").read_text(encoding="utf-8")
         hud = (self.ROOT / "hud.gd").read_text(encoding="utf-8")
