@@ -14,6 +14,39 @@ from tools.map_pipeline.build_dhaka_division import (
 from tools.map_pipeline.build_dhaka_map import build_map
 
 
+class RuntimeMapIntegrationWiringTests(unittest.TestCase):
+    """Guard the real-map runtime path, not just the standalone map exporter."""
+
+    ROOT = Path(__file__).resolve().parents[1]
+
+    def test_selected_map_identity_and_nearby_place_api_are_exposed(self):
+        loader = (self.ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
+        minimap = (self.ROOT / "district_map_display.gd").read_text(encoding="utf-8")
+        hud = (self.ROOT / "hud.gd").read_text(encoding="utf-8")
+        self.assertIn("func get_map_display_name() -> String:", loader)
+        self.assertIn("func get_nearest_named_place(", loader)
+        self.assertIn('loader.call("get_nearest_named_place"', minimap)
+        self.assertIn('title_loader.call("get_map_display_name")', minimap)
+        self.assertIn('map_loader.call("get_map_display_name")', hud)
+
+    def test_real_map_mission_stops_route_on_the_offline_road_graph(self):
+        loader = (self.ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
+        missions = (self.ROOT / "systems" / "mission_factory.gd").read_text(encoding="utf-8")
+        hud = (self.ROOT / "hud.gd").read_text(encoding="utf-8")
+        self.assertIn("func navigate_to_world_position(", loader)
+        self.assertIn("func get_nearby_road_points(", loader)
+        self.assertIn('loader.call("navigate_to_world_position", active_target.global_position, player)', missions)
+        self.assertIn("_update_mission_navigation()", missions)
+        self.assertIn('mission.text += "\\nROAD ROUTE: " + route_instruction', hud)
+        self.assertIn('loader.call("clear_navigation_route")', missions)
+
+    def test_real_map_missions_do_not_invent_off_road_fallback_targets(self):
+        missions = (self.ROOT / "systems" / "mission_factory.gd").read_text(encoding="utf-8")
+        guard = 'if bool(world.get("real_dhaka_loaded")) and positions.size() < count:\n        return positions'
+        self.assertIn(guard, missions)
+        self.assertIn("Not enough mapped road nodes are loaded nearby yet", missions)
+
+
 class ShariatpurReleaseGateTests(unittest.TestCase):
     def test_current_unapproved_shariatpur_package_blocks_division_expansion(self):
         import json
