@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "purpose": "Exact-name licensed landmark photo candidates. A photo is not baked onto an exterior wall until facade_eligible=true, view_type='exterior', and visual_qa='passed' after visual inspection of the actual downloaded image.",
+  "purpose": "Separate licensed photo uses by verified view: exterior facade panels require facade_eligible/view_type/visual_qa; interior reference photos require interior_reference_eligible/interior_view_type/interior_visual_qa. Never put an interior photo on an exterior wall.",
   "limitations": [
     "These are landmark reference photographs, not a complete set for every Shariatpur building.",
     "OSM name matching is not proof of surveyed coordinates; inspect the resulting GLB before release.",
@@ -37,7 +37,18 @@
       "facade_eligible": false,
       "view_type": "unverified",
       "visual_qa": "pending",
-      "intended_use": "interior_reference_only_until_a_correctly_licensed_exterior_photo_is_verified"
+      "intended_use": "interior_reference_only_until_a_correctly_licensed_exterior_photo_is_verified",
+      "interior_reference_eligible": true,
+      "interior_view_type": "interior",
+      "interior_visual_qa": "passed",
+      "interior_reference_evidence": {
+        "evidence_type": "visually_reviewed_interior_photo",
+        "source_page": "https://commons.wikimedia.org/wiki/File:Bibir_Hat_Mosque_01.jpg",
+        "linked_mapped_building_name": "বুড়িরহাট ঐতিহাসিক জামে মসজিদ",
+        "official_identity_reference": "https://shariatpur.gov.bd/pages/religious-institutes/%E0%A6%AC%E0%A7%81%E0%A7%9C%E0%A6%BF%E0%A6%B0-%E0%A6%B9%E0%A6%BE%E0%A6%9F-%E0%A6%90%E0%A6%A4%E0%A6%BF%E0%A6%B9%E0%A6%BE%E0%A6%B8%E0%A6%BF%E0%A6%95-%E0%A6%9C%E0%A6%BE%E0%A6%AE%E0%A7%87-%E0%A6%AE%E0%A6%B8%E0%A6%9C%E0%A6%BF%E0%A6%A6-17f034-6995640735ce18e1c0759e7d",
+        "intended_use": "photo panel inside this mapped mosque's generated game interior only; never an exterior facade",
+        "evidence_note": "The photographed view is interior, and the OSM building way carries the matching Bengali name. It is restricted to the generated interior of this exact mapped mosque."
+      }
     },
     {
       "id": "rudrakar_moth_35",
