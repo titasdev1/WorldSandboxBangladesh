@@ -711,5 +711,39 @@ class DhakaMapPipelineTests(unittest.TestCase):
 
 
 
+    def test_procedural_vegetation_at_tile_edge_does_not_extend_export_bounds(self):
+        """A green polygon touching a tile edge must not place crowns outside the tile."""
+        from tools.map_pipeline.build_dhaka_map import DEFAULT_BBOX, build_map, local_xy
+
+        south, west, north, east = DEFAULT_BBOX
+        elements = [{
+            "type": "way",
+            "id": 730021,
+            "tags": {"landuse": "forest"},
+            "geometry": [
+                {"lat": south, "lon": west},
+                {"lat": south, "lon": east},
+                {"lat": north, "lon": east},
+                {"lat": north, "lon": west},
+                {"lat": south, "lon": west},
+            ],
+        }]
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "map"
+            manifest = build_map(elements, out, DEFAULT_BBOX)
+            scene = trimesh.load(out / "Dhaka_Explorable_Map.glb", force="scene")
+            origin_lat, origin_lon = (south + north) / 2.0, (west + east) / 2.0
+            min_xy = local_xy(south, west, origin_lat, origin_lon)
+            max_xy = local_xy(north, east, origin_lat, origin_lon)
+            width = max_xy[0] - min_xy[0]
+            depth = max_xy[1] - min_xy[1]
+
+            self.assertGreater(manifest["feature_counts"]["procedural_vegetation_trees"], 0)
+            self.assertGreaterEqual(float(scene.bounds[0][0]), -width / 2.0 - 0.01)
+            self.assertLessEqual(float(scene.bounds[1][0]), width / 2.0 + 0.01)
+            self.assertGreaterEqual(float(scene.bounds[0][2]), -depth / 2.0 - 0.01)
+            self.assertLessEqual(float(scene.bounds[1][2]), depth / 2.0 + 0.01)
+
+
 if __name__ == "__main__":
     unittest.main()

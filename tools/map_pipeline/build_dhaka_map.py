@@ -1585,6 +1585,17 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             safe_polygon = safe_polygon.buffer(0)
         if safe_polygon.is_empty:
             continue
+        # A mapped land-use polygon can reach the tile edge. Tree centres inside
+        # that polygon are not enough: the crown has real width and may overhang
+        # into its neighbour. Erode the tile footprint before placing any
+        # procedural vegetation so the largest crown (1.65 m radius) remains
+        # wholly inside this tile, without weakening the final bounds gate.
+        tree_safe_bounds = tile_bounds.buffer(-1.9, join_style=2)
+        if tree_safe_bounds.is_empty:
+            continue
+        safe_polygon = safe_polygon.intersection(tree_safe_bounds)
+        if safe_polygon.is_empty:
+            continue
         kind_budget = {"forest": 90, "orchard": 130, "scrub": 42, "park": 48, "farmland": 22}.get(kind, 30)
         sites = procedural_tree_sites(safe_polygon, osm_id, kind, min(kind_budget, per_tile_tree_budget - procedural_trees))
         for tree_index, (tree_x, tree_y) in enumerate(sites):
@@ -1650,7 +1661,20 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     scene_bounds = scene.bounds
     if (scene_bounds[0][0] < -width / 2 - 1 or scene_bounds[1][0] > width / 2 + 1 or
             scene_bounds[0][1] < -depth / 2 - 1 or scene_bounds[1][1] > depth / 2 + 1):
-        raise RuntimeError("Export geometry extends beyond the requested tile; refusing to publish an oversized map.")
+        offending = []
+        for geometry_name, geometry in scene.geometry.items():
+            bounds = geometry.bounds
+            if (bounds[0][0] < -width / 2 - 1 or bounds[1][0] > width / 2 + 1 or
+                    bounds[0][1] < -depth / 2 - 1 or bounds[1][1] > depth / 2 + 1):
+                offending.append({
+                    "name": geometry_name,
+                    "bounds_xy": [[round(float(value), 3) for value in row[:2]] for row in bounds],
+                })
+        raise RuntimeError(
+            "Export geometry extends beyond the requested tile; refusing to publish an oversized map. "
+            f"Tile half extents (m): x={width / 2:.3f}, y={depth / 2:.3f}; "
+            f"scene bounds (m): {scene_bounds.tolist()}; offending meshes: {offending[:8]}"
+        )
     # Convert the internal Z-up extrusion coordinates (X=east, Y=north, Z=up)
     # to glTF/Godot coordinates (X=east, Y=up, Z=south). Without this transform,
     # the imported city can stand on its side despite having valid GLB geometry.
