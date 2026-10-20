@@ -545,22 +545,38 @@ func _process(delta):
  if sun:
   sun.rotation_degrees.x = -35 - sin(day_time / 24.0 * TAU) * 35.0
   sun.light_energy = 0.65 + max(0.0, sin(day_time / 24.0 * TAU)) * 0.7
- if player and mission_active:
+ # Real-world map streaming is incremental. Keep forming the story stops from the
+ # offline road graph until three mapped destinations are available; never substitute
+ # fictional-city coordinates into a real map.
+ if real_dhaka_loaded and real_mission_targets.size() < 3:
+  real_story_setup_timer += delta
+  if real_story_setup_timer >= 1.0:
+   real_story_setup_timer = 0.0
+   _configure_real_missions()
+ var mission_factory_for_navigation := get_node_or_null("MissionFactory")
+ var side_job_active := is_instance_valid(mission_factory_for_navigation) and int(mission_factory_for_navigation.get("active_index")) >= 0
+ if player and mission_active and (not real_dhaka_loaded or real_mission_targets.size() >= 3):
   var distance = player.position.distance_to(mission_target)
   if mission_stage == 0 and distance < 6:
    mission_stage = 1
-   mission_target = real_mission_targets[1] if real_dhaka_loaded and real_mission_targets.size() > 1 else Vector3(-36, 0, -36)
+   mission_target = real_mission_targets[1] if real_dhaka_loaded else Vector3(-36, 0, -36)
    update_marker()
+   refresh_active_world_navigation()
   elif mission_stage == 1 and player.position.distance_to(mission_target) < 6:
    mission_stage = 2
-   mission_target = real_mission_targets[2] if real_dhaka_loaded and real_mission_targets.size() > 2 else Vector3(30, 0, -30)
+   mission_target = real_mission_targets[2] if real_dhaka_loaded else Vector3(30, 0, -30)
    cash += 250
    update_marker()
+   refresh_active_world_navigation()
   elif mission_stage == 2 and player.position.distance_to(mission_target) < 6:
    mission_active = false
    mission_progress = 1
    cash += 750
    update_marker()
+   refresh_active_world_navigation()
+ if real_dhaka_loaded and real_mission_targets.size() < 3 and mission_active:
+  event_text = "STORY ROUTE LOADING • waiting for mapped road coverage"
+  event_time_left = maxf(event_time_left, 1.0)
  if wanted > 0:
   police_timer += delta
   if police_timer > 18.0:
@@ -674,55 +690,92 @@ var autosave_timer := 0.0
 const AUTOSAVE_INTERVAL := 60.0
 var mapped_traffic_maintenance_timer := 0.0
 const TARGET_MAPPED_TRAFFIC_COUNT := 30
+var real_story_setup_timer := 0.0
+var real_map_spawn_positioned := false
 
 func _configure_real_missions() -> void:
-    if not real_dhaka_loaded or not real_dhaka_loader:
+    if not real_dhaka_loaded or not is_instance_valid(real_dhaka_loader) or not is_instance_valid(player):
         return
-    var routes: Array = real_dhaka_loader.get_road_routes()
+    # Position the player beside a mapped street at most once. A later retry
+    # must never move the player out from under an active side mission.
+    var side_factory := get_node_or_null("MissionFactory")
+    var side_job_active := is_instance_valid(side_factory) and int(side_factory.get("active_index")) >= 0
+    if not real_map_spawn_positioned and not side_job_active:
+        var nearest_point := Vector3.ZERO
+        var nearest_distance := INF
+        var nearest_route: Array = []
+        var nearest_route_index := 0
+        for route in real_dhaka_loader.get_road_routes():
+            for point_index in range(route.size()):
+                var road_point: Vector3 = route[point_index]
+                var road_distance := Vector2(road_point.x - player.position.x, road_point.z - player.position.z).length()
+                if road_distance < nearest_distance:
+                    nearest_distance = road_distance
+                    nearest_point = road_point
+                    nearest_route = route
+                    nearest_route_index = point_index
+        if nearest_distance < INF and not nearest_route.is_empty():
+            var before: Vector3 = nearest_route[maxi(0, nearest_route_index - 1)]
+            var after: Vector3 = nearest_route[mini(nearest_route.size() - 1, nearest_route_index + 1)]
+            var road_direction := (after - before).normalized()
+            var sidewalk_offset := Vector3(-road_direction.z, 0, road_direction.x) * 2.5
+            player.position = nearest_point + sidewalk_offset + Vector3(0, 0.2, 0)
+            real_map_spawn_positioned = true
+
     var candidates: Array[Vector3] = []
-    var nearest_point := Vector3.ZERO
-    var nearest_distance := INF
-    var nearest_route: Array = []
-    var nearest_route_index := 0
-    for route in routes:
-        for point_index in range(route.size()):
-            var road_point: Vector3 = route[point_index]
-            var road_distance := Vector2(road_point.x - player.position.x, road_point.z - player.position.z).length()
-            if road_distance < nearest_distance:
-                nearest_distance = road_distance
-                nearest_point = road_point
-                nearest_route = route
-                nearest_route_index = point_index
-    if nearest_distance < INF:
-        var before: Vector3 = nearest_route[maxi(0, nearest_route_index - 1)]
-        var after: Vector3 = nearest_route[mini(nearest_route.size() - 1, nearest_route_index + 1)]
-        var road_direction := (after - before).normalized()
-        var sidewalk_offset := Vector3(-road_direction.z, 0, road_direction.x) * 2.5
-        player.position = nearest_point + sidewalk_offset + Vector3(0, 0.2, 0)
-    for route in routes:
-        for point in route:
-            var p: Vector3 = point
-            var distance_from_player := Vector2(p.x - player.position.x, p.z - player.position.z).length()
-            if distance_from_player >= 25.0 and distance_from_player <= 220.0:
-                var unique := true
-                for existing in candidates:
-                    if existing.distance_to(p) < 18.0:
-                        unique = false
-                        break
-                if unique:
+    if real_dhaka_loader.has_method("get_nearby_road_points"):
+        candidates = real_dhaka_loader.call("get_nearby_road_points", player.global_position, 25.0, 220.0)
+    else:
+        # Compatibility path if an older map-loader pack is mounted.
+        for route in real_dhaka_loader.get_road_routes():
+            for point in route:
+                var p: Vector3 = point
+                var distance_from_player := Vector2(p.x - player.position.x, p.z - player.position.z).length()
+                if distance_from_player >= 25.0 and distance_from_player <= 220.0:
                     candidates.append(p)
-    if candidates.is_empty():
-        return
     candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
         return a.distance_to(player.position) < b.distance_to(player.position)
     )
-    real_mission_targets.clear()
-    real_mission_targets.append(candidates[mini(0, candidates.size() - 1)])
-    if candidates.size() > 1:
-        real_mission_targets.append(candidates[mini(1, candidates.size() - 1)])
-    if candidates.size() > 2:
-        real_mission_targets.append(candidates[mini(2, candidates.size() - 1)])
-    mission_target = real_mission_targets[0]
+    var unique_targets: Array[Vector3] = []
+    for candidate in candidates:
+        var unique := true
+        for existing in unique_targets:
+            if Vector2(existing.x - candidate.x, existing.z - candidate.z).length() < 35.0:
+                unique = false
+                break
+        if unique:
+            unique_targets.append(candidate)
+        if unique_targets.size() >= 3:
+            break
+    if unique_targets.size() < 3:
+        real_mission_targets.clear()
+        if real_dhaka_loader.has_method("clear_navigation_route"):
+            real_dhaka_loader.clear_navigation_route()
+        return
+    real_mission_targets = unique_targets
+    mission_target = real_mission_targets[clampi(mission_stage, 0, 2)]
+    if not side_job_active:
+        refresh_active_world_navigation()
+
+
+func refresh_active_world_navigation() -> void:
+    if not real_dhaka_loaded or not is_instance_valid(real_dhaka_loader) or not is_instance_valid(player):
+        return
+    var side_factory := get_node_or_null("MissionFactory")
+    if is_instance_valid(side_factory) and int(side_factory.get("active_index")) >= 0:
+        # The side job owns the single visible road route until it is completed.
+        return
+    if not mission_active:
+        if real_dhaka_loader.has_method("clear_navigation_route"):
+            real_dhaka_loader.clear_navigation_route()
+        return
+    if real_mission_targets.size() < 3 or not real_dhaka_loader.has_method("navigate_to_world_position"):
+        if real_dhaka_loader.has_method("clear_navigation_route"):
+            real_dhaka_loader.clear_navigation_route()
+        return
+    var result: Dictionary = real_dhaka_loader.call("navigate_to_world_position", mission_target, player)
+    if not bool(result.get("ok", false)) and real_dhaka_loader.has_method("clear_navigation_route"):
+        real_dhaka_loader.clear_navigation_route()
 
 func _setup_a_square():
     district_factory = load("res://systems/district_factory.gd").new()
