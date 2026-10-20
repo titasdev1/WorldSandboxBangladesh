@@ -255,7 +255,7 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("func _add_clothing_and_face_detail() -> void:", visual)
         for component in (
             "LeftEyeWhite", "RightEyeWhite", "NoseBridge", "Mouth", "LeftEar",
-            "RightEar", "ChestPocket_L", "ChestPocket_R", "ShirtFrontPlacket",
+            "RightEar", "ChestPocket_%s", "ShirtFrontPlacket",
             "Finger_%d", "KneePanel", "ShoeSole", "ShoeLace_%d",
             "RadioBody", "WristWatch", "CargoPocket",
         ):
