@@ -187,6 +187,15 @@ func _start_mission() -> void:
     if is_instance_valid(active_target):
         active_target.queue_free()
     target_positions = _make_target_positions(m)
+    var required_stops := 3 if String(m.get("kind", "")) in ["rescue", "escort"] else 2
+    if target_positions.size() < required_stops:
+        active_index = -1
+        active_target = null
+        target_positions.clear()
+        _clear_mission_navigation()
+        world.set("event_text", "JOB BOARD: Not enough mapped road nodes are loaded nearby yet. Move into a mapped area and try again.")
+        world.set("event_time_left", 7.0)
+        return
     target_step = 0
     active_target = _create_target_area()
     active_target.position = target_positions[0]
@@ -197,6 +206,31 @@ func _start_mission() -> void:
         m.title, _objective_for_step(m, target_step), m.brief
     ])
     world.set("event_time_left", 10.0)
+    _update_mission_navigation()
+
+
+func _update_mission_navigation() -> void:
+    if not is_instance_valid(world):
+        return
+    var loader: Node = world.get("real_dhaka_loader") as Node
+    if not bool(world.get("real_dhaka_loaded")) or not is_instance_valid(loader):
+        _clear_mission_navigation()
+        return
+    if not is_instance_valid(player) or not is_instance_valid(active_target) or not loader.has_method("navigate_to_world_position"):
+        _clear_mission_navigation()
+        return
+    var result: Dictionary = loader.call("navigate_to_world_position", active_target.global_position, player)
+    if not bool(result.get("ok", false)):
+        _clear_mission_navigation()
+
+
+func _clear_mission_navigation() -> void:
+    if not is_instance_valid(world):
+        return
+    var loader: Node = world.get("real_dhaka_loader") as Node
+    if is_instance_valid(loader) and loader.has_method("clear_navigation_route"):
+        loader.call("clear_navigation_route")
+
 
 func _create_target_area() -> Area3D:
     var target := Area3D.new()
@@ -264,6 +298,28 @@ func _make_target_positions(mission: Dictionary) -> Array[Vector3]:
                 if positions.size() >= count:
                     break
 
+    if bool(world.get("real_dhaka_loaded")) and positions.size() < count:
+        var graph_loader: Node = world.get("real_dhaka_loader") as Node
+        if is_instance_valid(graph_loader) and graph_loader.has_method("get_nearby_road_points"):
+            var graph_points: Array = graph_loader.call("get_nearby_road_points", player_position, TARGET_RADIUS_MIN, 900.0)
+            graph_points.shuffle()
+            for point in graph_points:
+                if not (point is Vector3):
+                    continue
+                var separated := true
+                for existing in positions:
+                    if Vector2(existing.x - point.x, existing.z - point.z).length() < 35.0:
+                        separated = false
+                        break
+                if separated:
+                    positions.append(point)
+                if positions.size() >= count:
+                    break
+    # A real map mission must remain grounded in the mapped road graph. Never
+    # invent free-floating target coordinates if mapped coverage is insufficient.
+    if bool(world.get("real_dhaka_loaded")) and positions.size() < count:
+        return positions
+
     while positions.size() < count:
         var angle := rng.randf_range(0.0, TAU)
         var radius := rng.randf_range(TARGET_RADIUS_MIN, TARGET_RADIUS_MAX)
@@ -310,6 +366,7 @@ func _on_target_entered(body: Node3D) -> void:
             _objective_for_step(m, target_step)
         ])
         world.set("event_time_left", 6.0)
+        _update_mission_navigation()
         return
     completed_mission_count += 1
     var completed_id := int(m.id)
@@ -332,6 +389,7 @@ func _on_target_entered(body: Node3D) -> void:
         active_target.queue_free()
         active_target = null
     _set_marker(Vector3(0, 0.2, -12), Color("#ffd34e"))
+    _clear_mission_navigation()
 
 func get_persistence_state() -> Dictionary:
     var saved_positions: Array[Dictionary] = []
@@ -424,6 +482,7 @@ func restore_persistence_state(state: Dictionary) -> void:
     active_target.body_entered.connect(_on_target_entered)
     add_child(active_target)
     _set_marker(active_target.position, Color("#4de3ff"))
+    _update_mission_navigation()
     if is_instance_valid(world):
         var active_mission: Dictionary = missions[active_index]
         world.set("event_text", "%s RESUMED • STOP %d/%d: %s" % [
