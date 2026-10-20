@@ -55,7 +55,7 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("navigate_to_world_position(destination, player, true)", loader)
         self.assertIn('if not bool(result.get("ok", false)):', loader)
         self.assertIn("_navigation_recalc_clock = 0.0", loader)
-        self.assertIn("Keep the last valid route", loader)
+        self.assertIn("leave the last valid route visible", loader)
 
     def test_main_story_requires_mapped_targets_and_routes_each_stage(self):
         world = (self.ROOT / "world.gd").read_text(encoding="utf-8")
