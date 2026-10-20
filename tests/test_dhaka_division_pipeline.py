@@ -246,6 +246,29 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("exact mapped building's runtime interior seed", verifier)
         self.assertNotIn("ImageTexture.create_from_image(image)", interior)
 
+    def test_player_character_has_hero_detail_and_mobile_readable_camera_distance(self):
+        visual = (self.ROOT / "character_visual.gd").read_text(encoding="utf-8")
+        player = (self.ROOT / "player.gd").read_text(encoding="utf-8")
+        world = (self.ROOT / "world.gd").read_text(encoding="utf-8")
+
+        self.assertIn("@export var is_player_character := false", visual)
+        self.assertIn("func _add_clothing_and_face_detail() -> void:", visual)
+        for component in (
+            "LeftEyeWhite", "RightEyeWhite", "NoseBridge", "Mouth", "LeftEar",
+            "RightEar", "ChestPocket_L", "ChestPocket_R", "ShirtFrontPlacket",
+            "Finger_%d", "KneePanel", "ShoeSole", "ShoeLace_%d",
+            "RadioBody", "WristWatch", "CargoPocket",
+        ):
+            self.assertIn(component, visual)
+        self.assertIn("visual.is_player_character = true", world)
+        self.assertIn("camera_distance := 4.8 if Input.is_action_pressed", player)
+        self.assertIn("else 7.4", player)
+        # Real building footprints stay at their mapped metric dimensions; improving
+        # character detail must not scale the world or distort real map coordinates.
+        map_builder = (self.ROOT / "tools" / "map_pipeline" / "build_dhaka_map.py").read_text(encoding="utf-8")
+        self.assertIn("local_xy(", map_builder)
+        self.assertIn("building_height(tags, osm_id, polygon.area)", map_builder)
+
     def test_hud_touch_buttons_do_not_send_their_drags_to_camera_look(self):
         player = (self.ROOT / "player.gd").read_text(encoding="utf-8")
         hud = (self.ROOT / "hud.gd").read_text(encoding="utf-8")
