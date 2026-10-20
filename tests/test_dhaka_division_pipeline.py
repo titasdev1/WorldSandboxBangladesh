@@ -47,6 +47,25 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("Not enough mapped road nodes are loaded nearby yet", missions)
 
 
+    def test_main_story_requires_mapped_targets_and_routes_each_stage(self):
+        world = (self.ROOT / "world.gd").read_text(encoding="utf-8")
+        hud = (self.ROOT / "hud.gd").read_text(encoding="utf-8")
+        self.assertIn("real_mission_targets.size() >= 3", world)
+        self.assertIn("refresh_active_world_navigation()", world)
+        self.assertIn("func refresh_active_world_navigation() -> void:", world)
+        self.assertIn('call("navigate_to_world_position", mission_target, player)', world)
+        self.assertIn('mission_target = real_mission_targets[1] if real_dhaka_loaded else Vector3(-36, 0, -36)', world)
+        self.assertIn('mission_target = real_mission_targets[2] if real_dhaka_loaded else Vector3(30, 0, -30)', world)
+        self.assertIn("func _current_route_instruction() -> String:", hud)
+        self.assertIn('mission.text += "\\nROAD ROUTE: " + route_instruction', hud)
+        self.assertIn("STORY ROUTE LOADING", hud)
+
+    def test_side_job_returns_navigation_to_main_story_after_finishing(self):
+        missions = (self.ROOT / "systems" / "mission_factory.gd").read_text(encoding="utf-8")
+        self.assertIn("_clear_mission_navigation()\n    if world.has_method(\"refresh_active_world_navigation\"):", missions)
+        self.assertIn("world.refresh_active_world_navigation()", missions)
+
+
 class ShariatpurReleaseGateTests(unittest.TestCase):
     def test_current_unapproved_shariatpur_package_blocks_division_expansion(self):
         import json
