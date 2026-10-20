@@ -39,6 +39,7 @@ var _manifest_origin_lon := GAME_ORIGIN_LON
 var _stream_clock := 0.0
 var _last_anchor_refresh_position := Vector3(1.0e20, 0.0, 1.0e20)
 var _ready_for_streaming := false
+var _map_display_name := "Greater Dhaka"
 var _load_radius_m := DEFAULT_LOAD_RADIUS_M
 var _unload_radius_m := DEFAULT_UNLOAD_RADIUS_M
 var _world_bounds := {"min_x": -12000.0, "max_x": 12000.0, "min_z": -10000.0, "max_z": 16800.0}
@@ -76,6 +77,17 @@ func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.j
 	if not (parsed is Dictionary):
 		return false
 	var manifest: Dictionary = parsed
+	var boundary_data: Variant = manifest.get("administrative_boundary", {})
+	var boundary_name := str(boundary_data.get("name", "")) if boundary_data is Dictionary else ""
+	var build_stage := str(manifest.get("build_stage", ""))
+	if build_stage == "shariatpur_review" or boundary_name.to_lower().contains("shariatpur"):
+		_map_display_name = "Shariatpur"
+	elif boundary_name.to_lower().contains("dhaka division"):
+		_map_display_name = "Dhaka Division"
+	elif not boundary_name.is_empty():
+		_map_display_name = boundary_name
+	else:
+		_map_display_name = "Greater Dhaka"
 	var region: Variant = manifest.get("region_south_west_north_east", [])
 	var tiles: Variant = manifest.get("tiles", [])
 	if not (region is Array and region.size() == 4 and tiles is Array and not tiles.is_empty()):
@@ -147,6 +159,48 @@ func _process(delta: float) -> void:
 			_refresh_loaded_interior_anchors(player_position)
 			_refresh_loaded_building_collisions(player_position)
 			_last_anchor_refresh_position = player_position
+
+func get_map_display_name() -> String:
+	return _map_display_name
+
+
+func get_nearest_named_place(world_position: Vector3, max_distance_m := 180.0) -> Dictionary:
+	if _navigation_index.is_empty():
+		return {}
+	var best: Dictionary = {}
+	var best_distance := max_distance_m
+	for group_name in ["places", "buildings", "roads"]:
+		var records: Variant = _navigation_index.get(group_name, [])
+		if not (records is Array):
+			continue
+		for record in records:
+			if not (record is Dictionary):
+				continue
+			var coordinates: Variant = record.get("coordinates", {})
+			if not (coordinates is Dictionary):
+				continue
+			if not coordinates.has("latitude") or not coordinates.has("longitude"):
+				continue
+			var display_name := ""
+			for field in ["name_bn", "name", "official_name", "brand", "ref"]:
+				display_name = str(record.get(field, "")).strip_edges()
+				if not display_name.is_empty():
+					break
+			if display_name.is_empty():
+				continue
+			var place_position := _geo_to_world(float(coordinates["latitude"]), float(coordinates["longitude"]))
+			var distance := Vector2(place_position.x - world_position.x, place_position.z - world_position.z).length()
+			if distance < best_distance:
+				best_distance = distance
+				best = {
+					"name": display_name,
+					"kind": group_name.trim_suffix("s"),
+					"distance_m": distance,
+					"latitude": float(coordinates["latitude"]),
+					"longitude": float(coordinates["longitude"]),
+				}
+	return best
+
 
 func get_road_routes() -> Array:
 	var result: Array = []
@@ -394,6 +448,41 @@ func navigate_to_named_place(query: String, start_player: Node3D) -> Dictionary:
 		"distance_m": total_distance,
 		"steps": get_navigation_steps(),
 	}
+
+
+func navigate_to_world_position(destination_position: Vector3, start_player: Node3D) -> Dictionary:
+	_navigation_route.clear()
+	_navigation_steps.clear()
+	if not _ready_for_streaming or not is_instance_valid(start_player):
+		return {"ok": false, "message": "Real-world map is not loaded."}
+	if _navigation_graph.is_empty():
+		return {"ok": false, "message": "Offline road graph is missing. Rebuild the map package with the navigation index."}
+	var start_node := _nearest_navigation_node(start_player.global_position)
+	var destination_node := _nearest_navigation_node(destination_position)
+	if start_node.is_empty() or destination_node.is_empty():
+		return {"ok": false, "message": "No mapped road node is available near the player or mission stop."}
+	var route_result := _shortest_road_path(start_node, destination_node)
+	if not bool(route_result.get("ok", false)):
+		return route_result
+	var node_path: Array = route_result.get("nodes", [])
+	var edge_names: Array = route_result.get("road_names", [])
+	for node_id in node_path:
+		_navigation_route.append(_navigation_node_positions[str(node_id)])
+	_build_turn_instructions(node_path, edge_names)
+	var snap_position: Vector3 = _navigation_node_positions[destination_node]
+	var snap_distance := Vector2(snap_position.x - destination_position.x, snap_position.z - destination_position.z).length()
+	return {
+		"ok": true,
+		"message": "Mapped road route: %.0f m. Stop marker is %.0f m from its nearest road node." % [float(route_result.get("distance_m", 0.0)), snap_distance],
+		"distance_m": float(route_result.get("distance_m", 0.0)),
+		"destination_snap_distance_m": snap_distance,
+		"steps": get_navigation_steps(),
+	}
+
+
+func clear_navigation_route() -> void:
+	_navigation_route.clear()
+	_navigation_steps.clear()
 
 
 func _nearest_navigation_node(position: Vector3) -> String:
