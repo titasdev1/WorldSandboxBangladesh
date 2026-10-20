@@ -408,11 +408,22 @@ func resolve_named_place(query: String) -> Dictionary:
 
 func get_nearby_road_points(world_position: Vector3, min_distance_m := 45.0, max_distance_m := 900.0) -> Array[Vector3]:
 	var candidates: Array[Vector3] = []
-	for node_id in _navigation_node_positions.keys():
+	var node_ids: Array = _navigation_node_positions.keys()
+	node_ids.shuffle()
+	for node_id in node_ids:
 		var point: Vector3 = _navigation_node_positions[node_id]
 		var distance := Vector2(point.x - world_position.x, point.z - world_position.z).length()
-		if distance >= min_distance_m and distance <= max_distance_m:
+		if distance < min_distance_m or distance > max_distance_m:
+			continue
+		var separated := true
+		for existing in candidates:
+			if Vector2(existing.x - point.x, existing.z - point.z).length() < 18.0:
+				separated = false
+				break
+		if separated:
 			candidates.append(point)
+		if candidates.size() >= 350:
+			break
 	return candidates
 
 
