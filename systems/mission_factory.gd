@@ -193,6 +193,8 @@ func _start_mission() -> void:
         active_target = null
         target_positions.clear()
         _clear_mission_navigation()
+        if world.has_method("refresh_active_world_navigation"):
+            world.refresh_active_world_navigation()
         world.set("event_text", "JOB BOARD: Not enough mapped road nodes are loaded nearby yet. Move into a mapped area and try again.")
         world.set("event_time_left", 7.0)
         return
@@ -390,6 +392,8 @@ func _on_target_entered(body: Node3D) -> void:
         active_target = null
     _set_marker(Vector3(0, 0.2, -12), Color("#ffd34e"))
     _clear_mission_navigation()
+    if world.has_method("refresh_active_world_navigation"):
+        world.refresh_active_world_navigation()
 
 func get_persistence_state() -> Dictionary:
     var saved_positions: Array[Dictionary] = []
