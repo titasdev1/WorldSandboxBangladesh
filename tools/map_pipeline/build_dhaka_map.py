@@ -493,6 +493,119 @@ def roof_color(tags: dict[str, str], osm_id: int) -> tuple[int, int, int, int]:
         return (151, 150, 143, 255)
     return building_color(tags, osm_id)
 
+def roof_shape_for_building(tags: dict[str, str], footprint_area_m2: float, height_m: float) -> tuple[str, str]:
+    """Prefer OSM roof-shape tags; infer pitched roofs only for small low-rise homes."""
+    raw = str(tags.get("roof:shape", "")).strip().lower().replace("-", "_").replace(" ", "_")
+    if raw in {"flat", "terrace"}:
+        return "flat", "OSM_ROOF_SHAPE_TAG"
+    if raw in {"gabled", "saltbox"}:
+        return "gabled", "OSM_ROOF_SHAPE_TAG" if raw == "gabled" else "OSM_SALTB0X_APPROXIMATED_AS_GABLED"
+    if raw in {"hipped", "half_hipped"}:
+        return "hipped", "OSM_ROOF_SHAPE_TAG"
+    if raw in {"skillion", "lean_to"}:
+        return "skillion", "OSM_ROOF_SHAPE_TAG"
+    kind = str(tags.get("building", "")).strip().lower()
+    material = str(tags.get("roof:material", "")).strip().lower().replace(" ", "_")
+    low_rise_home = kind in {
+        "house", "detached", "semidetached_house", "terrace", "bungalow", "residential"
+    } and footprint_area_m2 <= 350.0 and height_m <= 6.0
+    likely_tin_home = material in {
+        "metal", "metal_sheet", "steel", "tin", "corrugated_metal", "corrugated_steel"
+    } and footprint_area_m2 <= 500.0 and height_m <= 6.0
+    if low_rise_home:
+        return "gabled", "INFERRED_SMALL_LOW_RISE_HOME_NO_ROOF_SHAPE_TAG"
+    if likely_tin_home:
+        return "gabled", "INFERRED_SMALL_TIN_ROOF_NO_ROOF_SHAPE_TAG"
+    if raw:
+        return "flat", "OSM_ROOF_SHAPE_TAG_NOT_RENDERED:" + raw
+    return "flat", "FLAT_CAP_DEFAULT_NO_ROOF_SHAPE_SOURCE"
+
+
+def procedural_roof_color(tags: dict[str, str], osm_id: int, shape_source: str) -> tuple[int, int, int, int]:
+    """Preserve explicit roof data; use a separate labelled palette only when it is absent."""
+    if any(str(tags.get(key, "")).strip() for key in ("roof:colour", "roof:color", "roof:material")):
+        return roof_color(tags, osm_id)
+    if shape_source.startswith("INFERRED_"):
+        palette = (
+            (104, 111, 112, 255), (124, 129, 127, 255), (88, 98, 101, 255),
+            (137, 113, 92, 255), (102, 105, 99, 255),
+        )
+        return palette[abs(int(osm_id)) % len(palette)]
+    return roof_color(tags, osm_id)
+
+
+def procedural_roof_mesh(geometry: Any, wall_height_m: float, shape_name: str, osm_id: int) -> trimesh.Trimesh | None:
+    """Create a low-cost metric roof shell when a mapped footprint supports the shape."""
+    if shape_name not in {"gabled", "hipped", "skillion"} or geometry.is_empty:
+        return None
+    parts = list(geometry.geoms) if isinstance(geometry, MultiPolygon) else [geometry]
+    valid_parts = [part for part in parts if isinstance(part, Polygon) and not part.is_empty and part.area >= 8.0]
+    if not valid_parts:
+        return None
+    part = max(valid_parts, key=lambda item: item.area)
+    rotated = part.minimum_rotated_rectangle
+    if rotated.is_empty or rotated.area <= 0.0 or part.area / rotated.area < 0.74:
+        return None
+    pts = [(float(x), float(y)) for x, y in list(rotated.exterior.coords)[:-1]]
+    if len(pts) != 4:
+        return None
+    lengths = [
+        math.hypot(pts[(i + 1) % 4][0] - pts[i][0], pts[(i + 1) % 4][1] - pts[i][1])
+        for i in range(4)
+    ]
+    if max(lengths) < 3.0 or min(lengths) < 2.2:
+        return None
+    if lengths[0] >= lengths[1]:
+        a, b, c, d = pts
+    else:
+        a, b, c, d = pts[1], pts[2], pts[3], pts[0]
+    left_mid = ((a[0] + d[0]) * 0.5, (a[1] + d[1]) * 0.5)
+    right_mid = ((b[0] + c[0]) * 0.5, (b[1] + c[1]) * 0.5)
+    short_width = min(math.hypot(b[0] - a[0], b[1] - a[1]),
+                      math.hypot(c[0] - b[0], c[1] - b[1]))
+    pitch = min(1.45, max(0.48, short_width * 0.27))
+    eave_z = float(wall_height_m) + 0.08
+    ridge_z = eave_z + pitch
+    vertices = np.asarray([
+        [a[0], a[1], eave_z], [b[0], b[1], eave_z],
+        [c[0], c[1], eave_z], [d[0], d[1], eave_z],
+        [left_mid[0], left_mid[1], ridge_z], [right_mid[0], right_mid[1], ridge_z],
+    ], dtype=np.float64)
+    if shape_name == "skillion":
+        vertices[2, 2] = eave_z + pitch
+        vertices[3, 2] = eave_z + pitch
+        faces = np.asarray([[0, 1, 2], [0, 2, 3]], dtype=np.int64)
+    elif shape_name == "hipped":
+        long_vec = np.asarray([right_mid[0] - left_mid[0], right_mid[1] - left_mid[1]])
+        length = float(np.linalg.norm(long_vec))
+        if length > 1e-5:
+            unit = long_vec / length
+            inset = min(short_width * 0.48, length * 0.22)
+            vertices[4, 0:2] = np.asarray(left_mid) + unit * inset
+            vertices[5, 0:2] = np.asarray(right_mid) - unit * inset
+        faces = np.asarray([
+            [0, 1, 5], [0, 5, 4],
+            [3, 2, 5], [3, 5, 4],
+            [0, 4, 3], [1, 2, 5],
+        ], dtype=np.int64)
+    else:
+        faces = np.asarray([
+            [0, 1, 5], [0, 5, 4],
+            [3, 5, 2], [3, 4, 5],
+            [0, 4, 3], [1, 2, 5],
+        ], dtype=np.int64)
+    mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+    try:
+        mesh.fix_normals()
+    except Exception:
+        return None
+    if not np.isfinite(mesh.vertices).all() or mesh.area < 1.0:
+        return None
+    mesh.metadata["roof_shape"] = shape_name
+    mesh.metadata["source_osm_id"] = int(osm_id)
+    return mesh
+
+
 def road_width(tags: dict[str, str]) -> float:
     raw_width = str(tags.get("width", "")).replace(" m", "").strip()
     try:
@@ -1013,6 +1126,11 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     trees = utility_poles = street_lamps = 0
     water_polygons = waterway_segments = landuse_areas = railway_ways = bridge_ways = facade_windows = 0
     facade_doors = 0
+    modeled_roofs = 0
+    inferred_roofs = 0
+    gabled_roofs = 0
+    hipped_roofs = 0
+    skillion_roofs = 0
     surface_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
     building_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
     roof_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
@@ -1129,11 +1247,26 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                         "status": "EMBEDDED_TEXTURE_PANEL_REQUIRES_VISUAL_REVIEW",
                     }
                     facade_photo_matches.append(match_record)
-            # Roof caps are batched by mapped colour to reduce mobile draw calls.
-            mapped_roof_color = roof_color(tags, osm_id)
+            # Keep a cap for every building, adding pitched silhouettes when source
+            # tags exist or a small low-rise house needs a clearly labelled inference.
+            roof_shape_model, roof_shape_source = roof_shape_for_building(tags, polygon.area, height)
+            mapped_roof_color = procedural_roof_color(tags, osm_id, roof_shape_source)
             for roof_mesh in extruded_polygon(polygon, 0.055, mapped_roof_color, f"osm_roof_{osm_id}"):
                 roof_mesh.apply_translation((0.0, 0.0, height + 0.025))
                 roof_meshes_by_color.setdefault(mapped_roof_color, []).append(roof_mesh)
+            if roof_shape_source.startswith("INFERRED_"):
+                inferred_roofs += 1
+            pitched_roof = procedural_roof_mesh(polygon, height, roof_shape_model, osm_id)
+            if pitched_roof is not None:
+                color_mesh(pitched_roof, mapped_roof_color)
+                roof_meshes_by_color.setdefault(mapped_roof_color, []).append(pitched_roof)
+                modeled_roofs += 1
+                if roof_shape_model == "gabled":
+                    gabled_roofs += 1
+                elif roof_shape_model == "hipped":
+                    hipped_roofs += 1
+                elif roof_shape_model == "skillion":
+                    skillion_roofs += 1
             door_info = facade_door_geometry(polygon, height, osm_id, tile_bounds)
             door_anchor_local_m: list[float] = []
             door_outward_xy: list[float] = []
@@ -1253,6 +1386,8 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 "door_anchor_local_m": door_anchor_local_m,
                 "door_outward_xy": door_outward_xy,
                 "door_placement_source": door_placement_source,
+                "roof_shape_model": roof_shape_model,
+                "roof_shape_source": roof_shape_source,
                 "interior_status": "FICTIONAL_BUILDING_SPECIFIC_INTERIOR_GENERATED_AT_RUNTIME",
                 "npc_seed": "Generate fictional residents/workers from this building's own mapped name, category, address and exterior tags; never imply actual occupants.",
                 "rooms_seed": ["entrance", "public_or_living_area", "counter_or_reception", "back_room"],
@@ -1470,7 +1605,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "road_ways": roads,
                            "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places,
                            "interior_anchors": len(interior_seeds), "licensed_facade_photo_panels": facade_photo_panels, "interior_reference_photos": interior_reference_photos_embedded, "mapped_trees": trees,
-                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "facade_door_panels": facade_doors, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color), "procedural_vegetation_trees": procedural_trees, "vegetation_mesh_batches": len(vegetation_meshes_by_color),
+                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "facade_door_panels": facade_doors, "modeled_roofs": modeled_roofs, "inferred_roof_shapes": inferred_roofs, "gabled_roofs": gabled_roofs, "hipped_roofs": hipped_roofs, "skillion_roofs": skillion_roofs, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color), "procedural_vegetation_trees": procedural_trees, "vegetation_mesh_batches": len(vegetation_meshes_by_color),
                             "water_polygons": water_polygons, "waterway_segments": waterway_segments,
                             "landuse_areas": landuse_areas, "railway_ways": railway_ways, "bridge_ways": bridge_ways},
         "licensed_facade_photo_matches": facade_photo_matches,
