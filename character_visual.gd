@@ -5,6 +5,7 @@ class_name HumanoidVisual
 @export var skin_color := Color("#b97850")
 @export var hair_color := Color("#282321")
 @export var has_satchel := false
+@export var is_player_character := false
 
 var material_cache: Dictionary = {}
 var left_arm: Node3D
@@ -85,6 +86,7 @@ func _build_body() -> void:
     _box(self, "LeftEye", Vector3(-0.075, 1.84, -0.195), Vector3(0.035, 0.045, 0.025), Color("#241c19"))
     _box(self, "RightEye", Vector3(0.075, 1.84, -0.195), Vector3(0.035, 0.045, 0.025), Color("#241c19"))
     _box(self, "Belt", Vector3(0, 0.91, 0), Vector3(0.48, 0.09, 0.31), Color("#302b29"))
+    _add_clothing_and_face_detail()
 
     left_arm = Node3D.new()
     left_arm.name = "LeftArmPivot"
@@ -117,6 +119,99 @@ func _build_body() -> void:
     if has_satchel:
         _box(self, "Satchel", Vector3(0.30, 1.02, 0.19), Vector3(0.27, 0.34, 0.14), Color("#8c5a36"))
         _box(self, "SatchelStrap", Vector3(0.17, 1.30, 0.12), Vector3(0.06, 0.47, 0.05), Color("#3a3029"))
+
+func _add_clothing_and_face_detail() -> void:
+    # Layered detail on the current low-cost procedural body. The base remains
+    # approximately human scale; these parts are overlays, not a scale cheat.
+    var seam_color := outfit_color.darkened(0.24)
+    var stitch_color := outfit_color.lightened(0.22)
+    var trouser_color := outfit_color.darkened(0.24)
+    var boot_color := Color("#242629")
+    var shirt_front_z := -0.233
+
+    # Neckline and shirt collar give the upper silhouette a distinct garment shape.
+    _box(self, "CollarBack", Vector3(0, 1.565, -0.012), Vector3(0.25, 0.07, 0.20), outfit_color.darkened(0.12))
+    var collar_left := _box(self, "CollarLeft", Vector3(-0.075, 1.565, -0.145), Vector3(0.10, 0.09, 0.08), outfit_color.lightened(0.12))
+    collar_left.rotation.z = -0.25
+    var collar_right := _box(self, "CollarRight", Vector3(0.075, 1.565, -0.145), Vector3(0.10, 0.09, 0.08), outfit_color.lightened(0.12))
+    collar_right.rotation.z = 0.25
+
+    # Chest placket, buttons and paired pockets. Small offsets keep the detail
+    # visible above the curved torso rather than buried inside it.
+    _box(self, "ShirtFrontPlacket", Vector3(0, 1.355, shirt_front_z), Vector3(0.035, 0.31, 0.026), seam_color)
+    for button_index in range(3):
+        _box(self, "ShirtButton_%d" % button_index,
+            Vector3(0, 1.435 - float(button_index) * 0.078, shirt_front_z - 0.016),
+            Vector3(0.018, 0.018, 0.012), Color("#d8cfb5"))
+    for side in [-1.0, 1.0]:
+        var pocket_x := side * 0.145
+        _box(self, "ChestPocket_%s" % ("L" if side < 0.0 else "R"),
+            Vector3(pocket_x, 1.365, shirt_front_z - 0.002), Vector3(0.105, 0.105, 0.022), outfit_color.darkened(0.08))
+        _box(self, "ChestPocketFlap_%s" % ("L" if side < 0.0 else "R"),
+            Vector3(pocket_x, 1.42, shirt_front_z - 0.018), Vector3(0.11, 0.026, 0.018), outfit_color.lightened(0.08))
+        _box(self, "ShoulderSeam_%s" % ("L" if side < 0.0 else "R"),
+            Vector3(side * 0.235, 1.47, -0.05), Vector3(0.035, 0.18, 0.022), seam_color)
+
+    # Face planes follow the forward (-Z) direction: whites/pupils, brows,
+    # nose, mouth and ears make the face read from the normal third-person view.
+    _box(self, "LeftEyeWhite", Vector3(-0.075, 1.84, -0.201), Vector3(0.046, 0.036, 0.020), Color("#f3e8d4"))
+    _box(self, "RightEyeWhite", Vector3(0.075, 1.84, -0.201), Vector3(0.046, 0.036, 0.020), Color("#f3e8d4"))
+    _box(self, "LeftPupil", Vector3(-0.075, 1.84, -0.216), Vector3(0.020, 0.025, 0.012), Color("#211c19"))
+    _box(self, "RightPupil", Vector3(0.075, 1.84, -0.216), Vector3(0.020, 0.025, 0.012), Color("#211c19"))
+    var left_brow := _box(self, "LeftEyebrow", Vector3(-0.075, 1.885, -0.204), Vector3(0.063, 0.014, 0.022), hair_color)
+    left_brow.rotation.z = 0.08
+    var right_brow := _box(self, "RightEyebrow", Vector3(0.075, 1.885, -0.204), Vector3(0.063, 0.014, 0.022), hair_color)
+    right_brow.rotation.z = -0.08
+    _box(self, "NoseBridge", Vector3(0, 1.815, -0.218), Vector3(0.038, 0.068, 0.036), skin_color.darkened(0.025))
+    _box(self, "Mouth", Vector3(0, 1.765, -0.213), Vector3(0.065, 0.012, 0.016), Color("#6f382f"))
+    _capsule(self, "LeftEar", Vector3(-0.208, 1.81, 0.002), 0.043, 0.105, skin_color)
+    _capsule(self, "RightEar", Vector3(0.208, 1.81, 0.002), 0.043, 0.105, skin_color)
+    _box(self, "LeftSideburn", Vector3(-0.194, 1.89, -0.025), Vector3(0.045, 0.12, 0.11), hair_color)
+    _box(self, "RightSideburn", Vector3(0.194, 1.89, -0.025), Vector3(0.045, 0.12, 0.11), hair_color)
+
+    # Belt buckle and loops bring a separate waistline between the shirt and jeans.
+    _box(self, "BeltBuckle", Vector3(0, 0.91, -0.17), Vector3(0.085, 0.055, 0.025), Color("#b7a06b"))
+    for side in [-1.0, 1.0]:
+        _box(self, "BeltLoop", Vector3(side * 0.17, 0.93, -0.165), Vector3(0.035, 0.10, 0.025), Color("#33302b"))
+
+    # Hands show a palm and separated fingers instead of ending as a single capsule.
+    for side in [-1.0, 1.0]:
+        var arm: Node3D = left_arm if side < 0.0 else right_arm
+        _box(arm, "SleeveCuff", Vector3(0, -0.50, -0.004), Vector3(0.19, 0.065, 0.19), outfit_color.darkened(0.16))
+        _box(arm, "Palm", Vector3(0, -0.685, -0.018), Vector3(0.095, 0.10, 0.07), skin_color)
+        for finger_index in range(3):
+            _box(arm, "Finger_%d" % finger_index,
+                Vector3((float(finger_index) - 1.0) * 0.027, -0.745, -0.028),
+                Vector3(0.022, 0.075, 0.035), skin_color.darkened(0.015))
+        _box(arm, "Thumb", Vector3(side * -0.067, -0.68, -0.012), Vector3(0.035, 0.060, 0.040), skin_color)
+
+    # Denim side seams, knee stitching, and practical pockets break up the
+    # plain trouser silhouette while keeping gait pivots unchanged.
+    for side in [-1.0, 1.0]:
+        var leg: Node3D = left_leg if side < 0.0 else right_leg
+        _box(leg, "TrouserSideSeam", Vector3(side * 0.105, -0.31, -0.005), Vector3(0.018, 0.47, 0.018), seam_color)
+        _box(leg, "KneePanel", Vector3(0, -0.28, -0.115), Vector3(0.16, 0.12, 0.025), trouser_color)
+        _box(leg, "KneeStitch", Vector3(0, -0.215, -0.132), Vector3(0.12, 0.012, 0.012), stitch_color)
+        _box(leg, "TrouserPocket", Vector3(side * 0.055, -0.06, -0.116), Vector3(0.09, 0.10, 0.022), outfit_color.darkened(0.17))
+        _box(leg, "ShoeSole", Vector3(0, -0.728, -0.055), Vector3(0.24, 0.035, 0.35), Color("#17191b"))
+        for lace_index in range(3):
+            _box(leg, "ShoeLace_%d" % lace_index,
+                Vector3(0, -0.625 + float(lace_index) * 0.025, -0.222),
+                Vector3(0.105, 0.012, 0.012), Color("#c8c3b8"))
+
+    if is_player_character:
+        # Player-only hero-detail pass: radio, watch, reinforced shoulder tabs and
+        # a small fabric ID patch. NPCs keep the same silhouette at a lower draw cost.
+        _box(self, "RadioBody", Vector3(0.235, 1.49, -0.035), Vector3(0.075, 0.16, 0.075), Color("#252d30"))
+        _box(self, "RadioScreen", Vector3(0.235, 1.515, -0.078), Vector3(0.042, 0.046, 0.016), Color("#7eb7a2"))
+        _box(self, "RadioAntenna", Vector3(0.258, 1.585, -0.03), Vector3(0.012, 0.10, 0.012), Color("#191f21"))
+        _box(self, "SleeveIDPatch", Vector3(-0.34, 1.43, -0.096), Vector3(0.13, 0.075, 0.018), Color("#e1d2ac"))
+        _box(self, "PatchStripe", Vector3(-0.34, 1.43, -0.108), Vector3(0.075, 0.012, 0.010), Color("#315d48"))
+        _box(self, "WristWatch", Vector3(-0.34, 0.94, -0.035), Vector3(0.13, 0.10, 0.12), Color("#252a2d"))
+        _box(self, "WatchFace", Vector3(-0.34, 0.94, -0.105), Vector3(0.075, 0.055, 0.014), Color("#8fb8bb"))
+        _box(self, "CargoPocket", Vector3(0.17, 0.51, -0.128), Vector3(0.14, 0.18, 0.028), outfit_color.darkened(0.11))
+        _box(self, "CargoPocketFlap", Vector3(0.17, 0.60, -0.148), Vector3(0.15, 0.03, 0.02), outfit_color.lightened(0.06))
+        _box(self, "ShoulderStrap", Vector3(0.18, 1.31, 0.13), Vector3(0.07, 0.40, 0.06), Color("#302c29"))
 
 func _process(delta: float) -> void:
     var actor := get_parent()
