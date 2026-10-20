@@ -57,6 +57,19 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("_navigation_recalc_clock = 0.0", loader)
         self.assertIn("leave the last valid route visible", loader)
 
+    def test_real_map_deshi_job_board_is_placed_from_mapped_roads(self):
+        missions = (self.ROOT / "systems" / "mission_factory.gd").read_text(encoding="utf-8")
+        world = (self.ROOT / "world.gd").read_text(encoding="utf-8")
+        hub_start = missions.index("func _create_hub()")
+        hub_end = missions.index("func _on_hub_entered", hub_start)
+        hub_code = missions[hub_start:hub_end]
+        self.assertIn('if bool(world.get("real_dhaka_loaded")):', hub_code)
+        self.assertIn('loader.call("get_road_routes")', hub_code)
+        self.assertIn("hub_position = best_point + sidewalk_side * 8.0", hub_code)
+        self.assertIn("hub_created = true", hub_code)
+        self.assertIn('if not hub_created and is_instance_valid(world) and bool(world.get("real_dhaka_loaded")):', missions)
+        self.assertIn("if real_dhaka_loaded and not mapped_routes.is_empty():", world)
+
     def test_real_world_map_suppresses_fictional_factory_overlays(self):
         factories = [
             ("systems/game_factory.gd", "_expand_ground()", "real_map_mode_fictional_grid_suppressed"),
