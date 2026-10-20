@@ -449,6 +449,33 @@ class DhakaMapPipelineTests(unittest.TestCase):
 
 
 
+    def test_mapped_buildings_export_metric_doors_and_runtime_entry_anchors(self):
+        from tools.map_pipeline.build_dhaka_map import build_map
+
+        elements = [{
+            "type": "way",
+            "id": 445566,
+            "tags": {"building": "house", "building:levels": "1", "name:bn": "পরীক্ষামূলক বাড়ি"},
+            "geometry": [
+                {"lat": 23.8096, "lon": 90.4118},
+                {"lat": 23.8096, "lon": 90.4121},
+                {"lat": 23.8098, "lon": 90.4121},
+                {"lat": 23.8098, "lon": 90.4118},
+                {"lat": 23.8096, "lon": 90.4118},
+            ],
+        }]
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            manifest = build_map(elements, out, DEFAULT_BBOX)
+            self.assertEqual(manifest["feature_counts"]["facade_door_panels"], 1)
+            scene = trimesh.load(out / "Dhaka_Explorable_Map.glb", force="scene")
+            self.assertTrue(any(name.startswith("facade_doors_") for name in scene.geometry))
+            seeds = json.loads((out / "AI_Interior_Seeds.json").read_text(encoding="utf-8"))
+            seed = next(item for item in seeds if item["osm_id"] == 445566)
+            self.assertEqual(seed["door_placement_source"], "PROCEDURAL_LONGEST_EXTERIOR_EDGE_NO_MAPPED_ENTRANCE_NODE")
+            self.assertEqual(len(seed["door_anchor_local_m"]), 2)
+            self.assertAlmostEqual(sum(v * v for v in seed["door_outward_xy"]), 1.0, delta=0.001)
+
     def test_interior_reference_catalog_is_separate_from_exterior_facade_catalog(self):
         from PIL import Image
         from tools.map_pipeline.build_dhaka_map import (
