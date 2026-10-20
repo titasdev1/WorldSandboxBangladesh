@@ -525,7 +525,7 @@ def procedural_roof_color(tags: dict[str, str], osm_id: int, shape_source: str) 
     """Preserve explicit roof data; use a separate labelled palette only when it is absent."""
     if any(str(tags.get(key, "")).strip() for key in ("roof:colour", "roof:color", "roof:material")):
         return roof_color(tags, osm_id)
-    if shape_source.startswith("INFERRED_"):
+    if shape_source.startswith("INFERRED_") or shape_source == "OSM_ROOF_SHAPE_TAG" or shape_source == "OSM_SALTB0X_APPROXIMATED_AS_GABLED":
         palette = (
             (104, 111, 112, 255), (124, 129, 127, 255), (88, 98, 101, 255),
             (137, 113, 92, 255), (102, 105, 99, 255),
