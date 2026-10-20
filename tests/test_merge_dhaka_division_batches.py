@@ -110,6 +110,60 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
             self.assertEqual(report["checks"]["estimated_building_heights_count"], 3)
             self.assertEqual(report["checks"]["estimated_building_heights_percent"], 75.0)
 
+    def test_merges_interior_reference_photo_manifest_asset_and_license_restriction(self):
+        import hashlib
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            batches = root / "batches"
+            batches.mkdir()
+            write_batch(
+                batches, 0,
+                [{"tile_id": "sp_mosque", "status": "BAKED_FROM_OSM",
+                  "feature_counts": {"building_footprints": 1, "interior_reference_photos": 1}}],
+                total=1, geometry_count=1, stage="shariatpur_review", division_total=10,
+            )
+            tile = batches / "0" / "sp_mosque"
+            photo = tile / "landmark_reference_photos" / "mosque-interior.jpg"
+            photo.parent.mkdir(parents=True)
+            photo_bytes = b"licensed-interior-photo-fixture-bytes"
+            photo.write_bytes(photo_bytes)
+            match = {
+                "osm_id": 12345,
+                "building_name": "বুড়িরহাট ঐতিহাসিক জামে মসজিদ",
+                "image_id": "burirhat_mosque_interior_01",
+                "tile_id": "sp_mosque",
+                "asset_relative_path": "landmark_reference_photos/mosque-interior.jpg",
+                "sha256": hashlib.sha256(photo_bytes).hexdigest(),
+                "source_page": "https://commons.wikimedia.org/wiki/File:Bibir_Hat_Mosque_01.jpg",
+                "author": "Radman Siddiki",
+                "license": "CC BY-SA 4.0",
+                "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+                "attribution": "Photo: Radman Siddiki / Wikimedia Commons, CC BY-SA 4.0",
+                "use": "INTERIOR_REFERENCE_ONLY",
+                "visual_identity_verified": True,
+            }
+            (tile / "map_manifest.json").write_text(json.dumps({
+                "interior_reference_photo_matches": [match],
+                "licensed_facade_photo_matches": [],
+            }), encoding="utf-8")
+
+            output = root / "shariatpur"
+            merge_batches(batches, output, "shariatpur_review")
+            manifest = json.loads((output / "map_tiles_manifest.json").read_text(encoding="utf-8"))
+            report = json.loads((output / "quality_gate_report.json").read_text(encoding="utf-8"))
+            attribution = (output / "ATTRIBUTION.txt").read_text(encoding="utf-8")
+
+            self.assertEqual(manifest["interior_reference_photos_embedded"], 1)
+            self.assertEqual(manifest["interior_reference_photo_matches"][0]["image_id"], "burirhat_mosque_interior_01")
+            self.assertEqual(manifest["interior_reference_photo_matches"][0]["use"], "INTERIOR_REFERENCE_ONLY")
+            self.assertEqual(manifest["licensed_facade_photo_matches"], [])
+            self.assertEqual((output / "sp_mosque" / "landmark_reference_photos" / "mosque-interior.jpg").read_bytes(), photo_bytes)
+            self.assertIn("INTERIOR REFERENCE ONLY", attribution)
+            self.assertIn("CC BY-SA 4.0", attribution)
+            self.assertTrue(report["checks"]["interior_reference_photo_matches_manifest"])
+            self.assertEqual(report["checks"]["interior_reference_photo_asset_count"], 1)
+
     def test_refuses_missing_batches(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
