@@ -503,7 +503,16 @@ func _process(_delta):
    var chapter_title := String(active_mission.get("chapter_title", "Deshi Stories"))
    if chapter_title.length() > 48:
     chapter_title = chapter_title.substr(0, 45) + "..."
-   mission.text = "CHAPTER %02d/40 • %s\\nDESHI JOB %04d/4000: %s    REWARD +৳%d%s\\n%s" % [int(active_mission.get("chapter", 1)), chapter_title, int(active_mission.get("id", 0)) + 1, active_mission.get("title", "Local job"), int(active_mission.get("reward", 0)), mission_step_text, mission_brief]
+   mission.text = "CHAPTER %02d/40 • %s\nDESHI JOB %04d/4000: %s    REWARD +৳%d%s\n%s" % [int(active_mission.get("chapter", 1)), chapter_title, int(active_mission.get("id", 0)) + 1, active_mission.get("title", "Local job"), int(active_mission.get("reward", 0)), mission_step_text, mission_brief]
+   if bool(w.get("real_dhaka_loaded")):
+    var route_loader: Node = w.get("real_dhaka_loader") as Node
+    if is_instance_valid(route_loader) and route_loader.has_method("get_navigation_steps"):
+     var route_steps: Array = route_loader.call("get_navigation_steps")
+     if not route_steps.is_empty() and route_steps[0] is Dictionary:
+      var route_instruction := str(route_steps[0].get("instruction", ""))
+      if route_instruction.length() > 100:
+       route_instruction = route_instruction.substr(0, 97) + "..."
+      mission.text += "\nROAD ROUTE: " + route_instruction
  elif w.mission_active:
   var stage_names = ["Market delivery", "Tower pickup", "Bus terminal drop"]
   mission.text = "STORY %d/3: %s    Rickshaw fare ৳%d → offer ৳%d" % [w.mission_stage + 1, stage_names[w.mission_stage], w.fare_requested, w.bargain_offer]
@@ -515,7 +524,11 @@ func _process(_delta):
  var reload_text = " • RELOADING" if w.player and w.player.reload_time > 0.0 else ""
  var district_name := "Noborongo City"
  if bool(w.get("real_dhaka_loaded")):
-  district_name = "Greater Dhaka"
+  var map_loader: Node = w.get("real_dhaka_loader") as Node
+  if is_instance_valid(map_loader) and map_loader.has_method("get_map_display_name"):
+   district_name = str(map_loader.call("get_map_display_name"))
+  else:
+   district_name = "Real-world map"
  elif w.district_factory and w.district_factory.has_method("current_district") and w.player:
   district_name = w.district_factory.current_district(w.player)
  var active_target_position: Vector3 = w.mission_target
