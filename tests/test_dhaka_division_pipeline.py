@@ -47,6 +47,16 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("Not enough mapped road nodes are loaded nearby yet", missions)
 
 
+    def test_turn_guidance_recalculates_as_player_progresses(self):
+        loader = (self.ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
+        self.assertIn("NAVIGATION_RECALCULATE_DISTANCE_M := 28.0", loader)
+        self.assertIn("func _refresh_navigation_if_needed(", loader)
+        self.assertIn("_navigation_target_active", loader)
+        self.assertIn("navigate_to_world_position(destination, player, true)", loader)
+        self.assertIn('if not bool(result.get("ok", false)):', loader)
+        self.assertIn("_navigation_recalc_clock = 0.0", loader)
+        self.assertIn("Keep the last valid route", loader)
+
     def test_main_story_requires_mapped_targets_and_routes_each_stage(self):
         world = (self.ROOT / "world.gd").read_text(encoding="utf-8")
         hud = (self.ROOT / "hud.gd").read_text(encoding="utf-8")
