@@ -83,7 +83,9 @@ func _ready():
  stick.size = Vector2(220, 220)
  stick.add_to_group("movement_stick")
  add_child(stick)
- add_touch_button("SPRINT", Vector2(35, 645), Vector2(150, 45), "sprint")
+ # Keep sprint outside the joystick's full 220×220 touch-capture rectangle;
+ # overlapping GUI controls can steal a thumb gesture from the analog stick.
+ add_touch_button("SPRINT", Vector2(255, 645), Vector2(150, 45), "sprint")
  add_touch_button("FIRE", Vector2(1080, 560), Vector2(150, 75), "fire")
  add_touch_button("AIM", Vector2(900, 500), Vector2(130, 45), "aim")
  add_touch_button("RELOAD", Vector2(900, 450), Vector2(130, 45), "reload")
