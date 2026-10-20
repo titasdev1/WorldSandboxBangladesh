@@ -1,11 +1,13 @@
 {
   "schema_version": 1,
-  "purpose": "Strictly name-matched, openly licensed Shariatpur landmark facade photo references. Only apply a photo when a source building name matches an alias exactly; never use as generic texture.",
+  "purpose": "Exact-name licensed landmark photo candidates. A photo is not baked onto an exterior wall until facade_eligible=true, view_type='exterior', and visual_qa='passed' after visual inspection of the actual downloaded image.",
   "limitations": [
     "These are landmark reference photographs, not a complete set for every Shariatpur building.",
     "OSM name matching is not proof of surveyed coordinates; inspect the resulting GLB before release.",
     "CC BY-SA 4.0 texture derivatives must remain available under compatible share-alike terms; keep each photo and attribution separate from unrelated game assets.",
-    "No Google Maps imagery is downloaded or redistributed."
+    "No Google Maps imagery is downloaded or redistributed.",
+    "Unverified candidate images are excluded from facade panel baking, even when downloaded, licensed, and name-matched.",
+    "Interior photographs must never be baked onto building exteriors; a candidate can be enabled only after visual confirmation of an exterior view and its mapped-building match."
   ],
   "images": [
     {
@@ -26,12 +28,16 @@
       "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
       "attribution": "Photo: Radman Siddiki / Wikimedia Commons, Bibir Hat Mosque 01.jpg, CC BY-SA 4.0. Source: https://commons.wikimedia.org/wiki/File:Bibir_Hat_Mosque_01.jpg",
       "file_name": "bibir_hat_mosque_01.jpg",
-      "status": "LICENSE_REVIEWED_FOR_CATALOG; BUILDING_MATCH_AND_TEXTURE_VISUAL_QA_REQUIRED",
+      "status": "BLOCKED_FROM_FACADE_BAKE: CURRENTLY_DOWNLOADED_PHOTOGRAPH_VISUALLY_IDENTIFIED_AS_INTERIOR_VIEW",
       "identity_evidence": {
         "official_shariatpur_district_directory": "https://shariatpur.gov.bd/pages/religious-institutes/%E0%A6%AC%E0%A7%81%E0%A7%9C%E0%A6%BF%E0%A6%B0-%E0%A6%B9%E0%A6%BE%E0%A6%9F-%E0%A6%90%E0%A6%A4%E0%A6%BF%E0%A6%B9%E0%A6%BE%E0%A6%B8%E0%A6%BF%E0%A6%95-%E0%A6%9C%E0%A6%BE%E0%A6%AE%E0%A7%87-%E0%A6%AE%E0%A6%B8%E0%A6%9C%E0%A6%BF%E0%A6%A6-17f034-6995640735ce18e1c0759e7d",
         "mapped_osm_name_bn": "বুড়িরহাট ঐতিহাসিক জামে মসজিদ",
-        "evidence_note": "The Shariatpur district directory lists the Burirhat Historical Jame Mosque in Burirhat, Shariatpur Sadar; the mapped tile contains an OSM footprint with the exact Bengali name above. These explicit aliases are not fuzzy matching. Confirm the downloaded photograph and panel orientation in the baked GLB before approval."
-      }
+        "evidence_note": "The Bengali building-name match supports the landmark identity, but does not make the photographed interior valid as an exterior facade. Do not bake this image on the outside wall."
+      },
+      "facade_eligible": false,
+      "view_type": "unverified",
+      "visual_qa": "pending",
+      "intended_use": "interior_reference_only_until_a_correctly_licensed_exterior_photo_is_verified"
     },
     {
       "id": "rudrakar_moth_35",
@@ -48,7 +54,10 @@
       "license_url": "https://creativecommons.org/licenses/by/4.0/",
       "attribution": "Photo: Radman Siddiki / Wikimedia Commons, Rudrakar Abbey 35.jpg, CC BY 4.0. Source: https://commons.wikimedia.org/wiki/File:Rudrakar_Abbey_35.jpg",
       "file_name": "rudrakar_moth_35.jpg",
-      "status": "LICENSE_REVIEWED_FOR_CATALOG; BUILDING_MATCH_AND_TEXTURE_VISUAL_QA_REQUIRED"
+      "status": "BLOCKED_FROM_FACADE_BAKE: EXTERIOR_VIEW_NOT_YET_VISUALLY_CONFIRMED",
+      "facade_eligible": false,
+      "view_type": "unverified",
+      "visual_qa": "pending"
     }
   ]
 }
