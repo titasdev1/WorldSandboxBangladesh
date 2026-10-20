@@ -12,16 +12,23 @@ permissions:
 
 jobs:
   dispatch-shariatpur-apk:
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'feature/real-world-navigation-floor-fidelity-verified' }}
+    # Validate the upstream branch in the shell as well; GitHub workflow_run
+    # job expressions have previously skipped the valid completed map assembly.
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch only after this run publishes the complete district artifact
         env:
           GH_TOKEN: ${{ github.token }}
           MAP_RUN_ID: ${{ github.event.workflow_run.id }}
+          MAP_SOURCE_BRANCH: ${{ github.event.workflow_run.head_branch }}
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "${MAP_SOURCE_BRANCH}" != "feature/real-world-navigation-floor-fidelity-verified" ]]; then
+            echo "Ignoring completed map run from ${MAP_SOURCE_BRANCH}; only the Project A-Square Shariatpur development branch can dispatch this review build."
+            exit 0
+          fi
           artifact_count="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MAP_RUN_ID}/artifacts?per_page=100" --jq '[.artifacts[] | select(.expired == false) | select(.name | startswith("Project-A-Square-Shariatpur-Review-Map-"))] | length')"
           if [[ "${artifact_count}" -lt 1 ]]; then
             echo "This was a successful tile-batch run, not the completed Shariatpur assembly. No APK build dispatched."
