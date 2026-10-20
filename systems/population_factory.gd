@@ -15,6 +15,14 @@ func _bootstrap() -> void:
     world = get_parent()
     if not is_instance_valid(world):
         return
+    # The canonical real-map path already spawns traffic on mapped road
+    # geometry and NPCs beside mapped roads. Do not add the old ±270 m grid.
+    if bool(world.get("real_dhaka_loaded")):
+        set_meta("population_factory_status", "real_map_mode_mapped_population_only")
+        set_meta("real_map_overlay_suppressed", true)
+        set_meta("outer_vehicles", 0)
+        set_meta("outer_npcs", 0)
+        return
     rng.seed = 424242
     _spawn_outer_traffic()
     _spawn_outer_people()
