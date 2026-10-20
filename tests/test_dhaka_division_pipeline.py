@@ -57,6 +57,20 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("_navigation_recalc_clock = 0.0", loader)
         self.assertIn("leave the last valid route visible", loader)
 
+    def test_real_map_does_not_create_the_old_180m_raised_ground_platform(self):
+        world = (self.ROOT / "world.gd").read_text(encoding="utf-8")
+        factory = (self.ROOT / "systems" / "game_factory.gd").read_text(encoding="utf-8")
+        environment_start = world.index("func build_environment():")
+        city_start = world.index("func build_city():", environment_start)
+        environment_code = world[environment_start:city_start]
+        self.assertNotIn('box(Vector3(0, -0.5, 0), Vector3(180, 1, 180), Color("#58714b"), true, "ground")', environment_code)
+        self.assertIn("func _expand_ground() -> void:", factory)
+        self.assertIn('mesh_box(Vector3(0, -0.04, 0), Vector3(CITY_RADIUS * 2.0, 0.08, CITY_RADIUS * 2.0), Color("#526b49"), true)', factory)
+        bootstrap_start = factory.index("func _bootstrap()")
+        real_map_guard = factory.index('if bool(world.get("real_dhaka_loaded")):', bootstrap_start)
+        ground_call = factory.index("_expand_ground()", bootstrap_start)
+        self.assertLess(real_map_guard, ground_call)
+
     def test_real_map_respawn_uses_mapped_roads_not_starter_city_origin(self):
         world = (self.ROOT / "world.gd").read_text(encoding="utf-8")
         respawn_start = world.index("func respawn_player():")
