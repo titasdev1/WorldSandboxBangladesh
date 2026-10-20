@@ -57,6 +57,19 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("_navigation_recalc_clock = 0.0", loader)
         self.assertIn("leave the last valid route visible", loader)
 
+    def test_real_map_respawn_uses_mapped_roads_not_starter_city_origin(self):
+        world = (self.ROOT / "world.gd").read_text(encoding="utf-8")
+        respawn_start = world.index("func respawn_player():")
+        helper_start = world.index("func _nearest_mapped_respawn_position(", respawn_start)
+        interaction_start = world.index("func try_vehicle_interaction():", helper_start)
+        respawn_code = world[respawn_start:interaction_start]
+        self.assertIn("player.global_position = _nearest_mapped_respawn_position(player.global_position)", respawn_code)
+        self.assertIn('real_dhaka_loader.call("get_nearby_road_points"', respawn_code)
+        self.assertIn("best_side * 3.0", respawn_code)
+        self.assertIn("if real_dhaka_loaded and is_instance_valid(real_dhaka_loader):", respawn_code)
+        self.assertIn("player.position = Vector3(0, 0, -12)", respawn_code)
+        self.assertIn("else:", respawn_code)
+
     def test_real_map_deshi_job_board_is_placed_from_mapped_roads(self):
         missions = (self.ROOT / "systems" / "mission_factory.gd").read_text(encoding="utf-8")
         world = (self.ROOT / "world.gd").read_text(encoding="utf-8")
