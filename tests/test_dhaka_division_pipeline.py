@@ -381,6 +381,18 @@ class DhakaDivisionPipelineTests(unittest.TestCase):
         self.assertNotIn("-R", command)
         self.assertEqual(command[-3:], ["--overwrite", "-o", "filtered.osm.pbf"])
 
+    def test_osm_extract_preserves_entrance_and_building_part_tags(self):
+        from tools.map_pipeline.build_dhaka_division import INTERESTING_KEYS
+        self.assertEqual(set(FEATURE_KEYS), INTERESTING_KEYS)
+        self.assertIn("entrance", FEATURE_KEYS)
+        self.assertIn("door", FEATURE_KEYS)
+        self.assertIn("building:part", FEATURE_KEYS)
+        command = build_tag_filter_command("osmium", Path("region.osm.pbf"), Path("filtered.osm.pbf"))
+        selectors = command[3:3 + len(FEATURE_KEYS)]
+        self.assertIn("nwr/entrance", selectors)
+        self.assertIn("nwr/door", selectors)
+        self.assertIn("nwr/building:part", selectors)
+
     def test_osm_extract_includes_trees_power_grid_and_street_lamps(self):
         self.assertTrue(has_feature({"natural": "tree"}))
         self.assertTrue(has_feature({"power": "pole"}))
