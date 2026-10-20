@@ -86,6 +86,7 @@ func _build_room() -> void:
 
     _solid_box(active_root, "InteriorFloor", Vector3(0, -0.15, 0), Vector3(room_width, 0.3, room_depth), floor_colour)
     _solid_box(active_root, "BackWall", Vector3(0, room_height * 0.5, -half_d), Vector3(room_width, room_height, 0.25), room_color)
+    _add_licensed_interior_photo_reference(room_height, half_d)
     _solid_box(active_root, "LeftWall", Vector3(-half_w, room_height * 0.5, 0), Vector3(0.25, room_height, room_depth), room_color)
     _solid_box(active_root, "RightWall", Vector3(half_w, room_height * 0.5, 0), Vector3(0.25, room_height, room_depth), room_color)
     # The entry is centered but its proportions and the room shell follow this building's footprint.
@@ -132,6 +133,81 @@ func _build_room() -> void:
     name_sign.modulate = Color("#f3e7d0")
     name_sign.position = Vector3(0, minf(room_height - 0.9, 3.2), -half_d + 0.22)
     active_root.add_child(name_sign)
+
+
+func _add_licensed_interior_photo_reference(room_height: float, half_depth: float) -> void:
+    # A catalog-approved interior photograph is shown only inside the exact
+    # mapped building whose OSM name matched it. It must never decorate an
+    # exterior wall or silently stand in for photogrammetry.
+    var photo_record: Variant = active_seed.get("interior_reference_photo", {})
+    if not (photo_record is Dictionary) or photo_record.is_empty():
+        return
+    if str(photo_record.get("use", "")) != "INTERIOR_REFERENCE_ONLY":
+        return
+    var relative_path := str(photo_record.get("asset_relative_path", "")).strip_edges()
+    if relative_path.is_empty() or relative_path.contains("..") or relative_path.begins_with("/"):
+        return
+    var texture_path := "res://assets/world/dhaka_tiles/%s/%s" % [active_tile_id, relative_path]
+    var image := Image.new()
+    var load_error := image.load(texture_path)
+    if load_error != OK or image.is_empty():
+        push_warning("Licensed interior reference photo is missing or unreadable: " + texture_path)
+        return
+    var photo_texture := ImageTexture.create_from_image(image)
+    if photo_texture == null:
+        push_warning("Could not create the licensed interior reference texture: " + texture_path)
+        return
+    var license_name := str(photo_record.get("license", ""))
+    if license_name not in ["CC BY 4.0", "CC BY-SA 4.0"]:
+        push_warning("Interior reference photo has no approved license; skipping: " + texture_path)
+        return
+
+    # The selected photo is an interior view of the mapped Burirhat mosque.
+    # Frame it as a wall reference in the generated game interior, not as a
+    # claim that this is a complete or exact real-world room scan.
+    var panel_height := minf(2.4, room_height * 0.48)
+    var aspect := float(image.get_width()) / maxf(1.0, float(image.get_height()))
+    var panel_width := minf(panel_height * aspect, 4.2)
+    if panel_width < 0.8 or panel_height < 0.8:
+        return
+    var panel_position := Vector3(0.0, minf(room_height * 0.60, room_height - panel_height * 0.65), -half_depth + 0.145)
+    var frame := MeshInstance3D.new()
+    frame.name = "LicensedInteriorPhotoFrame"
+    var frame_mesh := BoxMesh.new()
+    frame_mesh.size = Vector3(panel_width + 0.22, panel_height + 0.22, 0.09)
+    frame.mesh = frame_mesh
+    frame.position = panel_position
+    frame.material_override = _material(Color("#57452f"))
+    active_root.add_child(frame)
+
+    var panel := MeshInstance3D.new()
+    panel.name = "LicensedInteriorPhotoReference"
+    var quad := QuadMesh.new()
+    quad.size = Vector2(panel_width, panel_height)
+    panel.mesh = quad
+    var photo_material := StandardMaterial3D.new()
+    photo_material.albedo_texture = photo_texture
+    photo_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    photo_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    photo_material.roughness = 1.0
+    panel.material_override = photo_material
+    panel.position = panel_position + Vector3(0.0, 0.0, 0.052)
+    panel.set_meta("image_id", str(photo_record.get("image_id", "")))
+    panel.set_meta("source_page", str(photo_record.get("source_page", "")))
+    panel.set_meta("author", str(photo_record.get("author", "")))
+    panel.set_meta("license", license_name)
+    panel.set_meta("attribution", str(photo_record.get("attribution", "")))
+    panel.set_meta("use", "INTERIOR_REFERENCE_ONLY")
+    active_root.add_child(panel)
+
+    var caption := Label3D.new()
+    caption.name = "InteriorPhotoReferenceCaption"
+    caption.text = "LICENSED INTERIOR REFERENCE • " + license_name
+    caption.font_size = 15
+    caption.pixel_size = 0.007
+    caption.modulate = Color("#fff1d3")
+    caption.position = panel_position - Vector3(0.0, panel_height * 0.5 + 0.22, -0.01)
+    active_root.add_child(caption)
 
 
 func _infer_room_dimensions() -> Vector2:
