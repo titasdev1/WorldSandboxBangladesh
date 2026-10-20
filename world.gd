@@ -311,6 +311,7 @@ func spawn_player():
  visual.outfit_color = Color("#3b577a")
  visual.skin_color = Color("#b97850")
  visual.hair_color = Color("#24201f")
+ visual.is_player_character = true
  player.add_child(visual)
  add_child(player)
 
