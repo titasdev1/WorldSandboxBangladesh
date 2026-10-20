@@ -1172,6 +1172,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     inferred_doors = 0
     modeled_roofs = 0
     inferred_roofs = 0
+    edge_clipped_roofs_suppressed = 0
     gabled_roofs = 0
     hipped_roofs = 0
     skillion_roofs = 0
@@ -1322,15 +1323,31 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 inferred_roofs += 1
             pitched_roof = procedural_roof_mesh(polygon, height, roof_shape_model, osm_id)
             if pitched_roof is not None:
-                color_mesh(pitched_roof, mapped_roof_color)
-                roof_meshes_by_color.setdefault(mapped_roof_color, []).append(pitched_roof)
-                modeled_roofs += 1
-                if roof_shape_model == "gabled":
-                    gabled_roofs += 1
-                elif roof_shape_model == "hipped":
-                    hipped_roofs += 1
-                elif roof_shape_model == "skillion":
-                    skillion_roofs += 1
+                # minimum_rotated_rectangle can recreate an uncropped roof outline
+                # around a footprint that was clipped at the tile edge. The flat
+                # roof cap above already follows the exact clipped footprint, so
+                # keep that cap rather than letting a pitched shell leak into the
+                # neighbouring tile.
+                roof_bounds = pitched_roof.bounds
+                tile_min_x, tile_min_y, tile_max_x, tile_max_y = tile_bounds.bounds
+                roof_within_tile = (
+                    roof_bounds[0][0] >= tile_min_x - 0.01
+                    and roof_bounds[1][0] <= tile_max_x + 0.01
+                    and roof_bounds[0][1] >= tile_min_y - 0.01
+                    and roof_bounds[1][1] <= tile_max_y + 0.01
+                )
+                if not roof_within_tile:
+                    edge_clipped_roofs_suppressed += 1
+                else:
+                    color_mesh(pitched_roof, mapped_roof_color)
+                    roof_meshes_by_color.setdefault(mapped_roof_color, []).append(pitched_roof)
+                    modeled_roofs += 1
+                    if roof_shape_model == "gabled":
+                        gabled_roofs += 1
+                    elif roof_shape_model == "hipped":
+                        hipped_roofs += 1
+                    elif roof_shape_model == "skillion":
+                        skillion_roofs += 1
             nearest_mapped_entrance: dict[str, Any] | None = None
             nearest_entrance_distance = 2.2
             for entrance_candidate in mapped_entrance_nodes:
@@ -1710,7 +1727,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "road_ways": roads,
                            "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places,
                            "interior_anchors": len(interior_seeds), "licensed_facade_photo_panels": facade_photo_panels, "interior_reference_photos": interior_reference_photos_embedded, "mapped_trees": trees,
-                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "facade_door_panels": facade_doors, "doors_from_mapped_entrance_nodes": doors_from_mapped_entrance_nodes, "inferred_doors": inferred_doors, "modeled_roofs": modeled_roofs, "inferred_roof_shapes": inferred_roofs, "gabled_roofs": gabled_roofs, "hipped_roofs": hipped_roofs, "skillion_roofs": skillion_roofs, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color), "procedural_vegetation_trees": procedural_trees, "vegetation_mesh_batches": len(vegetation_meshes_by_color),
+                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "facade_door_panels": facade_doors, "doors_from_mapped_entrance_nodes": doors_from_mapped_entrance_nodes, "inferred_doors": inferred_doors, "modeled_roofs": modeled_roofs, "inferred_roof_shapes": inferred_roofs, "edge_clipped_roofs_suppressed": edge_clipped_roofs_suppressed, "gabled_roofs": gabled_roofs, "hipped_roofs": hipped_roofs, "skillion_roofs": skillion_roofs, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color), "procedural_vegetation_trees": procedural_trees, "vegetation_mesh_batches": len(vegetation_meshes_by_color),
                             "water_polygons": water_polygons, "waterway_segments": waterway_segments,
                             "landuse_areas": landuse_areas, "railway_ways": railway_ways, "bridge_ways": bridge_ways},
         "licensed_facade_photo_matches": facade_photo_matches,

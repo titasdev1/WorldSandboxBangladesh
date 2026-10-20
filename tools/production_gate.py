@@ -85,6 +85,17 @@ if "mesh_bounds.get_endpoint(endpoint_index)" not in city_factory_text or "insta
     raise SystemExit("PRODUCTION GATE FAILED: authored building scale/ground alignment is incomplete")
 if "target_size.x / 8.0" in city_factory_text or "target_size.y / 12.0" in city_factory_text:
     raise SystemExit("PRODUCTION GATE FAILED: stale guessed authored-building scale heuristic remains")
+map_builder_text = (ROOT / "tools/map_pipeline/build_dhaka_map.py").read_text(encoding="utf-8")
+if "edge_clipped_roofs_suppressed" not in map_builder_text or "roof_within_tile" not in map_builder_text:
+    raise SystemExit("PRODUCTION GATE FAILED: clipped pitched roofs may exceed map tile boundaries")
+android_workflow_text = (ROOT / ".github/workflows/android.yml").read_text(encoding="utf-8")
+if "EXPECTED_MAP_PIPELINE_SHA" not in android_workflow_text:
+    raise SystemExit("PRODUCTION GATE FAILED: APK workflow does not pin the map package to current map-pipeline source")
+if "path: build/canonical_release/Project-A-Square.apk" not in android_workflow_text:
+    raise SystemExit("PRODUCTION GATE FAILED: canonical Android artifact must be a single installable APK")
+map_workflow_text = (ROOT / ".github/workflows/dhaka-3d-map.yml").read_text(encoding="utf-8")
+if "Dispatch Android APK build after complete Shariatpur assembly" not in map_workflow_text or "actions/workflows/android.yml/dispatches" not in map_workflow_text:
+    raise SystemExit("PRODUCTION GATE FAILED: complete Shariatpur map assembly is not wired to an integrated APK build")
 if "city_asset_factory.configure(self)" not in world_text or "spawn_building(Vector3(x, 0, z)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: authored city building factory is not integrated into the world")
 if "real_dhaka_loader.configure(self)" not in world_text:

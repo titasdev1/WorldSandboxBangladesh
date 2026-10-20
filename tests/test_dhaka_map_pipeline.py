@@ -711,6 +711,55 @@ class DhakaMapPipelineTests(unittest.TestCase):
 
 
 
+    def test_clipped_tile_edge_house_suppresses_overhanging_pitched_roof(self):
+        """Partial houses must not export rotated-roof corners beyond their tile."""
+        import math
+        from tools.map_pipeline.build_dhaka_map import DEFAULT_BBOX, build_map, local_xy
+
+        south, west, north, east = DEFAULT_BBOX
+        origin_lat, origin_lon = (south + north) / 2.0, (west + east) / 2.0
+        min_xy = local_xy(south, west, origin_lat, origin_lon)
+        max_xy = local_xy(north, east, origin_lat, origin_lon)
+        width, depth = max_xy[0] - min_xy[0], max_xy[1] - min_xy[1]
+
+        # A 16 x 10 m house is rotated and straddles the north tile edge by
+        # about 1.5 m. Its clipped footprint is valid, but the rotated rectangle
+        # can reconstruct the uncropped pitched roof outside the tile.
+        center_x, center_y = width / 2.0 - 25.0, depth / 2.0 - 5.0
+        half_length, half_width, angle = 8.0, 5.0, 0.20
+        c, s = math.cos(angle), math.sin(angle)
+        local_corners = []
+        for dx, dy in [(-half_length, -half_width), (half_length, -half_width),
+                       (half_length, half_width), (-half_length, half_width)]:
+            local_corners.append((center_x + dx * c - dy * s, center_y + dx * s + dy * c))
+
+        def geographic(point):
+            x, y = point
+            lat = origin_lat + math.degrees(y / 6378137.0)
+            lon = origin_lon + math.degrees(x / (6378137.0 * math.cos(math.radians(origin_lat))))
+            return {"lat": lat, "lon": lon}
+
+        coords = [geographic(point) for point in local_corners]
+        coords.append(coords[0])
+        elements = [{
+            "type": "way", "id": 790021,
+            "tags": {"building": "house", "building:levels": "1"},
+            "geometry": coords,
+        }]
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "map"
+            manifest = build_map(elements, out, DEFAULT_BBOX)
+            scene = trimesh.load(out / "Dhaka_Explorable_Map.glb", force="scene")
+            counts = manifest["feature_counts"]
+
+            self.assertGreater(counts["edge_clipped_roofs_suppressed"], 0)
+            self.assertEqual(counts["modeled_roofs"], 0)
+            self.assertGreater(counts["building_footprints"], 0)
+            self.assertGreaterEqual(float(scene.bounds[0][0]), -width / 2.0 - 0.01)
+            self.assertLessEqual(float(scene.bounds[1][0]), width / 2.0 + 0.01)
+            self.assertGreaterEqual(float(scene.bounds[0][2]), -depth / 2.0 - 0.01)
+            self.assertLessEqual(float(scene.bounds[1][2]), depth / 2.0 + 0.01)
+
     def test_procedural_vegetation_at_tile_edge_does_not_extend_export_bounds(self):
         """A green polygon touching a tile edge must not place crowns outside the tile."""
         from tools.map_pipeline.build_dhaka_map import DEFAULT_BBOX, build_map, local_xy
