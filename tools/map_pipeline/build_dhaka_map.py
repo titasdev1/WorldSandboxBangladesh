@@ -715,6 +715,80 @@ _WINDOW_GLASS_PALETTE = (
     (59, 94, 108, 255),
     (70, 104, 116, 255),
 )
+_DOOR_COLOR_PALETTE = (
+    (91, 60, 39, 255),
+    (111, 73, 47, 255),
+    (72, 81, 74, 255),
+    (86, 65, 55, 255),
+    (67, 76, 85, 255),
+)
+
+
+def facade_door_geometry(
+    geometry: Any,
+    height: float,
+    osm_id: int,
+    tile_bounds: Polygon,
+) -> dict[str, Any] | None:
+    """Create a metric door panel on a real footprint edge and expose an entry anchor."""
+    if geometry.is_empty or height < 2.2:
+        return None
+    parts = list(geometry.geoms) if isinstance(geometry, MultiPolygon) else [geometry]
+    preferred_edges = []
+    all_edges = []
+    # OSM building footprints give the true outline. Unless the source has an
+    # entrance node, the opening itself remains a procedural, explicitly flagged cue.
+    for part in parts:
+        if not isinstance(part, Polygon) or part.is_empty:
+            continue
+        coords = list(part.exterior.coords)
+        for p1, p2 in zip(coords, coords[1:]):
+            dx, dy = float(p2[0] - p1[0]), float(p2[1] - p1[1])
+            length = math.hypot(dx, dy)
+            if length < 2.8:
+                continue
+            mid_x, mid_y = (float(p1[0]) + float(p2[0])) * 0.5, (float(p1[1]) + float(p2[1])) * 0.5
+            nx, ny = -dy / length, dx / length
+            if part.contains(Point(mid_x + nx * 0.25, mid_y + ny * 0.25)):
+                nx, ny = -nx, -ny
+            angle = math.atan2(dy, dx)
+            edge = (length, (float(p1[0]), float(p1[1])), (float(p2[0]), float(p2[1])), nx, ny, angle)
+            all_edges.append(edge)
+            if tile_bounds.boundary.distance(Point(mid_x, mid_y)) >= 0.7:
+                preferred_edges.append(edge)
+    candidates = preferred_edges or all_edges
+    if not candidates:
+        return None
+    length, p1, p2, nx, ny, angle = max(candidates, key=lambda edge: edge[0])
+    door_width = min(1.05, max(0.72, length * 0.14))
+    door_height = min(2.12, max(1.75, height * 0.68))
+    # Keep the opening away from common 1/3 and 1/2 window positions on long walls.
+    distance_from_start = min(max(1.0, length * 0.18), length * 0.28)
+    fraction = distance_from_start / length
+    cx = p1[0] + (p2[0] - p1[0]) * fraction + nx * 0.048
+    cy = p1[1] + (p2[1] - p1[1]) * fraction + ny * 0.048
+    params = np.asarray([cx, cy, door_height * 0.5 + 0.025, door_width, door_height, angle], dtype=np.float32)
+    vertices = _WINDOW_BOX_TEMPLATE.vertices.astype(np.float32).copy()
+    vertices[:, 0] *= params[3]
+    vertices[:, 1] *= 0.06
+    vertices[:, 2] *= params[4]
+    cos_angle, sin_angle = math.cos(float(params[5])), math.sin(float(params[5]))
+    rotated_x = vertices[:, 0] * cos_angle - vertices[:, 1] * sin_angle
+    rotated_y = vertices[:, 0] * sin_angle + vertices[:, 1] * cos_angle
+    vertices[:, 0] = rotated_x + params[0]
+    vertices[:, 1] = rotated_y + params[1]
+    vertices[:, 2] += params[2]
+    return {
+        "color": _DOOR_COLOR_PALETTE[abs(int(osm_id)) % len(_DOOR_COLOR_PALETTE)],
+        "vertices": vertices,
+        "faces": _WINDOW_BOX_TEMPLATE.faces.astype(np.int32).copy(),
+        "door_count": 1,
+        "door_height_m": round(float(door_height), 2),
+        "door_width_m": round(float(door_width), 2),
+        "anchor_local_m": [round(float(cx - nx * 0.048), 3), round(float(cy - ny * 0.048), 3)],
+        "outward_xy": [round(float(nx), 5), round(float(ny), 5)],
+        "placement_source": "PROCEDURAL_LONGEST_EXTERIOR_EDGE_NO_MAPPED_ENTRANCE_NODE",
+    }
 
 
 def facade_window_geometry(
@@ -938,12 +1012,16 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     buildings = roads = inferred_heights = named_places = 0
     trees = utility_poles = street_lamps = 0
     water_polygons = waterway_segments = landuse_areas = railway_ways = bridge_ways = facade_windows = 0
+    facade_doors = 0
     surface_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
     building_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
     roof_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
     facade_vertices_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
     facade_faces_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
     facade_vertex_counts: dict[tuple[int, int, int, int], int] = {}
+    door_vertices_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
+    door_faces_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
+    door_vertex_counts: dict[tuple[int, int, int, int], int] = {}
     vegetation_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
     vegetation_polygons: list[tuple[Polygon | MultiPolygon, int, str]] = []
     blocked_vegetation_polygons: list[Polygon | MultiPolygon] = []
@@ -1056,6 +1134,22 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             for roof_mesh in extruded_polygon(polygon, 0.055, mapped_roof_color, f"osm_roof_{osm_id}"):
                 roof_mesh.apply_translation((0.0, 0.0, height + 0.025))
                 roof_meshes_by_color.setdefault(mapped_roof_color, []).append(roof_mesh)
+            door_info = facade_door_geometry(polygon, height, osm_id, tile_bounds)
+            door_anchor_local_m: list[float] = []
+            door_outward_xy: list[float] = []
+            door_placement_source = "NO_PROCEDURAL_DOOR_ANCHOR"
+            if door_info is not None:
+                door_color = door_info["color"]
+                door_vertices = door_info["vertices"]
+                door_faces = door_info["faces"]
+                vertex_offset = door_vertex_counts.get(door_color, 0)
+                door_vertices_by_color.setdefault(door_color, []).append(door_vertices)
+                door_faces_by_color.setdefault(door_color, []).append(door_faces + vertex_offset)
+                door_vertex_counts[door_color] = vertex_offset + len(door_vertices)
+                facade_doors += int(door_info["door_count"])
+                door_anchor_local_m = list(door_info["anchor_local_m"])
+                door_outward_xy = list(door_info["outward_xy"])
+                door_placement_source = str(door_info["placement_source"])
             window_geometry = facade_window_geometry(polygon, height, osm_id, tile_bounds)
             if window_geometry is not None:
                 window_color, window_vertices, window_faces, window_count = window_geometry
@@ -1156,6 +1250,9 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                     "note": "References only; verify access and reuse rights before runtime use."
                 },
                 "footprint_local_m": footprint_for_anchor,
+                "door_anchor_local_m": door_anchor_local_m,
+                "door_outward_xy": door_outward_xy,
+                "door_placement_source": door_placement_source,
                 "interior_status": "FICTIONAL_BUILDING_SPECIFIC_INTERIOR_GENERATED_AT_RUNTIME",
                 "npc_seed": "Generate fictional residents/workers from this building's own mapped name, category, address and exterior tags; never imply actual occupants.",
                 "rooms_seed": ["entrance", "public_or_living_area", "counter_or_reception", "back_room"],
@@ -1314,6 +1411,16 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         color_name = "".join(f"{channel:02x}" for channel in color[:3])
         scene.add_geometry(combined, node_name=f"mapped_surface_{color_name}", geom_name=f"mapped_surface_{color_name}")
 
+    for color, vertex_chunks in door_vertices_by_color.items():
+        if not vertex_chunks:
+            continue
+        vertices = np.concatenate(vertex_chunks, axis=0)
+        faces = np.concatenate(door_faces_by_color[color], axis=0)
+        combined = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+        color_mesh(combined, color)
+        color_name = "".join(f"{channel:02x}" for channel in color[:3])
+        scene.add_geometry(combined, node_name=f"facade_doors_{color_name}", geom_name=f"facade_doors_{color_name}")
+
     for color, vertex_chunks in facade_vertices_by_color.items():
         if not vertex_chunks:
             continue
@@ -1363,7 +1470,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "road_ways": roads,
                            "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places,
                            "interior_anchors": len(interior_seeds), "licensed_facade_photo_panels": facade_photo_panels, "interior_reference_photos": interior_reference_photos_embedded, "mapped_trees": trees,
-                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color), "procedural_vegetation_trees": procedural_trees, "vegetation_mesh_batches": len(vegetation_meshes_by_color),
+                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "facade_door_panels": facade_doors, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color), "procedural_vegetation_trees": procedural_trees, "vegetation_mesh_batches": len(vegetation_meshes_by_color),
                             "water_polygons": water_polygons, "waterway_segments": waterway_segments,
                             "landuse_areas": landuse_areas, "railway_ways": railway_ways, "bridge_ways": bridge_ways},
         "licensed_facade_photo_matches": facade_photo_matches,
