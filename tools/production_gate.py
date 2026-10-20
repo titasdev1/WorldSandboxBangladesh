@@ -201,6 +201,44 @@ for token in ('if bool(world.get("real_dhaka_loaded")):', 'loader.call("get_road
 if "if not hub_created and is_instance_valid(world) and bool(world.get(\"real_dhaka_loaded\")):" not in mission_factory_text:
     raise SystemExit("PRODUCTION GATE FAILED: Deshi job board does not retry as road tiles stream in")
 
+# The verified Burirhat mosque interior photo must travel through map baking,
+# seed metadata, runtime rendering, and APK-byte verification. It may not be
+# counted as an exterior facade photo.
+map_builder_text = (ROOT / "tools" / "map_pipeline" / "build_dhaka_map.py").read_text(encoding="utf-8")
+map_merger_text = (ROOT / "tools" / "map_pipeline" / "merge_dhaka_division_batches.py").read_text(encoding="utf-8")
+interior_factory_text = (ROOT / "systems" / "interior_factory.gd").read_text(encoding="utf-8")
+apk_verifier_text = (ROOT / "tools" / "verify_apk_contents.py").read_text(encoding="utf-8")
+for token in (
+    "def load_interior_reference_catalog(",
+    "interior_reference_eligible",
+    "interior_photo_reference",
+    "interior_reference_photo_matches",
+    '"sha256": hashlib.sha256(image_bytes).hexdigest()',
+):
+    if token not in map_builder_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: map baker is missing licensed interior-photo support: {token}")
+if "interior_reference_photo_matches" not in map_merger_text or "INTERIOR REFERENCE ONLY" not in map_merger_text:
+    raise SystemExit("PRODUCTION GATE FAILED: complete map assembly omits interior-photo licensing/provenance.")
+for token in (
+    "func _add_licensed_interior_photo_reference(",
+    'active_seed.get("interior_reference_photo", {})',
+    'ImageTexture.create_from_image(image)',
+    'panel.set_meta("use", "INTERIOR_REFERENCE_ONLY")',
+):
+    if token not in interior_factory_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: interior runtime photo rendering is missing {token}")
+for token in (
+    'hashlib.sha256(photo_data).hexdigest()',
+    "interior_reference_photo_matches",
+    "INTERIOR_REFERENCE_ONLY",
+    "matching tile has no interior seeds file",
+):
+    if token not in apk_verifier_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: APK does not verify the real interior-photo asset: {token}")
+catalog_text = (ROOT / "tools" / "map_pipeline" / "shariatpur_facade_images.json").read_text(encoding="utf-8")
+if '"facade_eligible": false' not in catalog_text or '"interior_reference_eligible": true' not in catalog_text:
+    raise SystemExit("PRODUCTION GATE FAILED: mosque interior photo must remain blocked from exterior facades and separately approved for interior reference use")
+
 # Main.tscn owns one mission factory; dynamic clones duplicate the 4,000-job
 # catalogue and target markers and can create hidden CPU/memory load on mobile.
 main_scene_text = (ROOT / "Main.tscn").read_text(encoding="utf-8")
