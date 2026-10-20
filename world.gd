@@ -221,7 +221,6 @@ func build_environment():
  sun.light_energy = 1.2
  sun.shadow_enabled = true
  add_child(sun)
- box(Vector3(0, -0.5, 0), Vector3(180, 1, 180), Color("#58714b"), true, "ground")
 
 func build_city():
  for x in road_x:
