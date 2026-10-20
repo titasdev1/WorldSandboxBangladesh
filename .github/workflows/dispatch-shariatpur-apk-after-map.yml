@@ -1,0 +1,38 @@
+name: Dispatch Android review build after Shariatpur map assembly
+
+on:
+  workflow_run:
+    workflows:
+      - Build Dhaka Division Real-World 3D Map
+    types: [completed]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch-shariatpur-apk:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'feature/real-world-navigation-floor-fidelity-verified' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch only after this run publishes the complete district artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAP_RUN_ID: ${{ github.event.workflow_run.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact_count="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MAP_RUN_ID}/artifacts?per_page=100" --jq '[.artifacts[] | select(.expired == false) | select(.name | startswith("Project-A-Square-Shariatpur-Review-Map-"))] | length')"
+          if [[ "${artifact_count}" -lt 1 ]]; then
+            echo "This was a successful tile-batch run, not the completed Shariatpur assembly. No APK build dispatched."
+            exit 0
+          fi
+          echo "Completed Shariatpur review artifact found on run ${MAP_RUN_ID}; dispatching Android review build."
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/android.yml/dispatches" --input - <<'EOF'
+          {
+            "ref": "feature/real-world-navigation-floor-fidelity-verified",
+            "inputs": {
+              "map_package": "shariatpur_review"
+            }
+          }
+          EOF
