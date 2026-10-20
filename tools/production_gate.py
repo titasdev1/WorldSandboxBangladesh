@@ -164,6 +164,29 @@ if npc_map_guard < 0 or npc_fake_fallback < 0 or npc_map_guard > npc_fake_fallba
 if 'npc.add_to_group("mapped_road_npc")' not in npc_spawn_text or "get_tree().get_nodes_in_group(\"mapped_road_npc\").size()" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: map-aware NPC fill does not prevent duplicate or missing road spawns")
 
+# Grounding regression gate: build_environment runs before real-map selection
+# and therefore must not create the old 180 m raised platform. Only the
+# fictional fallback city's single 600 m plane may create procedural ground.
+environment_start = world_text.find("func build_environment():")
+city_start = world_text.find("func build_city():", environment_start)
+if environment_start < 0 or city_start < 0:
+    raise SystemExit("PRODUCTION GATE FAILED: world environment/city boundary is missing")
+environment_text = world_text[environment_start:city_start]
+if 'Vector3(0, -0.5, 0), Vector3(180, 1, 180)' in environment_text:
+    raise SystemExit("PRODUCTION GATE FAILED: legacy 180 m raised platform is still created before real-map selection")
+fallback_ground = factory_specs[0][0]
+fallback_factory_text = (ROOT / fallback_ground).read_text(encoding="utf-8")
+ground_start = fallback_factory_text.find("func _expand_ground()")
+ground_end = fallback_factory_text.find("func _generate_outer_arterials()", ground_start)
+ground_code = fallback_factory_text[ground_start:ground_end]
+if 'Vector3(0, -0.04, 0), Vector3(CITY_RADIUS * 2.0, 0.08, CITY_RADIUS * 2.0)' not in ground_code:
+    raise SystemExit("PRODUCTION GATE FAILED: fallback ground top must remain aligned at y=0")
+ground_boot = fallback_factory_text.find("func _bootstrap()")
+ground_guard = fallback_factory_text.find('if bool(world.get("real_dhaka_loaded")):', ground_boot)
+ground_call = fallback_factory_text.find("_expand_ground()", ground_boot)
+if ground_guard < 0 or ground_call < 0 or ground_guard > ground_call:
+    raise SystemExit("PRODUCTION GATE FAILED: fallback ground can be created before real-map mode is checked")
+
 # The Deshi mission board is a gameplay kiosk, not a surveyed building. On a
 # real map it must be placed beside the loaded road graph, not at a fake city XYZ.
 mission_factory_text = (ROOT / "systems" / "mission_factory.gd").read_text(encoding="utf-8")
