@@ -224,6 +224,14 @@ def load_facade_photo_catalog() -> dict[str, dict[str, Any]]:
         return {}
     result: dict[str, dict[str, Any]] = {}
     for item in catalog.get("images", []):
+        # Rights and name matching are not enough to prove a photograph is the
+        # correct exterior view. Only use images with explicit visual QA approval.
+        if item.get("facade_eligible") is not True:
+            continue
+        if str(item.get("view_type", "")).strip().lower() != "exterior":
+            continue
+        if str(item.get("visual_qa", "")).strip().lower() != "passed":
+            continue
         filename = str(item.get("file_name", "")).strip()
         path = image_dir / filename
         if not filename or not path.is_file():
