@@ -119,6 +119,8 @@ if 'get_node_or_null("MissionFactory")' not in hud_text or "DESHI JOB %04d/4000"
 if 'load("res://systems/interior_factory.gd").new()' not in world_text or "try_interior_interaction" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: generated building interiors are not wired into the canonical world")
 player_text = (ROOT / "player.gd").read_text(encoding="utf-8")
+if "func _unhandled_input(event):" not in player_text:
+    raise SystemExit("PRODUCTION GATE FAILED: camera-look touch input must not steal gestures from HUD controls")
 if "func toggle_camera_view_mode()" not in player_text or 'camera_view_mode == "first_person"' not in player_text:
     raise SystemExit("PRODUCTION GATE FAILED: first-person/third-person camera modes are not implemented")
 if "CameraViewToggle" not in hud_text or "_toggle_camera_view" not in hud_text:
