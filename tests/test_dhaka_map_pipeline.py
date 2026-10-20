@@ -366,6 +366,25 @@ class DhakaMapPipelineTests(unittest.TestCase):
         self.assertIsNone(match_facade_photo({"name": "nearby mosque"}, catalog))
         self.assertEqual(normalize_facade_name("A\u200b  B"), "a b")
 
+    def test_official_burirhat_name_matches_the_specific_licensed_mosque_photo(self):
+        from tools.map_pipeline.build_dhaka_map import normalize_facade_name
+
+        catalog_path = Path(__file__).resolve().parents[1] / "tools" / "map_pipeline" / "shariatpur_facade_images.json"
+        catalog_data = json.loads(catalog_path.read_text(encoding="utf-8"))
+        photo = next(item for item in catalog_data["images"] if item["id"] == "bibir_hat_mosque_01")
+        aliases = {
+            normalize_facade_name(alias): {"metadata": photo}
+            for alias in photo["match_names"]
+        }
+        mapped_name = "বুড়িরহাট ঐতিহাসিক জামে মসজিদ"
+        match = match_facade_photo({"name": mapped_name}, aliases)
+        self.assertIsNotNone(match)
+        self.assertEqual(match["metadata"]["id"], "bibir_hat_mosque_01")
+        self.assertIn("official_shariatpur_district_directory", photo["identity_evidence"])
+        # The adjacent Eidgah is not the mosque footprint and must never inherit its photo.
+        self.assertIsNone(match_facade_photo({"name": mapped_name + " ঈদগাহ"}, aliases))
+
+
     def test_licensed_facade_photo_panel_is_textured_and_exact_name_only(self):
         from PIL import Image
         from shapely.geometry import Polygon
