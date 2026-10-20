@@ -1025,6 +1025,20 @@ func _interior_seed_priority(seed: Dictionary) -> int:
 	return score
 
 func _interior_anchor_placement(seed: Dictionary, tile_position: Vector3, road_routes: Array) -> Dictionary:
+	# New map batches export a door location from the same footprint geometry used
+	# by the visible facade door. Prefer it over the legacy nearest-vertex guess so
+	# the interact point appears outside that building's actual rendered entrance.
+	var door_anchor: Array = seed.get("door_anchor_local_m", [])
+	var door_outward: Array = seed.get("door_outward_xy", [])
+	if door_anchor.size() >= 2 and door_outward.size() >= 2:
+		var outward_xy := Vector2(float(door_outward[0]), float(door_outward[1])).normalized()
+		if outward_xy.length_squared() > 0.5:
+			var approach_distance := 1.25
+			var local_position := Vector2(float(door_anchor[0]), float(door_anchor[1])) + outward_xy * approach_distance
+			return {
+				"position": tile_position + Vector3(local_position.x, 0.15, -local_position.y),
+				"direction": Vector3(outward_xy.x, 0.0, -outward_xy.y).normalized(),
+			}
 	var footprint: Array = seed.get("footprint_local_m", [])
 	if footprint.size() >= 3:
 		var points: Array[Vector2] = []
