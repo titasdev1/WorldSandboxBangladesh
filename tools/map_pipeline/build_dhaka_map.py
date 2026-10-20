@@ -250,13 +250,57 @@ def load_facade_photo_catalog() -> dict[str, dict[str, Any]]:
     return result
 
 
-def match_facade_photo(tags: dict[str, str], catalog: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
-    """Use strict aliases only; do not assign a landmark photo to a guessed building."""
+def load_interior_reference_catalog() -> dict[str, dict[str, Any]]:
+    """Load explicitly licensed interior photos for exact-name in-game interiors only."""
+    catalog_path = Path(os.environ.get("WSB_FACADE_IMAGE_CATALOG", "tools/map_pipeline/shariatpur_facade_images.json"))
+    image_dir = Path(os.environ.get("WSB_FACADE_IMAGE_DIR", "build/facade-images"))
+    if not catalog_path.is_file() or not image_dir.is_dir():
+        return {}
+    try:
+        from PIL import Image
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    for item in catalog.get("images", []):
+        if item.get("interior_reference_eligible") is not True:
+            continue
+        if str(item.get("interior_view_type", "")).strip().lower() != "interior":
+            continue
+        if str(item.get("interior_visual_qa", "")).strip().lower() != "passed":
+            continue
+        if str(item.get("license", "")).strip() not in {"CC BY 4.0", "CC BY-SA 4.0"}:
+            continue
+        filename = str(item.get("file_name", "")).strip()
+        path = image_dir / filename
+        if not filename or not path.is_file():
+            continue
+        try:
+            with Image.open(path) as source:
+                image = source.convert("RGB")
+                image.load()
+        except Exception:
+            continue
+        record = {"image": image, "metadata": item, "path": path}
+        for alias in item.get("match_names", []):
+            normalized = normalize_facade_name(alias)
+            if normalized:
+                result[normalized] = record
+    return result
+
+
+def match_named_image(tags: dict[str, str], catalog: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    """Match a licensed image to the exact mapped building name; never use fuzzy nearest-place guesses."""
     for key in ("name", "name:bn", "official_name", "name:en"):
         value = normalize_facade_name(tags.get(key, ""))
         if value and value in catalog:
             return catalog[value]
     return None
+
+
+def match_facade_photo(tags: dict[str, str], catalog: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    """Use strict aliases only; do not assign a landmark photo to a guessed building."""
+    return match_named_image(tags, catalog)
 
 
 def facade_photo_panel(
@@ -880,8 +924,11 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                            (width / 2, depth / 2), (-width / 2, depth / 2)])
     scene = trimesh.Scene()
     facade_photo_catalog = load_facade_photo_catalog()
+    interior_reference_catalog = load_interior_reference_catalog()
     facade_photo_matches: list[dict[str, Any]] = []
+    interior_reference_photo_matches: list[dict[str, Any]] = []
     facade_photo_panels = 0
+    interior_reference_photos_embedded = 0
     ground = trimesh.creation.box(extents=(width, depth, 0.20))
     ground.apply_translation((0.0, 0.0, -0.10))
     color_mesh(ground, (104, 119, 91, 255))
@@ -1020,6 +1067,37 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             name = tags.get("name", "")
             has_specific_place_tags = bool(name or tags.get("shop") or tags.get("amenity") or tags.get("tourism"))
             building_kind = str(tags.get("building", "building")).lower()
+            interior_photo_reference: dict[str, Any] | None = None
+            interior_photo = match_named_image(tags, interior_reference_catalog)
+            if interior_photo is not None:
+                photo_metadata: dict[str, Any] = interior_photo["metadata"]
+                source_photo = Path(str(interior_photo.get("path", "")))
+                photo_filename = str(photo_metadata.get("file_name", "")).strip()
+                if source_photo.is_file() and photo_filename:
+                    relative_photo_path = "landmark_reference_photos/" + photo_filename
+                    photo_destination = output_dir / relative_photo_path
+                    photo_destination.parent.mkdir(parents=True, exist_ok=True)
+                    if not photo_destination.is_file():
+                        photo_destination.write_bytes(source_photo.read_bytes())
+                    interior_photo_reference = {
+                        "image_id": str(photo_metadata.get("id", "")),
+                        "asset_relative_path": relative_photo_path,
+                        "source_page": str(photo_metadata.get("source_page", "")),
+                        "author": str(photo_metadata.get("author", "")),
+                        "license": str(photo_metadata.get("license", "")),
+                        "license_url": str(photo_metadata.get("license_url", "")),
+                        "attribution": str(photo_metadata.get("attribution", "")),
+                        "use": "INTERIOR_REFERENCE_ONLY",
+                        "visual_identity_verified": True,
+                    }
+                    interior_reference_photo_matches.append({
+                        "osm_id": osm_id,
+                        "building_name": tags.get("name", tags.get("name:bn", tags.get("official_name", ""))),
+                        "image_id": interior_photo_reference["image_id"],
+                        "tile_id": output_dir.name,
+                        **interior_photo_reference,
+                    })
+                    interior_reference_photos_embedded += 1
             if tags.get("shop"):
                 interior_category = str(tags["shop"])
             elif tags.get("amenity"):
@@ -1079,6 +1157,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 "npc_seed": "Generate fictional residents/workers from this building's own mapped name, category, address and exterior tags; never imply actual occupants.",
                 "rooms_seed": ["entrance", "public_or_living_area", "counter_or_reception", "back_room"],
                 "interior_generation_key": f"osm:{el_type}/{osm_id}",
+                "interior_reference_photo": interior_photo_reference,
             })
             if has_specific_place_tags:
                 named_places += 1
@@ -1280,11 +1359,13 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "extent_metres_approx": {"east_west": round(width, 1), "north_south": round(depth, 1)},
         "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "road_ways": roads,
                            "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places,
-                           "interior_anchors": len(interior_seeds), "licensed_facade_photo_panels": facade_photo_panels, "mapped_trees": trees,
+                           "interior_anchors": len(interior_seeds), "licensed_facade_photo_panels": facade_photo_panels, "interior_reference_photos": interior_reference_photos_embedded, "mapped_trees": trees,
                            "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color), "procedural_vegetation_trees": procedural_trees, "vegetation_mesh_batches": len(vegetation_meshes_by_color),
                             "water_polygons": water_polygons, "waterway_segments": waterway_segments,
                             "landuse_areas": landuse_areas, "railway_ways": railway_ways, "bridge_ways": bridge_ways},
         "licensed_facade_photo_matches": facade_photo_matches,
+        "interior_reference_photo_matches": interior_reference_photo_matches,
+        "interior_reference_photo_note": "Explicitly licensed interior photos are copied as separate runtime assets and shown only inside the exact-name mapped building's fictional generated interior. They are never applied to an exterior facade.",
         "facade_photo_note": "Only exact OSM name aliases from the rights-reviewed catalog receive a photo panel. These are licensed reference-photo panels, not full photogrammetric facade reconstruction; visual identity, orientation, and building match must be reviewed.",
         "height_note": "OSM height/building:levels tags are used when present; otherwise footprint-area/building-category estimates with deterministic floor-height variation are flagged as inferred, not surveyed facts.",
         "hydrography_note": "Mapped OSM water polygons are kept to their source outlines. River/canal centerlines without mapped widths use type-based approximate widths and are not survey-grade water boundaries.",
@@ -1298,6 +1379,14 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "Source data is modified into a local 3D representation. See https://www.openstreetmap.org/copyright\n"
     )
     seen_photo_attributions: set[str] = set()
+    for match in interior_reference_photo_matches:
+        attribution = str(match.get("attribution", "")).strip()
+        license_name = str(match.get("license", "")).strip()
+        license_url = str(match.get("license_url", "")).strip()
+        entry = f"{attribution}\nLicense: {license_name} — {license_url}\nUse: interior reference only; not an exterior facade texture."
+        if attribution and entry not in seen_photo_attributions:
+            seen_photo_attributions.add(entry)
+            attribution_text += "\n" + entry + "\n"
     for match in facade_photo_matches:
         attribution = str(match.get("attribution", "")).strip()
         license_name = str(match.get("license", "")).strip()
