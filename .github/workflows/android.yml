@@ -397,35 +397,25 @@ jobs:
         shell: bash
         run: python3 tools/report_build_assets.py
 
-      - name: Assemble one canonical build artifact
+      - name: Assemble one canonical installable APK
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build/canonical_release
-          find build -type f -name '*.apk' ! -path 'build/canonical_release/*' -exec cp {} build/canonical_release/ \;
-          test -n "$(find build/canonical_release -maxdepth 1 -type f -name '*.apk' -print -quit)"
-          cp build/asset_build_report.json build/canonical_release/ASSET_BUILD_REPORT.json
-          cp build/apk-sha256.txt build/canonical_release/APK_SHA256.txt
-          cp build/apk-zip-test.txt build/canonical_release/APK_ZIP_TEST.txt
-          cp build/apk-signature-verification.txt build/canonical_release/APK_SIGNATURE_VERIFICATION.txt
-          cp build/apk-content-verification.txt build/canonical_release/APK_CONTENT_VERIFICATION.txt
-          cat > build/canonical_release/README.txt <<EOF
-          World Sandbox: Bangladesh / Project A-Square
-          This artifact contains the Android APK and verification reports.
-          Map package selected by this build: ${WSB_MAP_PACKAGE:-greater_dhaka}
-          Before publishing, CI tests the APK ZIP structure and Android signature.
-          Compare the extracted APK SHA-256 against APK_SHA256.txt.
-          The JSON report is build metadata, not a second game.
-          Artifact-container size and APK file size are different measurements.
-          ${WSB_MAP_PACKAGE:+Map source recorded in the build summary.}
-          EOF
-          ls -lh build/canonical_release
+          APK_SOURCE="build/Android/world_sandbox_bangladesh.apk"
+          test -s "$APK_SOURCE"
+          cp "$APK_SOURCE" build/canonical_release/Project-A-Square.apk
+          test "$(find build/canonical_release -maxdepth 1 -type f -name '*.apk' | wc -l)" -eq 1
+          test "$(find build/canonical_release -maxdepth 1 -type f | wc -l)" -eq 1
+          # Hash, signature, content and asset reports stay in the separate
+          # verification artifact below; never mix them into the game package.
+          ls -lh build/canonical_release/Project-A-Square.apk
 
-      - name: Upload canonical game artifact (APK + verification reports)
+      - name: Upload single installable APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ (inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && 'WorldSandboxBangladesh-Shariatpur-Review-Build' || 'WorldSandboxBangladesh-Canonical-Build' }}
-          path: build/canonical_release/*
+          name: ${{ (inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]')) || (github.event_name == 'pull_request' && github.head_ref == 'feature/real-world-navigation-floor-fidelity-verified')) && 'Project-A-Square-Shariatpur-APK' || 'Project-A-Square-Android-APK' }}
+          path: build/canonical_release/Project-A-Square.apk
           if-no-files-found: error
 
       - name: Publish direct APK download (no artifact ZIP wrapper)
