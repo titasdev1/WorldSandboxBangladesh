@@ -42,7 +42,7 @@ func _ready():
   _standing_capsule_height = (_collision_shape.shape as CapsuleShape3D).height
  camera = Camera3D.new()
  camera.name = "ThirdPersonCamera"
- camera.position = Vector3(0, 6.2, 9.5)
+ camera.position = Vector3(0, 4.8, 7.4)
  camera.rotation_degrees = Vector3(-28, 180, 0)
  camera.fov = 68.0
  camera.near = 0.05
@@ -76,7 +76,7 @@ func _update_camera():
   camera.fov = 50.0 if Input.is_action_pressed("aim") else 68.0
   camera.global_rotation = Vector3(deg_to_rad(-camera_pitch), yaw, 0.0)
   return
- var camera_distance := 5.8 if Input.is_action_pressed("aim") else 9.5
+ var camera_distance := 4.8 if Input.is_action_pressed("aim") else 7.4
  if world:
   var interior_node: Node = world.get("interior_factory")
   if is_instance_valid(interior_node) and interior_node.has_method("is_inside") and bool(interior_node.call("is_inside")):
