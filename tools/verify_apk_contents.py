@@ -9,7 +9,10 @@ are missing.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import pathlib
+from pathlib import PurePosixPath
 import pathlib
 import sys
 import zipfile
@@ -56,6 +59,61 @@ def main() -> int:
                 if manifest.get("build_stage") != "shariatpur_review" or not manifest.get("complete_district_map"):
                     raise SystemExit("APK CONTENT GATE FAILED: APK does not contain the selected Shariatpur review district package")
 
+            # Check the explicit licensed interior reference photo actually ships
+            # inside the selected tile, matches its checksum, and is linked to an
+            # interior seed. This prevents ZIP metadata passing while the runtime
+            # lacks the asset or a photo is accidentally reused as a facade panel.
+            interior_matches = manifest.get("interior_reference_photo_matches", [])
+            if args.map_package == "shariatpur_review" and not interior_matches:
+                raise SystemExit("APK CONTENT GATE FAILED: current Shariatpur package has no verified interior reference photo.")
+            facade_ids = {
+                str(item.get("image_id", ""))
+                for item in manifest.get("licensed_facade_photo_matches", [])
+                if isinstance(item, dict)
+            }
+            verified_interior_photos = 0
+            for match in interior_matches:
+                if not isinstance(match, dict):
+                    raise SystemExit("APK CONTENT GATE FAILED: malformed interior-reference match record.")
+                if str(match.get("use", "")) != "INTERIOR_REFERENCE_ONLY":
+                    raise SystemExit("APK CONTENT GATE FAILED: an interior image lacks the strict interior-only restriction.")
+                image_id = str(match.get("image_id", ""))
+                license_name = str(match.get("license", ""))
+                if not image_id or license_name not in {"CC BY 4.0", "CC BY-SA 4.0"}:
+                    raise SystemExit("APK CONTENT GATE FAILED: interior reference photo has missing identity or an unapproved license.")
+                if image_id in facade_ids:
+                    raise SystemExit("APK CONTENT GATE FAILED: an interior photo is also listed as an exterior facade photo.")
+                tile_id = str(match.get("tile_id", ""))
+                relative = PurePosixPath(str(match.get("asset_relative_path", "")))
+                if (not tile_id or relative.is_absolute() or not relative.parts or
+                        any(part in {"", ".", ".."} for part in relative.parts)):
+                    raise SystemExit("APK CONTENT GATE FAILED: unsafe or missing interior photo asset path.")
+                photo_path = MAP_ROOT + tile_id + "/" + relative.as_posix()
+                if photo_path not in names:
+                    raise SystemExit(f"APK CONTENT GATE FAILED: licensed interior photo asset missing from APK: {photo_path}")
+                photo_data = apk.read(photo_path)
+                expected_hash = str(match.get("sha256", "")).strip().lower()
+                actual_hash = hashlib.sha256(photo_data).hexdigest()
+                if len(expected_hash) != 64 or actual_hash != expected_hash:
+                    raise SystemExit(f"APK CONTENT GATE FAILED: licensed interior photo checksum mismatch: {photo_path}")
+                seed_path = MAP_ROOT + tile_id + "/AI_Interior_Seeds.json"
+                if seed_path not in names:
+                    raise SystemExit(f"APK CONTENT GATE FAILED: matching tile has no interior seeds file: {seed_path}")
+                seeds = json.loads(apk.read(seed_path).decode("utf-8"))
+                matching_seed = next(
+                    (seed for seed in seeds if isinstance(seed, dict)
+                     and str(seed.get("osm_id", "")) == str(match.get("osm_id", ""))),
+                    None,
+                ) if isinstance(seeds, list) else None
+                photo_seed = matching_seed.get("interior_reference_photo", {}) if isinstance(matching_seed, dict) else {}
+                if not isinstance(photo_seed, dict) or str(photo_seed.get("image_id", "")) != image_id:
+                    raise SystemExit("APK CONTENT GATE FAILED: licensed photo asset is not connected to its exact mapped building's runtime interior seed.")
+                if str(photo_seed.get("use", "")) != "INTERIOR_REFERENCE_ONLY" or str(photo_seed.get("asset_relative_path", "")) != relative.as_posix():
+                    raise SystemExit("APK CONTENT GATE FAILED: interior seed does not constrain the image to the intended runtime interior.")
+                verified_interior_photos += 1
+            if int(manifest.get("interior_reference_photos_embedded", 0)) != verified_interior_photos:
+                raise SystemExit("APK CONTENT GATE FAILED: interior photo match count disagrees with verified packaged assets.")
+
             tile_manifests = [p for p in names if p.startswith(MAP_ROOT) and p.endswith("/map_manifest.json")]
             tile_glb_imports = [p for p in names if p.startswith(MAP_ROOT) and p.endswith("/Dhaka_Explorable_Map.glb.import")]
             imported_scenes = [p for p in names if p.startswith(IMPORTED_ROOT) and p.rsplit("/", 1)[-1].startswith("Dhaka_Explorable_Map.glb-") and p.endswith(".scn")]
@@ -89,6 +147,7 @@ def main() -> int:
                 f"Named roads in packaged navigation index: {named_roads}",
                 f"Buildings with source floor counts: {source_floors}",
                 f"Independently verified floor counts: {verified_floors}",
+                f"Interior reference photo assets SHA-256 verified and linked to runtime seeds: {verified_interior_photos}/{len(interior_matches)}",
                 f"Core art pack manifests present: {len(REQUIRED_ASSET_MANIFESTS)}/{len(REQUIRED_ASSET_MANIFESTS)}",
                 "Limit: archive presence is not proof of correct in-game rendering or physical-device performance.",
             ]
