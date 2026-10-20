@@ -34,7 +34,7 @@ PBF_URL = "https://download.geofabrik.de/asia/bangladesh-latest.osm.pbf"
 BOUNDARY_API = "https://www.geoboundaries.org/api/current/gbOpen/BGD/ADM1/"
 DISTRICT_BOUNDARY_API = "https://www.geoboundaries.org/api/current/gbOpen/BGD/ADM2/"
 INTERESTING_KEYS = {
-    "building", "highway", "shop", "amenity", "tourism", "historic",
+    "building", "building:part", "entrance", "door", "highway", "shop", "amenity", "tourism", "historic",
     "leisure", "office", "healthcare", "public_transport", "landuse",
     "natural", "waterway", "railway", "man_made", "power",
 }
