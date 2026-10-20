@@ -144,7 +144,7 @@ func _add_clothing_and_face_detail() -> void:
             Vector3(0, 1.435 - float(button_index) * 0.078, shirt_front_z - 0.016),
             Vector3(0.018, 0.018, 0.012), Color("#d8cfb5"))
     for side in [-1.0, 1.0]:
-        var pocket_x := side * 0.145
+        var pocket_x: float = side * 0.145
         _box(self, "ChestPocket_%s" % ("L" if side < 0.0 else "R"),
             Vector3(pocket_x, 1.365, shirt_front_z - 0.002), Vector3(0.105, 0.105, 0.022), outfit_color.darkened(0.08))
         _box(self, "ChestPocketFlap_%s" % ("L" if side < 0.0 else "R"),
