@@ -520,7 +520,10 @@ func _refresh_navigation_if_needed(player: Node3D, player_position: Vector3) -> 
 	# Recompute from the player's current road area. Preserve the last valid
 	# route if the graph temporarily cannot produce a replacement.
 	var destination := _navigation_target_position
-	navigate_to_world_position(destination, player, true)
+	var result := navigate_to_world_position(destination, player, true)
+	if not bool(result.get("ok", false)):
+		# Cool down failed re-route attempts; leave the last valid route visible.
+		_navigation_recalc_clock = 0.0
 
 
 func _nearest_navigation_node(position: Vector3) -> String:
