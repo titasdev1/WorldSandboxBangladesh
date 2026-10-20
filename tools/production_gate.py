@@ -22,6 +22,7 @@ REQUIRED = [
     "real_dhaka_tile_loader.gd",
     "player.gd",
     "hud.gd",
+    "virtual_stick.gd",
     "vehicle.gd",
     "character_visual.gd",
     "tools/fetch_free_assets.py",
@@ -77,6 +78,33 @@ if "city_asset_factory.configure(self)" not in world_text or "spawn_building(Vec
     raise SystemExit("PRODUCTION GATE FAILED: authored city building factory is not integrated into the world")
 if "real_dhaka_loader.configure(self)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: real-Dhaka tile loader is not wired into the canonical world")
+
+# The mobile movement control must be a true analog circular stick, not four
+# directional buttons, and its hit rectangle must not overlap the sprint button.
+if 'stick.set_script(load("res://virtual_stick.gd"))' not in hud_text:
+    raise SystemExit("PRODUCTION GATE FAILED: circular analog movement stick is not wired into the live HUD")
+stick_text = (ROOT / "virtual_stick.gd").read_text(encoding="utf-8")
+for token in ("func _gui_input(", "InputEventScreenTouch", "InputEventScreenDrag", "func _release_stick()", "_sync_actions()"):
+    if token not in stick_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: analog movement stick is missing {token}")
+stick_position_match = re.search(r"stick\\.position = Vector2\\(([^)]+)\\)", hud_text)
+stick_size_match = re.search(r"stick\\.size = Vector2\\(([^)]+)\\)", hud_text)
+sprint_match = re.search(r'add_touch_button\\("SPRINT", Vector2\\(([^)]+)\\), Vector2\\(([^)]+)\\)', hud_text)
+if not stick_position_match or not stick_size_match or not sprint_match:
+    raise SystemExit("PRODUCTION GATE FAILED: movement stick/sprint touch geometry cannot be verified")
+def _parse_vector2(text_value: str) -> tuple[float, float]:
+    try:
+        x_value, y_value = (float(item.strip()) for item in text_value.split(","))
+    except Exception as exc:
+        raise SystemExit(f"PRODUCTION GATE FAILED: invalid touch-control Vector2: {text_value!r}") from exc
+    return x_value, y_value
+stick_x, stick_y = _parse_vector2(stick_position_match.group(1))
+stick_w, stick_h = _parse_vector2(stick_size_match.group(1))
+sprint_x, sprint_y = _parse_vector2(sprint_match.group(1))
+sprint_w, sprint_h = _parse_vector2(sprint_match.group(2))
+if not (sprint_x >= stick_x + stick_w or sprint_x + sprint_w <= stick_x or
+        sprint_y >= stick_y + stick_h or sprint_y + sprint_h <= stick_y):
+    raise SystemExit("PRODUCTION GATE FAILED: sprint button overlaps the movement stick hit area")
 
 # Main.tscn owns one mission factory; dynamic clones duplicate the 4,000-job
 # catalogue and target markers and can create hidden CPU/memory load on mobile.
