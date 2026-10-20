@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import hashlib
 import math
 import os
 import re
@@ -1079,6 +1080,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                     photo_destination.parent.mkdir(parents=True, exist_ok=True)
                     if not photo_destination.is_file():
                         photo_destination.write_bytes(source_photo.read_bytes())
+                    image_bytes = photo_destination.read_bytes()
                     interior_photo_reference = {
                         "image_id": str(photo_metadata.get("id", "")),
                         "asset_relative_path": relative_photo_path,
@@ -1087,6 +1089,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                         "license": str(photo_metadata.get("license", "")),
                         "license_url": str(photo_metadata.get("license_url", "")),
                         "attribution": str(photo_metadata.get("attribution", "")),
+                        "sha256": hashlib.sha256(image_bytes).hexdigest(),
                         "use": "INTERIOR_REFERENCE_ONLY",
                         "visual_identity_verified": True,
                     }
