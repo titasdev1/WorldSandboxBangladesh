@@ -366,6 +366,39 @@ class DhakaMapPipelineTests(unittest.TestCase):
         self.assertIsNone(match_facade_photo({"name": "nearby mosque"}, catalog))
         self.assertEqual(normalize_facade_name("A\u200b  B"), "a b")
 
+    def test_unverified_or_interior_photos_are_not_loaded_as_facade_textures(self):
+        from PIL import Image
+        from tools.map_pipeline.build_dhaka_map import load_facade_photo_catalog
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            photos = root / "photos"
+            photos.mkdir()
+            Image.new("RGB", (32, 24), (30, 70, 90)).save(photos / "candidate.jpg")
+            catalog_path = root / "catalog.json"
+            catalog = {"images": [{
+                "id": "interior_photo",
+                "file_name": "candidate.jpg",
+                "match_names": ["Exact Landmark"],
+                "facade_eligible": False,
+                "view_type": "interior",
+                "visual_qa": "passed",
+            }]}
+            catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+            with patch.dict(os.environ, {
+                "WSB_FACADE_IMAGE_DIR": str(photos),
+                "WSB_FACADE_IMAGE_CATALOG": str(catalog_path),
+            }):
+                self.assertEqual(load_facade_photo_catalog(), {})
+                catalog["images"][0].update({
+                    "facade_eligible": True,
+                    "view_type": "exterior",
+                    "visual_qa": "passed",
+                })
+                catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+                self.assertIn("exact landmark", load_facade_photo_catalog())
+
+
     def test_official_burirhat_name_matches_the_specific_licensed_mosque_photo(self):
         from tools.map_pipeline.build_dhaka_map import normalize_facade_name
 
@@ -434,6 +467,9 @@ class DhakaMapPipelineTests(unittest.TestCase):
                     "subject": "Bibir Hat Mosque, Shariatpur",
                     "match_names": ["Bibir Hat Mosque"],
                     "file_name": "bibir.jpg",
+                    "facade_eligible": True,
+                    "view_type": "exterior",
+                    "visual_qa": "passed",
                     "source_page": "https://commons.wikimedia.org/wiki/File:Bibir_Hat_Mosque_01.jpg",
                     "author": "Radman Siddiki",
                     "license": "CC BY-SA 4.0",
