@@ -78,6 +78,13 @@ for builder in ("_build_car", "_build_cng", "_build_rickshaw", "_build_bus", "_b
         raise SystemExit(f"PRODUCTION GATE FAILED: missing vehicle visual builder {builder}")
 if "func _try_load_authored_model()" not in vehicle_text:
     raise SystemExit("PRODUCTION GATE FAILED: optional authored vehicle loader is missing")
+city_factory_text = (ROOT / "city_asset_factory.gd").read_text(encoding="utf-8")
+if "func _model_local_bounds(root: Node3D) -> AABB:" not in city_factory_text:
+    raise SystemExit("PRODUCTION GATE FAILED: authored buildings are not normalized from imported mesh bounds")
+if "mesh_bounds.get_endpoint(endpoint_index)" not in city_factory_text or "instance.scale = normalized_scale * variation" not in city_factory_text:
+    raise SystemExit("PRODUCTION GATE FAILED: authored building scale/ground alignment is incomplete")
+if "target_size.x / 8.0" in city_factory_text or "target_size.y / 12.0" in city_factory_text:
+    raise SystemExit("PRODUCTION GATE FAILED: stale guessed authored-building scale heuristic remains")
 if "city_asset_factory.configure(self)" not in world_text or "spawn_building(Vector3(x, 0, z)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: authored city building factory is not integrated into the world")
 if "real_dhaka_loader.configure(self)" not in world_text:
