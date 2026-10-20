@@ -185,7 +185,8 @@ jobs:
               echo "Stale Shariatpur map pipeline ${PIPELINE_SHA}; it predates required photo-QA gate ${REQUIRED_MAP_GATE_COMMIT}. Refusing packaging." >&2
               exit 1
             fi
-            EXPECTED_MAP_PIPELINE_SHA="$(git log -1 --format='%H' -- tools/map_pipeline .github/workflows/dhaka-3d-map.yml)"
+            MAP_SOURCE_BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+            EXPECTED_MAP_PIPELINE_SHA="$(git log -1 --format='%H' "origin/${MAP_SOURCE_BRANCH}" -- tools/map_pipeline .github/workflows/dhaka-3d-map.yml)"
             if [[ -z "$EXPECTED_MAP_PIPELINE_SHA" || "$PIPELINE_SHA" != "$EXPECTED_MAP_PIPELINE_SHA" ]]; then
               echo "Stale Shariatpur map artifact: package pipeline $PIPELINE_SHA, latest map-pipeline source ${EXPECTED_MAP_PIPELINE_SHA:-missing}. Refusing to publish an APK that does not contain the latest map build." >&2
               exit 1
