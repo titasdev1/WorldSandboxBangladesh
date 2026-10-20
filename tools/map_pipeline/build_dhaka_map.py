@@ -54,6 +54,8 @@ def overpass_query(bbox: tuple[float, float, float, float]) -> str:
   way["amenity"]({box});
   node["shop"]({box});
   node["amenity"]({box});
+  node["entrance"]({box});
+  node["door"]({box});
   node["tourism"]({box});
   node["historic"]({box});
   node["natural"="tree"]({box});
@@ -844,15 +846,14 @@ def facade_door_geometry(
     height: float,
     osm_id: int,
     tile_bounds: Polygon,
+    mapped_entrance: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    """Create a metric door panel on a real footprint edge and expose an entry anchor."""
+    """Create a metric door on an actual footprint wall; prefer an OSM entrance node."""
     if geometry.is_empty or height < 2.2:
         return None
     parts = list(geometry.geoms) if isinstance(geometry, MultiPolygon) else [geometry]
     preferred_edges = []
     all_edges = []
-    # OSM building footprints give the true outline. Unless the source has an
-    # entrance node, the opening itself remains a procedural, explicitly flagged cue.
     for part in parts:
         if not isinstance(part, Polygon) or part.is_empty:
             continue
@@ -874,12 +875,51 @@ def facade_door_geometry(
     candidates = preferred_edges or all_edges
     if not candidates:
         return None
-    length, p1, p2, nx, ny, angle = max(candidates, key=lambda edge: edge[0])
-    door_width = min(1.05, max(0.72, length * 0.14))
+
+    door_width = 1.05
     door_height = min(2.12, max(1.75, height * 0.68))
-    # Keep the opening away from common 1/3 and 1/2 window positions on long walls.
-    distance_from_start = min(max(1.0, length * 0.18), length * 0.28)
-    fraction = distance_from_start / length
+    selected_entrance: dict[str, Any] | None = None
+    edge_projection_distance = INF
+    selected_edge = None
+    if isinstance(mapped_entrance, dict):
+        entrance_point = Point(float(mapped_entrance["x"]), float(mapped_entrance["y"]))
+        # Snap a mapped entrance-node to its nearest footprint wall. It is
+        # accepted only when it is genuinely close to that building outline;
+        # otherwise retain the conservative inferred-door fallback.
+        for edge in candidates:
+            length, p1, p2, nx, ny, angle = edge
+            edge_line = LineString([p1, p2])
+            distance = edge_line.distance(entrance_point)
+            if distance < edge_projection_distance:
+                edge_projection_distance = distance
+                selected_edge = edge
+        if selected_edge is not None and edge_projection_distance <= 2.2:
+            selected_entrance = mapped_entrance
+
+    if selected_edge is None or selected_entrance is None:
+        # No reliable mapped entrance node: create a clearly-labelled procedural cue.
+        selected_edge = max(candidates, key=lambda edge: edge[0])
+    length, p1, p2, nx, ny, angle = selected_edge
+
+    if selected_entrance is not None:
+        entrance_point = Point(float(selected_entrance["x"]), float(selected_entrance["y"]))
+        edge_line = LineString([p1, p2])
+        projected = edge_line.interpolate(edge_line.project(entrance_point))
+        projected_distance = edge_line.project(projected)
+        # Keep the entire generated leaf within the wall segment.
+        projected_distance = min(max(door_width * 0.60, projected_distance), length - door_width * 0.60)
+        fraction = projected_distance / length
+        placement_source = (
+            "OSM_ENTRANCE_NODE:%s:%s"
+            % (str(selected_entrance.get("osm_id", "")), str(selected_entrance.get("entrance", selected_entrance.get("door", ""))))
+        )
+        entrance_node_osm_id = str(selected_entrance.get("osm_id", ""))
+    else:
+        distance_from_start = min(max(1.0, length * 0.18), length * 0.28)
+        fraction = distance_from_start / length
+        placement_source = "PROCEDURAL_LONGEST_EXTERIOR_EDGE_NO_MAPPED_ENTRANCE_NODE"
+        entrance_node_osm_id = ""
+
     cx = p1[0] + (p2[0] - p1[0]) * fraction + nx * 0.048
     cy = p1[1] + (p2[1] - p1[1]) * fraction + ny * 0.048
     params = np.asarray([cx, cy, door_height * 0.5 + 0.025, door_width, door_height, angle], dtype=np.float32)
@@ -902,9 +942,9 @@ def facade_door_geometry(
         "door_width_m": round(float(door_width), 2),
         "anchor_local_m": [round(float(cx - nx * 0.048), 3), round(float(cy - ny * 0.048), 3)],
         "outward_xy": [round(float(nx), 5), round(float(ny), 5)],
-        "placement_source": "PROCEDURAL_LONGEST_EXTERIOR_EDGE_NO_MAPPED_ENTRANCE_NODE",
+        "placement_source": placement_source,
+        "entrance_node_osm_id": entrance_node_osm_id,
     }
-
 
 def facade_window_geometry(
     geometry: Any,
@@ -1128,6 +1168,8 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     trees = utility_poles = street_lamps = 0
     water_polygons = waterway_segments = landuse_areas = railway_ways = bridge_ways = facade_windows = 0
     facade_doors = 0
+    doors_from_mapped_entrance_nodes = 0
+    inferred_doors = 0
     modeled_roofs = 0
     inferred_roofs = 0
     gabled_roofs = 0
@@ -1146,6 +1188,26 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     vegetation_polygons: list[tuple[Polygon | MultiPolygon, int, str]] = []
     blocked_vegetation_polygons: list[Polygon | MultiPolygon] = []
     interior_seeds: list[dict[str, Any]] = []
+    mapped_entrance_nodes: list[dict[str, Any]] = []
+    for candidate in elements:
+        candidate_tags = candidate.get("tags", {})
+        if candidate.get("type") != "node" or ("entrance" not in candidate_tags and "door" not in candidate_tags):
+            continue
+        if candidate.get("lat") is None or candidate.get("lon") is None:
+            continue
+        entrance_kind = str(candidate_tags.get("entrance", candidate_tags.get("door", ""))).strip().lower()
+        if entrance_kind in {"", "no", "false", "0", "wall"}:
+            continue
+        entrance_x, entrance_y = local_xy(
+            float(candidate["lat"]), float(candidate["lon"]), origin_lat, origin_lon
+        )
+        mapped_entrance_nodes.append({
+            "osm_id": str(candidate.get("id", "")),
+            "x": entrance_x,
+            "y": entrance_y,
+            "entrance": str(candidate_tags.get("entrance", "")),
+            "door": str(candidate_tags.get("door", "")),
+        })
     used_ids: set[tuple[str, int]] = set()
     for el in elements:
         el_type, osm_id = str(el.get("type", "")), int(el.get("id", 0))
@@ -1269,10 +1331,21 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                     hipped_roofs += 1
                 elif roof_shape_model == "skillion":
                     skillion_roofs += 1
-            door_info = facade_door_geometry(polygon, height, osm_id, tile_bounds)
+            nearest_mapped_entrance: dict[str, Any] | None = None
+            nearest_entrance_distance = 2.2
+            for entrance_candidate in mapped_entrance_nodes:
+                entrance_point = Point(float(entrance_candidate["x"]), float(entrance_candidate["y"]))
+                boundary_distance = polygon.boundary.distance(entrance_point)
+                if boundary_distance <= nearest_entrance_distance:
+                    nearest_entrance_distance = boundary_distance
+                    nearest_mapped_entrance = entrance_candidate
+            door_info = facade_door_geometry(
+                polygon, height, osm_id, tile_bounds, nearest_mapped_entrance
+            )
             door_anchor_local_m: list[float] = []
             door_outward_xy: list[float] = []
             door_placement_source = "NO_PROCEDURAL_DOOR_ANCHOR"
+            door_entrance_node_osm_id = ""
             if door_info is not None:
                 door_color = door_info["color"]
                 door_vertices = door_info["vertices"]
@@ -1285,6 +1358,11 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 door_anchor_local_m = list(door_info["anchor_local_m"])
                 door_outward_xy = list(door_info["outward_xy"])
                 door_placement_source = str(door_info["placement_source"])
+                door_entrance_node_osm_id = str(door_info.get("entrance_node_osm_id", ""))
+                if door_entrance_node_osm_id:
+                    doors_from_mapped_entrance_nodes += 1
+                else:
+                    inferred_doors += 1
             window_geometry = facade_window_geometry(polygon, height, osm_id, tile_bounds)
             if window_geometry is not None:
                 window_color, window_vertices, window_faces, window_count = window_geometry
@@ -1388,6 +1466,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 "door_anchor_local_m": door_anchor_local_m,
                 "door_outward_xy": door_outward_xy,
                 "door_placement_source": door_placement_source,
+                "door_entrance_node_osm_id": door_entrance_node_osm_id,
                 "roof_shape_model": roof_shape_model,
                 "roof_shape_source": roof_shape_source,
                 "interior_status": "FICTIONAL_BUILDING_SPECIFIC_INTERIOR_GENERATED_AT_RUNTIME",
@@ -1607,7 +1686,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "road_ways": roads,
                            "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places,
                            "interior_anchors": len(interior_seeds), "licensed_facade_photo_panels": facade_photo_panels, "interior_reference_photos": interior_reference_photos_embedded, "mapped_trees": trees,
-                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "facade_door_panels": facade_doors, "modeled_roofs": modeled_roofs, "inferred_roof_shapes": inferred_roofs, "gabled_roofs": gabled_roofs, "hipped_roofs": hipped_roofs, "skillion_roofs": skillion_roofs, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color), "procedural_vegetation_trees": procedural_trees, "vegetation_mesh_batches": len(vegetation_meshes_by_color),
+                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "facade_door_panels": facade_doors, "doors_from_mapped_entrance_nodes": doors_from_mapped_entrance_nodes, "inferred_doors": inferred_doors, "modeled_roofs": modeled_roofs, "inferred_roof_shapes": inferred_roofs, "gabled_roofs": gabled_roofs, "hipped_roofs": hipped_roofs, "skillion_roofs": skillion_roofs, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color), "procedural_vegetation_trees": procedural_trees, "vegetation_mesh_batches": len(vegetation_meshes_by_color),
                             "water_polygons": water_polygons, "waterway_segments": waterway_segments,
                             "landuse_areas": landuse_areas, "railway_ways": railway_ways, "bridge_ways": bridge_ways},
         "licensed_facade_photo_matches": facade_photo_matches,
