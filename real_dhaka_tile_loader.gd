@@ -19,6 +19,8 @@ const INTERIOR_ANCHOR_RADIUS_M := 220.0
 const INTERIOR_ANCHOR_REFRESH_DISTANCE_M := 80.0
 const DEFAULT_LOAD_RADIUS_M := 2450.0
 const DEFAULT_UNLOAD_RADIUS_M := 3150.0
+const NAVIGATION_RECALCULATE_DISTANCE_M := 28.0
+const NAVIGATION_RECALCULATE_INTERVAL_S := 2.0
 
 var _world: Node3D
 var _records: Array[Dictionary] = []
@@ -33,6 +35,10 @@ var _navigation_node_positions: Dictionary = {}
 var _navigation_route: Array[Vector3] = []
 var _navigation_steps: Array[Dictionary] = []
 var _navigation_mode := "driving"
+var _navigation_target_active := false
+var _navigation_target_position := Vector3.ZERO
+var _navigation_last_recalc_position := Vector3.ZERO
+var _navigation_recalc_clock := 0.0
 var _region_bounds_lat_lon: Array[float] = []
 var _manifest_origin_lat := GAME_ORIGIN_LAT
 var _manifest_origin_lon := GAME_ORIGIN_LON
@@ -151,6 +157,7 @@ func _process(delta: float) -> void:
 	if player != null:
 		var player_position := player.global_position
 		_stream_tiles(player_position)
+		_refresh_navigation_if_needed(player, player_position)
 		var horizontal_refresh_distance := Vector2(
 			player_position.x - _last_anchor_refresh_position.x,
 			player_position.z - _last_anchor_refresh_position.z
@@ -436,44 +443,26 @@ func get_navigation_steps() -> Array[Dictionary]:
 
 
 func navigate_to_named_place(query: String, start_player: Node3D) -> Dictionary:
-	_navigation_route.clear()
-	_navigation_steps.clear()
 	if not _ready_for_streaming or not is_instance_valid(start_player):
+		clear_navigation_route()
 		return {"ok": false, "message": "Real-world map is not loaded."}
-	if _navigation_graph.is_empty():
-		return {"ok": false, "message": "Offline road graph is missing. Rebuild the map package with the navigation index."}
 	var resolved := resolve_named_place(query)
 	if not bool(resolved.get("ok", false)):
+		clear_navigation_route()
 		return resolved
 	var place: Dictionary = resolved["place"]
 	var destination := _geo_to_world(float(place["latitude"]), float(place["longitude"]))
-	var start_node := _nearest_navigation_node(start_player.global_position)
-	var destination_node := _nearest_navigation_node(destination)
-	if start_node.is_empty() or destination_node.is_empty():
-		return {"ok": false, "message": "No mapped road node is available near the start or destination."}
-	var route_result := _shortest_road_path(start_node, destination_node)
-	if not bool(route_result.get("ok", false)):
-		return route_result
-	_navigation_route.clear()
-	_navigation_steps.clear()
-	var node_path: Array = route_result.get("nodes", [])
-	var edge_names: Array = route_result.get("road_names", [])
-	for node_id in node_path:
-		_navigation_route.append(_navigation_node_positions[node_id])
-	_build_turn_instructions(node_path, edge_names)
-	var total_distance := float(route_result.get("distance_m", 0.0))
-	return {
-		"ok": true,
-		"message": "Route to %s: %.0f m, %d instructions. Destination point is approximate; follow the mapped road." % [str(place["name"]), total_distance, _navigation_steps.size()],
-		"place": place,
-		"distance_m": total_distance,
-		"steps": get_navigation_steps(),
-	}
+	var result := navigate_to_world_position(destination, start_player)
+	if not bool(result.get("ok", false)):
+		return result
+	result["message"] = "Route to %s: %.0f m, %d instructions. Destination point is approximate; follow the mapped road." % [str(place["name"]), float(result.get("distance_m", 0.0)), _navigation_steps.size()]
+	result["place"] = place
+	return result
 
 
-func navigate_to_world_position(destination_position: Vector3, start_player: Node3D) -> Dictionary:
-	_navigation_route.clear()
-	_navigation_steps.clear()
+func navigate_to_world_position(destination_position: Vector3, start_player: Node3D, preserve_on_failure := false) -> Dictionary:
+	if not preserve_on_failure:
+		clear_navigation_route()
 	if not _ready_for_streaming or not is_instance_valid(start_player):
 		return {"ok": false, "message": "Real-world map is not loaded."}
 	if _navigation_graph.is_empty():
@@ -487,9 +476,17 @@ func navigate_to_world_position(destination_position: Vector3, start_player: Nod
 		return route_result
 	var node_path: Array = route_result.get("nodes", [])
 	var edge_names: Array = route_result.get("road_names", [])
+	# Replacing the route happens only after a connected replacement was found;
+	# during a temporary route failure, an existing guidance line can remain.
+	_navigation_route.clear()
+	_navigation_steps.clear()
 	for node_id in node_path:
 		_navigation_route.append(_navigation_node_positions[str(node_id)])
 	_build_turn_instructions(node_path, edge_names)
+	_navigation_target_active = true
+	_navigation_target_position = destination_position
+	_navigation_last_recalc_position = start_player.global_position
+	_navigation_recalc_clock = 0.0
 	var snap_position: Vector3 = _navigation_node_positions[destination_node]
 	var snap_distance := Vector2(snap_position.x - destination_position.x, snap_position.z - destination_position.z).length()
 	return {
@@ -504,6 +501,26 @@ func navigate_to_world_position(destination_position: Vector3, start_player: Nod
 func clear_navigation_route() -> void:
 	_navigation_route.clear()
 	_navigation_steps.clear()
+	_navigation_target_active = false
+	_navigation_recalc_clock = 0.0
+
+
+func _refresh_navigation_if_needed(player: Node3D, player_position: Vector3) -> void:
+	if not _navigation_target_active or _navigation_route.size() < 2:
+		return
+	_navigation_recalc_clock += STREAM_INTERVAL
+	if _navigation_recalc_clock < NAVIGATION_RECALCULATE_INTERVAL_S:
+		return
+	var horizontal_distance := Vector2(
+		player_position.x - _navigation_last_recalc_position.x,
+		player_position.z - _navigation_last_recalc_position.z
+	).length()
+	if horizontal_distance < NAVIGATION_RECALCULATE_DISTANCE_M:
+		return
+	# Recompute from the player's current road area. Preserve the last valid
+	# route if the graph temporarily cannot produce a replacement.
+	var destination := _navigation_target_position
+	navigate_to_world_position(destination, player, true)
 
 
 func _nearest_navigation_node(position: Vector3) -> String:
