@@ -148,14 +148,11 @@ func _add_licensed_interior_photo_reference(room_height: float, half_depth: floa
     if relative_path.is_empty() or relative_path.contains("..") or relative_path.begins_with("/"):
         return
     var texture_path := "res://assets/world/dhaka_tiles/%s/%s" % [active_tile_id, relative_path]
-    var image := Image.new()
-    var load_error := image.load(texture_path)
-    if load_error != OK or image.is_empty():
-        push_warning("Licensed interior reference photo is missing or unreadable: " + texture_path)
-        return
-    var photo_texture := ImageTexture.create_from_image(image)
+    # ResourceLoader honours Godot's image import/remap table, including Android
+    # export builds where the original JPG may be stored as an imported texture.
+    var photo_texture := ResourceLoader.load(texture_path) as Texture2D
     if photo_texture == null:
-        push_warning("Could not create the licensed interior reference texture: " + texture_path)
+        push_warning("Licensed interior reference photo is missing or unreadable: " + texture_path)
         return
     var license_name := str(photo_record.get("license", ""))
     if license_name not in ["CC BY 4.0", "CC BY-SA 4.0"]:
@@ -166,7 +163,7 @@ func _add_licensed_interior_photo_reference(room_height: float, half_depth: floa
     # Frame it as a wall reference in the generated game interior, not as a
     # claim that this is a complete or exact real-world room scan.
     var panel_height := minf(2.4, room_height * 0.48)
-    var aspect := float(image.get_width()) / maxf(1.0, float(image.get_height()))
+    var aspect := float(photo_texture.get_width()) / maxf(1.0, float(photo_texture.get_height()))
     var panel_width := minf(panel_height * aspect, 4.2)
     if panel_width < 0.8 or panel_height < 0.8:
         return
