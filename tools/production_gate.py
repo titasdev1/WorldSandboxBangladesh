@@ -81,6 +81,7 @@ if "real_dhaka_loader.configure(self)" not in world_text:
 
 # The mobile movement control must be a true analog circular stick, not four
 # directional buttons, and its hit rectangle must not overlap the sprint button.
+hud_text = (ROOT / "hud.gd").read_text(encoding="utf-8")
 if 'stick.set_script(load("res://virtual_stick.gd"))' not in hud_text:
     raise SystemExit("PRODUCTION GATE FAILED: circular analog movement stick is not wired into the live HUD")
 stick_text = (ROOT / "virtual_stick.gd").read_text(encoding="utf-8")
