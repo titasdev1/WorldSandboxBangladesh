@@ -57,6 +57,30 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("_navigation_recalc_clock = 0.0", loader)
         self.assertIn("leave the last valid route visible", loader)
 
+    def test_real_world_map_suppresses_fictional_factory_overlays(self):
+        factories = [
+            ("systems/game_factory.gd", "_expand_ground()", "real_map_mode_fictional_grid_suppressed"),
+            ("systems/gameplay_factory.gd", "_create_job_hubs()", "real_map_mode_fixed_markers_suppressed"),
+            ("systems/vehicle_gameplay_factory.gd", "_add_vehicle_depots()", "real_map_mode_fixed_markers_suppressed"),
+            ("systems/population_factory.gd", "_spawn_outer_traffic()", "real_map_mode_mapped_population_only"),
+        ]
+        for relative_path, generator_call, expected_status in factories:
+            with self.subTest(factory=relative_path):
+                source = (self.ROOT / relative_path).read_text(encoding="utf-8")
+                bootstrap_start = source.index("func _bootstrap()")
+                map_guard = source.index('if bool(world.get("real_dhaka_loaded")):', bootstrap_start)
+                fictional_generator = source.index(generator_call, bootstrap_start)
+                self.assertLess(map_guard, fictional_generator)
+                self.assertIn('set_meta("real_map_overlay_suppressed", true)', source)
+                self.assertIn(expected_status, source)
+
+        # Real traffic and normal NPCs remain in world.gd's mapped-road spawn path.
+        world = (self.ROOT / "world.gd").read_text(encoding="utf-8")
+        self.assertIn("get_vehicle_route_records()", world)
+        self.assertIn("_spawn_mapped_traffic_vehicle(mapped_routes)", world)
+        self.assertIn("get_road_routes()", world)
+
+
     def test_hud_touch_buttons_do_not_send_their_drags_to_camera_look(self):
         player = (self.ROOT / "player.gd").read_text(encoding="utf-8")
         hud = (self.ROOT / "hud.gd").read_text(encoding="utf-8")
