@@ -879,7 +879,7 @@ def facade_door_geometry(
     door_width = 1.05
     door_height = min(2.12, max(1.75, height * 0.68))
     selected_entrance: dict[str, Any] | None = None
-    edge_projection_distance = INF
+    edge_projection_distance = float("inf")
     selected_edge = None
     if isinstance(mapped_entrance, dict):
         entrance_point = Point(float(mapped_entrance["x"]), float(mapped_entrance["y"]))
