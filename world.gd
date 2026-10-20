@@ -654,9 +654,60 @@ func respawn_player():
  if not player:
   return
  player.health = 100
- player.position = Vector3(0, 0, -12)
+ if real_dhaka_loaded and is_instance_valid(real_dhaka_loader):
+  player.global_position = _nearest_mapped_respawn_position(player.global_position)
+  event_text = "RESPAWNED AT A MAPPED ROAD"
+ else:
+  player.position = Vector3(0, 0, -12)
+  event_text = "RESPAWNED IN STARTER CITY"
+ event_time_left = 4.0
  wanted = 0
  cash = max(0, cash - 100)
+
+
+func _nearest_mapped_respawn_position(from_position: Vector3) -> Vector3:
+ var best_point := Vector3.ZERO
+ var best_side := Vector3.ZERO
+ var best_distance := INF
+ # Prefer an actual streamed road polyline and spawn beside its centreline.
+ if is_instance_valid(real_dhaka_loader) and real_dhaka_loader.has_method("get_road_routes"):
+  for route in real_dhaka_loader.get_road_routes():
+   if not (route is Array) or route.size() < 2:
+    continue
+   for point_index in range(route.size()):
+    var point: Vector3 = route[point_index]
+    var distance := Vector2(point.x - from_position.x, point.z - from_position.z).length()
+    if distance >= best_distance:
+     continue
+    var before: Vector3 = route[maxi(0, point_index - 1)]
+    var after: Vector3 = route[mini(route.size() - 1, point_index + 1)]
+    var direction := Vector3(after.x - before.x, 0.0, after.z - before.z).normalized()
+    if direction.length_squared() < 0.001:
+     continue
+    best_distance = distance
+    best_point = point
+    best_side = Vector3(-direction.z, 0.0, direction.x)
+ if best_distance < INF and best_distance <= 450.0:
+  return best_point + best_side * 3.0 + Vector3(0.0, 0.4, 0.0)
+ # If the player's tile has unloaded after a fall, query the district-wide
+ # navigation graph before falling back to a known story road stop.
+ if is_instance_valid(real_dhaka_loader) and real_dhaka_loader.has_method("get_nearby_road_points"):
+  var graph_points: Array = real_dhaka_loader.call("get_nearby_road_points", from_position, 0.0, 900.0)
+  var graph_best := Vector3.ZERO
+  var graph_distance := INF
+  for point in graph_points:
+   if not (point is Vector3):
+    continue
+   var distance := Vector2(point.x - from_position.x, point.z - from_position.z).length()
+   if distance < graph_distance:
+    graph_distance = distance
+    graph_best = point
+  if graph_distance < INF:
+   return graph_best + Vector3(0.0, 0.4, 0.0)
+ if not real_mission_targets.is_empty():
+  return real_mission_targets[0] + Vector3(0.0, 0.4, 0.0)
+ # Do not teleport into the fictional starter-city origin if no map route exists.
+ return Vector3(from_position.x, 0.4, from_position.z)
 
 func try_vehicle_interaction():
  if not player:
