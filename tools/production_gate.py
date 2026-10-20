@@ -87,9 +87,9 @@ stick_text = (ROOT / "virtual_stick.gd").read_text(encoding="utf-8")
 for token in ("func _gui_input(", "InputEventScreenTouch", "InputEventScreenDrag", "func _release_stick()", "_sync_actions()"):
     if token not in stick_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: analog movement stick is missing {token}")
-stick_position_match = re.search(r"stick\\.position = Vector2\\(([^)]+)\\)", hud_text)
-stick_size_match = re.search(r"stick\\.size = Vector2\\(([^)]+)\\)", hud_text)
-sprint_match = re.search(r'add_touch_button\\("SPRINT", Vector2\\(([^)]+)\\), Vector2\\(([^)]+)\\)', hud_text)
+stick_position_match = re.search(r"stick\.position = Vector2\(([^)]+)\)", hud_text)
+stick_size_match = re.search(r"stick\.size = Vector2\(([^)]+)\)", hud_text)
+sprint_match = re.search(r'add_touch_button\("SPRINT", Vector2\(([^)]+)\), Vector2\(([^)]+)\)', hud_text)
 if not stick_position_match or not stick_size_match or not sprint_match:
     raise SystemExit("PRODUCTION GATE FAILED: movement stick/sprint touch geometry cannot be verified")
 def _parse_vector2(text_value: str) -> tuple[float, float]:
