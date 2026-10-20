@@ -191,10 +191,6 @@ jobs:
               echo "Stale Shariatpur map artifact: package pipeline $PIPELINE_SHA does not contain latest map-code revision ${LATEST_MAP_CODE_SHA:-missing}. Refusing to publish an APK that does not contain the latest map build." >&2
               exit 1
             fi
-            if [[ -z "$EXPECTED_MAP_PIPELINE_SHA" || "$PIPELINE_SHA" != "$EXPECTED_MAP_PIPELINE_SHA" ]]; then
-              echo "Stale Shariatpur map artifact: package pipeline $PIPELINE_SHA, latest map-pipeline source ${EXPECTED_MAP_PIPELINE_SHA:-missing}. Refusing to publish an APK that does not contain the latest map build." >&2
-              exit 1
-            fi
             echo "Shariatpur pipeline provenance gate: PASS (${PIPELINE_SHA})."
           fi
           rm -rf assets/world/dhaka_tiles

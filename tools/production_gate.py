@@ -94,6 +94,8 @@ map_builder_text = (ROOT / "tools/map_pipeline/build_dhaka_map.py").read_text(en
 if "edge_clipped_roofs_suppressed" not in map_builder_text or "roof_within_tile" not in map_builder_text:
     raise SystemExit("PRODUCTION GATE FAILED: clipped pitched roofs may exceed map tile boundaries")
 android_workflow_text = (ROOT / ".github/workflows/android.yml").read_text(encoding="utf-8")
+if "EXPECTED_MAP_PIPELINE_SHA" in android_workflow_text:
+    raise SystemExit("PRODUCTION GATE FAILED: obsolete map SHA check refers to an unset variable")
 if "LATEST_MAP_CODE_SHA" not in android_workflow_text or "git merge-base --is-ancestor" not in android_workflow_text:
     raise SystemExit("PRODUCTION GATE FAILED: APK workflow does not pin the map package to current map-pipeline source")
 if "path: build/canonical_release/Project-A-Square.apk" not in android_workflow_text:
