@@ -134,6 +134,34 @@ for relative_path, fictional_call, expected_status in factory_specs:
 if "get_vehicle_route_records()" not in world_text or "_spawn_mapped_traffic_vehicle(mapped_routes)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: real-map road traffic no longer uses mapped road routes")
 
+# The mapped NPC population may retry as more road tiles stream in, but it must
+# never fall back to random fictional-city coordinates in real-map mode.
+npc_start = world_text.find("func spawn_npcs():")
+npc_end = world_text.find("\nfunc spawn_police():", npc_start)
+if npc_start < 0 or npc_end < 0:
+    raise SystemExit("PRODUCTION GATE FAILED: canonical NPC spawner is missing")
+npc_spawn_text = world_text[npc_start:npc_end]
+npc_map_guard = npc_spawn_text.find("if real_dhaka_loaded and mapped_routes.is_empty():")
+npc_fake_fallback = npc_spawn_text.find("Vector3(rng.randf_range(-70, 70)")
+if npc_map_guard < 0 or npc_fake_fallback < 0 or npc_map_guard > npc_fake_fallback:
+    raise SystemExit("PRODUCTION GATE FAILED: real-map NPC spawner can use fictional fallback coordinates")
+if 'npc.add_to_group("mapped_road_npc")' not in npc_spawn_text or "get_tree().get_nodes_in_group(\"mapped_road_npc\").size()" not in world_text:
+    raise SystemExit("PRODUCTION GATE FAILED: map-aware NPC fill does not prevent duplicate or missing road spawns")
+
+# The Deshi mission board is a gameplay kiosk, not a surveyed building. On a
+# real map it must be placed beside the loaded road graph, not at a fake city XYZ.
+mission_factory_text = (ROOT / "systems" / "mission_factory.gd").read_text(encoding="utf-8")
+hub_start = mission_factory_text.find("func _create_hub()")
+hub_end = mission_factory_text.find("func _on_hub_entered", hub_start)
+if hub_start < 0 or hub_end < 0:
+    raise SystemExit("PRODUCTION GATE FAILED: Deshi job-board creation is missing")
+hub_text = mission_factory_text[hub_start:hub_end]
+for token in ('if bool(world.get("real_dhaka_loaded")):', 'loader.call("get_road_routes")', 'hub_position = best_point + sidewalk_side * 8.0', "hub.position = hub_position", "hub_created = true"):
+    if token not in hub_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: real-map Deshi job-board placement missing {token}")
+if "if not hub_created and is_instance_valid(world) and bool(world.get(\"real_dhaka_loaded\")):" not in mission_factory_text:
+    raise SystemExit("PRODUCTION GATE FAILED: Deshi job board does not retry as road tiles stream in")
+
 # Main.tscn owns one mission factory; dynamic clones duplicate the 4,000-job
 # catalogue and target markers and can create hidden CPU/memory load on mobile.
 main_scene_text = (ROOT / "Main.tscn").read_text(encoding="utf-8")
