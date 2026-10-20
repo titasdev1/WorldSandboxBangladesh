@@ -9,6 +9,9 @@ var _player_position := Vector3.ZERO
 var _player_yaw := 0.0
 var _target_position := Vector3.ZERO
 var _has_target := false
+var _last_place_lookup_position := Vector3(1.0e20, 0.0, 1.0e20)
+var _nearby_place_name := ""
+var _has_place_lookup := false
 
 const DISTRICTS := [
  {"name":"Old Town","pos":Vector2(-60,-60),"color":Color("#d9a86c")},
@@ -31,17 +34,37 @@ func update_world(target_world: Node) -> void:
  if is_instance_valid(player):
   _player_position = player.global_position
   _player_yaw = player.global_rotation.y
-  var best_name := "Noborongo City"
-  var best_distance := INF
-  for district in DISTRICTS:
-   var point: Vector2 = district.pos
-   var distance := Vector2(_player_position.x, _player_position.z).distance_to(point)
-   if distance < best_distance:
-    best_distance = distance
-    best_name = str(district.name)
-   if distance < 28.0:
-    discovered[str(district.name)] = true
-  current_district = best_name
+  if bool(world.get("real_dhaka_loaded")):
+   var loader = world.get("real_dhaka_loader")
+   var moved_since_place_lookup := Vector2(
+    _player_position.x - _last_place_lookup_position.x,
+    _player_position.z - _last_place_lookup_position.z
+   ).length()
+   if not _has_place_lookup or moved_since_place_lookup >= 25.0:
+    _nearby_place_name = ""
+    if is_instance_valid(loader) and loader.has_method("get_nearest_named_place"):
+     var nearest: Dictionary = loader.call("get_nearest_named_place", _player_position, 180.0)
+     _nearby_place_name = str(nearest.get("name", ""))
+    _last_place_lookup_position = _player_position
+    _has_place_lookup = true
+   if not _nearby_place_name.is_empty():
+    current_district = "Near " + _nearby_place_name
+   elif is_instance_valid(loader) and loader.has_method("get_map_display_name"):
+    current_district = str(loader.call("get_map_display_name"))
+   else:
+    current_district = "Real-world map"
+  else:
+   var best_name := "Noborongo City"
+   var best_distance := INF
+   for district in DISTRICTS:
+    var point: Vector2 = district.pos
+    var distance := Vector2(_player_position.x, _player_position.z).distance_to(point)
+    if distance < best_distance:
+     best_distance = distance
+     best_name = str(district.name)
+    if distance < 28.0:
+     discovered[str(district.name)] = true
+   current_district = best_name
  var active: bool = bool(world.get("mission_active"))
  _has_target = active
  if active:
@@ -154,7 +177,13 @@ func _draw() -> void:
  var label_size := 16 if expanded else 12
  draw_string(ThemeDB.fallback_font, Vector2(margin+4, size.y-margin-5), "N  ↑   •   " + current_district, HORIZONTAL_ALIGNMENT_LEFT, -1, label_size, Color("#d9f2fb"))
  if expanded:
-  var map_title := "GREATER DHAKA / REAL ROAD MAP" if real_map else "NOBORONGO CITY / DISTRICT ATLAS"
+  var map_title := "NOBORONGO CITY / DISTRICT ATLAS"
+  if real_map:
+   var title_loader = world.get("real_dhaka_loader")
+   var real_map_name := "REAL-WORLD MAP"
+   if is_instance_valid(title_loader) and title_loader.has_method("get_map_display_name"):
+    real_map_name = str(title_loader.call("get_map_display_name")).to_upper()
+   map_title = real_map_name + " / REAL ROAD MAP"
   draw_string(ThemeDB.fallback_font, Vector2(margin+4, margin+17), map_title, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("#50d7e9"))
   if real_map:
    var loader = world.get("real_dhaka_loader")
