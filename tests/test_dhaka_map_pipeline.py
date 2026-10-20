@@ -449,6 +449,31 @@ class DhakaMapPipelineTests(unittest.TestCase):
 
 
 
+    def test_metric_roof_models_follow_tags_and_flag_inferred_rural_home_roofs(self):
+        from shapely.geometry import Polygon
+        from tools.map_pipeline.build_dhaka_map import (
+            building_height, procedural_roof_mesh, roof_shape_for_building,
+        )
+
+        gabled_shape, gabled_source = roof_shape_for_building(
+            {"building": "house", "roof:shape": "gabled"}, 75.0, 3.2
+        )
+        self.assertEqual(gabled_shape, "gabled")
+        self.assertEqual(gabled_source, "OSM_ROOF_SHAPE_TAG")
+        polygon = Polygon([(0, 0), (9, 0), (9, 6), (0, 6)])
+        roof = procedural_roof_mesh(polygon, 3.2, gabled_shape, 5101)
+        self.assertIsNotNone(roof)
+        self.assertTrue(roof.is_watertight is False or roof.is_watertight is True)
+        self.assertGreater(float(roof.vertices[:, 2].max()), 3.28)
+        self.assertTrue(__import__("numpy").isfinite(roof.vertices).all())
+        self.assertEqual(roof.metadata["roof_shape"], "gabled")
+
+        inferred_shape, inferred_source = roof_shape_for_building({"building": "house"}, 90.0, 3.2)
+        self.assertEqual(inferred_shape, "gabled")
+        self.assertEqual(inferred_source, "INFERRED_SMALL_LOW_RISE_HOME_NO_ROOF_SHAPE_TAG")
+        self.assertEqual(roof_shape_for_building({"building": "apartments", "roof:shape": "flat"}, 180.0, 6.2),
+                         ("flat", "OSM_ROOF_SHAPE_TAG"))
+
     def test_mapped_buildings_export_metric_doors_and_runtime_entry_anchors(self):
         from tools.map_pipeline.build_dhaka_map import build_map
 
