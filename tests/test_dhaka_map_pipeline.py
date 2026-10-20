@@ -59,6 +59,12 @@ class DhakaMapPipelineTests(unittest.TestCase):
     def test_default_tile_matches_existing_central_dhaka_anchor(self):
         self.assertEqual(DEFAULT_BBOX, (23.8043, 90.4065, 23.8163, 90.4185))
 
+    def test_overpass_query_includes_mapped_entrance_nodes(self):
+        from tools.map_pipeline.build_dhaka_map import overpass_query
+        query = overpass_query(DEFAULT_BBOX)
+        self.assertIn('node["entrance"]', query)
+        self.assertIn('node["door"]', query)
+
     def test_overpass_query_requests_multipolygon_landcover_and_water(self):
         from tools.map_pipeline.build_dhaka_map import overpass_query
 
@@ -473,6 +479,44 @@ class DhakaMapPipelineTests(unittest.TestCase):
         self.assertEqual(inferred_source, "INFERRED_SMALL_LOW_RISE_HOME_NO_ROOF_SHAPE_TAG")
         self.assertEqual(roof_shape_for_building({"building": "apartments", "roof:shape": "flat"}, 180.0, 6.2),
                          ("flat", "OSM_ROOF_SHAPE_TAG"))
+
+    def test_mapped_entrance_node_controls_door_location_and_provenance(self):
+        from tools.map_pipeline.build_dhaka_map import build_map
+
+        elements = [
+            {
+                "type": "way",
+                "id": 445567,
+                "tags": {"building": "house", "building:levels": "1", "name:bn": "ম্যাপ করা বাড়ি"},
+                "geometry": [
+                    {"lat": 23.8096, "lon": 90.4118},
+                    {"lat": 23.8096, "lon": 90.4121},
+                    {"lat": 23.8098, "lon": 90.4121},
+                    {"lat": 23.8098, "lon": 90.4118},
+                    {"lat": 23.8096, "lon": 90.4118},
+                ],
+            },
+            {
+                "type": "node",
+                "id": 99001,
+                "lat": 23.8096,
+                "lon": 90.41195,
+                "tags": {"entrance": "main"},
+            },
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            manifest = build_map(elements, out, DEFAULT_BBOX)
+            counts = manifest["feature_counts"]
+            self.assertEqual(counts["facade_door_panels"], 1)
+            self.assertEqual(counts["doors_from_mapped_entrance_nodes"], 1)
+            self.assertEqual(counts["inferred_doors"], 0)
+            seeds = json.loads((out / "AI_Interior_Seeds.json").read_text(encoding="utf-8"))
+            seed = next(item for item in seeds if item["osm_id"] == 445567)
+            self.assertEqual(seed["door_placement_source"], "OSM_ENTRANCE_NODE:99001:main")
+            self.assertEqual(seed["door_entrance_node_osm_id"], "99001")
+            self.assertEqual(len(seed["door_anchor_local_m"]), 2)
+            self.assertAlmostEqual(sum(v * v for v in seed["door_outward_xy"]), 1.0, delta=0.001)
 
     def test_mapped_buildings_export_metric_doors_and_runtime_entry_anchors(self):
         from tools.map_pipeline.build_dhaka_map import build_map
