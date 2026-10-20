@@ -504,18 +504,18 @@ func _process(_delta):
    if chapter_title.length() > 48:
     chapter_title = chapter_title.substr(0, 45) + "..."
    mission.text = "CHAPTER %02d/40 • %s\nDESHI JOB %04d/4000: %s    REWARD +৳%d%s\n%s" % [int(active_mission.get("chapter", 1)), chapter_title, int(active_mission.get("id", 0)) + 1, active_mission.get("title", "Local job"), int(active_mission.get("reward", 0)), mission_step_text, mission_brief]
-   if bool(w.get("real_dhaka_loaded")):
-    var route_loader: Node = w.get("real_dhaka_loader") as Node
-    if is_instance_valid(route_loader) and route_loader.has_method("get_navigation_steps"):
-     var route_steps: Array = route_loader.call("get_navigation_steps")
-     if not route_steps.is_empty() and route_steps[0] is Dictionary:
-      var route_instruction := str(route_steps[0].get("instruction", ""))
-      if route_instruction.length() > 100:
-       route_instruction = route_instruction.substr(0, 97) + "..."
-      mission.text += "\nROAD ROUTE: " + route_instruction
+   var route_instruction := _current_route_instruction()
+   if not route_instruction.is_empty():
+    mission.text += "\nROAD ROUTE: " + route_instruction
  elif w.mission_active:
-  var stage_names = ["Market delivery", "Tower pickup", "Bus terminal drop"]
-  mission.text = "STORY %d/3: %s    Rickshaw fare ৳%d → offer ৳%d" % [w.mission_stage + 1, stage_names[w.mission_stage], w.fare_requested, w.bargain_offer]
+  if bool(w.get("real_dhaka_loaded")) and w.real_mission_targets.size() < 3:
+   mission.text = "STORY ROUTE LOADING • waiting for mapped road coverage"
+  else:
+   var stage_names = ["Market delivery", "Tower pickup", "Bus terminal drop"]
+   mission.text = "STORY %d/3: %s    Rickshaw fare ৳%d → offer ৳%d" % [w.mission_stage + 1, stage_names[w.mission_stage], w.fare_requested, w.bargain_offer]
+   var route_instruction := _current_route_instruction()
+   if not route_instruction.is_empty():
+    mission.text += "\nROAD ROUTE: " + route_instruction
  else:
   mission.text = "STORY COMPLETE  +৳1000   FREE ROAM"
  if w.combat_controller and w.combat_controller.active_mode in ["survival", "arena_training", "street_skirmish"]:
@@ -543,6 +543,21 @@ func _process(_delta):
  var objective_text := "TARGET %dm" % target_distance if target_distance >= 0 else "FREE ROAM"
  var map_attribution := "\n© OpenStreetMap contributors" if bool(w.get("real_dhaka_loaded")) else ""
  status.text = "%s • %s\nAMMO %s%s   %s%s" % [district_name.to_upper(), objective_text, ammo_text, reload_text, w.event_text if w.event_time_left > 0 else "Explore • drive • bargain • fight", map_attribution]
+
+func _current_route_instruction() -> String:
+ if not is_instance_valid(w) or not bool(w.get("real_dhaka_loaded")):
+  return ""
+ var route_loader: Node = w.get("real_dhaka_loader") as Node
+ if not is_instance_valid(route_loader) or not route_loader.has_method("get_navigation_steps"):
+  return ""
+ var route_steps: Array = route_loader.call("get_navigation_steps")
+ if route_steps.is_empty() or not (route_steps[0] is Dictionary):
+  return ""
+ var instruction := str(route_steps[0].get("instruction", "")).strip_edges()
+ if instruction.length() > 100:
+  instruction = instruction.substr(0, 97) + "..."
+ return instruction
+
 
 # HUD integrated district/objective layer.
 
