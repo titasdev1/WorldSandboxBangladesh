@@ -555,7 +555,7 @@ func _process(delta):
    _configure_real_missions()
  var mission_factory_for_navigation := get_node_or_null("MissionFactory")
  var side_job_active := is_instance_valid(mission_factory_for_navigation) and int(mission_factory_for_navigation.get("active_index")) >= 0
- if player and mission_active and (not real_dhaka_loaded or real_mission_targets.size() >= 3):
+ if player and mission_active and not side_job_active and (not real_dhaka_loaded or real_mission_targets.size() >= 3):
   var distance = player.position.distance_to(mission_target)
   if mission_stage == 0 and distance < 6:
    mission_stage = 1
