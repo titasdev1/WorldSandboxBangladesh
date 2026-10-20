@@ -117,6 +117,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
                 shutil.copy2(source, destination)
 
     facade_photo_matches: list[dict[str, Any]] = []
+    interior_reference_photo_matches: list[dict[str, Any]] = []
     for tile_manifest_path in sorted(out.rglob("map_manifest.json")):
         try:
             tile_manifest = json.loads(tile_manifest_path.read_text(encoding="utf-8"))
@@ -125,6 +126,9 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         matches = tile_manifest.get("licensed_facade_photo_matches", [])
         if isinstance(matches, list):
             facade_photo_matches.extend(item for item in matches if isinstance(item, dict))
+        interior_matches = tile_manifest.get("interior_reference_photo_matches", [])
+        if isinstance(interior_matches, list):
+            interior_reference_photo_matches.extend(item for item in interior_matches if isinstance(item, dict))
 
     attribution_source = next((path / "ATTRIBUTION.txt" for _, path, _ in batches if (path / "ATTRIBUTION.txt").is_file()), None)
     if attribution_source is None:
@@ -171,6 +175,9 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "feature_counts_across_tiles": feature_counts,
         "licensed_facade_photo_matches": facade_photo_matches,
         "licensed_facade_photo_panels_embedded": int(feature_counts.get("licensed_facade_photo_panels", 0)),
+        "interior_reference_photo_matches": interior_reference_photo_matches,
+        "interior_reference_photos_embedded": int(feature_counts.get("interior_reference_photos", 0)),
+        "interior_reference_photo_note": "Interior reference photos are licensed, separate assets rendered only within the matching mapped building's generated in-game interior. They are not exterior textures or scans of the actual private interior.",
         "buildings_with_embedded_facade_photo_panel": int(feature_counts.get("licensed_facade_photo_panels", 0)),
         "source_elements_processed_across_batches": source_element_count,
         "map_build_batch_count": len(batches),
@@ -235,6 +242,17 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         + f"Clipping boundary license: {boundary_license}. License source: {boundary_license_source}.\n"
     )
     seen_photo_attributions: set[str] = set()
+    for match in interior_reference_photo_matches:
+        attribution = str(match.get("attribution", "")).strip()
+        license_name = str(match.get("license", "")).strip()
+        license_url = str(match.get("license_url", "")).strip()
+        entry = (
+            f"{attribution}\nLicense: {license_name} — {license_url}\n"
+            "Use restriction: INTERIOR REFERENCE ONLY; NOT AN EXTERIOR FACADE TEXTURE."
+        )
+        if attribution and entry not in seen_photo_attributions:
+            seen_photo_attributions.add(entry)
+            attribution_text += "\n" + entry + "\n"
     for match in facade_photo_matches:
         attribution = str(match.get("attribution", "")).strip()
         license_name = str(match.get("license", "")).strip()
@@ -293,6 +311,8 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
             "photorealistic_facade_imagery_mapped": False,
             "licensed_facade_photo_panels_embedded": int(feature_counts.get("licensed_facade_photo_panels", 0)) > 0,
             "licensed_facade_photo_panel_count": int(feature_counts.get("licensed_facade_photo_panels", 0)),
+            "interior_reference_photo_asset_count": int(feature_counts.get("interior_reference_photos", 0)),
+            "interior_reference_photo_matches_manifest": len(interior_reference_photo_matches) == int(feature_counts.get("interior_reference_photos", 0)),
             "facade_photo_panel_visual_review_required": True,
             "physical_android_integration_verified": False,
             "all_building_heights_verified_or_surveyed": building_count > 0 and inferred_height_count == 0,
