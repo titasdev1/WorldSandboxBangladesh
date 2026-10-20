@@ -239,6 +239,36 @@ catalog_text = (ROOT / "tools" / "map_pipeline" / "shariatpur_facade_images.json
 if '"facade_eligible": false' not in catalog_text or '"interior_reference_eligible": true' not in catalog_text:
     raise SystemExit("PRODUCTION GATE FAILED: mosque interior photo must remain blocked from exterior facades and separately approved for interior reference use")
 
+# Keep mapped doors, actual interaction-anchor placement and hero readability
+# connected to the generated metric world (without scaling real footprints).
+map_builder_text = (ROOT / "tools" / "map_pipeline" / "build_dhaka_map.py").read_text(encoding="utf-8")
+map_loader_text = (ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
+character_text = (ROOT / "character_visual.gd").read_text(encoding="utf-8")
+player_text = (ROOT / "player.gd").read_text(encoding="utf-8")
+world_text = (ROOT / "world.gd").read_text(encoding="utf-8")
+for token in (
+    "def facade_door_geometry(",
+    '"door_anchor_local_m": door_anchor_local_m',
+    '"door_outward_xy": door_outward_xy',
+    '"facade_door_panels": facade_doors',
+):
+    if token not in map_builder_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: mapped-building door geometry is missing {token}")
+placement_start = map_loader_text.find("func _interior_anchor_placement(")
+placement_end = map_loader_text.find("func _add_walkable_collisions(", placement_start)
+if placement_start < 0 or placement_end <= placement_start:
+    raise SystemExit("PRODUCTION GATE FAILED: map loader entrance-anchor method is missing.")
+placement_code = map_loader_text[placement_start:placement_end]
+if 'seed.get("door_anchor_local_m", [])' not in placement_code or 'seed.get("door_outward_xy", [])' not in placement_code:
+    raise SystemExit("PRODUCTION GATE FAILED: generated building interactions are not aligned to the baked door position.")
+if "@export var is_player_character := false" not in character_text or "func _add_clothing_and_face_detail() -> void:" not in character_text:
+    raise SystemExit("PRODUCTION GATE FAILED: the hero character detail pass is missing.")
+for token in ("LeftEyeWhite", "NoseBridge", "ChestPocket_L", "ShoeSole", "RadioBody", "WristWatch"):
+    if token not in character_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: hero visual detail missing {token}.")
+if "visual.is_player_character = true" not in world_text or "camera_distance := 4.8 if Input.is_action_pressed" not in player_text or "else 7.4" not in player_text:
+    raise SystemExit("PRODUCTION GATE FAILED: hero-detail selection or mobile-readable camera distance was lost.")
+
 # Main.tscn owns one mission factory; dynamic clones duplicate the 4,000-job
 # catalogue and target markers and can create hidden CPU/memory load on mobile.
 main_scene_text = (ROOT / "Main.tscn").read_text(encoding="utf-8")
