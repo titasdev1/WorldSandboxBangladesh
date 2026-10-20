@@ -72,9 +72,10 @@ func mesh_box(pos: Vector3, size: Vector3, color: Color, collision := false, sur
     return node
 
 func _expand_ground() -> void:
-    # The original 180m floor remains untouched; this creates the scalable
-    # outer playable terrain around it.
-    mesh_box(Vector3(0, -0.56, 0), Vector3(CITY_RADIUS * 2.0, 0.08, CITY_RADIUS * 2.0), Color("#526b49"), true)
+    # One continuous ground plane for the fictional fallback city. Its top is
+    # exactly y=0, aligned with building bases and the decorative road surface.
+    # Real-map mode returns before this function is called.
+    mesh_box(Vector3(0, -0.04, 0), Vector3(CITY_RADIUS * 2.0, 0.08, CITY_RADIUS * 2.0), Color("#526b49"), true)
 
 func _generate_outer_arterials() -> void:
     # Extend the proven six-by-six city road axes into the 600m world.
