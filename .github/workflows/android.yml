@@ -118,6 +118,7 @@ jobs:
       - name: Install and validate selected map package
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           MAP_PACKAGE: ${{ (inputs.map_package == 'shariatpur_review' || github.event_name == 'pull_request' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && 'shariatpur_review' || 'greater_dhaka' }}
         run: |
           set -euo pipefail
@@ -162,6 +163,28 @@ jobs:
           print(f"GLB tiles: {len(glbs)}; bytes: {sum(p.stat().st_size for p in glbs):,}")
           print(f"Coverage: {manifest['region_south_west_north_east']}")
           PY
+          if [ "$MAP_PACKAGE" = "shariatpur_review" ]; then
+            # A complete but stale Shariatpur artifact once placed an interior
+            # photo on an exterior wall. Refuse map packages built before the
+            # explicit visual-eligibility gate entered the map pipeline.
+            REQUIRED_MAP_GATE_COMMIT="503bbae0787458652635a96c74c067f6d704ca71"
+            PIPELINE_SHA="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path("build/selected-map/map_tiles_manifest.json").read_text()).get("pipeline_commit_sha", ""))
+          PY
+          )"
+            if [[ -z "$PIPELINE_SHA" ]]; then
+              echo "Shariatpur map manifest has no pinned pipeline SHA; refusing this candidate APK." >&2
+              exit 1
+            fi
+            compare_status="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${REQUIRED_MAP_GATE_COMMIT}...${PIPELINE_SHA}" --jq '.status')"
+            if [[ "$compare_status" != "ahead" && "$compare_status" != "identical" ]]; then
+              echo "Stale Shariatpur map pipeline ${PIPELINE_SHA}; it predates required photo-QA gate ${REQUIRED_MAP_GATE_COMMIT}. Refusing packaging." >&2
+              exit 1
+            fi
+            echo "Shariatpur pipeline provenance gate: PASS (${PIPELINE_SHA})."
+          fi
           rm -rf assets/world/dhaka_tiles
           mkdir -p assets/world/dhaka_tiles
           cp -a build/selected-map/. assets/world/dhaka_tiles/
