@@ -471,7 +471,11 @@ func spawn_npcs():
  var mapped_routes: Array = []
  if real_dhaka_loaded and real_dhaka_loader:
   mapped_routes = real_dhaka_loader.get_road_routes()
- for i in range(45):
+ if real_dhaka_loaded and mapped_routes.is_empty():
+  push_warning("Real-world map is loaded but its road window has no NPC spawn routes yet; refusing fictional fallback positions.")
+  return
+ var first_npc_index := get_tree().get_nodes_in_group("mapped_road_npc").size() if real_dhaka_loaded else 0
+ for i in range(first_npc_index, 45):
   var npc = CharacterBody3D.new()
   npc.name = "NPC_%02d" % i
   npc.set_script(load("res://npc.gd"))
@@ -488,6 +492,8 @@ func spawn_npcs():
   else:
    npc.position = Vector3(rng.randf_range(-70, 70), 0, rng.randf_range(-70, 70))
   npc.walk_speed = rng.randf_range(1.0, 2.4)
+  if real_dhaka_loaded:
+   npc.add_to_group("mapped_road_npc")
   var visual := HumanoidVisual.new()
   visual.name = "HumanoidVisual"
   visual.outfit_color = Color.from_hsv(rng.randf(), 0.48, rng.randf_range(0.38, 0.78))
@@ -611,6 +617,9 @@ func _process(delta):
    var police_count := get_tree().get_nodes_in_group("mapped_police_vehicle").size()
    if police_count < 3:
     _spawn_mapped_police_vehicle()
+   var mapped_npc_count := get_tree().get_nodes_in_group("mapped_road_npc").size()
+   if mapped_npc_count < 45:
+    spawn_npcs()
 
 func update_marker():
  var marker = get_node_or_null("MissionMarker")
