@@ -449,6 +449,115 @@ class DhakaMapPipelineTests(unittest.TestCase):
 
 
 
+    def test_interior_reference_catalog_is_separate_from_exterior_facade_catalog(self):
+        from PIL import Image
+        from tools.map_pipeline.build_dhaka_map import (
+            load_facade_photo_catalog, load_interior_reference_catalog, match_named_image,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            photo_dir = root / "photos"
+            photo_dir.mkdir()
+            Image.new("RGB", (640, 480), (110, 90, 70)).save(photo_dir / "mosque-interior.jpg", format="JPEG")
+            catalog_path = root / "catalog.json"
+            catalog = {"images": [{
+                "id": "burirhat_mosque_interior_01",
+                "subject": "Burirhat Historical Jame Mosque interior",
+                "match_names": ["বুড়িরহাট ঐতিহাসিক জামে মসজিদ"],
+                "file_name": "mosque-interior.jpg",
+                "facade_eligible": False,
+                "view_type": "unverified",
+                "visual_qa": "pending",
+                "interior_reference_eligible": True,
+                "interior_view_type": "interior",
+                "interior_visual_qa": "passed",
+                "source_page": "https://commons.wikimedia.org/wiki/File:Bibir_Hat_Mosque_01.jpg",
+                "author": "Radman Siddiki",
+                "license": "CC BY-SA 4.0",
+                "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+                "attribution": "Photo: Radman Siddiki / Wikimedia Commons, CC BY-SA 4.0",
+            }]}
+            catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+            with patch.dict(os.environ, {
+                "WSB_FACADE_IMAGE_DIR": str(photo_dir),
+                "WSB_FACADE_IMAGE_CATALOG": str(catalog_path),
+            }):
+                self.assertEqual(load_facade_photo_catalog(), {})
+                interior_catalog = load_interior_reference_catalog()
+                match = match_named_image({"name:bn": "বুড়িরহাট ঐতিহাসিক জামে মসজিদ"}, interior_catalog)
+                self.assertIsNotNone(match)
+                self.assertEqual(match["metadata"]["use"] if "use" in match["metadata"] else "INTERIOR_REFERENCE_ONLY",
+                                 "INTERIOR_REFERENCE_ONLY")
+                self.assertEqual(match["metadata"]["license"], "CC BY-SA 4.0")
+
+    def test_interior_photo_is_baked_as_a_separate_asset_linked_to_its_mapped_building(self):
+        from PIL import Image
+        import hashlib
+        from tools.map_pipeline.build_dhaka_map import build_map
+
+        elements = [{
+            "type": "way",
+            "id": 1155880717,
+            "tags": {
+                "building": "mosque",
+                "building:levels": "1",
+                "name:bn": "বুড়িরহাট ঐতিহাসিক জামে মসজিদ",
+            },
+            "geometry": [
+                {"lat": 23.8092, "lon": 90.4115},
+                {"lat": 23.8092, "lon": 90.4120},
+                {"lat": 23.8097, "lon": 90.4120},
+                {"lat": 23.8097, "lon": 90.4115},
+                {"lat": 23.8092, "lon": 90.4115},
+            ],
+        }]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            photo_dir = root / "photos"
+            photo_dir.mkdir()
+            Image.new("RGB", (640, 480), (110, 90, 70)).save(photo_dir / "mosque-interior.jpg", format="JPEG")
+            catalog_path = root / "catalog.json"
+            catalog_path.write_text(json.dumps({"images": [{
+                "id": "burirhat_mosque_interior_01",
+                "subject": "Burirhat Historical Jame Mosque interior",
+                "match_names": ["বুড়িরহাট ঐতিহাসিক জামে মসজিদ"],
+                "file_name": "mosque-interior.jpg",
+                "facade_eligible": False,
+                "view_type": "unverified",
+                "visual_qa": "pending",
+                "interior_reference_eligible": True,
+                "interior_view_type": "interior",
+                "interior_visual_qa": "passed",
+                "source_page": "https://commons.wikimedia.org/wiki/File:Bibir_Hat_Mosque_01.jpg",
+                "author": "Radman Siddiki",
+                "license": "CC BY-SA 4.0",
+                "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+                "attribution": "Photo: Radman Siddiki / Wikimedia Commons, CC BY-SA 4.0",
+            }]}), encoding="utf-8")
+            out = root / "map"
+            with patch.dict(os.environ, {
+                "WSB_FACADE_IMAGE_DIR": str(photo_dir),
+                "WSB_FACADE_IMAGE_CATALOG": str(catalog_path),
+            }):
+                manifest = build_map(elements, out, DEFAULT_BBOX)
+
+            relative = Path("landmark_reference_photos/mosque-interior.jpg")
+            baked = out / relative
+            self.assertTrue(baked.is_file())
+            self.assertEqual(manifest["feature_counts"]["licensed_facade_photo_panels"], 0)
+            self.assertEqual(manifest["feature_counts"]["interior_reference_photos"], 1)
+            match = manifest["interior_reference_photo_matches"][0]
+            self.assertEqual(match["use"], "INTERIOR_REFERENCE_ONLY")
+            self.assertEqual(match["license"], "CC BY-SA 4.0")
+            self.assertEqual(match["sha256"], hashlib.sha256(baked.read_bytes()).hexdigest())
+            seeds = json.loads((out / "AI_Interior_Seeds.json").read_text(encoding="utf-8"))
+            seed = next(item for item in seeds if item["osm_id"] == 1155880717)
+            self.assertEqual(seed["interior_reference_photo"]["image_id"], "burirhat_mosque_interior_01")
+            self.assertEqual(seed["interior_reference_photo"]["asset_relative_path"], relative.as_posix())
+            self.assertEqual(seed["interior_reference_photo"]["use"], "INTERIOR_REFERENCE_ONLY")
+            self.assertEqual(manifest["licensed_facade_photo_matches"], [])
+
     def test_named_landmark_photo_is_embedded_in_glb_with_license_provenance(self):
         from PIL import Image
 
