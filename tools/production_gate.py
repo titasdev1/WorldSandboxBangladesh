@@ -261,6 +261,15 @@ if placement_start < 0 or placement_end <= placement_start:
 placement_code = map_loader_text[placement_start:placement_end]
 if 'seed.get("door_anchor_local_m", [])' not in placement_code or 'seed.get("door_outward_xy", [])' not in placement_code:
     raise SystemExit("PRODUCTION GATE FAILED: generated building interactions are not aligned to the baked door position.")
+for token in (
+    "def roof_shape_for_building(",
+    "def procedural_roof_mesh(",
+    '"roof_shape_model": roof_shape_model',
+    '"modeled_roofs": modeled_roofs',
+    "INFERRED_SMALL_LOW_RISE_HOME_NO_ROOF_SHAPE_TAG",
+):
+    if token not in map_builder_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: map bake is missing source-aware house roof geometry: {token}")
 if "@export var is_player_character := false" not in character_text or "func _add_clothing_and_face_detail() -> void:" not in character_text:
     raise SystemExit("PRODUCTION GATE FAILED: the hero character detail pass is missing.")
 for token in ("LeftEyeWhite", "NoseBridge", "ChestPocket_L", "ShoeSole", "RadioBody", "WristWatch"):
