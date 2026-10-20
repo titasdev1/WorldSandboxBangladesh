@@ -30,6 +30,10 @@ REQUIRED = [
     "city_asset_factory.gd",
     "systems/mission_factory.gd",
     "systems/interior_factory.gd",
+    "systems/game_factory.gd",
+    "systems/gameplay_factory.gd",
+    "systems/vehicle_gameplay_factory.gd",
+    "systems/population_factory.gd",
     "development_state.json",
     "development_roadmap.md",
     "PRODUCTION_MASTER_DIRECTIVE.md",
@@ -106,6 +110,29 @@ sprint_w, sprint_h = _parse_vector2(sprint_match.group(2))
 if not (sprint_x >= stick_x + stick_w or sprint_x + sprint_w <= stick_x or
         sprint_y >= stick_y + stick_h or sprint_y + sprint_h <= stick_y):
     raise SystemExit("PRODUCTION GATE FAILED: sprint button overlaps the movement stick hit area")
+
+# When the real-world district map is active, the generic starter-city
+# factories must not paste their fictional grids, fixed job/shop markers,
+# race rings, or outer-city traffic over mapped Shariatpur buildings/roads.
+factory_specs = [
+    ("systems/game_factory.gd", "_expand_ground()", "real_map_mode_fictional_grid_suppressed"),
+    ("systems/gameplay_factory.gd", "_create_job_hubs()", "real_map_mode_fixed_markers_suppressed"),
+    ("systems/vehicle_gameplay_factory.gd", "_add_vehicle_depots()", "real_map_mode_fixed_markers_suppressed"),
+    ("systems/population_factory.gd", "_spawn_outer_traffic()", "real_map_mode_mapped_population_only"),
+]
+for relative_path, fictional_call, expected_status in factory_specs:
+    factory_text = (ROOT / relative_path).read_text(encoding="utf-8")
+    boot_start = factory_text.find("func _bootstrap()")
+    map_guard = factory_text.find('if bool(world.get("real_dhaka_loaded")):', boot_start)
+    generator_call = factory_text.find(fictional_call, boot_start)
+    if boot_start < 0 or map_guard < 0 or generator_call < 0 or map_guard > generator_call:
+        raise SystemExit(
+            f"PRODUCTION GATE FAILED: {relative_path} can build fictional content before its real-map suppression guard"
+        )
+    if 'set_meta("real_map_overlay_suppressed", true)' not in factory_text or expected_status not in factory_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: {relative_path} does not report real-map overlay suppression")
+if "get_vehicle_route_records()" not in world_text or "_spawn_mapped_traffic_vehicle(mapped_routes)" not in world_text:
+    raise SystemExit("PRODUCTION GATE FAILED: real-map road traffic no longer uses mapped road routes")
 
 # Main.tscn owns one mission factory; dynamic clones duplicate the 4,000-job
 # catalogue and target markers and can create hidden CPU/memory load on mobile.
