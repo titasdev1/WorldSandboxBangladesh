@@ -153,6 +153,15 @@ for marker in ("Vector3(42, 0, 42)", "Vector3(30, 0, -30)"):
     if player_interact_text.find(marker) < map_interact_guard:
         raise SystemExit(f"PRODUCTION GATE FAILED: fictional starter-city money marker is not confined to fallback mode: {marker}")
 
+# Mobile aspect expansion must preserve circular controls and keep touch targets reachable.
+project_text = (ROOT / "project.godot").read_text(encoding="utf-8")
+if 'window/stretch/aspect="expand"' not in project_text:
+    raise SystemExit("PRODUCTION GATE FAILED: mobile canvas does not expand its logical viewport to screen aspect")
+if "func _relayout_mobile_controls() -> void:" not in hud_text or "get_viewport().size_changed.connect(_relayout_mobile_controls)" not in hud_text:
+    raise SystemExit("PRODUCTION GATE FAILED: mobile HUD does not reflow when viewport aspect changes")
+for token in ('get_viewport().get_visible_rect().size', 'view_width - 200.0', 'view_width - 265.0', 'view_height - 248.0', 'ModeLobby/LobbyPanel', 'touch_action_buttons'):
+    if token not in hud_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: responsive mobile HUD is missing {token}")
 # The mobile movement control must be a true analog circular stick, not four
 # directional buttons, and its hit rectangle must not overlap the sprint button.
 hud_text = (ROOT / "hud.gd").read_text(encoding="utf-8")

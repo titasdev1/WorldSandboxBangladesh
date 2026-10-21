@@ -70,6 +70,7 @@ func _ready():
  add_child(crosshair_label)
 
  var hint = Label.new()
+ hint.name = "MobileInputHint"
  hint.text = "CIRCULAR MOVE • DRAG TO LOOK • AIM • AUTO FIRE • RELOAD • VIEW: FPP/TPP"
  hint.position = Vector2(28, 680)
  hint.add_theme_font_size_override("font_size", 16)
@@ -109,7 +110,78 @@ func _ready():
  _build_lobby_ui()
  _build_shop_ui()
  _build_round_controls()
+ # Reflow controls when the expanded logical viewport differs from 16:9.
+ get_viewport().size_changed.connect(_relayout_mobile_controls)
+ call_deferred("_relayout_mobile_controls")
  get_tree().paused = true
+
+
+func _relayout_mobile_controls() -> void:
+ var visible_size: Vector2 = get_viewport().get_visible_rect().size
+ # Godot's "expand" aspect mode preserves the 16:9 design and exposes extra
+ # logical width on wide phones. Anchor touch actions at edges, not old x-values.
+ var view_width: float = maxf(1280.0, visible_size.x)
+ var view_height: float = maxf(720.0, visible_size.y)
+
+ for stick in get_tree().get_nodes_in_group("movement_stick"):
+  if is_instance_valid(stick):
+   stick.position = Vector2(24.0, view_height - 248.0)
+
+ for action_button in get_tree().get_nodes_in_group("touch_action_buttons"):
+  if not is_instance_valid(action_button):
+   continue
+  var action_name := String(action_button.get_meta("action_name", ""))
+  match action_name:
+   "sprint":
+    action_button.position = Vector2(255.0, view_height - 75.0)
+   "fire":
+    action_button.position = Vector2(view_width - 200.0, view_height - 160.0)
+   "aim":
+    action_button.position = Vector2(view_width - 380.0, view_height - 220.0)
+   "reload":
+    action_button.position = Vector2(view_width - 380.0, view_height - 270.0)
+   "jump":
+    action_button.position = Vector2(view_width - 210.0, view_height - 275.0)
+   "crouch":
+    action_button.position = Vector2(view_width - 210.0, view_height - 220.0)
+   "interact":
+    action_button.position = Vector2(view_width - 380.0, view_height - 70.0)
+   "rain":
+    action_button.position = Vector2(view_width - 220.0, view_height - 70.0)
+
+ if is_instance_valid(crosshair_label):
+  crosshair_label.position = Vector2(view_width * 0.5 - 8.0, view_height * 0.5 - 18.0)
+ var hint := get_node_or_null("MobileInputHint") as Control
+ if is_instance_valid(hint):
+  hint.position = Vector2(28.0, view_height - 40.0)
+ var view_button := get_node_or_null("CameraViewToggle") as Control
+ if is_instance_valid(view_button):
+  view_button.position = Vector2(view_width - 410.0, view_height - 165.0)
+ if is_instance_valid(map_button):
+  map_button.position = Vector2(view_width - 365.0, 18.0)
+ if is_instance_valid(district_map):
+  district_map.position = Vector2(view_width - 265.0, 78.0)
+ var teleport_button := get_node_or_null("TeleportOpenButton") as Control
+ if is_instance_valid(teleport_button):
+  teleport_button.position = Vector2(view_width - 605.0, 18.0)
+ if is_instance_valid(shop_button):
+  shop_button.position = Vector2(view_width - 475.0, 18.0)
+ var settings_button := get_node_or_null("SettingsOpenButton") as Control
+ if is_instance_valid(settings_button):
+  settings_button.position = Vector2(view_width - 255.0, 18.0)
+ if is_instance_valid(teleport_panel):
+  teleport_panel.position = Vector2(view_width - 590.0, 125.0)
+ if is_instance_valid(settings_panel):
+  settings_panel.position = Vector2(view_width - 430.0, 72.0)
+ if is_instance_valid(shop_panel):
+  shop_panel.position = Vector2((view_width - 560.0) * 0.5, (view_height - 470.0) * 0.5)
+ if is_instance_valid(driving_status):
+  driving_status.position = Vector2(view_width - 390.0, view_height - 220.0)
+ var lobby_panel := get_node_or_null("ModeLobby/LobbyPanel") as Control
+ if is_instance_valid(lobby_panel):
+  lobby_panel.position = Vector2(55.0, 42.0)
+  lobby_panel.size = Vector2(view_width - 110.0, view_height - 84.0)
+
 
 func _build_navigation_map() -> void:
  district_map = Control.new()
@@ -294,6 +366,7 @@ func _toggle_map() -> void:
 
 func _build_settings_ui() -> void:
  var settings_button := Button.new()
+ settings_button.name = "SettingsOpenButton"
  settings_button.text = "SETTINGS"
  settings_button.position = Vector2(1025, 18)
  settings_button.size = Vector2(100, 44)
@@ -440,6 +513,9 @@ func _save_graphics_settings() -> void:
 
 func add_touch_button(label_text: String, pos: Vector2, size: Vector2, action_name: String) -> Button:
  var b = Button.new()
+ b.name = "TouchAction_" + action_name
+ b.add_to_group("touch_action_buttons")
+ b.set_meta("action_name", action_name)
  b.text = label_text
  b.position = pos
  b.size = size
@@ -576,6 +652,7 @@ func _build_lobby_ui() -> void:
  add_child(lobby_overlay)
 
  var panel := PanelContainer.new()
+ panel.name = "LobbyPanel"
  panel.position = Vector2(55, 42)
  panel.size = Vector2(1170, 625)
  panel.add_theme_stylebox_override("panel", _lobby_style(Color(0.035, 0.075, 0.12, 0.98), Color(0.12, 0.68, 0.82, 0.9), 2, 22))
