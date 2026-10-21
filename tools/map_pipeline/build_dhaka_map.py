@@ -1113,18 +1113,18 @@ def facade_window_geometry(
     # logic capped the entire building at two panels per floor, leaving long walls
     # almost blank; standard facades now use roughly one window per 3.2 m.
     floor_rows = min(12, max(1, int(round(height / 3.1))))
-    max_window_panels = min(72, max(8, floor_rows * 12))
+    max_window_panels = min(96, max(12, floor_rows * 16))
     industrial_kinds = {"industrial", "warehouse", "hangar", "barn", "shed", "farm", "greenhouse", "stable"}
     slot_window_style = kind in industrial_kinds
     for part in parts:
-        if not isinstance(part, Polygon) or part.area < 20.0:
+        if not isinstance(part, Polygon) or part.area < 6.0:
             continue
         edges: list[tuple[float, tuple[float, float], tuple[float, float], float, float, float]] = []
         coords = list(part.exterior.coords)
         for p1, p2 in zip(coords, coords[1:]):
             dx, dy = float(p2[0] - p1[0]), float(p2[1] - p1[1])
             length = math.hypot(dx, dy)
-            if length < 5.0:
+            if length < 2.2:
                 continue
             mid_x, mid_y = (float(p1[0]) + float(p2[0])) * 0.5, (float(p1[1]) + float(p2[1])) * 0.5
             if tile_bounds.boundary.distance(Point(mid_x, mid_y)) < 1.0:
@@ -1134,15 +1134,21 @@ def facade_window_geometry(
                 nx, ny = -nx, -ny
             angle = math.atan2(dy, dx)
             edges.append((length, (float(p1[0]), float(p1[1])), (float(p2[0]), float(p2[1])), nx, ny, angle))
-        # Two longest visible exterior walls provide an architectural window rhythm.
+        # Cover all four exterior faces, including the small side walls on homes.
+        # A per-edge budget prevents the first long wall from consuming every panel.
         edges.sort(key=lambda edge: edge[0], reverse=True)
-        for edge in edges[:2]:
+        selected_edges = edges[:4]
+        if not selected_edges:
+            continue
+        per_edge_budget = max(1, max_window_panels // len(selected_edges))
+        for edge in selected_edges:
             length, p1, p2, nx, ny, angle = edge
             if slot_window_style:
                 window_count = min(6, max(1, int(length / 5.0)))
             else:
                 window_count = min(8, max(1, int(length / 3.2)))
-            window_width = min(1.25, max(0.48, length / (window_count + 1) * 0.56))
+            window_width = min(1.25, max(0.42, length / (window_count + 1) * 0.56))
+            edge_window_count = 0
             for row in range(floor_rows):
                 center_z = 0.02 + 1.65 + float(row) * 3.0
                 if center_z + 0.45 >= height + 0.02:
@@ -1152,9 +1158,10 @@ def facade_window_geometry(
                     cx = p1[0] + (p2[0] - p1[0]) * fraction + nx * 0.035
                     cy = p1[1] + (p2[1] - p1[1]) * fraction + ny * 0.035
                     window_centers.append((cx, cy, center_z, window_width, angle))
-                    if len(window_centers) >= max_window_panels:
+                    edge_window_count += 1
+                    if edge_window_count >= per_edge_budget:
                         break
-                if len(window_centers) >= max_window_panels:
+                if edge_window_count >= per_edge_budget:
                     break
             if len(window_centers) >= max_window_panels:
                 break
