@@ -395,6 +395,15 @@ for token in (
         raise SystemExit(f"PRODUCTION GATE FAILED: visible combat-hero detail is missing {token}")
 if 'hero_visual.call("play_muzzle_flash")' not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: visible muzzle flash is not connected to the live fire action.")
+for token in (
+    "var _weapon_recoil_offset := 0.0",
+    "_weapon_recoil_offset = minf(_weapon_recoil_offset + 0.06, 0.11)",
+    "_weapon_recoil_offset = move_toward(_weapon_recoil_offset, 0.0, delta * 0.85)",
+):
+    if token not in character_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: weapon recoil animation is missing {token}")
+if "func _spawn_bullet_impact(point: Vector3, surface_normal: Vector3) -> void:" not in world_text or "_spawn_bullet_impact(hit.position, hit.normal)" not in world_text:
+    raise SystemExit("PRODUCTION GATE FAILED: bullet impacts are not connected to live surface ray hits.")
 
 # Main.tscn owns one mission factory; dynamic clones duplicate the 4,000-job
 # catalogue and target markers and can create hidden CPU/memory load on mobile.
