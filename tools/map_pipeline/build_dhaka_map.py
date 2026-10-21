@@ -258,6 +258,29 @@ def load_facade_photo_catalog() -> dict[str, dict[str, Any]]:
     return result
 
 
+def facade_photo_catalog_image_ids(catalog: dict[str, Any]) -> list[str]:
+    """Return unique source-photo IDs that actually loaded as eligible facade textures."""
+    ids: set[str] = set()
+
+    def collect(record: Any) -> None:
+        if not isinstance(record, dict):
+            return
+        metadata = record.get("metadata", {})
+        if not isinstance(metadata, dict):
+            return
+        image_id = str(metadata.get("id", "")).strip()
+        if image_id:
+            ids.add(image_id)
+
+    for key, record in catalog.items():
+        if key == "__geo_targets__" and isinstance(record, list):
+            for target_record in record:
+                collect(target_record)
+        elif key != "__geo_targets__":
+            collect(record)
+    return sorted(ids)
+
+
 def load_interior_reference_catalog() -> dict[str, dict[str, Any]]:
     """Load explicitly licensed interior photos for exact-name in-game interiors only."""
     catalog_path = Path(os.environ.get("WSB_FACADE_IMAGE_CATALOG", "tools/map_pipeline/shariatpur_facade_images.json"))
@@ -1443,6 +1466,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                            (width / 2, depth / 2), (-width / 2, depth / 2)])
     scene = trimesh.Scene()
     facade_photo_catalog = load_facade_photo_catalog()
+    loaded_facade_photo_ids = facade_photo_catalog_image_ids(facade_photo_catalog)
     interior_reference_catalog = load_interior_reference_catalog()
     facade_photo_matches: list[dict[str, Any]] = []
     interior_reference_photo_matches: list[dict[str, Any]] = []
@@ -2071,6 +2095,23 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                             "water_polygons": water_polygons, "waterway_segments": waterway_segments,
                             "landuse_areas": landuse_areas, "railway_ways": railway_ways, "bridge_ways": bridge_ways},
         "licensed_facade_photo_matches": facade_photo_matches,
+        "facade_photo_diagnostics": {
+            "loaded_eligible_image_ids": loaded_facade_photo_ids,
+            "embedded_panel_image_ids": sorted({
+                str(match.get("image_id", "")).strip()
+                for match in facade_photo_matches
+                if str(match.get("image_id", "")).strip()
+            }),
+            "loaded_but_unmatched_image_ids": sorted(
+                set(loaded_facade_photo_ids) - {
+                    str(match.get("image_id", "")).strip()
+                    for match in facade_photo_matches
+                    if str(match.get("image_id", "")).strip()
+                }
+            ),
+            "embedded_panel_count": facade_photo_panels,
+            "interpretation": "A downloaded or loaded source does not count as embedded. Only licensed_facade_photo_panels and embedded_panel_image_ids show that this tile received a textured exterior panel.",
+        },
         "interior_reference_photo_matches": interior_reference_photo_matches,
         "interior_reference_photo_note": "Explicitly licensed interior photos are copied as separate runtime assets and shown only inside the exact-name mapped building's fictional generated interior. They are never applied to an exterior facade.",
         "facade_photo_note": "Only licensed, visually reviewed photos matched by exact name or a bounded target coordinate plus compatible tags receive panels. Curated landmark fallback footprints are explicitly approximate and not surveyed. Panels are reference-photo textures, not full photogrammetric reconstruction; every placement still requires visual review.",
