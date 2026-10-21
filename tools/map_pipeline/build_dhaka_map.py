@@ -1094,17 +1094,28 @@ def facade_window_geometry(
     height: float,
     osm_id: int,
     tile_bounds: Polygon,
+    tags: dict[str, str] | None = None,
 ) -> tuple[tuple[int, int, int, int], np.ndarray, np.ndarray, int] | None:
-    """Build capped, low-poly window panels as one mesh chunk per building."""
-    if height < 3.2 or geometry.is_empty:
+    """Build source-aware window rhythms, including ordinary one-storey homes.
+
+    Window panels are facade cues, not claims of surveyed window positions. Real
+    dimensions, floor evidence and any explicit window=no tag remain authoritative.
+    """
+    if height < 2.8 or geometry.is_empty:
         return None
+    tags = tags or {}
+    if str(tags.get("window", "")).strip().lower() in {"no", "false", "0", "none"}:
+        return None
+    kind = str(tags.get("building", "yes")).strip().lower()
     parts = list(geometry.geoms) if isinstance(geometry, MultiPolygon) else [geometry]
     window_centers: list[tuple[float, float, float, float, float]] = []
-    # Preserve visible vertical floor rhythm instead of flattening every building to
-    # one or two window rows. This is still a facade cue, not proof of surveyed floors;
-    # the source floor count and confidence remain in the per-building metadata.
+    # Preserve a multi-window rhythm across actual metric wall lengths. Earlier
+    # logic capped the entire building at two panels per floor, leaving long walls
+    # almost blank; standard facades now use roughly one window per 3.2 m.
     floor_rows = min(12, max(1, int(round(height / 3.1))))
-    max_window_panels = max(8, floor_rows * 2)
+    max_window_panels = min(72, max(8, floor_rows * 12))
+    industrial_kinds = {"industrial", "warehouse", "hangar", "barn", "shed", "farm", "greenhouse", "stable"}
+    slot_window_style = kind in industrial_kinds
     for part in parts:
         if not isinstance(part, Polygon) or part.area < 20.0:
             continue
@@ -1123,12 +1134,15 @@ def facade_window_geometry(
                 nx, ny = -nx, -ny
             angle = math.atan2(dy, dx)
             edges.append((length, (float(p1[0]), float(p1[1])), (float(p2[0]), float(p2[1])), nx, ny, angle))
-        # Two longest exterior walls provide visible detail without multiplying draw calls.
+        # Two longest visible exterior walls provide an architectural window rhythm.
         edges.sort(key=lambda edge: edge[0], reverse=True)
         for edge in edges[:2]:
             length, p1, p2, nx, ny, angle = edge
-            window_count = min(2, max(1, int(length / 4.5)))
-            window_width = min(0.95, max(0.55, length / (window_count + 1) * 0.4))
+            if slot_window_style:
+                window_count = min(6, max(1, int(length / 5.0)))
+            else:
+                window_count = min(8, max(1, int(length / 3.2)))
+            window_width = min(1.25, max(0.48, length / (window_count + 1) * 0.56))
             for row in range(floor_rows):
                 center_z = 0.02 + 1.65 + float(row) * 3.0
                 if center_z + 0.45 >= height + 0.02:
@@ -1525,7 +1539,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                     doors_from_mapped_entrance_nodes += 1
                 else:
                     inferred_doors += 1
-            window_geometry = facade_window_geometry(polygon, height, osm_id, tile_bounds)
+            window_geometry = facade_window_geometry(polygon, height, osm_id, tile_bounds, tags)
             if window_geometry is not None:
                 window_color, window_vertices, window_faces, window_count = window_geometry
                 vertex_offset = facade_vertex_counts.get(window_color, 0)
