@@ -6,6 +6,7 @@ class_name HumanoidVisual
 @export var hair_color := Color("#282321")
 @export var has_satchel := false
 @export var is_player_character := false
+@export var has_combat_weapon := false
 
 var material_cache: Dictionary = {}
 var left_arm: Node3D
@@ -147,8 +148,15 @@ func _build_body() -> void:
     if has_satchel:
         _box(self, "Satchel", Vector3(0.30, 1.02, 0.19), Vector3(0.27, 0.34, 0.14), Color("#8c5a36"))
         _box(self, "SatchelStrap", Vector3(0.17, 1.30, 0.12), Vector3(0.06, 0.47, 0.05), Color("#3a3029"))
-    if is_player_character:
+    if is_player_character or has_combat_weapon:
         _build_player_weapon()
+    if has_combat_weapon:
+        # A separate authored vest/pouch silhouette makes combat NPCs readable
+        # against ordinary Deshi pedestrians without a heavy extra model.
+        _box(self, "EnemyTacticalVest", Vector3(0, 1.18, 0), Vector3(0.54, 0.43, 0.34), Color("#343d32"))
+        _box(self, "EnemyVestPlate", Vector3(0, 1.22, -0.188), Vector3(0.37, 0.27, 0.045), Color("#50594a"))
+        for side in [-1.0, 1.0]:
+            _box(self, "EnemyAmmoPouch", Vector3(side * 0.17, 1.02, -0.205), Vector3(0.12, 0.15, 0.065), Color("#4a5142"))
 
 func _build_player_weapon() -> void:
     # Distinct authored pieces create a readable, non-branded combat-rifle silhouette.
@@ -217,7 +225,7 @@ func _build_player_weapon() -> void:
 
 
 func play_muzzle_flash() -> void:
-    if not is_player_character or not is_instance_valid(_muzzle_flash) or not is_instance_valid(_muzzle_light):
+    if (not is_player_character and not has_combat_weapon) or not is_instance_valid(_muzzle_flash) or not is_instance_valid(_muzzle_light):
         return
     _muzzle_flash_timer = 0.075
     _weapon_recoil_offset = minf(_weapon_recoil_offset + 0.06, 0.11)
@@ -411,3 +419,17 @@ func _process(delta: float) -> void:
             left_arm.position = Vector3(-0.34, 1.45, 0.0)
             if is_instance_valid(_weapon_root):
                 _weapon_root.rotation.x = -right_arm.rotation.x
+    elif has_combat_weapon:
+        # Enemies use the same rifle rig but raise it only during the readable shot
+        # wind-up; gait resumes between shots instead of permanently locking both arms.
+        var ai_shot_pending: bool = bool(body.get("_shot_pending"))
+        if ai_shot_pending:
+            left_arm.position = Vector3(-0.02, 1.40, -0.04)
+            left_arm.rotation.x = lerpf(left_arm.rotation.x, PI * 0.5, minf(delta * 12.0, 1.0))
+            right_arm.rotation.x = lerpf(right_arm.rotation.x, PI * 0.5, minf(delta * 12.0, 1.0))
+            left_arm.rotation.z = lerpf(left_arm.rotation.z, 0.14, minf(delta * 10.0, 1.0))
+            right_arm.rotation.z = lerpf(right_arm.rotation.z, 0.0, minf(delta * 10.0, 1.0))
+        else:
+            left_arm.position = Vector3(-0.34, 1.45, 0.0)
+        if is_instance_valid(_weapon_root):
+            _weapon_root.rotation.x = -right_arm.rotation.x

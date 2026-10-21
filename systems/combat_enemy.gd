@@ -130,6 +130,9 @@ func _fire_at_player(player: CharacterBody3D) -> void:
         player.global_position + Vector3(0.0, 1.18, 0.0)
     )
     _emit_bullet_tracer(origin, target_point)
+    var visual := get_node_or_null("HumanoidVisual")
+    if is_instance_valid(visual) and visual.has_method("play_muzzle_flash"):
+        visual.call("play_muzzle_flash")
 
     if hit.is_empty():
         return

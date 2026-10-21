@@ -165,3 +165,38 @@ func _clear_combat_entities() -> void:
     for node in get_tree().get_nodes_in_group("combat_enemy"):
         if is_instance_valid(node):
             node.queue_free()
+
+func _spawn_enemy(spawn_position: Vector3, practice_target: bool) -> void:
+    if not is_instance_valid(world) or not is_instance_valid(world.player):
+        return
+
+    var entity := CharacterBody3D.new()
+    entity.name = ("PracticeTarget_%02d" % (get_tree().get_nodes_in_group("combat_enemy").size() + 1)) if practice_target else ("CombatEnemy_%02d" % (get_tree().get_nodes_in_group("combat_enemy").size() + 1))
+    entity.set_script(load("res://systems/combat_enemy.gd") as Script)
+    entity.add_to_group("combat_enemy")
+    entity.floor_snap_length = 0.25
+
+    var capsule := CapsuleShape3D.new()
+    capsule.radius = 0.34
+    capsule.height = 1.8
+    var collision := CollisionShape3D.new()
+    collision.name = "CombatBodyCollision"
+    collision.shape = capsule
+    collision.position = Vector3(0.0, 0.9, 0.0)
+    entity.add_child(collision)
+
+    var visual := HumanoidVisual.new()
+    visual.name = "HumanoidVisual"
+    visual.is_player_character = false
+    visual.has_combat_weapon = not practice_target
+    visual.outfit_color = Color("#cfb56b") if practice_target else Color("#4d5944")
+    visual.skin_color = Color("#a96f4d")
+    visual.hair_color = Color("#24201f")
+    entity.add_child(visual)
+
+    world.add_child(entity)
+    entity.global_position = spawn_position
+    entity.set("world", world)
+    entity.set("combat_controller", self)
+    entity.set("practice_target", practice_target)
+

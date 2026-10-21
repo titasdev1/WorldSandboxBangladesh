@@ -536,6 +536,29 @@ for token in (
     if token not in combat_enemy_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: tactical offline enemy combat is missing {token}")
 
+# Offline combat must create entities rather than merely display mode names.
+combat_controller_text = (ROOT / "systems" / "combat_mode_controller.gd").read_text(encoding="utf-8")
+for token in (
+    "func _spawn_enemy(spawn_position: Vector3, practice_target: bool) -> void:",
+    'entity.set_script(load("res://systems/combat_enemy.gd") as Script)',
+    'entity.add_to_group("combat_enemy")',
+    'entity.set("combat_controller", self)',
+    "visual.has_combat_weapon = not practice_target",
+):
+    if token not in combat_controller_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: offline combat entity spawning is missing {token}")
+for token in (
+    "@export var has_combat_weapon := false",
+    "if is_player_character or has_combat_weapon:",
+    "if has_combat_weapon:",
+    "EnemyTacticalVest",
+    'var ai_shot_pending: bool = bool(body.get("_shot_pending"))',
+):
+    if token not in character_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: enemy rifle rig/pose is missing {token}")
+if 'visual.call("play_muzzle_flash")' not in (ROOT / "systems" / "combat_enemy.gd").read_text(encoding="utf-8"):
+    raise SystemExit("PRODUCTION GATE FAILED: enemy muzzle flash is not attached to shots")
+
 # Main.tscn owns one mission factory; dynamic clones duplicate the 4,000-job
 # catalogue and target markers and can create hidden CPU/memory load on mobile.
 main_scene_text = (ROOT / "Main.tscn").read_text(encoding="utf-8")
