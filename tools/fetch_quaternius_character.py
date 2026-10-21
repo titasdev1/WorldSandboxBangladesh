@@ -174,6 +174,7 @@ def find_archive_member(archive: zipfile.ZipFile, suffix: str) -> str:
 
 def extract_character_dependencies(archive_path: pathlib.Path, destination: pathlib.Path) -> pathlib.Path:
     """Extract one GLTF and its referenced files, resolving archive-relative texture locations safely."""
+    OUTPUT.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(archive_path) as archive:
         archive_names = archive.namelist()
         model_member = find_archive_member(archive, str(PACKS[0]["required_member_suffix"]))
