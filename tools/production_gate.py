@@ -319,6 +319,13 @@ placement_code = map_loader_text[placement_start:placement_end]
 if 'seed.get("door_anchor_local_m", [])' not in placement_code or 'seed.get("door_outward_xy", [])' not in placement_code:
     raise SystemExit("PRODUCTION GATE FAILED: generated building interactions are not aligned to the baked door position.")
 for token in (
+    "def facade_balcony_geometry(",
+    '"facade_balcony_units": facade_balconies',
+    'node_name=f"facade_balconies_{color_name}"',
+):
+    if token not in map_builder_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: per-building balcony geometry is missing {token}")
+for token in (
     "def roof_shape_for_building(",
     "def procedural_roof_mesh(",
     '"roof_shape_model": roof_shape_model',
