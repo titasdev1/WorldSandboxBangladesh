@@ -181,6 +181,12 @@ for relative_path, fictional_call, expected_status in factory_specs:
 if "get_vehicle_route_records()" not in world_text or "_spawn_mapped_traffic_vehicle(mapped_routes)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: real-map road traffic no longer uses mapped road routes")
 
+world_spawn_start = world_text.find("func spawn_player():")
+world_spawn_end = world_text.find("func spawn_traffic():", world_spawn_start)
+world_spawn_text = world_text[world_spawn_start:world_spawn_end]
+if "if real_dhaka_loaded and is_instance_valid(real_dhaka_loader):" not in world_spawn_text or "initial_spawn = _nearest_mapped_respawn_position(initial_spawn)" not in world_spawn_text:
+    raise SystemExit("PRODUCTION GATE FAILED: initial player spawn can bypass real-world road placement")
+
 respawn_start = world_text.find("func respawn_player():")
 respawn_end = world_text.find("func try_vehicle_interaction():", respawn_start)
 if respawn_start < 0 or respawn_end < 0:

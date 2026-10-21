@@ -298,7 +298,10 @@ func spawn_player():
  player.name = "Player"
  player.set_script(load("res://player.gd"))
  player.world = self
- player.position = Vector3(0, 0, -12)
+ var initial_spawn := Vector3(0, 0, -12)
+ if real_dhaka_loaded and is_instance_valid(real_dhaka_loader):
+  initial_spawn = _nearest_mapped_respawn_position(initial_spawn)
+ player.position = initial_spawn
  var cs = CollisionShape3D.new()
  var cap = CapsuleShape3D.new()
  cap.radius = 0.45

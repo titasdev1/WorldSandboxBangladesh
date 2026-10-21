@@ -76,6 +76,16 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         ground_call = factory.index("_expand_ground()", bootstrap_start)
         self.assertLess(real_map_guard, ground_call)
 
+    def test_real_map_initial_player_spawn_uses_mapped_roads(self):
+        world = (self.ROOT / "world.gd").read_text(encoding="utf-8")
+        spawn_start = world.index("func spawn_player():")
+        spawn_end = world.index("func spawn_traffic():", spawn_start)
+        spawn = world[spawn_start:spawn_end]
+        self.assertIn("var initial_spawn := Vector3(0, 0, -12)", spawn)
+        self.assertIn("if real_dhaka_loaded and is_instance_valid(real_dhaka_loader):", spawn)
+        self.assertIn("initial_spawn = _nearest_mapped_respawn_position(initial_spawn)", spawn)
+        self.assertIn("player.position = initial_spawn", spawn)
+
     def test_real_map_respawn_uses_mapped_roads_not_starter_city_origin(self):
         world = (self.ROOT / "world.gd").read_text(encoding="utf-8")
         respawn_start = world.index("func respawn_player():")
