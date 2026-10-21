@@ -514,6 +514,182 @@ def add_curated_manasha_footprint(elements: list[dict[str, Any]], clip_shape: An
     return [*elements, feature]
 
 
+CURATED_HERITAGE_FOOTPRINT_SOURCE = "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED"
+
+
+def _normalised_place_names(tags: dict[str, Any]) -> set[str]:
+    return {
+        " ".join(str(tags.get(key, "")).split()).casefold()
+        for key in ("name", "name:bn", "name:en", "official_name")
+        if str(tags.get(key, "")).strip()
+    }
+
+
+def _curated_facade_catalog() -> list[dict[str, Any]]:
+    catalog_path = ROOT / "tools" / "map_pipeline" / "shariatpur_facade_images.json"
+    try:
+        payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    return [
+        item for item in payload.get("images", [])
+        if isinstance(item, dict)
+        and item.get("facade_eligible") is True
+        and str(item.get("view_type", "")).casefold() == "exterior"
+        and str(item.get("visual_qa", "")).casefold() == "passed"
+        and str(item.get("license", "")) in {"CC BY 4.0", "CC BY-SA 4.0"}
+    ]
+
+
+def curated_exterior_photo_ids_in_tile(tile_polygon: Any, stage: str) -> list[str]:
+    """List approved exterior photos whose verified/published anchors fall in this tile."""
+    if stage != "shariatpur_review" or tile_polygon is None or tile_polygon.is_empty:
+        return []
+    ids: list[str] = []
+    for photo in _curated_facade_catalog():
+        image_id = str(photo.get("id", "")).strip()
+        coords = photo.get("target_location_lat_lon")
+        if not image_id or not isinstance(coords, (list, tuple)) or len(coords) != 2:
+            continue
+        try:
+            target = Point(float(coords[1]), float(coords[0]))
+        except (TypeError, ValueError):
+            continue
+        if tile_polygon.covers(target):
+            ids.append(image_id)
+    return sorted(set(ids))
+
+
+def add_curated_heritage_photo_footprints(elements: list[dict[str, Any]], clip_shape: Any) -> list[dict[str, Any]]:
+    """Add clearly flagged host footprints only for reviewed, exact-site photo anchors.
+
+    The footprint is a temporary photo-panel host, not surveyed architecture. If a
+    compatible physical building already exists within the photograph's bounded
+    radius, the source footprint is kept and no overlapping placeholder is added.
+    """
+    if clip_shape is None or clip_shape.is_empty:
+        return elements
+    result = list(elements)
+    existing_ids = {
+        str(element.get("id", ""))
+        for element in result
+        if element.get("id") is not None
+    }
+    for photo in _curated_facade_catalog():
+        if not photo.get("curated_feature_id") or not photo.get("curated_name"):
+            continue
+        # Manasha has a separately reviewed and historically tested host-footprint
+        # fallback. Do not produce a second overlapping placeholder for it.
+        if photo.get("id") == "manasha_temple_back_view_01":
+            continue
+        coords = photo.get("target_location_lat_lon")
+        if not isinstance(coords, (list, tuple)) or len(coords) != 2:
+            continue
+        try:
+            target_lat, target_lon = float(coords[0]), float(coords[1])
+            target = Point(target_lon, target_lat)
+            radius_m = float(photo.get("target_match_radius_metres", 0.0))
+            feature_id = int(photo["curated_feature_id"])
+            dimensions = photo.get("curated_footprint_dimensions_metres", [8.0, 6.0])
+            width_m, depth_m = float(dimensions[0]), float(dimensions[1])
+            height_m = float(photo.get("curated_height_metres", 4.5))
+        except (TypeError, ValueError, KeyError, IndexError):
+            continue
+        if not math.isfinite(radius_m) or radius_m <= 0.0:
+            continue
+        if not clip_shape.covers(target):
+            continue
+        if str(feature_id) in existing_ids:
+            continue
+
+        aliases = {
+            " ".join(str(alias).split()).casefold()
+            for alias in photo.get("match_names", [])
+            if str(alias).strip()
+        }
+        target_tag_groups = photo.get("target_tag_groups", [])
+        compatible_existing_building = False
+        for element in result:
+            if element.get("type") not in {"way", "relation"}:
+                continue
+            tags = element.get("tags", {})
+            if not isinstance(tags, dict):
+                continue
+            names = _normalised_place_names(tags)
+            name_match = bool(names.intersection(aliases))
+            tag_match = any(
+                isinstance(group, dict) and bool(group) and all(
+                    str(tags.get(str(key), "")).strip().casefold() == str(value).strip().casefold()
+                    for key, value in group.items()
+                )
+                for group in target_tag_groups
+            )
+            if not (name_match or tag_match):
+                continue
+            try:
+                geometry = _source_geometry(element)
+            except (KeyError, TypeError, ValueError):
+                continue
+            if geometry.is_empty or not isinstance(geometry, (Polygon, MultiPolygon)):
+                continue
+            nearest = nearest_points(geometry, target)[0]
+            east = (float(nearest.x) - target_lon) * 111320.0 * math.cos(math.radians(target_lat))
+            north = (float(nearest.y) - target_lat) * 110574.0
+            if math.hypot(east, north) > radius_m:
+                continue
+            building_value = str(tags.get("building", "")).strip().lower()
+            is_physical_building = building_value not in {"", "no", "false", "0"}
+            if is_physical_building:
+                compatible_existing_building = True
+                break
+        if compatible_existing_building:
+            continue
+
+        # Dimensions and height are intentionally small, approximate photo-panel
+        # hosts. Never treat them as actual footprint, floor-count or height evidence.
+        if not (4.0 <= width_m <= 30.0 and 4.0 <= depth_m <= 30.0 and 3.0 <= height_m <= 12.0):
+            continue
+        half_lon = (width_m * 0.5) / (111320.0 * math.cos(math.radians(target_lat)))
+        half_lat = (depth_m * 0.5) / 110574.0
+        footprint = box(
+            target_lon - half_lon, target_lat - half_lat,
+            target_lon + half_lon, target_lat + half_lat,
+        ).intersection(clip_shape)
+        if not isinstance(footprint, Polygon) or footprint.is_empty or footprint.area < 1e-10:
+            continue
+        ring = [{"lat": float(lat), "lon": float(lon)} for lon, lat in footprint.exterior.coords]
+        tags = dict(photo.get("curated_building_tags", {}))
+        aliases_list = photo.get("match_names", [])
+        primary_name = str(aliases_list[0] if aliases_list else photo["curated_name"])
+        location_url = str(photo.get("target_location_source", photo.get("source_page", "")))
+        tags.update({
+            "name": primary_name,
+            "name:en": primary_name,
+            "official_name": str(photo.get("subject", photo["curated_name"])),
+            "building:levels": "1",
+            "building:levels:estimate": "1",
+            "building:levels:source": "CURATED_APPROXIMATE_NOT_SURVEYED",
+            "height": f"{height_m:g} m",
+            "height:source": "CURATED_APPROXIMATE_NOT_SURVEYED",
+            "source:geometry": CURATED_HERITAGE_FOOTPRINT_SOURCE,
+            "source:geometry:url": str(photo.get("source_page", "")),
+            "source:geometry:note": str(photo.get("curated_footprint_dimensions_note", "Approximate photo-panel host; not surveyed.")),
+            "source:location": "Published photo/object location; host footprint and height are approximate and unsurveyed.",
+            "source:location:url": location_url,
+            "source:location:precision": str(photo.get("target_location_precision", "Published point; not a surveyed building footprint.")),
+            "facade:photo_source_id": str(photo.get("id", "")),
+            "facade:photo_license": str(photo.get("license", "")),
+        })
+        result.append({
+            "type": "way",
+            "id": feature_id,
+            "tags": tags,
+            "geometry": ring,
+        })
+        existing_ids.add(str(feature_id))
+    return result
+
+
 def _replace_ground_with_boundary(path: pathlib.Path, boundary_tile: Any, bbox: tuple[float, float, float, float]) -> None:
     """Clip the tile ground itself to the division polygon, not just its features."""
     if boundary_tile.is_empty:
@@ -755,12 +931,37 @@ def main() -> int:
             and element.get("tags", {}).get("building")
         )
         clipped = add_curated_manasha_footprint(clipped, boundary_tile)
+        clipped = add_curated_heritage_photo_footprints(clipped, boundary_tile)
+        curated_photo_target_ids = curated_exterior_photo_ids_in_tile(tile_polygon, args.stage)
+        for target_photo_id in curated_photo_target_ids:
+            target_metadata = next(
+                photo for photo in _curated_facade_catalog()
+                if str(photo.get("id", "")) == target_photo_id
+            )
+            target_coords = target_metadata.get("target_location_lat_lon", [])
+            target_point = Point(float(target_coords[1]), float(target_coords[0]))
+            if not boundary_tile.covers(target_point):
+                raise RuntimeError(
+                    f"Approved exterior-photo anchor {target_photo_id} falls outside the "
+                    "Shariatpur clipping boundary; correct its source point before baking."
+                )
         tile_dir.mkdir(parents=True, exist_ok=True)
         print(f"[{index}/{len(tiles)}] {tile_id}: {len(clipped):,} clipped source + curated features", flush=True)
         # Always bake a ground mesh for every tile. A tile with no mapped OSM
         # features must not become a hole in the explorable world.
         manifest = build_map(clipped, tile_dir, bbox)
         counts = manifest.get("feature_counts", {})
+        embedded_photo_ids = {
+            str(item.get("image_id", "")).strip()
+            for item in manifest.get("licensed_facade_photo_matches", [])
+            if str(item.get("image_id", "")).strip()
+        }
+        missing_curated_photo_ids = sorted(set(curated_photo_target_ids) - embedded_photo_ids)
+        if missing_curated_photo_ids:
+            raise RuntimeError(
+                "Shariatpur target tile lacks textured licensed exterior photo panels for "
+                f"{missing_curated_photo_ids}; downloaded images and catalogue eligibility do not count as embedding."
+            )
         if is_manasha_target_tile and int(counts.get("licensed_facade_photo_panels", 0)) < 1:
             raise RuntimeError(
                 "Manasha target tile is missing its licensed exterior photo panel; image download, building match, "
