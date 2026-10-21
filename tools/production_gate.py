@@ -159,9 +159,21 @@ hud_text = (ROOT / "hud.gd").read_text(encoding="utf-8")
 if 'stick.set_script(load("res://virtual_stick.gd"))' not in hud_text:
     raise SystemExit("PRODUCTION GATE FAILED: circular analog movement stick is not wired into the live HUD")
 stick_text = (ROOT / "virtual_stick.gd").read_text(encoding="utf-8")
-for token in ("func _gui_input(", "InputEventScreenTouch", "InputEventScreenDrag", "func _release_stick()", "_sync_actions()"):
+for token in (
+    "func _gui_input(",
+    "InputEventScreenTouch",
+    "InputEventScreenDrag",
+    "func _viewport_to_local(viewport_position: Vector2) -> Vector2:",
+    "get_global_transform_with_canvas().affine_inverse() * viewport_position",
+    "_update_stick(_viewport_to_local(event.position))",
+    "get_local_mouse_position()",
+    "func _release_stick()",
+    "_sync_actions()",
+):
     if token not in stick_text:
-        raise SystemExit(f"PRODUCTION GATE FAILED: analog movement stick is missing {token}")
+        raise SystemExit(f"PRODUCTION GATE FAILED: analog movement stick is missing coordinate-safe input behavior {token}")
+if "Rect2(Vector2.ZERO, size).has_point(event.position)" in stick_text or "_update_stick(event.position)" in stick_text:
+    raise SystemExit("PRODUCTION GATE FAILED: raw viewport touch positions are still used as local joystick coordinates")
 stick_position_match = re.search(r"stick\.position = Vector2\(([^)]+)\)", hud_text)
 stick_size_match = re.search(r"stick\.size = Vector2\(([^)]+)\)", hud_text)
 sprint_match = re.search(r'add_touch_button\("SPRINT", Vector2\(([^)]+)\), Vector2\(([^)]+)\)', hud_text)
