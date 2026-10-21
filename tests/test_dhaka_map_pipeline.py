@@ -125,6 +125,22 @@ class DhakaMapPipelineTests(unittest.TestCase):
             footprint, 12.4, 102, {"building": "apartments", "building:levels": "4", "balcony": "no"}, tile_bounds
         ), "An explicit balcony=no tag must be respected")
 
+    def test_facade_window_density_uses_wall_length_and_keeps_single_storey_homes_visible(self):
+        from shapely.geometry import box
+        from tools.map_pipeline.build_dhaka_map import facade_window_geometry
+
+        footprint = box(10.0, 10.0, 30.0, 30.0)
+        tile_bounds = box(0.0, 0.0, 100.0, 100.0)
+        single_storey = facade_window_geometry(footprint, 3.0, 101, tile_bounds, {"building": "house"})
+        two_floor = facade_window_geometry(footprint, 6.2, 101, tile_bounds, {"building": "apartments"})
+        five_floor = facade_window_geometry(footprint, 15.5, 102, tile_bounds, {"building": "apartments"})
+        self.assertIsNotNone(single_storey, "Ordinary one-storey homes should not render as blank blocks")
+        self.assertGreater(single_storey[3], 0)
+        self.assertGreater(two_floor[3], 8, "Long walls should receive multiple windows per floor")
+        self.assertGreater(five_floor[3], two_floor[3], "Taller buildings should retain repeated floor rhythms")
+        self.assertIsNone(facade_window_geometry(footprint, 6.2, 101, tile_bounds, {"building": "house", "window": "no"}))
+        self.assertIsNone(facade_window_geometry(footprint, 6.2, 101, tile_bounds, {"building": "house", "window": "false"}))
+
     def test_facade_floor_bands_scale_with_building_floor_count_cue(self):
         from shapely.geometry import box
         from tools.map_pipeline.build_dhaka_map import facade_window_geometry
