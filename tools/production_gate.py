@@ -452,7 +452,7 @@ for token in (
     'CURATED_HERITAGE_FOOTPRINT_SOURCE = "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED"',
     "clipped = add_curated_heritage_photo_footprints(clipped, boundary_tile)",
     "missing_curated_photo_ids = sorted(set(curated_photo_target_ids) - embedded_photo_ids)",
-    "Downloaded images and catalogue eligibility do not count as embedding.",
+    "downloaded images and catalogue eligibility do not count as embedding.",
 ):
     if token not in division_builder_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: location-bound exterior-photo baking is missing {token}")
