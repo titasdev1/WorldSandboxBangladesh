@@ -74,13 +74,18 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
             batches.mkdir()
             write_batch(batches, 0, [
                 {"tile_id": "sp_a", "status": "BAKED_FROM_OSM",
-                 "feature_counts": {"building_footprints": 3, "buildings_with_inferred_height": 2, "licensed_facade_photo_panels": 1},
-                 "licensed_facade_photo_matches": [{
-                     "image_id": "manasha_temple_back_view_01",
-                     "source_page": "https://commons.wikimedia.org/wiki/File:Manasha_Temple,_Shariatpur_(back_view).jpg",
-                     "author": "Shuvajit BD",
-                     "license": "CC BY-SA 4.0",
-                 }]},
+                 "feature_counts": {"building_footprints": 3, "buildings_with_inferred_height": 2, "licensed_facade_photo_panels": 3},
+                 "licensed_facade_photo_matches": [
+                     {"image_id": "manasha_temple_back_view_01",
+                      "source_page": "https://commons.wikimedia.org/wiki/File:Manasha_Temple,_Shariatpur_(back_view).jpg",
+                      "author": "Shuvajit BD", "license": "CC BY-SA 4.0"},
+                     {"image_id": "rudrakar_moth_35",
+                      "source_page": "https://commons.wikimedia.org/wiki/File:Rudrakar_Moth_35.jpg",
+                      "author": "Radman Siddiki", "license": "CC BY 4.0"},
+                     {"image_id": "kartikpur_jomidar_bari_123242",
+                      "source_page": "https://commons.wikimedia.org/wiki/File:Kartikpur_Jomidar_Bari_(123242).jpg",
+                      "author": "Moheen Reeyad", "license": "CC BY-SA 4.0"},
+                 ]},
                 {"tile_id": "sp_b", "status": "EMPTY"},
             ], total=3, geometry_count=1, stage="shariatpur_review", division_total=10)
             write_batch(batches, 2, [
@@ -117,7 +122,7 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
             self.assertTrue(report["checks"]["all_glbs_parse_and_contain_geometry"])
             self.assertGreater(report["checks"]["mesh_geometry_count"], 0)
             self.assertFalse(report["checks"]["all_building_heights_verified_or_surveyed"])
-            self.assertEqual(report["checks"]["licensed_facade_photo_panel_count"], 1)
+            self.assertEqual(report["checks"]["licensed_facade_photo_panel_count"], 3)
             self.assertTrue(report["checks"]["licensed_facade_photo_panels_embedded"])
             self.assertEqual(report["checks"]["estimated_building_heights_count"], 3)
             self.assertEqual(report["checks"]["estimated_building_heights_percent"], 75.0)
@@ -139,6 +144,23 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "zero embedded licensed exterior photo panels"):
                 merge_batches(batches, root / "should_not_publish", "shariatpur_review")
 
+    def test_refuses_partial_approved_shariatpur_exterior_photo_coverage(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            batches = root / "batches"
+            batches.mkdir()
+            write_batch(batches, 0, [
+                {"tile_id": "sp_a", "status": "BAKED_FROM_OSM",
+                 "feature_counts": {"building_footprints": 3, "licensed_facade_photo_panels": 1},
+                 "licensed_facade_photo_matches": [{
+                     "image_id": "manasha_temple_back_view_01",
+                     "source_page": "https://commons.wikimedia.org/wiki/File:Manasha_Temple,_Shariatpur_(back_view).jpg",
+                     "author": "Shuvajit BD", "license": "CC BY-SA 4.0",
+                 }]},
+            ], total=1, geometry_count=1, stage="shariatpur_review", division_total=10)
+            with self.assertRaisesRegex(RuntimeError, "approved exterior photo panel coverage is incomplete"):
+                merge_batches(batches, root / "should_not_publish", "shariatpur_review")
+
     def test_merges_interior_reference_photo_manifest_asset_and_license_restriction(self):
         import hashlib
 
@@ -149,13 +171,18 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
             write_batch(
                 batches, 0,
                 [{"tile_id": "sp_mosque", "status": "BAKED_FROM_OSM",
-                  "feature_counts": {"building_footprints": 1, "interior_reference_photos": 1, "licensed_facade_photo_panels": 1},
-                  "licensed_facade_photo_matches": [{
-                      "image_id": "manasha_temple_back_view_01",
-                      "source_page": "https://commons.wikimedia.org/wiki/File:Manasha_Temple,_Shariatpur_(back_view).jpg",
-                      "author": "Shuvajit BD",
-                      "license": "CC BY-SA 4.0",
-                  }]}],
+                  "feature_counts": {"building_footprints": 1, "interior_reference_photos": 1, "licensed_facade_photo_panels": 3},
+                  "licensed_facade_photo_matches": [
+                      {"image_id": "manasha_temple_back_view_01",
+                       "source_page": "https://commons.wikimedia.org/wiki/File:Manasha_Temple,_Shariatpur_(back_view).jpg",
+                       "author": "Shuvajit BD", "license": "CC BY-SA 4.0"},
+                      {"image_id": "rudrakar_moth_35",
+                       "source_page": "https://commons.wikimedia.org/wiki/File:Rudrakar_Moth_35.jpg",
+                       "author": "Radman Siddiki", "license": "CC BY 4.0"},
+                      {"image_id": "kartikpur_jomidar_bari_123242",
+                       "source_page": "https://commons.wikimedia.org/wiki/File:Kartikpur_Jomidar_Bari_(123242).jpg",
+                       "author": "Moheen Reeyad", "license": "CC BY-SA 4.0"},
+                  ]}],
                 total=1, geometry_count=1, stage="shariatpur_review", division_total=10,
             )
             tile = batches / "0" / "sp_mosque"
@@ -178,15 +205,20 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
                 "use": "INTERIOR_REFERENCE_ONLY",
                 "visual_identity_verified": True,
             }
-            exterior_match = {
-                "image_id": "manasha_temple_back_view_01",
-                "source_page": "https://commons.wikimedia.org/wiki/File:Manasha_Temple,_Shariatpur_(back_view).jpg",
-                "author": "Shuvajit BD",
-                "license": "CC BY-SA 4.0",
-            }
+            exterior_matches = [
+                {"image_id": "manasha_temple_back_view_01",
+                 "source_page": "https://commons.wikimedia.org/wiki/File:Manasha_Temple,_Shariatpur_(back_view).jpg",
+                 "author": "Shuvajit BD", "license": "CC BY-SA 4.0"},
+                {"image_id": "rudrakar_moth_35",
+                 "source_page": "https://commons.wikimedia.org/wiki/File:Rudrakar_Moth_35.jpg",
+                 "author": "Radman Siddiki", "license": "CC BY 4.0"},
+                {"image_id": "kartikpur_jomidar_bari_123242",
+                 "source_page": "https://commons.wikimedia.org/wiki/File:Kartikpur_Jomidar_Bari_(123242).jpg",
+                 "author": "Moheen Reeyad", "license": "CC BY-SA 4.0"},
+            ]
             (tile / "map_manifest.json").write_text(json.dumps({
                 "interior_reference_photo_matches": [match],
-                "licensed_facade_photo_matches": [exterior_match],
+                "licensed_facade_photo_matches": exterior_matches,
             }), encoding="utf-8")
 
             output = root / "shariatpur"
