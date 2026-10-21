@@ -392,6 +392,20 @@ for token in (
 ):
     if token not in apk_verifier_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: APK does not verify the real interior-photo asset: {token}")
+
+# A Shariatpur APK may not rely on a nonzero summary counter alone. Keep the
+# packaged-asset verifier responsible for proving all three approved IDs are
+# present in per-tile metadata with exact building identity and valid licensing.
+for token in (
+    "approved_facade_photo_ids_required",
+    "approved_facade_photo_ids_embedded",
+    "approved Shariatpur exterior photo coverage is incomplete",
+    "tile-specific GLB/remap missing for licensed exterior photo",
+    "license_url",
+    "Licensed exterior façade panels in packaged manifest:",
+):
+    if token not in apk_verifier_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: APK does not fully verify licensed exterior photos: {token}")
 catalog_text = (ROOT / "tools" / "map_pipeline" / "shariatpur_facade_images.json").read_text(encoding="utf-8")
 catalog_data = json.loads(catalog_text)
 catalog_images = catalog_data.get("images", [])
