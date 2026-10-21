@@ -134,7 +134,9 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
     approved_facade_photo_ids_embedded: list[str] = []
     # A Shariatpur review package must bake every currently approved, site-specific
     # exterior reference—not merely one panel to satisfy a minimum counter. The
-    # catalog is intentionally landmark-only; this check does not imply that
+    # required set is loaded from the licensed catalog on each build, so adding a
+    # newly approved reference automatically makes it part of the release gate.
+    # The catalog is intentionally landmark-only; this check does not imply that
     # ordinary houses, shops, or every street facade have reference photography.
     if stage == "shariatpur_review":
         panel_count = int(feature_counts.get("licensed_facade_photo_panels", 0))
