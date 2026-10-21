@@ -112,8 +112,10 @@ if "LATEST_MAP_CODE_SHA" not in android_workflow_text or "git merge-base --is-an
 if "path: build/canonical_release/Project-A-Square.apk" not in android_workflow_text:
     raise SystemExit("PRODUCTION GATE FAILED: canonical Android artifact must be a single installable APK")
 map_workflow_text = (ROOT / ".github/workflows/dhaka-3d-map.yml").read_text(encoding="utf-8")
-if "Dispatch Android APK build after complete Shariatpur assembly" not in map_workflow_text or "actions/workflows/android.yml/dispatches" not in map_workflow_text:
-    raise SystemExit("PRODUCTION GATE FAILED: complete Shariatpur map assembly is not wired to an integrated APK build")
+if "Dispatch Android APK build after complete Shariatpur assembly" in map_workflow_text:
+    raise SystemExit("PRODUCTION GATE FAILED: map workflow contains a duplicate APK dispatch path")
+if "name: Project-A-Square-Shariatpur-Review-Map-" not in map_workflow_text or "Assemble complete Shariatpur District review package" not in map_workflow_text:
+    raise SystemExit("PRODUCTION GATE FAILED: complete Shariatpur package is not assembled and uploaded before the central APK dispatch gate")
 if "city_asset_factory.configure(self)" not in world_text or "spawn_building(Vector3(x, 0, z)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: authored city building factory is not integrated into the world")
 if "real_dhaka_loader.configure(self)" not in world_text:
