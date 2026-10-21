@@ -125,6 +125,75 @@ def main() -> int:
             if len(imported_scenes) != expected:
                 raise SystemExit(f"APK CONTENT GATE FAILED: {len(imported_scenes)} imported GLB scenes embedded; manifest expects {expected}")
 
+            # Verify licensed exterior panels against the APK's actual tile
+            # manifests and GLB files. The merged summary alone is not sufficient:
+            # every currently approved Shariatpur landmark photo must be present,
+            # mapped to a specific feature ID, and shipped in that tile's GLB.
+            facade_matches = manifest.get("licensed_facade_photo_matches", [])
+            if not isinstance(facade_matches, list):
+                raise SystemExit("APK CONTENT GATE FAILED: exterior photo match index is malformed.")
+            declared_panel_count = int(manifest.get("licensed_facade_photo_panels_embedded", 0))
+            facade_image_ids = {
+                str(item.get("image_id", "")).strip()
+                for item in facade_matches if isinstance(item, dict)
+                and str(item.get("image_id", "")).strip()
+            }
+            if args.map_package == "shariatpur_review":
+                required_facade_ids = {
+                    str(value).strip()
+                    for value in manifest.get("approved_facade_photo_ids_required", [])
+                    if str(value).strip()
+                }
+                declared_embedded_ids = {
+                    str(value).strip()
+                    for value in manifest.get("approved_facade_photo_ids_embedded", [])
+                    if str(value).strip()
+                }
+                if not required_facade_ids:
+                    raise SystemExit("APK CONTENT GATE FAILED: Shariatpur manifest has no required approved exterior-photo ID list.")
+                if not required_facade_ids.issubset(facade_image_ids) or not required_facade_ids.issubset(declared_embedded_ids):
+                    missing_facades = sorted(required_facade_ids - facade_image_ids)
+                    raise SystemExit("APK CONTENT GATE FAILED: approved Shariatpur exterior photo coverage is incomplete: " + ", ".join(missing_facades))
+                if declared_embedded_ids != facade_image_ids:
+                    raise SystemExit("APK CONTENT GATE FAILED: embedded exterior-photo IDs disagree with exact-building match records.")
+                if declared_panel_count < len(required_facade_ids) or declared_panel_count != len(facade_matches):
+                    raise SystemExit("APK CONTENT GATE FAILED: exterior photo panel count disagrees with packaged attribution records.")
+                required_photo_fields = ("image_id", "osm_id", "source_page", "author", "license", "license_url", "attribution")
+                malformed_facades = [
+                    item for item in facade_matches
+                    if not isinstance(item, dict)
+                    or any(not str(item.get(field, "")).strip() for field in required_photo_fields)
+                    or str(item.get("license", "")).strip() not in {"CC BY 4.0", "CC BY-SA 4.0"}
+                ]
+                if malformed_facades:
+                    raise SystemExit("APK CONTENT GATE FAILED: an exterior panel lacks exact building identity or valid open-license attribution.")
+
+                tile_photo_matches: dict[tuple[str, str], str] = {}
+                for tile_manifest_path in tile_manifests:
+                    tile_data = json.loads(apk.read(tile_manifest_path).decode("utf-8"))
+                    tile_dir = str(PurePosixPath(tile_manifest_path).parent)
+                    tile_id = PurePosixPath(tile_manifest_path).parent.name
+                    tile_matches = tile_data.get("licensed_facade_photo_matches", [])
+                    tile_counts = tile_data.get("feature_counts", {})
+                    if not isinstance(tile_matches, list) or not isinstance(tile_counts, dict):
+                        raise SystemExit(f"APK CONTENT GATE FAILED: malformed map/photo manifest in tile {tile_id}.")
+                    if int(tile_counts.get("licensed_facade_photo_panels", 0)) < len(tile_matches):
+                        raise SystemExit(f"APK CONTENT GATE FAILED: tile {tile_id} reports fewer baked photo panels than attribution records.")
+                    for tile_match in tile_matches:
+                        if not isinstance(tile_match, dict):
+                            continue
+                        pair = (str(tile_match.get("image_id", "")).strip(), str(tile_match.get("osm_id", "")).strip())
+                        tile_photo_matches[pair] = tile_dir
+
+                for photo_match in facade_matches:
+                    pair = (str(photo_match.get("image_id", "")).strip(), str(photo_match.get("osm_id", "")).strip())
+                    tile_dir = tile_photo_matches.get(pair, "")
+                    if not tile_dir:
+                        raise SystemExit(f"APK CONTENT GATE FAILED: photo {pair[0]} is absent from all packaged tile-level match manifests.")
+                    glb_path = tile_dir + "/Dhaka_Explorable_Map.glb"
+                    if glb_path not in names or glb_path + ".import" not in names:
+                        raise SystemExit(f"APK CONTENT GATE FAILED: tile-specific GLB/remap missing for licensed exterior photo {pair[0]}.")
+
             missing_art = [p for p in REQUIRED_ASSET_MANIFESTS if p not in names]
             if missing_art:
                 raise SystemExit("APK CONTENT GATE FAILED: art pack manifests absent from APK: " + ", ".join(missing_art))
@@ -178,6 +247,8 @@ def main() -> int:
                 f"Named roads in packaged navigation index: {named_roads}",
                 f"Buildings with source floor counts: {source_floors}",
                 f"Independently verified floor counts: {verified_floors}",
+                f"Licensed exterior façade panels in packaged manifest: {declared_panel_count}",
+                f"Approved exterior photo IDs present: {len(required_facade_ids & facade_image_ids)}/{len(required_facade_ids)}" if args.map_package == "shariatpur_review" else "Approved Shariatpur photo coverage: not applicable",
                 f"Interior reference photo assets SHA-256 verified and linked to runtime seeds: {verified_interior_photos}/{len(interior_matches)}",
                 f"Core art pack manifests present: {len(REQUIRED_ASSET_MANIFESTS)}/{len(REQUIRED_ASSET_MANIFESTS)}",
                 f"Authored CC0 hero packaged/imported: {'yes' if hero_available else 'no — procedural fallback'}",
