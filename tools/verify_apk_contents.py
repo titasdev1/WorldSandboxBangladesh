@@ -26,6 +26,7 @@ REQUIRED_ASSET_MANIFESTS = (
     "assets/external_content/kenney_city_kit_industrial/asset_manifest.json",
     "assets/external_content/kenney_city_kit_suburban/asset_manifest.json",
     "assets/external_content/polyhaven_pbr/asset_manifest.json",
+    "assets/external_content/quaternius_hero/asset_manifest.json",
 )
 
 
@@ -128,6 +129,36 @@ def main() -> int:
             if missing_art:
                 raise SystemExit("APK CONTENT GATE FAILED: art pack manifests absent from APK: " + ", ".join(missing_art))
 
+            # When CI successfully assembles the authored player, prove that the
+            # exact licensed GLB bytes, Godot import remap and imported scene are in
+            # the candidate APK. A ZIP containing the source archive alone is not enough.
+            hero_manifest_path = "assets/external_content/quaternius_hero/asset_manifest.json"
+            hero_manifest = json.loads(apk.read(hero_manifest_path).decode("utf-8"))
+            hero_available = hero_manifest.get("available") is True
+            hero_imported_scene_count = 0
+            if hero_available:
+                hero_resource_path = "assets/external_content/quaternius_hero/Project_A_Square_Hero.glb"
+                hero_import_meta_path = hero_resource_path + ".import"
+                if hero_resource_path not in names:
+                    raise SystemExit("APK CONTENT GATE FAILED: authored hero GLB resource is absent from the APK.")
+                hero_data = apk.read(hero_resource_path)
+                hero_sha = hashlib.sha256(hero_data).hexdigest()
+                if hero_sha != str(hero_manifest.get("hero_glb_sha256", "")).lower():
+                    raise SystemExit("APK CONTENT GATE FAILED: packaged hero GLB checksum does not match its build manifest.")
+                if hero_import_meta_path not in names:
+                    raise SystemExit("APK CONTENT GATE FAILED: authored hero is present as a file but lacks its Godot import remap.")
+                hero_scenes = [
+                    path for path in names
+                    if path.startswith(IMPORTED_ROOT)
+                    and path.rsplit("/", 1)[-1].startswith("Project_A_Square_Hero.glb-")
+                    and path.endswith(".scn")
+                ]
+                hero_imported_scene_count = len(hero_scenes)
+                if hero_imported_scene_count < 1:
+                    raise SystemExit("APK CONTENT GATE FAILED: authored hero GLB was not imported into a scene used by Godot.")
+                if int(hero_manifest.get("animation_count", 0)) < 30:
+                    raise SystemExit("APK CONTENT GATE FAILED: authored hero manifest reports fewer than 30 merged animation clips.")
+
             counts = navigation.get("counts", {})
             named_places = int(counts.get("named_places", 0))
             named_roads = int(counts.get("named_roads", 0))
@@ -149,7 +180,10 @@ def main() -> int:
                 f"Independently verified floor counts: {verified_floors}",
                 f"Interior reference photo assets SHA-256 verified and linked to runtime seeds: {verified_interior_photos}/{len(interior_matches)}",
                 f"Core art pack manifests present: {len(REQUIRED_ASSET_MANIFESTS)}/{len(REQUIRED_ASSET_MANIFESTS)}",
-                "Limit: archive presence is not proof of correct in-game rendering or physical-device performance.",
+                f"Authored CC0 hero packaged/imported: {'yes' if hero_available else 'no — procedural fallback'}",
+                f"Authored hero imported Godot scenes: {hero_imported_scene_count}",
+                f"Authored hero animation clips: {int(hero_manifest.get('animation_count', 0)) if hero_available else 0}",
+                "Limit: authored-model packaging success is not proof of CODM-level realism or on-device animation quality.",
             ]
             output = "\n".join(lines) + "\n"
             print(output, end="")

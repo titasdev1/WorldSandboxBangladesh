@@ -25,6 +25,9 @@ on:
       - "assets/**"
       - "external_content/**"
       - "tools/fetch_*.py"
+      - "tools/fetch_quaternius_character.py"
+      - "tools/merge_quaternius_character.mjs"
+      - "tools/verify_quaternius_character.py"
       - "tools/report_build_assets.py"
       - "tools/production_gate.py"
       - "tools/map_pipeline/shariatpur_facade_images.json"
@@ -40,6 +43,9 @@ on:
       - "assets/**"
       - "external_content/**"
       - "tools/fetch_*.py"
+      - "tools/fetch_quaternius_character.py"
+      - "tools/merge_quaternius_character.mjs"
+      - "tools/verify_quaternius_character.py"
       - "tools/report_build_assets.py"
       - "tools/production_gate.py"
       - "tools/map_pipeline/shariatpur_facade_images.json"
@@ -69,7 +75,7 @@ jobs:
 
       - name: Validate asset pipeline Python syntax
         shell: bash
-        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py
+        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py
 
       # Release/push builds retain Greater Dhaka by default. PR validation uses the
       # latest assembled Shariatpur review package so map/game changes are tested
@@ -289,6 +295,29 @@ jobs:
             echo "::warning::Selected map package has no source GeoJSON; named search and offline routing will be unavailable."
           fi
 
+      - name: Restore cached Quaternius CC0 hero and animation libraries
+        uses: actions/cache@v4
+        with:
+          path: external_content/quaternius_hero
+          key: ${{ runner.os }}-quaternius-hero-v1-fdbf1804-cc73fc4e-4008ea20
+
+      - name: Fetch and validate the CC0 rigged player hero
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_quaternius_character.py
+          python3 tools/verify_quaternius_character.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path("external_content/quaternius_hero/asset_manifest.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+          if data.get("available"):
+              print("CC0 authored hero ready:", data.get("animation_count"), "animation clips")
+          else:
+              print("Authored hero source unavailable; documented procedural fallback retained:", data.get("reason", "no reason reported"))
+          PY
+
       - name: Restore Godot import cache for the pinned map assets
         uses: actions/cache@v4
         with:
@@ -296,7 +325,7 @@ jobs:
             .godot/imported
             .godot/editor
             .godot/uid_cache.bin
-          key: ${{ runner.os }}-godot-4.4.1-${{ hashFiles('project.godot', '**/*.import', 'assets/world/dhaka_tiles/**') }}
+          key: ${{ runner.os }}-godot-4.4.1-${{ hashFiles('project.godot', '**/*.import', 'assets/world/dhaka_tiles/**', 'external_content/quaternius_hero/**') }}
           restore-keys: |
             ${{ runner.os }}-godot-4.4.1-
 
@@ -341,6 +370,13 @@ jobs:
           if grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|Invalid call|Invalid get index" "$GODOT_DIR/startup.log"; then
             echo "Godot runtime validation found script errors."
             exit 1
+          fi
+
+          if python3 -c 'import json,pathlib; p=pathlib.Path("external_content/quaternius_hero/asset_manifest.json"); raise SystemExit(0 if p.exists() and json.loads(p.read_text(encoding="utf-8")).get("available") is True else 1)'; then
+            if ! grep -Fq "AUTHORED_HERO_READY" "$GODOT_DIR/startup.log"; then
+              echo "ERROR: CC0 hero asset is available but the game did not activate its imported rig/animations."
+              exit 1
+            fi
           fi
 
       - name: Fetch optional CC0 vehicle art

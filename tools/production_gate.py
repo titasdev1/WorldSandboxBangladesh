@@ -27,6 +27,9 @@ REQUIRED = [
     "character_visual.gd",
     "tools/fetch_free_assets.py",
     "tools/fetch_city_assets.py",
+    "tools/fetch_quaternius_character.py",
+    "tools/merge_quaternius_character.mjs",
+    "tools/verify_quaternius_character.py",
     "city_asset_factory.gd",
     "systems/mission_factory.gd",
     "systems/interior_factory.gd",
@@ -93,6 +96,21 @@ if "visual.scale = HUMANOID_BASE_SCALE * Vector3(1.0, 0.72, 1.0) if _is_crouched
 character_visual_text = (ROOT / "character_visual.gd").read_text(encoding="utf-8")
 if "scale = Vector3(0.90, 0.90, 0.90)" not in character_visual_text or "position.y = -0.065" not in character_visual_text:
     raise SystemExit("PRODUCTION GATE FAILED: character render scale/ground alignment regressed")
+for token in (
+    'const AUTHORED_HERO_PATH := "res://external_content/quaternius_hero/Project_A_Square_Hero.glb"',
+    "func _try_load_authored_hero() -> void:",
+    "func _update_authored_animation(body: CharacterBody3D, planar_speed: float) -> void:",
+    "AUTHORED_HERO_READY",
+    "AUTHORED_HERO_FALLBACK",
+    "_procedural_root.visible = false",
+):
+    if token not in character_visual_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: rigged hero is not safely integrated into the player visual: {token}")
+hero_android_workflow_text = (ROOT / ".github" / "workflows" / "android.yml").read_text(encoding="utf-8")
+if "external_content/quaternius_hero/**" not in hero_android_workflow_text or "Fetch and validate the CC0 rigged player hero" not in hero_android_workflow_text:
+    raise SystemExit("PRODUCTION GATE FAILED: canonical Android export does not fetch/import the rigged CC0 hero before Godot export")
+if "AUTHORED_HERO_READY" not in hero_android_workflow_text or "Project_A_Square_Hero.glb" not in (ROOT / "tools" / "verify_apk_contents.py").read_text(encoding="utf-8"):
+    raise SystemExit("PRODUCTION GATE FAILED: authored hero activation/package verification is disconnected")
 export_presets_text = (ROOT / "export_presets.cfg").read_text(encoding="utf-8")
 if 'include_filter="*.photo_bytes"' not in export_presets_text:
     raise SystemExit("PRODUCTION GATE FAILED: licensed map photo bytes are not explicitly included in Android export")
