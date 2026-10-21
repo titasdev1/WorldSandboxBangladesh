@@ -353,8 +353,11 @@ for token in (
         raise SystemExit(f"PRODUCTION GATE FAILED: per-building balcony geometry is missing {token}")
 for token in (
     "def facade_window_geometry(",
-    "max_window_panels = min(72, max(8, floor_rows * 12))",
+    "max_window_panels = min(96, max(12, floor_rows * 16))",
     'tags.get("window", "")',
+    "selected_edges = edges[:4]",
+    "if not isinstance(part, Polygon) or part.area < 6.0:",
+    "if length < 2.2:",
     "window_count = min(8, max(1, int(length / 3.2)))",
 ):
     if token not in map_builder_text:
