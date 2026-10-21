@@ -113,6 +113,20 @@
         ],
         "wikidata": "https://www.wikidata.org/wiki/Q97497457",
         "evidence_note": "The Commons page identifies the photograph as Rudrakar Abbey (Moth), Shariatpur, and provides a CC BY 4.0 license. The geographic anchor is approximate; a panel is allowed only for a name-alias match or a compatible tagged mapped footprint within the bounded radius."
+      },
+      "curated_feature_id": -62900001,
+      "curated_name": "Rudrakar Moth, Shariatpur",
+      "curated_footprint_dimensions_metres": [
+        8,
+        6
+      ],
+      "curated_footprint_dimensions_note": "Temporary 8 m x 6 m footprint to host the exact-site licensed photo panel; not surveyed and must be replaced by a verified footprint when available.",
+      "curated_height_metres": 4.5,
+      "curated_building_tags": {
+        "building": "temple",
+        "historic": "temple",
+        "amenity": "place_of_worship",
+        "religion": "hindu"
       }
     },
     {
@@ -257,7 +271,20 @@
         {
           "building": "yes"
         }
-      ]
+      ],
+      "curated_feature_id": -62900002,
+      "curated_name": "Kartikpur Jomidar Bari, Shariatpur",
+      "curated_footprint_dimensions_metres": [
+        10,
+        8
+      ],
+      "curated_footprint_dimensions_note": "Temporary 10 m x 8 m footprint to host the exact-site licensed photo panel; not surveyed and must be replaced by a verified footprint when available.",
+      "curated_height_metres": 4.5,
+      "curated_building_tags": {
+        "building": "yes",
+        "historic": "manor",
+        "tourism": "attraction"
+      }
     }
   ]
 }
