@@ -265,6 +265,18 @@ interior_factory_text = (ROOT / "systems" / "interior_factory.gd").read_text(enc
 apk_verifier_text = (ROOT / "tools" / "verify_apk_contents.py").read_text(encoding="utf-8")
 if "active_root.rotation.y = atan2(exit_direction.x, exit_direction.z)" not in interior_factory_text:
     raise SystemExit("PRODUCTION GATE FAILED: generated interior entry is not aligned to the mapped exterior doorway")
+for token in (
+    "func _infer_interior_scale() -> Vector3:",
+    "active_root.scale = _infer_interior_scale()",
+    'active_seed.get("footprint_local_m", [])',
+    'active_seed.get("height_metres", 3.1 * level_count)',
+    "resident.scale = Vector3(",
+    "clampf(3.0 * room_interaction_scale, 0.9, 3.0)",
+):
+    if token not in interior_factory_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: footprint/floor-specific interior scaling is missing {token}")
+if "roam_points.append(root.to_global(point))" not in (ROOT / "systems" / "interior_resident.gd").read_text(encoding="utf-8"):
+    raise SystemExit("PRODUCTION GATE FAILED: interior resident roam points ignore the actual room transform")
 if "player.global_position = active_root.to_global(Vector3(0, 0.25, 1.5))" not in interior_factory_text:
     raise SystemExit("PRODUCTION GATE FAILED: player interior spawn is not coupled to the doorway-facing room transform")
 for token in (
