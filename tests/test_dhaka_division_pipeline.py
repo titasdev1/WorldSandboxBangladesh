@@ -868,5 +868,65 @@ class DhakaDivisionPipelineTests(unittest.TestCase):
                 "The actual textured exterior panel must survive GLB export, not just be counted in source metadata.",
             )
 
+class QuaterniusCharacterDependencyTests(unittest.TestCase):
+    def test_texture_uris_with_publisher_filename_suffix_are_extracted_to_expected_paths(self):
+        from unittest.mock import patch
+        from tools.fetch_quaternius_character import extract_character_dependencies
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive_path = root / "quaternius-pack.zip"
+            unpacked = root / "extracted"
+            output = root / "output"
+            prefix = "Universal Base Characters[Standard]/"
+            model_member = prefix + "Base Characters/Godot - UE/Superhero_Male_FullBody.gltf"
+            expected_texture_uri = "T_Hair_1_Normal_png.png"
+            texture_member = prefix + "Shared Textures/T_Hair_1_Normal.png"
+            buffer_member = prefix + "Base Characters/Godot - UE/character.bin"
+            gltf = {
+                "asset": {"version": "2.0"},
+                "buffers": [{"uri": "character.bin", "byteLength": 4}],
+                "images": [{"uri": expected_texture_uri}],
+            }
+            with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr(model_member, json.dumps(gltf))
+                archive.writestr(buffer_member, b"BUFF")
+                archive.writestr(texture_member, b"PNGDATA")
+                archive.writestr(prefix + "License_Standard.txt", "CC0-1.0")
+
+            with patch("tools.fetch_quaternius_character.OUTPUT", output):
+                extracted_gltf = extract_character_dependencies(archive_path, unpacked)
+
+            expected_model = unpacked / "Base Characters" / "Godot - UE" / "Superhero_Male_FullBody.gltf"
+            expected_buffer = unpacked / "Base Characters" / "Godot - UE" / "character.bin"
+            expected_texture = unpacked / "Base Characters" / "Godot - UE" / expected_texture_uri
+            self.assertEqual(extracted_gltf, expected_model)
+            self.assertTrue(expected_model.is_file())
+            self.assertEqual(json.loads(expected_model.read_text(encoding="utf-8")), gltf)
+            self.assertEqual(expected_buffer.read_bytes(), b"BUFF")
+            self.assertEqual(expected_texture.read_bytes(), b"PNGDATA")
+            self.assertEqual((output / "LICENSE_Quaternius_Base_Characters.txt").read_text(encoding="utf-8"), "CC0-1.0")
+
+    def test_texture_dependency_filename_ambiguity_is_not_silently_guessed(self):
+        from unittest.mock import patch
+        from tools.fetch_quaternius_character import extract_character_dependencies
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive_path = root / "quaternius-pack.zip"
+            unpacked = root / "extracted"
+            prefix = "Universal Base Characters[Standard]/"
+            model_member = prefix + "Base Characters/Godot - UE/Superhero_Male_FullBody.gltf"
+            gltf = {"asset": {"version": "2.0"}, "images": [{"uri": "T_Hair_1_Normal_png.png"}]}
+            with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr(model_member, json.dumps(gltf))
+                archive.writestr(prefix + "TexturesA/T_Hair_1_Normal.png", b"A")
+                archive.writestr(prefix + "TexturesB/T_Hair_1_Normal.png", b"B")
+
+            with patch("tools.fetch_quaternius_character.OUTPUT", root / "output"):
+                with self.assertRaisesRegex(RuntimeError, "Ambiguous normalized GLTF dependency"):
+                    extract_character_dependencies(archive_path, unpacked)
+
+
 if __name__ == "__main__":
     unittest.main()
