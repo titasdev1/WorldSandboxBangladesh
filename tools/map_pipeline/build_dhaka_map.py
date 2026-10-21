@@ -514,10 +514,36 @@ def roof_shape_for_building(tags: dict[str, str], footprint_area_m2: float, heig
     likely_tin_home = material in {
         "metal", "metal_sheet", "steel", "tin", "corrugated_metal", "corrugated_steel"
     } and footprint_area_m2 <= 500.0 and height_m <= 6.0
+    # Many rural/suburban Bangladesh homes are only mapped as building=yes.
+    # Avoid leaving these ordinary homes as completely flat boxes: infer a modest
+    # pitched roof only for small, low-rise, untyped footprints with no explicit
+    # height/floor/roof data and no shop/amenity/commercial/industrial identity.
+    # This is deliberately labelled inference; it is not a surveyed roof claim.
+    generic_home_exclusions = (
+        "shop", "office", "amenity", "industrial", "healthcare", "tourism",
+        "craft", "building:use", "power", "man_made", "military", "religion",
+        "historic", "public_transport",
+    )
+    has_non_home_tags = any(str(tags.get(key, "")).strip() for key in generic_home_exclusions)
+    has_explicit_vertical_data = bool(
+        str(tags.get("height", "")).strip()
+        or str(tags.get("building:levels", "")).strip()
+    )
+    generic_low_rise_home = (
+        kind in {"yes", "building", ""}
+        and footprint_area_m2 <= 70.0
+        and height_m <= 6.5
+        and not has_non_home_tags
+        and not has_explicit_vertical_data
+        and not material
+        and not raw
+    )
     if low_rise_home:
         return "gabled", "INFERRED_SMALL_LOW_RISE_HOME_NO_ROOF_SHAPE_TAG"
     if likely_tin_home:
         return "gabled", "INFERRED_SMALL_TIN_ROOF_NO_ROOF_SHAPE_TAG"
+    if generic_low_rise_home:
+        return "gabled", "INFERRED_UNTYPED_SMALL_LOW_RISE_BUILDING_AS_LOCAL_HOME"
     if raw:
         return "flat", "OSM_ROOF_SHAPE_TAG_NOT_RENDERED:" + raw
     return "flat", "FLAT_CAP_DEFAULT_NO_ROOF_SHAPE_SOURCE"

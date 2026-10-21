@@ -388,6 +388,10 @@ for token in (
     '"roof_shape_model": roof_shape_model',
     '"modeled_roofs": modeled_roofs',
     "INFERRED_SMALL_LOW_RISE_HOME_NO_ROOF_SHAPE_TAG",
+    "generic_low_rise_home = (",
+    "footprint_area_m2 <= 70.0",
+    "INFERRED_UNTYPED_SMALL_LOW_RISE_BUILDING_AS_LOCAL_HOME",
+    "generic_home_exclusions = (",
 ):
     if token not in map_builder_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: map bake is missing source-aware house roof geometry: {token}")

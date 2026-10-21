@@ -542,6 +542,29 @@ class DhakaMapPipelineTests(unittest.TestCase):
         inferred_shape, inferred_source = roof_shape_for_building({"building": "house"}, 90.0, 3.2)
         self.assertEqual(inferred_shape, "gabled")
         self.assertEqual(inferred_source, "INFERRED_SMALL_LOW_RISE_HOME_NO_ROOF_SHAPE_TAG")
+
+        # A large portion of mapped local houses have only building=yes. Infer a
+        # pitched roof for the small/low-rise subset so they are not blank cuboids.
+        generic_shape, generic_source = roof_shape_for_building(
+            {"building": "yes"}, 60.0, 6.2
+        )
+        self.assertEqual(generic_shape, "gabled")
+        self.assertEqual(
+            generic_source,
+            "INFERRED_UNTYPED_SMALL_LOW_RISE_BUILDING_AS_LOCAL_HOME",
+        )
+        generic_mesh = procedural_roof_mesh(polygon, 6.2, generic_shape, 5102)
+        self.assertIsNotNone(generic_mesh)
+
+        # Do not invent residential roofs for a shop or overwrite explicit vertical data.
+        self.assertEqual(
+            roof_shape_for_building({"building": "yes", "shop": "convenience"}, 45.0, 3.2),
+            ("flat", "FLAT_CAP_DEFAULT_NO_ROOF_SHAPE_SOURCE"),
+        )
+        self.assertEqual(
+            roof_shape_for_building({"building": "yes", "building:levels": "2"}, 60.0, 6.2),
+            ("flat", "FLAT_CAP_DEFAULT_NO_ROOF_SHAPE_SOURCE"),
+        )
         self.assertEqual(roof_shape_for_building({"building": "apartments", "roof:shape": "flat"}, 180.0, 6.2),
                          ("flat", "OSM_ROOF_SHAPE_TAG"))
 
