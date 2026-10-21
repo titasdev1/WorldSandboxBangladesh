@@ -168,6 +168,7 @@ class DhakaMapPipelineTests(unittest.TestCase):
         }]
         with tempfile.TemporaryDirectory() as tmp:
             manifest = build_map(elements, Path(tmp), DEFAULT_BBOX)
+            self.assertIn("facade_balcony_units", manifest["feature_counts"])
             seeds = json.loads((Path(tmp) / "AI_Interior_Seeds.json").read_text(encoding="utf-8"))
             self.assertGreater(manifest["feature_counts"]["facade_window_panels"], 0)
             scene = trimesh.load(Path(tmp) / "Dhaka_Explorable_Map.glb", force="scene")
