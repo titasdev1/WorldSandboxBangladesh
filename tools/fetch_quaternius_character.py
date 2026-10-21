@@ -37,7 +37,7 @@ PACKS = (
         "page": "https://quaternius.itch.io/universal-base-characters",
         "upload_id": 15861669,
         "sha256": "fdbf1804c90dfc1ea03e992bff7da2dfd1a79318e13270a660180f9308455f40",
-        "required_member_suffix": "Base Characters/Godot - UE/Regular_Male_FullBody.gltf",
+        "required_member_suffix": "Base Characters/Godot - UE/Superhero_Male_FullBody.gltf",
     },
     {
         "key": "animation_library_1",
