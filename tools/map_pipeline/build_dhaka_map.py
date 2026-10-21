@@ -946,6 +946,149 @@ def facade_door_geometry(
         "entrance_node_osm_id": entrance_node_osm_id,
     }
 
+def facade_balcony_geometry(
+    geometry: Any,
+    height: float,
+    osm_id: int,
+    tags: dict[str, str],
+    tile_bounds: Polygon,
+) -> tuple[tuple[int, int, int, int], trimesh.Trimesh, int] | None:
+    """Add light, deterministic balcony details to selected suitable mid-rise facades.
+
+    This is an authored architectural cue, not evidence that a real building has a
+    balcony. Explicit balcony=no is respected; industrial/utility structures are
+    excluded; generic buildings receive the detail only at a stable low frequency.
+    """
+    if geometry.is_empty or height < 7.2 or geometry.area < 45.0:
+        return None
+
+    kind = str(tags.get("building", "yes")).strip().lower()
+    excluded_kinds = {
+        "industrial", "warehouse", "barn", "shed", "garage", "carport",
+        "hangar", "stable", "farm_auxiliary", "greenhouse", "roof", "bridge",
+        "construction", "ruins", "service",
+    }
+    if kind in excluded_kinds:
+        return None
+
+    balcony_tag = str(tags.get("balcony", "")).strip().lower()
+    if balcony_tag in {"no", "false", "0", "none"}:
+        return None
+
+    residential_kinds = {
+        "apartments", "residential", "house", "terrace", "commercial",
+        "office", "retail", "hotel", "dormitory", "public", "school",
+        "university", "civic", "mixed_use", "yes", "building",
+    }
+    if kind not in residential_kinds:
+        return None
+
+    raw_levels = str(tags.get("building:levels", "")).strip()
+    try:
+        floor_count = int(round(float(raw_levels)))
+    except (TypeError, ValueError):
+        floor_count = int(round(height / 3.1))
+    floor_count = max(1, floor_count)
+    if floor_count < 3:
+        return None
+
+    # Honor an explicit yes tag. Otherwise use a deterministic, sparse selection:
+    # apartment/residential-style buildings occur more often than generic "yes"
+    # footprints, avoiding blanket balconies on every polygon.
+    if balcony_tag not in {"yes", "true", "1"}:
+        selection_modulus = 3 if kind in {"apartments", "residential", "house", "terrace"} else 11
+        if abs(int(osm_id)) % selection_modulus != 0:
+            return None
+
+    parts = list(geometry.geoms) if isinstance(geometry, MultiPolygon) else [geometry]
+    candidates: list[tuple[float, tuple[float, float], tuple[float, float], float, float, float]] = []
+    for part in parts:
+        if not isinstance(part, Polygon) or part.is_empty:
+            continue
+        coords = list(part.exterior.coords)
+        for p1, p2 in zip(coords, coords[1:]):
+            dx = float(p2[0] - p1[0])
+            dy = float(p2[1] - p1[1])
+            length = math.hypot(dx, dy)
+            if length < 7.0:
+                continue
+            mid_x = (float(p1[0]) + float(p2[0])) * 0.5
+            mid_y = (float(p1[1]) + float(p2[1])) * 0.5
+            # A balcony projects beyond the wall. Require clearance from the tile
+            # edge so tile seams never clip this newly generated geometry.
+            if tile_bounds.boundary.distance(Point(mid_x, mid_y)) < 3.2:
+                continue
+            nx, ny = -dy / length, dx / length
+            if part.contains(Point(mid_x + nx * 0.25, mid_y + ny * 0.25)):
+                nx, ny = -nx, -ny
+            candidates.append((length, (float(p1[0]), float(p1[1])),
+                               (float(p2[0]), float(p2[1])), nx, ny,
+                               math.atan2(dy, dx)))
+    if not candidates:
+        return None
+
+    length, p1, p2, nx, ny, angle = max(candidates, key=lambda edge: edge[0])
+    balconies_per_floor = 2 if length >= 15.0 and abs(int(osm_id)) % 2 == 0 else 1
+    balcony_width = min(2.0, max(1.2, length / (balconies_per_floor + 1) * 0.55))
+    palette = (
+        (190, 187, 176, 255),
+        (163, 171, 168, 255),
+        (202, 196, 183, 255),
+        (147, 157, 160, 255),
+    )
+    color = palette[abs(int(osm_id)) % len(palette)]
+    cos_angle, sin_angle = math.cos(angle), math.sin(angle)
+    pieces: list[trimesh.Trimesh] = []
+
+    def add_box(
+        box_width: float,
+        box_depth: float,
+        box_height: float,
+        along_wall: float,
+        outward: float,
+        center_z: float,
+    ) -> None:
+        piece = trimesh.creation.box(extents=(box_width, box_depth, box_height))
+        rotation = np.eye(4)
+        rotation[0, 0] = cos_angle
+        rotation[0, 1] = -sin_angle
+        rotation[1, 0] = sin_angle
+        rotation[1, 1] = cos_angle
+        piece.apply_transform(rotation)
+        center_x = p1[0] + (p2[0] - p1[0]) * along_wall + nx * outward
+        center_y = p1[1] + (p2[1] - p1[1]) * along_wall + ny * outward
+        piece.apply_translation((center_x, center_y, center_z))
+        pieces.append(piece)
+
+    floors_with_balconies = min(5, floor_count - 1)
+    floor_height = height / float(floor_count)
+    balcony_units = 0
+    for floor_index in range(1, floors_with_balconies + 1):
+        floor_z = floor_height * floor_index
+        if floor_z + 0.95 >= height:
+            continue
+        for balcony_index in range(balconies_per_floor):
+            if balconies_per_floor == 1:
+                fraction = 0.42 + float(abs(int(osm_id)) % 4) * 0.04
+            else:
+                fraction = (0.34, 0.66)[balcony_index]
+            fraction = min(max(0.5 * balcony_width / length, fraction),
+                           1.0 - 0.5 * balcony_width / length)
+            add_box(balcony_width, 0.76, 0.12, fraction, 0.39, floor_z - 0.06)
+            add_box(balcony_width, 0.07, 0.84, fraction, 0.76, floor_z + 0.42)
+            add_box(0.07, 0.76, 0.84, fraction - balcony_width / (2.0 * length),
+                    0.39, floor_z + 0.42)
+            add_box(0.07, 0.76, 0.84, fraction + balcony_width / (2.0 * length),
+                    0.39, floor_z + 0.42)
+            balcony_units += 1
+
+    if not pieces:
+        return None
+    combined = trimesh.util.concatenate(pieces)
+    color_mesh(combined, color)
+    return color, combined, balcony_units
+
+
 def facade_window_geometry(
     geometry: Any,
     height: float,
@@ -1168,6 +1311,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     trees = utility_poles = street_lamps = 0
     water_polygons = waterway_segments = landuse_areas = railway_ways = bridge_ways = facade_windows = 0
     facade_doors = 0
+    facade_balconies = 0
     doors_from_mapped_entrance_nodes = 0
     inferred_doors = 0
     modeled_roofs = 0
@@ -1182,6 +1326,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     facade_vertices_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
     facade_faces_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
     facade_vertex_counts: dict[tuple[int, int, int, int], int] = {}
+    balcony_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
     door_vertices_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
     door_faces_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
     door_vertex_counts: dict[tuple[int, int, int, int], int] = {}
@@ -1388,6 +1533,11 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 facade_faces_by_color.setdefault(window_color, []).append(window_faces + vertex_offset)
                 facade_vertex_counts[window_color] = vertex_offset + len(window_vertices)
                 facade_windows += window_count
+            balcony_info = facade_balcony_geometry(polygon, height, osm_id, tags, tile_bounds)
+            if balcony_info is not None:
+                balcony_color, balcony_mesh, balcony_count = balcony_info
+                balcony_meshes_by_color.setdefault(balcony_color, []).append(balcony_mesh)
+                facade_balconies += int(balcony_count)
             buildings += 1
             name = tags.get("name", "")
             has_specific_place_tags = bool(name or tags.get("shop") or tags.get("amenity") or tags.get("tourism"))
@@ -1461,7 +1611,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 "floors_source": building_floors_source(tags),
                 "height_metres": round(height, 2),
                 "height_source": building_height_source(tags),
-                "facade_status": "PROCEDURAL_LOW_POLY_WINDOW_PANELS; MAPPED_COLOUR_TAGS_IF_PRESENT; OTHERWISE_APPROXIMATE_CATEGORY_COLOUR",
+                "facade_status": "PROCEDURAL_LOW_POLY_WINDOW_PANELS; SELECTED_DETERMINISTIC_BALCONIES; MAPPED_COLOUR_TAGS_IF_PRESENT; OTHERWISE_APPROXIMATE_CATEGORY_COLOUR",
                 "geometry_confidence": "OSM_FOOTPRINT; HEIGHT_IS_TAGGED_OR_FLAGGED_AREA_CATEGORY_ESTIMATE",
                 "building_tags": {
                     key: tags[key] for key in (
@@ -1671,6 +1821,14 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         color_name = "".join(f"{channel:02x}" for channel in color[:3])
         scene.add_geometry(combined, node_name=f"facade_doors_{color_name}", geom_name=f"facade_doors_{color_name}")
 
+    for color, meshes in balcony_meshes_by_color.items():
+        if not meshes:
+            continue
+        combined = trimesh.util.concatenate(meshes)
+        color_mesh(combined, color)
+        color_name = "".join(f"{channel:02x}" for channel in color[:3])
+        scene.add_geometry(combined, node_name=f"facade_balconies_{color_name}", geom_name=f"facade_balconies_{color_name}")
+
     for color, vertex_chunks in facade_vertices_by_color.items():
         if not vertex_chunks:
             continue
@@ -1733,7 +1891,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "road_ways": roads,
                            "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places,
                            "interior_anchors": len(interior_seeds), "licensed_facade_photo_panels": facade_photo_panels, "interior_reference_photos": interior_reference_photos_embedded, "mapped_trees": trees,
-                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "facade_door_panels": facade_doors, "doors_from_mapped_entrance_nodes": doors_from_mapped_entrance_nodes, "inferred_doors": inferred_doors, "modeled_roofs": modeled_roofs, "inferred_roof_shapes": inferred_roofs, "edge_clipped_roofs_suppressed": edge_clipped_roofs_suppressed, "gabled_roofs": gabled_roofs, "hipped_roofs": hipped_roofs, "skillion_roofs": skillion_roofs, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color), "procedural_vegetation_trees": procedural_trees, "vegetation_mesh_batches": len(vegetation_meshes_by_color),
+                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "facade_door_panels": facade_doors, "facade_balcony_units": facade_balconies, "doors_from_mapped_entrance_nodes": doors_from_mapped_entrance_nodes, "inferred_doors": inferred_doors, "modeled_roofs": modeled_roofs, "inferred_roof_shapes": inferred_roofs, "edge_clipped_roofs_suppressed": edge_clipped_roofs_suppressed, "gabled_roofs": gabled_roofs, "hipped_roofs": hipped_roofs, "skillion_roofs": skillion_roofs, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color), "procedural_vegetation_trees": procedural_trees, "vegetation_mesh_batches": len(vegetation_meshes_by_color),
                             "water_polygons": water_polygons, "waterway_segments": waterway_segments,
                             "landuse_areas": landuse_areas, "railway_ways": railway_ways, "bridge_ways": bridge_ways},
         "licensed_facade_photo_matches": facade_photo_matches,
@@ -1742,7 +1900,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "facade_photo_note": "Only exact OSM name aliases from the rights-reviewed catalog receive a photo panel. These are licensed reference-photo panels, not full photogrammetric facade reconstruction; visual identity, orientation, and building match must be reviewed.",
         "height_note": "OSM height/building:levels tags are used when present; otherwise footprint-area/building-category estimates with deterministic floor-height variation are flagged as inferred, not surveyed facts.",
         "hydrography_note": "Mapped OSM water polygons are kept to their source outlines. River/canal centerlines without mapped widths use type-based approximate widths and are not survey-grade water boundaries.",
-         "visual_fidelity_note": "Real OSM road alignments, building footprints, mapped water and land-use surfaces, and tagged bridges are included. Mapped forest, orchard, park, scrub and farm polygons receive bounded deterministic low-poly tree props where individual OSM tree nodes are sparse; vegetation remains procedural rather than a surveyed inventory. Sufficiently large buildings receive lightweight procedural low-poly window panels; building, roof and vegetation meshes are batched by material colour to reduce mobile draw calls. Explicit facade/roof colour tags are used where available. Bangla/English names and exterior image references are preserved per building. This is not photorealistic street imagery; that requires separately licensed source data.",
+         "visual_fidelity_note": "Real OSM road alignments, building footprints, mapped water and land-use surfaces, and tagged bridges are included. Mapped forest, orchard, park, scrub and farm polygons receive bounded deterministic low-poly tree props where individual OSM tree nodes are sparse; vegetation remains procedural rather than a surveyed inventory. Sufficiently large buildings receive lightweight procedural low-poly window panels; selected source-aware mid-rise residential/commercial footprints receive deterministic balcony modules, while industrial and explicitly balcony-free buildings are excluded. Building, roof, balcony and vegetation meshes are batched by material colour to reduce mobile draw calls. Explicit facade/roof colour tags are used where available. Bangla/English names and exterior image references are preserved per building. This is not photorealistic street imagery; that requires separately licensed source data.",
         "interiors_and_people": "AI_Interior_Seeds.json includes anchors for every mapped building footprint plus named/tagged places; the game generates fictional interiors and residents at runtime, not actual private interiors or real people.",
         "engine_import": "Import Dhaka_Explorable_Map.glb as a Godot MeshInstance3D/scene; retain GeoJSON and manifest for labels, navigation and source attribution.",
     }
