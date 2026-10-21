@@ -93,11 +93,36 @@ func _try_load_authored_hero() -> void:
 
     var skeletons := _authored_hero.find_children("*", "Skeleton3D", true, false)
     var players := _authored_hero.find_children("*", "AnimationPlayer", true, false)
+
+    # Godot's GLTF importer can expose more than one AnimationPlayer. Do not
+    # blindly select the first non-empty one: nested/default players may contain
+    # only a tiny subset (or a RESET clip), while the merged Quaternius player
+    # owns the actual locomotion library. Select the player with the richest
+    # imported clip set, using recognizable locomotion labels as a tie-breaker.
+    var best_player_score := -1
+    var selected_player_clip_count := 0
     for candidate in players:
-        var animation_player := candidate as AnimationPlayer
-        if animation_player != null and not animation_player.get_animation_list().is_empty():
-            _authored_animation_player = animation_player
-            break
+        var candidate_player := candidate as AnimationPlayer
+        if candidate_player == null:
+            continue
+        var candidate_names := candidate_player.get_animation_list()
+        if candidate_names.is_empty():
+            continue
+        var candidate_score := candidate_names.size() * 100
+        for candidate_animation_name in candidate_names:
+            var normalized_name := String(candidate_animation_name).to_lower()
+            normalized_name = normalized_name.replace("_", "").replace("-", "").replace(" ", "")
+            if normalized_name.contains("idle") or normalized_name.contains("walk") or normalized_name.contains("run") or normalized_name.contains("sprint") or normalized_name.contains("jog"):
+                candidate_score += 1
+        if candidate_score > best_player_score:
+            best_player_score = candidate_score
+            selected_player_clip_count = candidate_names.size()
+            _authored_animation_player = candidate_player
+    if is_instance_valid(_authored_animation_player):
+        print("AUTHORED_HERO_ANIMATION_PLAYER • node=%s • clips=%d" % [
+            _authored_animation_player.get_path(),
+            selected_player_clip_count
+        ])
     if skeletons.is_empty() or not is_instance_valid(_authored_animation_player):
         _authored_hero.queue_free()
         _authored_hero = null
@@ -132,9 +157,9 @@ func _try_load_authored_hero() -> void:
     _authored_hero.scale = Vector3.ONE * fit_scale
     _authored_hero.position = Vector3(0.0, -min_y * fit_scale, 0.0)
 
-    var idle_name := _find_authored_animation(["Idle_Loop", "Idle", "Pistol_Idle_Loop"])
-    var walk_name := _find_authored_animation(["Walk_Loop", "Walk_Formal_Loop", "Walk"])
-    var run_name := _find_authored_animation(["Sprint_Loop", "Jog_Fwd_Loop", "Run"])
+    var idle_name := _find_authored_animation(["Idle_Loop", "Idle", "Pistol_Idle_Loop", "Standing_Idle", "Stand_Idle", "Neutral_Idle"])
+    var walk_name := _find_authored_animation(["Walk_Loop", "Walk_Formal_Loop", "Walk_Forward", "Walking", "Walk"])
+    var run_name := _find_authored_animation(["Sprint_Loop", "Run_Loop", "Jog_Fwd_Loop", "Jog_Loop", "Jog", "Run", "Fast_Walk"])
     if idle_name.is_empty() or walk_name.is_empty() or run_name.is_empty():
         _authored_hero.queue_free()
         _authored_hero = null
