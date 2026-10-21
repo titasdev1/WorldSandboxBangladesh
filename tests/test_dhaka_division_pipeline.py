@@ -20,6 +20,89 @@ from tools.map_pipeline.build_dhaka_division import (
 from tools.map_pipeline.build_dhaka_map import build_map
 
 
+
+
+class OvertureBuildingSupplementTests(unittest.TestCase):
+    def _feature(self, feature_id, coordinates, properties=None):
+        return {
+            "type": "Feature", "id": feature_id,
+            "geometry": {"type": "Polygon", "coordinates": [coordinates]},
+            "properties": {"id": feature_id, **(properties or {})},
+        }
+
+    def test_overture_geojson_retains_names_height_floor_source_and_temple_class(self):
+        from tools.map_pipeline.overture_buildings import OVERTURE_SOURCE_DATASET, load_overture_buildings
+        coords = [
+            [90.3000, 23.2000], [90.3002, 23.2000],
+            [90.3002, 23.2002], [90.3000, 23.2002], [90.3000, 23.2000],
+        ]
+        document = {
+            "type": "FeatureCollection",
+            "features": [self._feature("building-temple-1", coords, {
+                "class": "temple", "subtype": "religious", "height": 8.4, "num_floors": 2,
+                "facade_color": "#d0b080", "roof_color": "#a05040",
+                "names": {"primary": "Test Temple"},
+                "sources": [{"dataset": "Microsoft", "record_id": "fixture-1"}],
+            })],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "overture.geojson"
+            path.write_text(json.dumps(document), encoding="utf-8")
+            first = load_overture_buildings(path, (23.19, 90.29, 23.21, 90.31))
+            second = load_overture_buildings(path, (23.19, 90.29, 23.21, 90.31))
+        self.assertEqual(len(first), 1)
+        self.assertEqual(first[0]["id"], second[0]["id"])
+        tags = first[0]["tags"]
+        self.assertEqual(tags["building"], "temple")
+        self.assertEqual(tags["name"], "Test Temple")
+        self.assertEqual(tags["source_dataset"], OVERTURE_SOURCE_DATASET)
+        self.assertEqual(tags["overture:height"], "8.4")
+        self.assertEqual(tags["overture:num_floors"], "2")
+        self.assertEqual(tags["overture_source_datasets"], "Microsoft")
+        self.assertEqual(tags["building:colour"], "#d0b080")
+
+    def test_deduplication_prefers_osm_overlapping_geometry_but_keeps_gap_fill(self):
+        from tools.map_pipeline.overture_buildings import OVERTURE_SOURCE_DATASET, deduplicate_overture_overlaps
+        shared = [
+            {"lat": 23.2, "lon": 90.3}, {"lat": 23.2, "lon": 90.3002},
+            {"lat": 23.2002, "lon": 90.3002}, {"lat": 23.2002, "lon": 90.3},
+            {"lat": 23.2, "lon": 90.3},
+        ]
+        other = [
+            {"lat": 23.2, "lon": 90.3005}, {"lat": 23.2, "lon": 90.3007},
+            {"lat": 23.2002, "lon": 90.3007}, {"lat": 23.2002, "lon": 90.3005},
+            {"lat": 23.2, "lon": 90.3005},
+        ]
+        osm = {"type": "way", "id": 1, "tags": {"building": "yes"}, "geometry": shared}
+        duplicate = {
+            "type": "way", "id": 2,
+            "tags": {"building": "yes", "source_dataset": OVERTURE_SOURCE_DATASET, "overture_id": "dup"},
+            "geometry": shared,
+        }
+        supplement = {
+            "type": "way", "id": 3,
+            "tags": {"building": "house", "source_dataset": OVERTURE_SOURCE_DATASET, "overture_id": "gap"},
+            "geometry": other,
+        }
+        retained, suppressed = deduplicate_overture_overlaps([osm, duplicate, supplement])
+        self.assertEqual(suppressed, 1)
+        self.assertEqual([item["id"] for item in retained], [1, 3])
+
+    def test_overture_height_and_floor_provenance_are_not_mislabelled_as_osm(self):
+        from tools.map_pipeline.build_dhaka_map import building_height, building_height_source, building_floors_source
+        tags = {
+            "building": "temple",
+            "source_dataset": "Overture Maps buildings theme",
+            "overture:height": "8.4",
+            "overture:num_floors": "2",
+        }
+        height, inferred = building_height(tags, 123)
+        self.assertAlmostEqual(height, 8.4)
+        self.assertFalse(inferred)
+        self.assertEqual(building_height_source(tags), "OVERTURE_HEIGHT_TAG")
+        self.assertEqual(building_floors_source(tags), "OVERTURE_NUM_FLOORS")
+
+
 class RuntimeMapIntegrationWiringTests(unittest.TestCase):
     """Guard the real-map runtime path, not just the standalone map exporter."""
 

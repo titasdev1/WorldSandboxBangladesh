@@ -594,6 +594,34 @@ nested_zips = [
 if nested_zips:
     raise SystemExit(f"PRODUCTION GATE FAILED: nested/filler ZIPs found: {nested_zips[:10]}")
 
+# Overture is a bounded supplemental source, not a fabricated replacement for OSM.
+overture_text = (ROOT / "tools" / "map_pipeline" / "overture_buildings.py").read_text(encoding="utf-8")
+for token in (
+    "def download_overture_buildings(",
+    "def load_overture_buildings(",
+    "def deduplicate_overture_overlaps(",
+    'OVERTURE_SOURCE_DATASET = "Overture Maps buildings theme"',
+    "source_datasets",
+):
+    if token not in overture_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: Overture supplement is missing {token}")
+for token in (
+    "download_overture_buildings(extract_bounds, args.overture_buildings)",
+    "load_overture_buildings(args.overture_buildings, extract_bounds)",
+    "deduplicate_overture_overlaps(clipped)",
+    "overture_building_footprints_added",
+    "OVERTURE_ATTRIBUTION",
+):
+    if token not in division_builder_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: tile-specific Overture integration is missing {token}")
+if 'item["tags"]["source_osm_id"] = str(original["id"])' not in division_builder_text or 'item["tags"]["source_overture_id"]' not in division_builder_text:
+    raise SystemExit("PRODUCTION GATE FAILED: Overture IDs are being mislabelled as OSM IDs")
+map_workflow = (ROOT / ".github" / "workflows" / "dhaka-3d-map.yml").read_text(encoding="utf-8")
+if "pip install osmium shapely trimesh mapbox-earcut pillow overturemaps" not in map_workflow:
+    raise SystemExit("PRODUCTION GATE FAILED: map workflow does not install the official Overture client")
+if "overture-buildings-" not in map_workflow or "path: build/overture/" not in map_workflow:
+    raise SystemExit("PRODUCTION GATE FAILED: Overture per-batch cache is missing")
+
 print("PRODUCTION GATE PASSED")
 print(f"Canonical project: {state['canonical_repository']}")
 print(f"Retained feature modules: {len(features)}")

@@ -29,6 +29,10 @@ if str(ROOT) not in sys.path:
 
 from tools.map_pipeline.build_dhaka_map import build_map, local_xy, extruded_polygon, color_mesh
 from tools.map_pipeline.tile_grid import tile_bounds
+from tools.map_pipeline.overture_buildings import (
+    OVERTURE_ATTRIBUTION, OVERTURE_SOURCE_DATASET, download_overture_buildings,
+    load_overture_buildings, read_overture_provenance, deduplicate_overture_overlaps,
+)
 
 PBF_URL = "https://download.geofabrik.de/asia/bangladesh-latest.osm.pbf"
 BOUNDARY_API = "https://www.geoboundaries.org/api/current/gbOpen/BGD/ADM1/"
@@ -360,7 +364,10 @@ def _parts(geom: Any, expected: str) -> list[Any]:
 def _to_element(original: dict[str, Any], geom: Any, part_no: int) -> dict[str, Any]:
     item = {"type": original["type"], "id": int(original["id"]) * 1000 + part_no,
             "tags": dict(original.get("tags", {}))}
-    item["tags"]["source_osm_id"] = str(original["id"])
+    if item["tags"].get("source_dataset") == OVERTURE_SOURCE_DATASET:
+        item["tags"]["source_overture_id"] = str(item["tags"].get("overture_id", original["id"]))
+    else:
+        item["tags"]["source_osm_id"] = str(original["id"])
     if original["type"] == "node":
         item["lat"], item["lon"] = float(geom.y), float(geom.x)
     else:
@@ -552,6 +559,8 @@ def main() -> int:
                         help="Zero-based offset in the Shariatpur-first, full-division tile order")
     parser.add_argument("--max-tiles", type=int, default=2,
                         help="Maximum tiles in this bounded batch; use 2 to keep each run below six hours")
+    parser.add_argument("--overture-buildings", type=pathlib.Path, default=pathlib.Path("build/overture/buildings.geojson"),
+                        help="Cached, bounded Overture building-theme GeoJSON for this tile batch")
     parser.add_argument("--stage", choices=("shariatpur_review", "full_division"),
                         default="shariatpur_review",
                         help="Stop after Shariatpur for quality review unless full_division is explicitly selected")
@@ -667,6 +676,15 @@ def main() -> int:
                           max(t[2] for t in tiles), max(t[3] for t in tiles))
     else:
         extract_bounds = bounds
+
+    # Cache Overture extracts by source commit, stage, tile size and tile offset.
+    if not args.overture_buildings.is_file():
+        overture_provenance = download_overture_buildings(extract_bounds, args.overture_buildings)
+    else:
+        overture_provenance = read_overture_provenance(args.overture_buildings)
+    overture_elements = load_overture_buildings(args.overture_buildings, extract_bounds)
+    print(f"Loaded {len(overture_elements):,} supplemental Overture building footprints from {args.overture_buildings}.", flush=True)
+
     if args.pbf.name == "dhaka-division-envelope.osm.pbf":
         if not args.pbf.is_file() or args.pbf.stat().st_size < 10_000_000:
             raise RuntimeError(
@@ -690,7 +708,8 @@ def main() -> int:
         row = max(0, int(math.floor((s - min_lat) / args.tile_degrees)))
         tile_index_by_grid[(row, col)] = i
     candidates: list[list[dict[str, Any]]] = [[] for _ in tiles]
-    for el in handler.elements:
+    all_source_elements = list(handler.elements) + list(overture_elements)
+    for el in all_source_elements:
         if el["type"] == "node":
             x0 = x1 = float(el["lon"])
             y0 = y1 = float(el["lat"])
@@ -716,6 +735,12 @@ def main() -> int:
         tile_polygon = box(w, s, e, n)
         boundary_tile = build_boundary.intersection(tile_polygon)
         clipped = _clip_elements(candidates[index - 1], boundary_tile)
+        clipped, overture_duplicate_count = deduplicate_overture_overlaps(clipped)
+        overture_count = sum(
+            1 for element in clipped
+            if element.get("tags", {}).get("source_dataset") == OVERTURE_SOURCE_DATASET
+            and element.get("tags", {}).get("building")
+        )
         clipped = add_curated_manasha_footprint(clipped, boundary_tile)
         tile_dir.mkdir(parents=True, exist_ok=True)
         print(f"[{index}/{len(tiles)}] {tile_id}: {len(clipped):,} clipped source + curated features", flush=True)
@@ -738,6 +763,8 @@ def main() -> int:
             "geojson": f"{tile_id}/Dhaka_OSM_Source.geojson",
             "interior_seeds": f"{tile_id}/AI_Interior_Seeds.json",
             "feature_counts": counts, "status": tile_status_from_counts(counts),
+            "overture_building_footprints_added": overture_count,
+            "overture_duplicate_footprints_suppressed": overture_duplicate_count,
             "curated_landmark_geometry_confidence": (
                 "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED"
                 if int(counts.get("curated_approximate_landmark_footprints", 0)) > 0
@@ -747,8 +774,15 @@ def main() -> int:
     valid = sum("glb" in t for t in tile_records)
     output_manifest = {
         "product": "Project A-Square — " + build_boundary_name + " boundary-clipped 3D map tile batch",
-        "source": "Geofabrik Bangladesh OpenStreetMap PBF plus a disclosed curated landmark fallback where the source footprint is missing",
+        "source": "Geofabrik Bangladesh OpenStreetMap PBF + Overture Maps Buildings theme, with the curated landmark fallback reserved for unmatched Manasha Temple footprint",
         "source_url": PBF_URL,
+        "overture_source": {
+            **overture_provenance,
+            "building_features_loaded_for_batch": len(overture_elements),
+            "building_footprints_added_after_deduplication": sum(int(record.get("overture_building_footprints_added", 0)) for record in tile_records),
+            "duplicate_footprints_suppressed": sum(int(record.get("overture_duplicate_footprints_suppressed", 0)) for record in tile_records),
+            "attribute_note": OVERTURE_ATTRIBUTION,
+        },
         "curated_landmark_fallback_note": "The Manasha Temple fallback is an approximate, unsurveyed footprint positioned using a published place coordinate. It is pending local outline/placement review and is not an OSM building survey.",
         "attribution": OSM_ATTRIBUTION,
         "license": "OSM data: ODbL 1.0. Administrative boundary license is recorded from geoBoundaries API metadata in administrative_boundary.metadata.boundary_license.",
@@ -779,10 +813,13 @@ def main() -> int:
                                 "note": "All Shariatpur-intersecting tiles are emitted first; later offsets continue through every remaining Dhaka Division tile."},
         "tile_count_with_geometry": valid,
         "source_elements_in_boundary_envelope": len(handler.elements),
+        "overture_building_features_loaded_for_batch": len(overture_elements),
+        "overture_building_footprints_added": sum(int(record.get("overture_building_footprints_added", 0)) for record in tile_records),
+        "overture_duplicate_footprints_suppressed": sum(int(record.get("overture_duplicate_footprints_suppressed", 0)) for record in tile_records),
         "missing_way_locations": handler.bad_locations,
         "generated_utc": datetime.now(timezone.utc).isoformat(),
         "coordinate_note": "Each GLB has its own geographic origin; use manifest origins for streaming. Tiles and ground are clipped to the selected administrative boundary.",
-        "completeness_note": "This artifact is one bounded batch from the complete Dhaka Division tile order. Collect all batch offsets to cover the full division. OSM mapped features only; not proof every real-world feature is mapped. Facades, heights, interiors, and imagery remain incomplete unless source data provides them.",
+        "completeness_note": "This is one bounded batch. OSM is supplemented by deduplicated Overture building footprints where available; this improves coverage but does not guarantee every real-world structure. Facades, heights, interiors and imagery remain incomplete unless source data provides them.",
         "tiles": tile_records,
     }
     (args.out / "map_tiles_manifest.json").write_text(json.dumps(output_manifest, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -791,6 +828,7 @@ def main() -> int:
     (args.out / "ATTRIBUTION.txt").write_text(
         OSM_ATTRIBUTION + "\n" + boundary_attribution + "\n"
         + "OSM data license: ODbL 1.0.\n"
+        + OVERTURE_ATTRIBUTION + "\n"
         + f"Clipping boundary: {build_boundary_name} (geoBoundaries gbOpen BGD {boundary_type}).\n"
         + f"Clipping boundary ID: {build_boundary_properties.get('boundary_id', 'unspecified')}.\n"
         + f"Clipping boundary license: {boundary_license_text}. "

@@ -173,6 +173,10 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "tile_count_intersecting_build_boundary": total_tiles,
         "tile_count_with_geometry": geometry_count,
         "feature_counts_across_tiles": feature_counts,
+        "overture_building_footprints_added": int(feature_counts.get("overture_building_footprints", 0)),
+        "overture_duplicate_footprints_suppressed": sum(
+            int(record.get("overture_duplicate_footprints_suppressed", 0)) for record in all_records
+        ),
         "licensed_facade_photo_matches": facade_photo_matches,
         "licensed_facade_photo_panels_embedded": int(feature_counts.get("licensed_facade_photo_panels", 0)),
         "interior_reference_photo_matches": interior_reference_photo_matches,
@@ -237,6 +241,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "© OpenStreetMap contributors — https://www.openstreetmap.org/copyright\n"
         + boundary_attribution + "\n"
         + "OSM data license: ODbL 1.0.\n"
+        + "Supplemental building footprints: Overture Maps Foundation Buildings theme via the official Overture Maps Python client; per-feature source datasets/record IDs remain in map tags. Follow current attribution guidance: https://docs.overturemaps.org/getting-data/.\n"
         + f"Clipping boundary: {expected_boundary_name} (geoBoundaries gbOpen BGD {boundary_type}).\n"
         + f"Clipping boundary ID: {boundary_id}.\n"
         + f"Clipping boundary license: {boundary_license}. License source: {boundary_license_source}.\n"

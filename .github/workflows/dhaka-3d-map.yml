@@ -153,7 +153,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y osmium-tool
           python -m pip install --upgrade pip
-          python -m pip install osmium shapely trimesh mapbox-earcut pillow
+          python -m pip install osmium shapely trimesh mapbox-earcut pillow overturemaps
 
       # Cache a regional extract, not the full country PBF. This prevents each
       # tile batch from scanning the entire Bangladesh extract from scratch.
@@ -170,9 +170,18 @@ jobs:
         run: |
           python tools/map_pipeline/prepare_dhaka_division_pbf.py --out build/osm/dhaka-division-envelope.osm.pbf
 
+      # Cache by source commit and tile batch so retries/continuations reuse the same
+      # bounded Overture extract rather than re-download it.
+      - name: Restore cached Overture building footprints for this tile batch
+        id: overture-cache
+        uses: actions/cache@v4
+        with:
+          path: build/overture/
+          key: overture-buildings-${{ inputs.build_stage || 'shariatpur_review' }}-${{ inputs.source_commit || github.sha }}-${{ inputs.tile_degrees || '0.05' }}-${{ inputs.tile_offset || '0' }}-v1
+
       - name: Validate Python syntax and offline fixtures
         run: |
-          python -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_division.py tools/map_pipeline/prepare_dhaka_division_pbf.py tools/map_pipeline/merge_dhaka_division_batches.py tools/map_pipeline/tile_grid.py tools/map_pipeline/build_real_world_navigation_index.py tools/map_pipeline/fetch_licensed_facade_images.py
+          python -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_division.py tools/map_pipeline/overture_buildings.py tools/map_pipeline/prepare_dhaka_division_pbf.py tools/map_pipeline/merge_dhaka_division_batches.py tools/map_pipeline/tile_grid.py tools/map_pipeline/build_real_world_navigation_index.py tools/map_pipeline/fetch_licensed_facade_images.py
           python -m unittest discover -s tests -p 'test_dhaka*_pipeline.py' -v
           python -m unittest discover -s tests -p 'test_merge_dhaka_division_batches.py' -v
 

@@ -438,6 +438,16 @@ def facade_photo_panel(
     panel.metadata["name"] = f"licensed_facade_photo_{image_id}_{osm_id}"
     return panel
 
+def _valid_map_number(value: Any, minimum: float, maximum: float) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(parsed) or not minimum <= parsed <= maximum:
+        return None
+    return parsed
+
+
 def building_height(
     tags: dict[str, str], osm_id: int, footprint_area_m2: float | None = None
 ) -> tuple[float, bool]:
@@ -449,6 +459,13 @@ def building_height(
                 return curated_height, True
         except (TypeError, ValueError):
             pass
+    if str(tags.get("source_dataset", "")).strip() == "Overture Maps buildings theme":
+        overture_height = _valid_map_number(tags.get("overture:height"), 2.5, 250.0)
+        if overture_height is not None:
+            return overture_height, False
+        overture_levels = _valid_map_number(tags.get("overture:num_floors"), 1.0, 70.0)
+        if overture_levels is not None:
+            return max(3.2, int(overture_levels) * 3.1), False
     raw_height = tags.get("height", "").replace(" m", "").strip()
     try:
         height = float(raw_height)
@@ -480,9 +497,14 @@ def building_height(
 
 
 def building_height_source(tags: dict[str, str]) -> str:
-    """Preserve curated/estimated provenance rather than dressing it as OSM survey data."""
+    """Preserve curated, Overture, mapped, and estimated provenance separately."""
     if str(tags.get("height:source", "")).strip() == "CURATED_APPROXIMATE_NOT_SURVEYED":
         return "CURATED_APPROXIMATE_NOT_SURVEYED"
+    if str(tags.get("source_dataset", "")).strip() == "Overture Maps buildings theme":
+        if _valid_map_number(tags.get("overture:height"), 2.5, 250.0) is not None:
+            return "OVERTURE_HEIGHT_TAG"
+        if _valid_map_number(tags.get("overture:num_floors"), 1.0, 70.0) is not None:
+            return "OVERTURE_NUM_FLOORS"
     raw_height = str(tags.get("height", "")).replace(" m", "").strip()
     try:
         height = float(raw_height)
@@ -503,6 +525,11 @@ def building_height_source(tags: dict[str, str]) -> str:
 def building_floors_source(tags: dict[str, str]) -> str:
     if str(tags.get("building:levels:source", "")).strip() == "CURATED_APPROXIMATE_NOT_SURVEYED":
         return "CURATED_APPROXIMATE_NOT_SURVEYED"
+    if str(tags.get("source_dataset", "")).strip() == "Overture Maps buildings theme":
+        if _valid_map_number(tags.get("overture:num_floors"), 1.0, 70.0) is not None:
+            return "OVERTURE_NUM_FLOORS"
+        if _valid_map_number(tags.get("overture:height"), 2.5, 250.0) is not None:
+            return "DERIVED_FROM_OVERTURE_HEIGHT_TAG"
     raw_levels = str(tags.get("building:levels", "")).strip()
     try:
         levels = int(float(raw_levels))
@@ -1427,6 +1454,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     scene.add_geometry(ground, node_name="terrain_base", geom_name="terrain_base")
 
     buildings = roads = inferred_heights = named_places = 0
+    overture_buildings = 0
     trees = utility_poles = street_lamps = 0
     water_polygons = waterway_segments = landuse_areas = railway_ways = bridge_ways = facade_windows = 0
     facade_doors = 0
@@ -1667,6 +1695,8 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 balcony_meshes_by_color.setdefault(balcony_color, []).append(balcony_mesh)
                 facade_balconies += int(balcony_count)
             buildings += 1
+            if tags.get("source_dataset") == "Overture Maps buildings theme":
+                overture_buildings += 1
             name = tags.get("name", "")
             has_specific_place_tags = bool(name or tags.get("shop") or tags.get("amenity") or tags.get("tourism"))
             building_kind = str(tags.get("building", "building")).lower()
@@ -1757,7 +1787,9 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                         "building:colour", "building:color", "facade:material",
                         "facade:colour", "facade:color", "roof:shape", "roof:material",
                         "roof:colour", "roof:color", "name", "name:bn", "name:en",
-                        "official_name", "brand", "shop", "amenity", "tourism",
+                        "official_name", "brand", "shop", "amenity", "tourism", "source_dataset",
+                        "overture_id", "overture_source_datasets", "overture:height", "overture:num_floors",
+                        "overture:class", "overture:subtype",
                         "addr:street", "addr:housenumber", "addr:place",
                         "image", "wikimedia_commons", "mapillary"
                     ) if key in tags
@@ -2019,14 +2051,15 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "pipeline_commit_sha": os.environ.get("WSB_PIPELINE_COMMIT_SHA", "").strip(),
         "product": "Dhaka Explorable 3D Map — first offline map slice",
         "format": "glTF 2.0 binary (.glb)",
-        "source": "OpenStreetMap ways/nodes via Overpass API",
+        "source": ("OpenStreetMap features" + (" plus Overture Maps building footprints" if overture_buildings else "")),
+        "source_feature_counts": {"overture_building_footprints": overture_buildings},
         "attribution": OSM_COPYRIGHT,
         "license": "OpenStreetMap data is available under the Open Database License (ODbL); review attribution/share-alike obligations before redistribution.",
         "bbox_south_west_north_east": list(bbox),
         "local_origin_lat_lon": [origin_lat, origin_lon],
         "projected_local_units": "metres; local equirectangular projection; Z is up",
         "extent_metres_approx": {"east_west": round(width, 1), "north_south": round(depth, 1)},
-        "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "road_ways": roads,
+        "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "overture_building_footprints": overture_buildings, "road_ways": roads,
                            "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places,
                            "interior_anchors": len(interior_seeds), "licensed_facade_photo_panels": facade_photo_panels, "interior_reference_photos": interior_reference_photos_embedded,
                             "curated_approximate_landmark_footprints": sum(
@@ -2069,6 +2102,8 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         if attribution and entry not in seen_photo_attributions:
             seen_photo_attributions.add(entry)
             attribution_text += "\n" + entry + "\n"
+    if overture_buildings:
+        attribution_text += "\nSupplemental building footprints: Overture Maps Foundation Buildings theme, accessed using the official Overture Maps Python client. Feature-level source datasets and record IDs are retained in building tags. Follow current source attribution and terms: https://docs.overturemaps.org/getting-data/\n"
     (output_dir / "ATTRIBUTION.txt").write_text(attribution_text, encoding="utf-8")
     return manifest
 
