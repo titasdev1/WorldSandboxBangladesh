@@ -66,6 +66,7 @@ on:
       - "tools/map_pipeline/**"
       - "tests/test_dhaka_map_pipeline.py"
       - "tests/test_dhaka_division_pipeline.py"
+      - "tests/test_merge_dhaka_division_batches.py"
       - ".github/workflows/dhaka-3d-map.yml"
       - ".github/workflows/dhaka-division-map.yml"
       - "MAP_PIPELINE.md"
