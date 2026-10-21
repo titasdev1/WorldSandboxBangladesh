@@ -225,7 +225,7 @@ def load_facade_photo_catalog() -> dict[str, dict[str, Any]]:
         catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
     except Exception:
         return {}
-    result: dict[str, dict[str, Any]] = {}
+    result: dict[str, Any] = {}
     for item in catalog.get("images", []):
         # Rights and name matching are not enough to prove a photograph is the
         # correct exterior view. Only use images with explicit visual QA approval.
@@ -246,6 +246,11 @@ def load_facade_photo_catalog() -> dict[str, dict[str, Any]]:
         except Exception:
             continue
         record = {"image": image, "metadata": item}
+        target_location = item.get("target_location_lat_lon")
+        if isinstance(target_location, (list, tuple)) and len(target_location) == 2:
+            # Secondary matching is available only for explicitly reviewed, licensed
+            # exterior photos with a declared geographic anchor in the catalog.
+            result.setdefault("__geo_targets__", []).append(record)
         for alias in item.get("match_names", []):
             normalized = normalize_facade_name(alias)
             if normalized:
@@ -301,9 +306,65 @@ def match_named_image(tags: dict[str, str], catalog: dict[str, dict[str, Any]]) 
     return None
 
 
-def match_facade_photo(tags: dict[str, str], catalog: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
-    """Use strict aliases only; do not assign a landmark photo to a guessed building."""
-    return match_named_image(tags, catalog)
+def match_facade_photo(
+    tags: dict[str, str],
+    catalog: dict[str, Any],
+    geometry: Polygon | MultiPolygon | None = None,
+    origin_lat: float | None = None,
+    origin_lon: float | None = None,
+) -> dict[str, Any] | None:
+    """Match exact mapped names first, then a verified geo-anchor plus compatible tags.
+
+    Geographic fallback is limited to individually approved photos, their own
+    catalogued target coordinates, an explicit compatible-feature tag group, and
+    a small radius. A nearest/random building is never enough.
+    """
+    named = match_named_image(tags, catalog)
+    if named is not None:
+        return {**named, "match_method": "exact_name_alias", "match_distance_m": 0.0}
+    if geometry is None or origin_lat is None or origin_lon is None:
+        return None
+
+    normalized_tags = {str(key): str(value).strip().casefold() for key, value in tags.items()}
+    matches: list[tuple[float, dict[str, Any]]] = []
+    for candidate in catalog.get("__geo_targets__", []):
+        metadata = candidate.get("metadata", {})
+        coords = metadata.get("target_location_lat_lon")
+        if not isinstance(coords, (list, tuple)) or len(coords) != 2:
+            continue
+        tag_groups = metadata.get("target_tag_groups", [
+            {"amenity": "place_of_worship"},
+            {"building": "temple"},
+            {"historic": "temple"},
+        ])
+        if not isinstance(tag_groups, list) or not any(
+            isinstance(group, dict) and group and all(
+                normalized_tags.get(str(key), "") == str(value).strip().casefold()
+                for key, value in group.items()
+            )
+            for group in tag_groups
+        ):
+            continue
+        try:
+            target_x, target_y = local_xy(float(coords[0]), float(coords[1]), origin_lat, origin_lon)
+            radius_m = float(metadata.get("target_match_radius_metres", 45.0))
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(radius_m) or radius_m <= 0.0:
+            continue
+        target_point = Point(target_x, target_y)
+        distance_m = float(geometry.distance(target_point))
+        if distance_m <= radius_m:
+            matches.append((distance_m, candidate))
+
+    if not matches:
+        return None
+    distance_m, selected = min(matches, key=lambda item: item[0])
+    return {
+        **selected,
+        "match_method": "verified_coordinate_compatible_tagged_landmark",
+        "match_distance_m": round(distance_m, 2),
+    }
 
 
 def facade_photo_panel(
@@ -1478,7 +1539,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             for mesh in extruded_polygon(polygon, height, facade_color, f"osm_building_{osm_id}"):
                 mesh.apply_translation((0.0, 0.0, 0.02))
                 building_meshes_by_color.setdefault(facade_color, []).append(mesh)
-            facade_photo = match_facade_photo(tags, facade_photo_catalog)
+            facade_photo = match_facade_photo(tags, facade_photo_catalog, polygon, origin_lat, origin_lon)
             if facade_photo is not None:
                 photo_metadata: dict[str, Any] = facade_photo["metadata"]
                 photo_panel = facade_photo_panel(
@@ -1502,6 +1563,8 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                         "license_url": photo_metadata.get("license_url"),
                         "attribution": photo_metadata.get("attribution"),
                         "status": "EMBEDDED_TEXTURE_PANEL_REQUIRES_VISUAL_REVIEW",
+                        "match_method": facade_photo.get("match_method", "exact_name_alias"),
+                        "match_distance_m": float(facade_photo.get("match_distance_m", 0.0)),
                     }
                     facade_photo_matches.append(match_record)
             # Keep a cap for every building, adding pitched silhouettes when source

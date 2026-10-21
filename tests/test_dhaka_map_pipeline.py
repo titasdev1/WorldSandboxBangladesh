@@ -453,6 +453,8 @@ class DhakaMapPipelineTests(unittest.TestCase):
         self.assertEqual(manasha.get("visual_qa"), "passed")
         self.assertEqual(manasha.get("license"), "CC BY-SA 4.0")
         self.assertIn("Shuvajit BD", manasha.get("attribution", ""))
+        self.assertEqual(manasha.get("target_location_lat_lon"), [23.2004, 90.3484])
+        self.assertEqual(manasha.get("target_match_radius_metres"), 45.0)
         self.assertIn("interior photograph", " ".join(catalog.get("limitations", [])).lower())
 
     def test_verified_manasha_exterior_photo_matches_only_its_explicit_name_aliases(self):
@@ -463,6 +465,7 @@ class DhakaMapPipelineTests(unittest.TestCase):
         aliases = {normalize_facade_name(alias): {"metadata": photo} for alias in photo["match_names"]}
         self.assertEqual(match_facade_photo({"name:bn": "মনসা মন্দির, শরীয়তপুর"}, aliases)["metadata"]["id"], "manasha_temple_back_view_01")
         self.assertEqual(match_facade_photo({"name": "Manasha Temple"}, aliases)["metadata"]["id"], "manasha_temple_back_view_01")
+        self.assertEqual(match_facade_photo({"name": "ধানুকা মনসাবাড়ি"}, aliases)["metadata"]["id"], "manasha_temple_back_view_01")
         self.assertIsNone(match_facade_photo({"name": "nearby temple"}, aliases))
 
 
@@ -819,6 +822,74 @@ class DhakaMapPipelineTests(unittest.TestCase):
             self.assertIn("CC BY-SA 4.0", attribution)
 
 
+
+    def test_verified_coordinate_photo_embeds_when_temple_footprint_has_no_matching_name(self):
+        from PIL import Image
+
+        target_lat, target_lon = 23.2004, 90.3484
+        half_size = 0.00006
+        bbox = (target_lat - 0.002, target_lon - 0.002, target_lat + 0.002, target_lon + 0.002)
+        elements = [{
+            "type": "way",
+            "id": 88009,
+            "tags": {"building": "temple", "amenity": "place_of_worship"},
+            "geometry": [
+                {"lat": target_lat - half_size, "lon": target_lon - half_size},
+                {"lat": target_lat - half_size, "lon": target_lon + half_size},
+                {"lat": target_lat + half_size, "lon": target_lon + half_size},
+                {"lat": target_lat + half_size, "lon": target_lon - half_size},
+                {"lat": target_lat - half_size, "lon": target_lon - half_size},
+            ],
+        }]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            photo_dir = root / "photos"
+            photo_dir.mkdir()
+            Image.new("RGB", (640, 480), (160, 92, 72)).save(photo_dir / "manasha.jpg", format="JPEG")
+            catalog_path = root / "catalog.json"
+            catalog_path.write_text(json.dumps({
+                "images": [{
+                    "id": "manasha_temple_back_view_01",
+                    "subject": "Manasha Temple, Shariatpur",
+                    "match_names": ["Dhanuka Manasha Bari"],
+                    "file_name": "manasha.jpg",
+                    "facade_eligible": True,
+                    "view_type": "exterior",
+                    "visual_qa": "passed",
+                    "target_location_lat_lon": [target_lat, target_lon],
+                    "target_location_source": "https://ghurifiri.bd/places/dhanuka-manasha-bari-shariatpur",
+                    "target_match_radius_metres": 45.0,
+                    "target_tag_groups": [
+                        {"amenity": "place_of_worship"},
+                        {"building": "temple"},
+                        {"historic": "temple"},
+                    ],
+                    "source_page": "https://commons.wikimedia.org/wiki/File:Manasha_Temple,_Shariatpur_(back_view).jpg",
+                    "author": "Shuvajit BD",
+                    "license": "CC BY-SA 4.0",
+                    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+                    "attribution": "Photo: Shuvajit BD / Wikimedia Commons, CC BY-SA 4.0",
+                }]
+            }), encoding="utf-8")
+            out = root / "map"
+            with patch.dict(os.environ, {
+                "WSB_FACADE_IMAGE_DIR": str(photo_dir),
+                "WSB_FACADE_IMAGE_CATALOG": str(catalog_path),
+            }):
+                manifest = build_map(elements, out, bbox)
+
+            self.assertEqual(manifest["feature_counts"]["licensed_facade_photo_panels"], 1)
+            photo_match = manifest["licensed_facade_photo_matches"][0]
+            self.assertEqual(photo_match["match_method"], "verified_coordinate_compatible_tagged_landmark")
+            self.assertEqual(photo_match["license"], "CC BY-SA 4.0")
+            self.assertLessEqual(photo_match["match_distance_m"], 45.0)
+            scene = trimesh.load(out / "Dhaka_Explorable_Map.glb", force="scene")
+            photo_meshes = [mesh for name, mesh in scene.geometry.items() if "licensed_facade_photo" in name]
+            self.assertEqual(len(photo_meshes), 1)
+            self.assertEqual(photo_meshes[0].visual.kind, "texture")
+            attribution = (out / "ATTRIBUTION.txt").read_text(encoding="utf-8")
+            self.assertIn("Shuvajit BD", attribution)
+            self.assertIn("CC BY-SA 4.0", attribution)
 
     def test_clipped_tile_edge_house_suppresses_overhanging_pitched_roof(self):
         """Partial houses must not export rotated-roof corners beyond their tile."""

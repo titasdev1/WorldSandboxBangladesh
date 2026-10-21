@@ -367,13 +367,27 @@ eligible_exterior_photos = [
 ]
 if bibir_photo.get("facade_eligible") is not False or bibir_photo.get("interior_reference_eligible") is not True:
     raise SystemExit("PRODUCTION GATE FAILED: interior mosque photo must remain restricted to the exact interior reference use")
-if not any(item.get("id") == "manasha_temple_back_view_01" for item in eligible_exterior_photos):
+manasha_exterior = next((item for item in eligible_exterior_photos if item.get("id") == "manasha_temple_back_view_01"), None)
+if manasha_exterior is None:
     raise SystemExit("PRODUCTION GATE FAILED: no visually reviewed, licensed exterior facade photo is enabled for the Shariatpur map")
+if manasha_exterior.get("target_location_lat_lon") != [23.2004, 90.3484] or float(manasha_exterior.get("target_match_radius_metres", 0)) != 45.0:
+    raise SystemExit("PRODUCTION GATE FAILED: Manasha exterior photograph lacks its bounded geographic target")
+
 
 
 # Keep mapped doors, actual interaction-anchor placement and hero readability
 # connected to the generated metric world (without scaling real footprints).
 map_builder_text = (ROOT / "tools" / "map_pipeline" / "build_dhaka_map.py").read_text(encoding="utf-8")
+for token in (
+    'catalog.get("__geo_targets__", [])',
+    "def match_facade_photo(",
+    "target_tag_groups",
+    "geometry.distance(target_point)",
+    "match_facade_photo(tags, facade_photo_catalog, polygon, origin_lat, origin_lon)",
+    '"match_method": facade_photo.get("match_method", "exact_name_alias")',
+):
+    if token not in map_builder_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: bounded landmark photo placement is missing {token}")
 map_loader_text = (ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
 character_text = (ROOT / "character_visual.gd").read_text(encoding="utf-8")
 player_text = (ROOT / "player.gd").read_text(encoding="utf-8")

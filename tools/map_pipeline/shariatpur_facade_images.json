@@ -7,7 +7,8 @@
     "CC BY-SA 4.0 texture derivatives must remain available under compatible share-alike terms; keep each photo and attribution separate from unrelated game assets.",
     "No Google Maps imagery is downloaded or redistributed.",
     "Interior photographs must never be baked onto building exteriors; a candidate can be enabled only after visual confirmation of an exterior view and its mapped-building match.",
-    "Only the individual entries with facade_eligible=true, view_type=exterior and visual_qa=passed may be baked. The Manasha Temple back-view photograph is a single landmark reference panel, not coverage of ordinary homes, shops or all street facades."
+    "Only the individual entries with facade_eligible=true, view_type=exterior and visual_qa=passed may be baked. The Manasha Temple back-view photograph is a single landmark reference panel, not coverage of ordinary homes, shops or all street facades.",
+    "The Manasha Temple exterior photo first uses exact mapped-name aliases; if OSM has no usable name, it may attach only to a compatible worship/temple/historic-tagged mapped footprint within 45 m of the catalogued approximate public map pin. Generic nearby buildings are ineligible."
   ],
   "images": [
     {
@@ -79,7 +80,24 @@
         "Manasa Temple, Shariatpur",
         "মনসা মন্দির, শরীয়তপুর",
         "মনসা মন্দির",
-        "ধানুকার মানসা মন্দির"
+        "ধানুকার মানসা মন্দির",
+        "Dhanuka Manasha Bari",
+        "Dhanuka Manasa Bari",
+        "Dhanuka Mansa Bari",
+        "Dhanuka Manasa Temple",
+        "Dhanuka Manasha Temple",
+        "ধানুকা মনসাবাড়ি",
+        "ধানুকা মনসাবাড়ি",
+        "ধানুকা মনসা বাড়ি",
+        "ধানুকা মনসা বাড়ি",
+        "ধানুকা মনসা মন্দির",
+        "ধানুকা মনসামন্দির",
+        "মনসাবাড়ি",
+        "মনসাবাড়ি",
+        "মনসা বাড়ি",
+        "মনসা বাড়ি",
+        "ধানুকা মনসা বাড়ি, শরীয়তপুর",
+        "ধানুকার মনসা মন্দির"
       ],
       "source_page": "https://commons.wikimedia.org/wiki/File:Manasha_Temple,_Shariatpur_(back_view).jpg",
       "download_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Manasha_Temple%2C_Shariatpur_%28back_view%29.jpg?width=1024",
@@ -104,7 +122,32 @@
         "evidence_note": "The Commons page identifies the photo as the back view of Manasha Temple, Shariatpur, gives the Bengali monument name and monument ID BD-C-62-85, credits Shuvajit BD, and states CC BY-SA 4.0. This is an exterior-view asset for the exact named monument, not a generic building texture. Placement still requires checking the matched OSM feature and baked panel in the resulting map."
       },
       "intended_use": "one building-specific, licensed exterior reference panel on the exact matched Manasha Temple building",
-      "alterations": "Rescaled/UV-mapped as a wall reference panel in the game map; source photograph retained in attribution records."
+      "alterations": "Rescaled/UV-mapped as a wall reference panel in the game map; source photograph retained in attribution records.",
+      "target_location_lat_lon": [
+        23.2004,
+        90.3484
+      ],
+      "target_location_source": "https://ghurifiri.bd/places/dhanuka-manasha-bari-shariatpur",
+      "target_location_precision": "Approximate public travel-guide map pin, not a survey-grade footprint coordinate; used only as a bounded secondary match anchor.",
+      "target_match_radius_metres": 45,
+      "target_tag_groups": [
+        {
+          "amenity": "place_of_worship"
+        },
+        {
+          "building": "temple"
+        },
+        {
+          "historic": "temple"
+        },
+        {
+          "historic": "monument",
+          "religion": "hindu"
+        },
+        {
+          "religion": "hindu"
+        }
+      ]
     }
   ]
 }
