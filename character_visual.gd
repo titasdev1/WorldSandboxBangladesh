@@ -23,15 +23,215 @@ var _muzzle_light: OmniLight3D
 var _muzzle_flash_timer := 0.0
 var _weapon_recoil_offset := 0.0
 
+const AUTHORED_HERO_PATH := "res://external_content/quaternius_hero/Project_A_Square_Hero.glb"
+
+var _procedural_root: Node3D
+var _authored_hero: Node3D
+var _authored_animation_player: AnimationPlayer
+var _authored_current_animation := ""
+var _authored_animation_lookup: Dictionary = {}
+var _authored_weapon_attachment: BoneAttachment3D
+var _authored_hero_ready := false
+
+
 func _ready() -> void:
-    # The mesh authoring coordinates were about 2.1 m tall while the controller
-    # capsule is 1.8 m. Normalize the rendered body to human scale and align the
-    # shoe soles with the actor origin instead of making buildings look tiny.
+    # Keep the tested procedural model as a reliable fallback while allowing CI
+    # builds to ship a real rigged/textured hero when the pinned CC0 source merges.
     scale = Vector3(0.90, 0.90, 0.90)
     position.y = -0.065
     _build_body()
-    _torso = get_node_or_null("ClothedTorso") as Node3D
-    _head = get_node_or_null("Head") as Node3D
+    _procedural_root = Node3D.new()
+    _procedural_root.name = "ProceduralFallback"
+    add_child(_procedural_root)
+    for child in get_children():
+        if child == _procedural_root:
+            continue
+        remove_child(child)
+        _procedural_root.add_child(child)
+    _torso = _procedural_root.get_node_or_null("ClothedTorso") as Node3D
+    _head = _procedural_root.get_node_or_null("Head") as Node3D
+    if is_player_character:
+        _try_load_authored_hero()
+
+
+func _find_authored_animation(candidates: Array[String]) -> String:
+    if not is_instance_valid(_authored_animation_player):
+        return ""
+    var animation_names := _authored_animation_player.get_animation_list()
+    for candidate in candidates:
+        var target := candidate.to_lower().replace("_", "").replace("-", "").replace(" ", "")
+        for animation_name in animation_names:
+            var normalized := String(animation_name).to_lower().replace("_", "").replace("-", "").replace(" ", "")
+            if normalized == target:
+                return String(animation_name)
+    for candidate in candidates:
+        var target := candidate.to_lower().replace("_", "").replace("-", "").replace(" ", "")
+        for animation_name in animation_names:
+            var normalized := String(animation_name).to_lower().replace("_", "").replace("-", "").replace(" ", "")
+            if normalized.contains(target):
+                return String(animation_name)
+    return ""
+
+
+func _try_load_authored_hero() -> void:
+    if not ResourceLoader.exists(AUTHORED_HERO_PATH):
+        push_warning("AUTHORED_HERO_FALLBACK: licensed rigged character is not packaged; keeping procedural hero.")
+        return
+    var packed := load(AUTHORED_HERO_PATH) as PackedScene
+    if packed == null:
+        push_warning("AUTHORED_HERO_FALLBACK: merged GLB did not import as a PackedScene.")
+        return
+    var instance := packed.instantiate()
+    if not (instance is Node3D):
+        instance.free()
+        push_warning("AUTHORED_HERO_FALLBACK: merged GLB root is not a Node3D.")
+        return
+    _authored_hero = instance as Node3D
+    _authored_hero.name = "AuthoredHeroCharacter"
+    add_child(_authored_hero)
+    _authored_hero.transform = Transform3D.IDENTITY
+
+    var skeletons := _authored_hero.find_children("*", "Skeleton3D", true, false)
+    var players := _authored_hero.find_children("*", "AnimationPlayer", true, false)
+    for candidate in players:
+        var animation_player := candidate as AnimationPlayer
+        if animation_player != null and not animation_player.get_animation_list().is_empty():
+            _authored_animation_player = animation_player
+            break
+    if skeletons.is_empty() or not is_instance_valid(_authored_animation_player):
+        _authored_hero.queue_free()
+        _authored_hero = null
+        _authored_animation_player = null
+        push_warning("AUTHORED_HERO_FALLBACK: imported GLB has no usable skeleton/AnimationPlayer.")
+        return
+
+    var mesh_nodes := _authored_hero.find_children("*", "MeshInstance3D", true, false)
+    var min_y := INF
+    var max_y := -INF
+    for candidate in mesh_nodes:
+        var mesh_instance := candidate as MeshInstance3D
+        if mesh_instance == null or mesh_instance.mesh == null:
+            continue
+        var bounds := mesh_instance.get_aabb()
+        for corner_index in range(8):
+            var corner := bounds.get_endpoint(corner_index)
+            var in_avatar_space := _authored_hero.to_local(mesh_instance.to_global(corner))
+            min_y = minf(min_y, in_avatar_space.y)
+            max_y = maxf(max_y, in_avatar_space.y)
+    var raw_height := max_y - min_y
+    if min_y == INF or max_y <= min_y or raw_height <= 0.05:
+        _authored_hero.queue_free()
+        _authored_hero = null
+        _authored_animation_player = null
+        push_warning("AUTHORED_HERO_FALLBACK: could not measure imported character height.")
+        return
+
+    # Account for the parent's world-scale so the imported feet/head match the
+    # existing ~1.8 m player capsule rather than appearing child-sized or gigantic.
+    var fit_scale := 1.8 / maxf(raw_height * scale.y, 0.01)
+    _authored_hero.scale = Vector3.ONE * fit_scale
+    _authored_hero.position = Vector3(0.0, -min_y * fit_scale, 0.0)
+
+    var skeleton := skeletons[0] as Skeleton3D
+    var hand_bone_name := ""
+    for possible_hand in ["hand_r", "RightHand", "Hand_R", "hand.r", "hand_r_socket"]:
+        if skeleton.find_bone(possible_hand) >= 0:
+            hand_bone_name = possible_hand
+            break
+    if is_instance_valid(_weapon_root) and not hand_bone_name.is_empty():
+        _authored_weapon_attachment = BoneAttachment3D.new()
+        _authored_weapon_attachment.name = "ProjectASquareRifleHandAttachment"
+        _authored_weapon_attachment.bone_name = hand_bone_name
+        skeleton.add_child(_authored_weapon_attachment)
+        var old_weapon_parent := _weapon_root.get_parent()
+        if is_instance_valid(old_weapon_parent):
+            old_weapon_parent.remove_child(_weapon_root)
+        _authored_weapon_attachment.add_child(_weapon_root)
+        _weapon_root.position = Vector3(0.0, -0.02, 0.0)
+        _weapon_root.rotation = Vector3.ZERO
+
+    var idle_name := _find_authored_animation(["Idle_Loop", "Idle", "Pistol_Idle_Loop"])
+    var walk_name := _find_authored_animation(["Walk_Loop", "Walk_Formal_Loop", "Walk"])
+    var run_name := _find_authored_animation(["Sprint_Loop", "Jog_Fwd_Loop", "Run"])
+    if idle_name.is_empty() or walk_name.is_empty() or run_name.is_empty():
+        _authored_hero.queue_free()
+        _authored_hero = null
+        _authored_animation_player = null
+        push_warning("AUTHORED_HERO_FALLBACK: imported clips do not contain idle, walk, and run/sprint.")
+        return
+
+    _authored_animation_lookup = {
+        "idle": idle_name,
+        "walk": walk_name,
+        "run": run_name,
+        "crouch_idle": _find_authored_animation(["Crouch_Idle_Loop", "Crouch_Idle"]),
+        "crouch_walk": _find_authored_animation(["Crouch_Fwd_Loop", "Crouch_Walk"]),
+        "jump": _find_authored_animation(["Jump_Loop", "Jump_Start", "Jump"]),
+        "fall": _find_authored_animation(["Jump_Loop", "Fall"]),
+        "aim": _find_authored_animation(["Pistol_Aim_Forward_Loop", "Pistol_Aim", "Pistol_Idle_Loop"]),
+        "shoot": _find_authored_animation(["Pistol_Shoot", "Shoot", "Fire"]),
+        "reload": _find_authored_animation(["Pistol_Reload", "Reload"]),
+        "land": _find_authored_animation(["Jump_Land", "Land"]),
+    }
+    var hero_clip_count := _authored_animation_player.get_animation_list().size()
+    if hero_clip_count < 30:
+        _authored_hero.queue_free()
+        _authored_hero = null
+        _authored_animation_player = null
+        push_warning("AUTHORED_HERO_FALLBACK: only %d animation clips imported; expected the merged CC0 library." % hero_clip_count)
+        return
+    _procedural_root.visible = false
+    _authored_hero_ready = true
+    _play_authored_animation("idle")
+    print("AUTHORED_HERO_READY • height=1.8m • clips=%d • source=Quaternius-CC0" % hero_clip_count)
+
+
+func _play_authored_animation(state: String) -> void:
+    var animation_name := String(_authored_animation_lookup.get(state, ""))
+    if animation_name.is_empty() or not is_instance_valid(_authored_animation_player):
+        animation_name = String(_authored_animation_lookup.get("idle", ""))
+    if animation_name.is_empty() or not is_instance_valid(_authored_animation_player):
+        return
+    if animation_name == _authored_current_animation and _authored_animation_player.is_playing():
+        return
+    _authored_current_animation = animation_name
+    _authored_animation_player.play(animation_name, 0.12)
+
+
+func _update_authored_animation(body: CharacterBody3D, planar_speed: float) -> void:
+    # Camera-relative combat pose overrides travel-facing but not controller movement.
+    var aiming := Input.is_action_pressed("aim")
+    var firing := Input.is_action_pressed("fire")
+    var reloading := float(body.get("reload_time")) > 0.0
+    var crouched := bool(body.get("_is_crouched"))
+    var state := "idle"
+    if not body.is_on_floor():
+        state = "fall"
+    elif reloading and not String(_authored_animation_lookup.get("reload", "")).is_empty():
+        state = "reload"
+    elif firing and not String(_authored_animation_lookup.get("shoot", "")).is_empty():
+        state = "shoot"
+    elif aiming:
+        state = "aim"
+    elif crouched:
+        state = "crouch_walk" if planar_speed > 0.25 else "crouch_idle"
+    elif planar_speed >= 8.0:
+        state = "run"
+    elif planar_speed > 0.25:
+        state = "walk"
+    else:
+        state = "idle"
+
+    if aiming or firing:
+        var camera := body.get("camera") as Camera3D
+        if is_instance_valid(camera):
+            var look_direction := -camera.global_transform.basis.z
+            look_direction.y = 0.0
+            if look_direction.length_squared() > 0.01:
+                var target_global_yaw := atan2(-look_direction.x, -look_direction.z)
+                var target_local_yaw := wrapf(target_global_yaw - body.global_rotation.y, -PI, PI)
+                rotation.y = lerp_angle(rotation.y, target_local_yaw, minf(get_process_delta_time() * 12.0, 1.0))
+    _play_authored_animation(state)
 
 func _material(color: Color, roughness: float = 0.78, metallic: float = 0.0) -> StandardMaterial3D:
     var key := "%s|%.2f|%.2f" % [color.to_html(false), roughness, metallic]
@@ -330,6 +530,7 @@ func _process(delta: float) -> void:
     var actor := get_parent()
     if not is_instance_valid(actor) or not actor is CharacterBody3D:
         return
+    var body := actor as CharacterBody3D
     if _muzzle_flash_timer > 0.0:
         _muzzle_flash_timer = maxf(0.0, _muzzle_flash_timer - delta)
         if _muzzle_flash_timer <= 0.0:
@@ -339,11 +540,16 @@ func _process(delta: float) -> void:
                 _muzzle_light.visible = false
     _weapon_recoil_offset = move_toward(_weapon_recoil_offset, 0.0, delta * 0.85)
     if is_instance_valid(_weapon_root):
-        _weapon_root.position = Vector3(-0.12, -0.28, 0.13 + _weapon_recoil_offset)
+        if _authored_hero_ready:
+            _weapon_root.position = Vector3(0.0, -0.02, -_weapon_recoil_offset)
+        else:
+            _weapon_root.position = Vector3(-0.12, -0.28, 0.13 + _weapon_recoil_offset)
 
-    var body := actor as CharacterBody3D
     var planar_speed := Vector2(body.velocity.x, body.velocity.z).length()
     animation_time += delta
+    if _authored_hero_ready and is_instance_valid(_authored_hero):
+        _update_authored_animation(body, planar_speed)
+        return
 
     # Smooth the gait envelope so starting/stopping does not snap the limbs.
     var move_weight := clampf(inverse_lerp(0.10, 0.65, planar_speed), 0.0, 1.0)
