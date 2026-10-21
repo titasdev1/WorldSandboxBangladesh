@@ -237,7 +237,7 @@ def write_unavailable(reason: str) -> None:
         "note": "The runtime uses its existing procedural character fallback until the pinned CC0 model and animation libraries can be fetched and merged.",
         "reason": reason[:1200],
     }
-    MANIFEST.write_text(json.dumps(manifest, indent=2) + "\\n", encoding="utf-8")
+    MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 
 def main() -> int:
@@ -308,7 +308,7 @@ def main() -> int:
                 "animation_names": report.get("animation_names", []),
                 "note": "One rigged, textured male hero mesh with compatible CC0 in-place UAL1/UAL2 animation clips; stylized superhero model, not a final photorealistic Bangladeshi civilian wardrobe.",
             }
-            MANIFEST.write_text(json.dumps(manifest, indent=2) + "\\n", encoding="utf-8")
+            MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
             print(json.dumps({
                 "available": True,
                 "hero_glb_size_bytes": manifest["hero_glb_size_bytes"],
