@@ -437,15 +437,34 @@ class DhakaMapPipelineTests(unittest.TestCase):
         self.assertIsNone(match_facade_photo({"name": "nearby mosque"}, catalog))
         self.assertEqual(normalize_facade_name("A\u200b  B"), "a b")
 
-    def test_shariatpur_catalog_keeps_unverified_photos_out_of_facade_bake(self):
+    def test_shariatpur_catalog_enables_only_a_verified_exterior_and_keeps_mosque_interior_blocked(self):
         catalog_path = Path(__file__).resolve().parents[1] / "tools" / "map_pipeline" / "shariatpur_facade_images.json"
         catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
-        self.assertGreaterEqual(len(catalog["images"]), 2)
-        for image in catalog["images"]:
+        self.assertGreaterEqual(len(catalog["images"]), 3)
+        by_id = {image["id"]: image for image in catalog["images"]}
+        for blocked_id in ("bibir_hat_mosque_01", "rudrakar_moth_35"):
+            image = by_id[blocked_id]
             self.assertIs(image.get("facade_eligible"), False, image.get("id"))
             self.assertEqual(image.get("view_type"), "unverified", image.get("id"))
             self.assertEqual(image.get("visual_qa"), "pending", image.get("id"))
+        manasha = by_id["manasha_temple_back_view_01"]
+        self.assertIs(manasha.get("facade_eligible"), True)
+        self.assertEqual(manasha.get("view_type"), "exterior")
+        self.assertEqual(manasha.get("visual_qa"), "passed")
+        self.assertEqual(manasha.get("license"), "CC BY-SA 4.0")
+        self.assertIn("Shuvajit BD", manasha.get("attribution", ""))
         self.assertIn("interior photograph", " ".join(catalog.get("limitations", [])).lower())
+
+    def test_verified_manasha_exterior_photo_matches_only_its_explicit_name_aliases(self):
+        from tools.map_pipeline.build_dhaka_map import normalize_facade_name
+        catalog_path = Path(__file__).resolve().parents[1] / "tools" / "map_pipeline" / "shariatpur_facade_images.json"
+        catalog_data = json.loads(catalog_path.read_text(encoding="utf-8"))
+        photo = next(item for item in catalog_data["images"] if item["id"] == "manasha_temple_back_view_01")
+        aliases = {normalize_facade_name(alias): {"metadata": photo} for alias in photo["match_names"]}
+        self.assertEqual(match_facade_photo({"name:bn": "মনসা মন্দির, শরীয়তপুর"}, aliases)["metadata"]["id"], "manasha_temple_back_view_01")
+        self.assertEqual(match_facade_photo({"name": "Manasha Temple"}, aliases)["metadata"]["id"], "manasha_temple_back_view_01")
+        self.assertIsNone(match_facade_photo({"name": "nearby temple"}, aliases))
+
 
     def test_unverified_or_interior_photos_are_not_loaded_as_facade_textures(self):
         from PIL import Image

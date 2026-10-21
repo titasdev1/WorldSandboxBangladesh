@@ -77,10 +77,28 @@ def download_catalog(catalog_path: Path, output_dir: Path, allow_missing: bool) 
             attribution_lines.extend([str(item.get("attribution", "")), f"License: {license_name} — {item.get('license_url', '')}", ""])
         except (OSError, urllib.error.URLError, TimeoutError, ValueError) as exc:
             failures.append({"id": image_id, "error": str(exc)})
+    eligible_exterior_count = sum(
+        1 for item in catalog.get("images", [])
+        if item.get("facade_eligible") is True
+        and str(item.get("view_type", "")).strip().lower() == "exterior"
+        and str(item.get("visual_qa", "")).strip().lower() == "passed"
+        and str(item.get("license", "")).strip() in ALLOWED_LICENSES
+    )
+    interior_reference_only_count = sum(
+        1 for item in catalog.get("images", [])
+        if item.get("interior_reference_eligible") is True
+        and not (
+            item.get("facade_eligible") is True
+            and str(item.get("view_type", "")).strip().lower() == "exterior"
+            and str(item.get("visual_qa", "")).strip().lower() == "passed"
+        )
+    )
     report = {
         "schema_version": 1,
         "catalog": str(catalog_path),
         "downloaded_count": len(results),
+        "eligible_exterior_count": eligible_exterior_count,
+        "interior_reference_only_count": interior_reference_only_count,
         "failed_count": len(failures),
         "downloaded": results,
         "failures": failures,
@@ -92,6 +110,8 @@ def download_catalog(catalog_path: Path, output_dir: Path, allow_missing: bool) 
     (output_dir / "ATTRIBUTION.txt").write_text("\n".join(attribution_lines).rstrip() + "\n", encoding="utf-8")
     print(json.dumps({
         "downloaded_count": len(results),
+        "eligible_exterior_count": eligible_exterior_count,
+        "interior_reference_only_count": interior_reference_only_count,
         "failed_count": len(failures),
         "failures": failures,
     }, ensure_ascii=False))

@@ -153,6 +153,8 @@ for marker in ("Vector3(42, 0, 42)", "Vector3(30, 0, -30)"):
     if player_interact_text.find(marker) < map_interact_guard:
         raise SystemExit(f"PRODUCTION GATE FAILED: fictional starter-city money marker is not confined to fallback mode: {marker}")
 
+# Load the HUD source before any responsive-layout assertions reference it.
+hud_text = (ROOT / "hud.gd").read_text(encoding="utf-8")
 # Mobile aspect expansion must preserve circular controls and keep touch targets reachable.
 project_text = (ROOT / "project.godot").read_text(encoding="utf-8")
 if 'window/stretch/aspect="expand"' not in project_text:
@@ -353,8 +355,21 @@ for token in (
     if token not in apk_verifier_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: APK does not verify the real interior-photo asset: {token}")
 catalog_text = (ROOT / "tools" / "map_pipeline" / "shariatpur_facade_images.json").read_text(encoding="utf-8")
-if '"facade_eligible": false' not in catalog_text or '"interior_reference_eligible": true' not in catalog_text:
-    raise SystemExit("PRODUCTION GATE FAILED: mosque interior photo must remain blocked from exterior facades and separately approved for interior reference use")
+catalog_data = json.loads(catalog_text)
+catalog_images = catalog_data.get("images", [])
+bibir_photo = next((item for item in catalog_images if item.get("id") == "bibir_hat_mosque_01"), {})
+eligible_exterior_photos = [
+    item for item in catalog_images
+    if item.get("facade_eligible") is True
+    and str(item.get("view_type", "")).lower() == "exterior"
+    and str(item.get("visual_qa", "")).lower() == "passed"
+    and str(item.get("license", "")) in {"CC BY 4.0", "CC BY-SA 4.0"}
+]
+if bibir_photo.get("facade_eligible") is not False or bibir_photo.get("interior_reference_eligible") is not True:
+    raise SystemExit("PRODUCTION GATE FAILED: interior mosque photo must remain restricted to the exact interior reference use")
+if not any(item.get("id") == "manasha_temple_back_view_01" for item in eligible_exterior_photos):
+    raise SystemExit("PRODUCTION GATE FAILED: no visually reviewed, licensed exterior facade photo is enabled for the Shariatpur map")
+
 
 # Keep mapped doors, actual interaction-anchor placement and hero readability
 # connected to the generated metric world (without scaling real footprints).
