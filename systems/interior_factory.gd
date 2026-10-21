@@ -49,6 +49,9 @@ func open_interior(seed: Dictionary, exterior_position: Vector3, direction: Vect
     # OSM identity still varies the interior layout, furniture, lighting and detailing.
     var building_id: int = absi(int(seed.get("osm_id", 1)))
     active_root.rotation.y = atan2(exit_direction.x, exit_direction.z)
+    # Fit the generated shell/furniture to this building's measured OSM footprint
+    # and estimated storey height. The resident is counter-scaled in _add_resident.
+    active_root.scale = _infer_interior_scale()
     world.add_child(active_root)
     _build_room()
     var player := _player()
@@ -226,6 +229,46 @@ func _add_licensed_interior_photo_reference(room_height: float, half_depth: floa
     active_root.add_child(caption)
 
 
+func _infer_interior_scale() -> Vector3:
+    # The shell and its authored furniture are generated in a comfortable 14–22 m
+    # template, then fitted to this actual footprint. This prevents a small real home
+    # from becoming a huge room. Height is scaled to one floor, not the whole block.
+    var footprint: Variant = active_seed.get("footprint_local_m", [])
+    if not (footprint is Array and footprint.size() >= 3):
+        return Vector3.ONE
+    var min_x := INF
+    var max_x := -INF
+    var min_z := INF
+    var max_z := -INF
+    for point in footprint:
+        if not (point is Array and point.size() >= 2):
+            return Vector3.ONE
+        min_x = minf(min_x, float(point[0]))
+        max_x = maxf(max_x, float(point[0]))
+        min_z = minf(min_z, float(point[1]))
+        max_z = maxf(max_z, float(point[1]))
+    if min_x == INF or max_x == -INF or min_z == INF or max_z == -INF:
+        return Vector3.ONE
+
+    var base_dimensions := _infer_room_dimensions()
+    var target_width := clampf((max_x - min_x) * 0.88, 4.5, 24.0)
+    var target_depth := clampf((max_z - min_z) * 0.88, 4.5, 24.0)
+
+    var tags: Dictionary = active_seed.get("building_tags", {})
+    var level_count := maxf(float(active_seed.get("floors_estimate", 1)), 1.0)
+    var raw_levels := String(tags.get("building:levels", "")).strip_edges()
+    if raw_levels.is_valid_float():
+        level_count = clampf(raw_levels.to_float(), 1.0, 70.0)
+    var total_height := float(active_seed.get("height_metres", 3.1 * level_count))
+    var floor_height := clampf(total_height / level_count, 2.6, 4.5)
+
+    return Vector3(
+        clampf(target_width / maxf(base_dimensions.x, 0.1), 0.25, 1.25),
+        clampf(floor_height / 4.7, 0.55, 1.0),
+        clampf(target_depth / maxf(base_dimensions.y, 0.1), 0.25, 1.25)
+    )
+
+
 func _infer_room_dimensions() -> Vector2:
     var footprint: Variant = active_seed.get("footprint_local_m", [])
     var min_x := -7.0
@@ -397,6 +440,13 @@ func _add_resident(category: String) -> void:
     resident = CharacterBody3D.new()
     resident.set_script(load("res://systems/interior_resident.gd"))
     resident.name = "FictionalInteriorResident"
+    # Keep people human-sized even when a small house scales the room geometry down.
+    var room_scale: Vector3 = active_root.scale
+    resident.scale = Vector3(
+        1.0 / maxf(room_scale.x, 0.01),
+        1.0 / maxf(room_scale.y, 0.01),
+        1.0 / maxf(room_scale.z, 0.01)
+    )
     var shape := CollisionShape3D.new()
     var capsule := CapsuleShape3D.new()
     capsule.radius = 0.32
@@ -457,7 +507,8 @@ func _display_name() -> String:
 func get_interaction_label(player_position: Vector3) -> String:
     if not is_inside():
         return ""
-    if player_position.distance_to(exit_world_position) <= 3.0:
+    var room_interaction_scale := minf(active_root.scale.x, active_root.scale.z)
+    if player_position.distance_to(exit_world_position) <= clampf(3.0 * room_interaction_scale, 0.9, 3.0):
         return "EXIT BUILDING"
     if is_instance_valid(resident) and player_position.distance_to(resident.global_position) <= 3.6:
         return "TALK / INTERACT"
@@ -466,7 +517,8 @@ func get_interaction_label(player_position: Vector3) -> String:
 func try_interact(player_position: Vector3) -> bool:
     if not is_inside():
         return false
-    if player_position.distance_to(exit_world_position) <= 3.4:
+    var room_interaction_scale := minf(active_root.scale.x, active_root.scale.z)
+    if player_position.distance_to(exit_world_position) <= clampf(3.4 * room_interaction_scale, 1.0, 3.4):
         _close_interior()
         return true
     if is_instance_valid(resident) and player_position.distance_to(resident.global_position) <= 3.6:
