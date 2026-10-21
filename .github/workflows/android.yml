@@ -158,7 +158,44 @@ jobs:
                   raise SystemExit("Shariatpur package predates mapped-landuse vegetation generation; rebuild the district sequence")
               if report.get("status") != "REVIEW_REQUIRED":
                   raise SystemExit("Unexpected Shariatpur quality status; inspect before packaging")
-              print("MAP QA MODE: Shariatpur district package is complete, but its visual/device review gate remains open.")
+
+              # Downloaded photo bytes are not proof that a façade texture was baked.
+              # Require the completed district package to contain a real exact-name
+              # building match and a nonzero embedded-panel count before producing an APK.
+              report_checks = report.get("checks", {})
+              manifest_panel_count = int(manifest.get(
+                  "licensed_facade_photo_panels_embedded",
+                  manifest.get("feature_counts_across_tiles", {}).get("licensed_facade_photo_panels", 0),
+              ))
+              report_panel_count = int(report_checks.get(
+                  "licensed_facade_photo_panel_count",
+                  report.get("licensed_facade_photo_panels_embedded", 0),
+              ))
+              photo_matches = manifest.get("licensed_facade_photo_matches", [])
+              if manifest_panel_count < 1 or report_panel_count < 1:
+                  raise SystemExit(
+                      "Shariatpur APK blocked: zero licensed exterior facade-photo panels "
+                      "were embedded in the map GLBs. Downloaded-photo diagnostics do not count."
+                  )
+              if manifest_panel_count != report_panel_count or len(photo_matches) != manifest_panel_count:
+                  raise SystemExit(
+                      "Shariatpur APK blocked: embedded exterior-photo panel count does not "
+                      "match exact-building attribution records in the map manifest/report."
+                  )
+              if any(
+                  not str(item.get("osm_id", "")).strip()
+                  or not str(item.get("source_page", "")).strip()
+                  or str(item.get("license", "")).strip() not in {"CC BY 4.0", "CC BY-SA 4.0"}
+                  for item in photo_matches
+              ):
+                  raise SystemExit(
+                      "Shariatpur APK blocked: an embedded exterior-photo panel lacks "
+                      "mapped-building identity or required open-license attribution."
+                  )
+              print(
+                  f"MAP QA MODE: Shariatpur map contains {manifest_panel_count} "
+                  "licensed exterior photo panel(s); placement/device QA remains open."
+              )
           elif not manifest.get("tiles"):
               raise SystemExit("Pinned Greater Dhaka package has no tile records")
           print(f"Map package: {selected}")
