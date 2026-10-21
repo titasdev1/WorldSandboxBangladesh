@@ -16,6 +16,10 @@ var gait_time := 0.0
 var animation_time := 0.0
 var _torso: Node3D
 var _head: Node3D
+var _weapon_root: Node3D
+var _muzzle_flash: MeshInstance3D
+var _muzzle_light: OmniLight3D
+var _muzzle_flash_timer := 0.0
 
 func _ready() -> void:
     # The mesh authoring coordinates were about 2.1 m tall while the controller
@@ -27,13 +31,14 @@ func _ready() -> void:
     _torso = get_node_or_null("ClothedTorso") as Node3D
     _head = get_node_or_null("Head") as Node3D
 
-func _material(color: Color, roughness := 0.78) -> StandardMaterial3D:
-    var key := color.to_html(false)
+func _material(color: Color, roughness: float = 0.78, metallic: float = 0.0) -> StandardMaterial3D:
+    var key := "%s|%.2f|%.2f" % [color.to_html(false), roughness, metallic]
     if material_cache.has(key):
         return material_cache[key]
     var material := StandardMaterial3D.new()
     material.albedo_color = color
     material.roughness = roughness
+    material.metallic = metallic
     material_cache[key] = material
     return material
 
@@ -58,14 +63,14 @@ func _mesh_part(part_name: String, shape: Shape3D, pos: Vector3, color: Color) -
     node.material_override = _material(color)
     return node
 
-func _box(parent: Node3D, part_name: String, pos: Vector3, size: Vector3, color: Color) -> MeshInstance3D:
+func _box(parent: Node3D, part_name: String, pos: Vector3, size: Vector3, color: Color, roughness: float = 0.78, metallic: float = 0.0) -> MeshInstance3D:
     var node := MeshInstance3D.new()
     node.name = part_name
     var mesh := BoxMesh.new()
     mesh.size = size
     node.mesh = mesh
     node.position = pos
-    node.material_override = _material(color)
+    node.material_override = _material(color, roughness, metallic)
     parent.add_child(node)
     return node
 
@@ -75,6 +80,8 @@ func _capsule(parent: Node3D, part_name: String, pos: Vector3, radius: float, he
     var mesh := CapsuleMesh.new()
     mesh.radius = radius
     mesh.height = height
+    mesh.radial_segments = 24
+    mesh.rings = 8
     node.mesh = mesh
     node.position = pos
     node.material_override = _material(color)
@@ -93,6 +100,8 @@ func _build_body() -> void:
     var hair_mesh := SphereMesh.new()
     hair_mesh.radius = 0.222
     hair_mesh.height = 0.39
+    hair_mesh.radial_segments = 32
+    hair_mesh.rings = 16
     hair_node.mesh = hair_mesh
     hair_node.position = Vector3(0, 1.99, 0.018)
     hair_node.scale.y = 0.68
@@ -137,6 +146,82 @@ func _build_body() -> void:
     if has_satchel:
         _box(self, "Satchel", Vector3(0.30, 1.02, 0.19), Vector3(0.27, 0.34, 0.14), Color("#8c5a36"))
         _box(self, "SatchelStrap", Vector3(0.17, 1.30, 0.12), Vector3(0.06, 0.47, 0.05), Color("#3a3029"))
+    if is_player_character:
+        _build_player_weapon()
+
+func _build_player_weapon() -> void:
+    # Distinct authored pieces create a readable, non-branded combat-rifle silhouette.
+    _weapon_root = Node3D.new()
+    _weapon_root.name = "PlayerRifleRoot"
+    _weapon_root.position = Vector3(-0.12, -0.28, 0.13)
+    right_arm.add_child(_weapon_root)
+
+    var polymer := Color("#242a2d")
+    var receiver_color := Color("#3b4347")
+    var metal_color := Color("#596267")
+    _box(_weapon_root, "RifleStock", Vector3(0, 0, -0.055), Vector3(0.082, 0.095, 0.22), polymer, 0.58)
+    _box(_weapon_root, "RifleReceiver", Vector3(0, 0, -0.29), Vector3(0.105, 0.125, 0.34), receiver_color, 0.42, 0.35)
+    _box(_weapon_root, "RifleHandguard", Vector3(0, 0, -0.55), Vector3(0.085, 0.092, 0.25), polymer, 0.62)
+    _box(_weapon_root, "RifleGrip", Vector3(0, -0.102, -0.17), Vector3(0.052, 0.12, 0.07), polymer, 0.75)
+    _box(_weapon_root, "RifleMagazine", Vector3(0, -0.125, -0.31), Vector3(0.067, 0.16, 0.105), Color("#303638"), 0.63)
+    _box(_weapon_root, "RifleMagazineBase", Vector3(0, -0.207, -0.31), Vector3(0.071, 0.025, 0.11), metal_color, 0.4, 0.42)
+    _box(_weapon_root, "RifleTopRail", Vector3(0, 0.078, -0.43), Vector3(0.035, 0.022, 0.32), metal_color, 0.36, 0.56)
+    _box(_weapon_root, "RifleOptic", Vector3(0, 0.124, -0.335), Vector3(0.065, 0.065, 0.09), polymer, 0.34, 0.28)
+    _box(_weapon_root, "RifleOpticLens", Vector3(0, 0.124, -0.383), Vector3(0.044, 0.038, 0.012), Color("#4b8790"), 0.22, 0.18)
+    _box(_weapon_root, "RifleFrontSight", Vector3(0, 0.069, -0.66), Vector3(0.025, 0.048, 0.025), metal_color, 0.38, 0.5)
+    _box(_weapon_root, "RifleTriggerGuard", Vector3(0, -0.065, -0.23), Vector3(0.055, 0.018, 0.055), metal_color, 0.38, 0.48)
+
+    var barrel := MeshInstance3D.new()
+    barrel.name = "RifleBarrel"
+    var barrel_mesh := CylinderMesh.new()
+    barrel_mesh.top_radius = 0.018
+    barrel_mesh.bottom_radius = 0.018
+    barrel_mesh.height = 0.24
+    barrel_mesh.radial_segments = 24
+    barrel.mesh = barrel_mesh
+    barrel.rotation.x = PI * 0.5
+    barrel.position = Vector3(0, 0, -0.775)
+    barrel.material_override = _material(metal_color, 0.35, 0.62)
+    _weapon_root.add_child(barrel)
+    _box(_weapon_root, "RifleMuzzleDevice", Vector3(0, 0, -0.90), Vector3(0.055, 0.055, 0.055), metal_color, 0.35, 0.62)
+
+    _muzzle_flash = MeshInstance3D.new()
+    _muzzle_flash.name = "MuzzleFlash"
+    var flash_mesh := SphereMesh.new()
+    flash_mesh.radius = 0.075
+    flash_mesh.height = 0.20
+    flash_mesh.radial_segments = 16
+    flash_mesh.rings = 8
+    _muzzle_flash.mesh = flash_mesh
+    _muzzle_flash.position = Vector3(0, 0.005, -0.99)
+    _muzzle_flash.scale = Vector3(0.72, 0.72, 1.55)
+    var flash_material := StandardMaterial3D.new()
+    flash_material.albedo_color = Color("#ffb35a")
+    flash_material.emission_enabled = true
+    flash_material.emission = Color("#ff8b2c")
+    flash_material.emission_energy_multiplier = 2.2
+    flash_material.roughness = 0.28
+    _muzzle_flash.material_override = flash_material
+    _muzzle_flash.visible = false
+    _weapon_root.add_child(_muzzle_flash)
+
+    _muzzle_light = OmniLight3D.new()
+    _muzzle_light.name = "MuzzleFlashLight"
+    _muzzle_light.position = Vector3(0, 0, -0.92)
+    _muzzle_light.light_color = Color("#ff9b46")
+    _muzzle_light.light_energy = 3.0
+    _muzzle_light.omni_range = 3.8
+    _muzzle_light.visible = false
+    _weapon_root.add_child(_muzzle_light)
+
+
+func play_muzzle_flash() -> void:
+    if not is_player_character or not is_instance_valid(_muzzle_flash) or not is_instance_valid(_muzzle_light):
+        return
+    _muzzle_flash_timer = 0.075
+    _muzzle_flash.visible = true
+    _muzzle_light.visible = true
+
 
 func _add_clothing_and_face_detail() -> void:
     # Layered detail on the current low-cost procedural body. The base remains
@@ -235,6 +320,13 @@ func _process(delta: float) -> void:
     var actor := get_parent()
     if not is_instance_valid(actor) or not actor is CharacterBody3D:
         return
+    if _muzzle_flash_timer > 0.0:
+        _muzzle_flash_timer = maxf(0.0, _muzzle_flash_timer - delta)
+        if _muzzle_flash_timer <= 0.0:
+            if is_instance_valid(_muzzle_flash):
+                _muzzle_flash.visible = false
+            if is_instance_valid(_muzzle_light):
+                _muzzle_light.visible = false
 
     var body := actor as CharacterBody3D
     var planar_speed := Vector2(body.velocity.x, body.velocity.z).length()
@@ -288,3 +380,29 @@ func _process(delta: float) -> void:
         right_arm.rotation.z = move_toward(right_arm.rotation.z, -sin(animation_time * 1.1) * 0.018, delta * 2.0)
         if is_instance_valid(_torso):
             _torso.rotation.x = lerpf(_torso.rotation.x, 0.0, minf(delta * 4.0, 1.0))
+
+    # Aiming is layered over the normal gait, so legs can still move while the
+    # upper body stabilizes the weapon. The visible muzzle flash is triggered by
+    # the exact same fire action that performs the game raycast.
+    var combat_pose := is_player_character and (Input.is_action_pressed("aim") or Input.is_action_pressed("fire"))
+    if is_player_character:
+        if combat_pose:
+            var camera := body.get("camera") as Camera3D
+            if is_instance_valid(camera):
+                var look_direction := -camera.global_transform.basis.z
+                look_direction.y = 0.0
+                if look_direction.length_squared() > 0.01:
+                    var target_global_yaw := atan2(-look_direction.x, -look_direction.z)
+                    var target_local_yaw := wrapf(target_global_yaw - body.global_rotation.y, -PI, PI)
+                    rotation.y = lerp_angle(rotation.y, target_local_yaw, minf(delta * 12.0, 1.0))
+            left_arm.position = Vector3(-0.02, 1.40, -0.04)
+            left_arm.rotation.x = lerpf(left_arm.rotation.x, PI * 0.5, minf(delta * 12.0, 1.0))
+            right_arm.rotation.x = lerpf(right_arm.rotation.x, PI * 0.5, minf(delta * 12.0, 1.0))
+            left_arm.rotation.z = lerpf(left_arm.rotation.z, 0.14, minf(delta * 10.0, 1.0))
+            right_arm.rotation.z = lerpf(right_arm.rotation.z, 0.0, minf(delta * 10.0, 1.0))
+            if is_instance_valid(_weapon_root):
+                _weapon_root.rotation.x = -right_arm.rotation.x
+        else:
+            left_arm.position = Vector3(-0.34, 1.45, 0.0)
+            if is_instance_valid(_weapon_root):
+                _weapon_root.rotation.x = -right_arm.rotation.x
