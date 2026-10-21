@@ -629,6 +629,33 @@ func update_marker():
  if marker:
   marker.position = mission_target + Vector3(0, 0.15, 0)
 
+func _spawn_bullet_impact(point: Vector3, surface_normal: Vector3) -> void:
+ if surface_normal.length_squared() < 0.1:
+  return
+ var mark := MeshInstance3D.new()
+ mark.name = "TemporaryBulletImpact"
+ var mesh := SphereMesh.new()
+ mesh.radius = 0.042
+ mesh.height = 0.084
+ mesh.radial_segments = 10
+ mesh.rings = 6
+ mark.mesh = mesh
+ mark.scale = Vector3(1.2, 1.2, 0.22)
+ var material := StandardMaterial3D.new()
+ material.albedo_color = Color("#292c2d")
+ material.roughness = 0.98
+ mark.material_override = material
+ add_child(mark)
+ var normal := surface_normal.normalized()
+ mark.global_position = point + normal * 0.025
+ var up_axis := Vector3.FORWARD if absf(normal.dot(Vector3.UP)) > 0.92 else Vector3.UP
+ mark.look_at(mark.global_position + normal, up_axis)
+ get_tree().create_timer(8.0).timeout.connect(func():
+  if is_instance_valid(mark):
+   mark.queue_free()
+ )
+
+
 func try_fire():
  if not player:
   return
@@ -645,6 +672,8 @@ func try_fire():
  var query = PhysicsRayQueryParameters3D.create(origin, origin + dir * 80.0)
  query.exclude = [player]
  var hit = get_world_3d().direct_space_state.intersect_ray(query)
+ if hit and hit.collider and not (hit.collider is CharacterBody3D):
+  _spawn_bullet_impact(hit.position, hit.normal)
  if hit and hit.collider and hit.collider is CharacterBody3D:
   if hit.collider.is_in_group("combat_enemy") and hit.collider.has_method("on_hit"):
    var target_position: Vector3 = hit.collider.global_position
