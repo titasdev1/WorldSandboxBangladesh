@@ -132,24 +132,6 @@ func _try_load_authored_hero() -> void:
     _authored_hero.scale = Vector3.ONE * fit_scale
     _authored_hero.position = Vector3(0.0, -min_y * fit_scale, 0.0)
 
-    var skeleton := skeletons[0] as Skeleton3D
-    var hand_bone_name := ""
-    for possible_hand in ["hand_r", "RightHand", "Hand_R", "hand.r", "hand_r_socket"]:
-        if skeleton.find_bone(possible_hand) >= 0:
-            hand_bone_name = possible_hand
-            break
-    if is_instance_valid(_weapon_root) and not hand_bone_name.is_empty():
-        _authored_weapon_attachment = BoneAttachment3D.new()
-        _authored_weapon_attachment.name = "ProjectASquareRifleHandAttachment"
-        _authored_weapon_attachment.bone_name = hand_bone_name
-        skeleton.add_child(_authored_weapon_attachment)
-        var old_weapon_parent := _weapon_root.get_parent()
-        if is_instance_valid(old_weapon_parent):
-            old_weapon_parent.remove_child(_weapon_root)
-        _authored_weapon_attachment.add_child(_weapon_root)
-        _weapon_root.position = Vector3(0.0, -0.02, 0.0)
-        _weapon_root.rotation = Vector3.ZERO
-
     var idle_name := _find_authored_animation(["Idle_Loop", "Idle", "Pistol_Idle_Loop"])
     var walk_name := _find_authored_animation(["Walk_Loop", "Walk_Formal_Loop", "Walk"])
     var run_name := _find_authored_animation(["Sprint_Loop", "Jog_Fwd_Loop", "Run"])
@@ -180,6 +162,27 @@ func _try_load_authored_hero() -> void:
         _authored_animation_player = null
         push_warning("AUTHORED_HERO_FALLBACK: only %d animation clips imported; expected the merged CC0 library." % hero_clip_count)
         return
+
+    # Reparent the existing rifle and muzzle effects to an actual rigged right-hand
+    # bone only after the imported skeleton/animations have passed the validation gate.
+    var skeleton := skeletons[0] as Skeleton3D
+    var hand_bone_name := ""
+    for possible_hand in ["hand_r", "RightHand", "Hand_R", "hand.r", "hand_r_socket"]:
+        if skeleton.find_bone(possible_hand) >= 0:
+            hand_bone_name = possible_hand
+            break
+    if is_instance_valid(_weapon_root) and not hand_bone_name.is_empty():
+        _authored_weapon_attachment = BoneAttachment3D.new()
+        _authored_weapon_attachment.name = "ProjectASquareRifleHandAttachment"
+        _authored_weapon_attachment.bone_name = hand_bone_name
+        skeleton.add_child(_authored_weapon_attachment)
+        var old_weapon_parent := _weapon_root.get_parent()
+        if is_instance_valid(old_weapon_parent):
+            old_weapon_parent.remove_child(_weapon_root)
+        _authored_weapon_attachment.add_child(_weapon_root)
+        _weapon_root.position = Vector3(0.0, -0.02, 0.0)
+        _weapon_root.rotation = Vector3.ZERO
+
     _procedural_root.visible = false
     _authored_hero_ready = true
     _play_authored_animation("idle")
