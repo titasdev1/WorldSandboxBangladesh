@@ -69,29 +69,40 @@ func _spawn_wave() -> void:
     world.event_time_left = 5.0
 
 func _spawn_enemy(at: Vector3, is_practice_target: bool) -> void:
-    var enemy := CharacterBody3D.new()
-    enemy.name = "CombatTarget_%02d" % (kills + alive_enemies + get_child_count())
-    enemy.set_script(load("res://systems/combat_enemy.gd"))
-    enemy.world = world
-    enemy.combat_controller = self
-    enemy.practice_target = is_practice_target
-    enemy.move_speed = 1.7 if is_practice_target else 2.0 + float(wave) * 0.18
-    enemy.position = at
-    var shape := CollisionShape3D.new()
+    if not is_instance_valid(world) or not is_instance_valid(world.player):
+        return
+
+    # One canonical spawn path for training targets and armed enemies, so the
+    # intended rifle mesh and tactical AI are both present in every combat mode.
+    var entity := CharacterBody3D.new()
+    entity.name = ("PracticeTarget_%02d" % (get_tree().get_nodes_in_group("combat_enemy").size() + 1)) if is_practice_target else ("CombatEnemy_%02d" % (get_tree().get_nodes_in_group("combat_enemy").size() + 1))
+    entity.set_script(load("res://systems/combat_enemy.gd") as Script)
+    entity.add_to_group("combat_enemy")
+    entity.floor_snap_length = 0.25
+
     var capsule := CapsuleShape3D.new()
-    capsule.radius = 0.42
-    capsule.height = 2.1
-    shape.shape = capsule
-    shape.position.y = 1.05
-    enemy.add_child(shape)
+    capsule.radius = 0.34
+    capsule.height = 1.8
+    var collision := CollisionShape3D.new()
+    collision.name = "CombatBodyCollision"
+    collision.shape = capsule
+    collision.position = Vector3(0.0, 0.9, 0.0)
+    entity.add_child(collision)
+
     var visual := HumanoidVisual.new()
     visual.name = "HumanoidVisual"
-    visual.outfit_color = Color("#e0a13a") if is_practice_target else Color("#873e49")
+    visual.is_player_character = false
+    visual.has_combat_weapon = not is_practice_target
+    visual.outfit_color = Color("#cfb56b") if is_practice_target else Color("#4d5944")
     visual.skin_color = Color("#a96f4d")
     visual.hair_color = Color("#24201f")
-    enemy.add_child(visual)
-    world.add_child(enemy)
-    enemy.add_to_group("combat_enemy")
+    entity.add_child(visual)
+
+    world.add_child(entity)
+    entity.global_position = at
+    entity.set("world", world)
+    entity.set("combat_controller", self)
+    entity.set("practice_target", is_practice_target)
 
 func enemy_defeated(enemy: Node) -> void:
     # A queued/dead enemy must never award duplicate score or cash.
@@ -165,38 +176,4 @@ func _clear_combat_entities() -> void:
     for node in get_tree().get_nodes_in_group("combat_enemy"):
         if is_instance_valid(node):
             node.queue_free()
-
-func _spawn_enemy(spawn_position: Vector3, practice_target: bool) -> void:
-    if not is_instance_valid(world) or not is_instance_valid(world.player):
-        return
-
-    var entity := CharacterBody3D.new()
-    entity.name = ("PracticeTarget_%02d" % (get_tree().get_nodes_in_group("combat_enemy").size() + 1)) if practice_target else ("CombatEnemy_%02d" % (get_tree().get_nodes_in_group("combat_enemy").size() + 1))
-    entity.set_script(load("res://systems/combat_enemy.gd") as Script)
-    entity.add_to_group("combat_enemy")
-    entity.floor_snap_length = 0.25
-
-    var capsule := CapsuleShape3D.new()
-    capsule.radius = 0.34
-    capsule.height = 1.8
-    var collision := CollisionShape3D.new()
-    collision.name = "CombatBodyCollision"
-    collision.shape = capsule
-    collision.position = Vector3(0.0, 0.9, 0.0)
-    entity.add_child(collision)
-
-    var visual := HumanoidVisual.new()
-    visual.name = "HumanoidVisual"
-    visual.is_player_character = false
-    visual.has_combat_weapon = not practice_target
-    visual.outfit_color = Color("#cfb56b") if practice_target else Color("#4d5944")
-    visual.skin_color = Color("#a96f4d")
-    visual.hair_color = Color("#24201f")
-    entity.add_child(visual)
-
-    world.add_child(entity)
-    entity.global_position = spawn_position
-    entity.set("world", world)
-    entity.set("combat_controller", self)
-    entity.set("practice_target", practice_target)
 
