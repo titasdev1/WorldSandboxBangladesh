@@ -253,7 +253,9 @@ if "interior_reference_photo_matches" not in map_merger_text or "INTERIOR REFERE
 for token in (
     "func _add_licensed_interior_photo_reference(",
     'active_seed.get("interior_reference_photo", {})',
-    'ResourceLoader.load(texture_path) as Texture2D',
+    'FileAccess.get_file_as_bytes(texture_path)',
+    'ImageTexture.create_from_image(photo_image)',
+    'photo_image.load_jpg_from_buffer(photo_bytes)',
     'panel.set_meta("use", "INTERIOR_REFERENCE_ONLY")',
 ):
     if token not in interior_factory_text:
