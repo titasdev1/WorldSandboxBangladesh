@@ -239,12 +239,16 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("interior_reference_photo_matches", map_merger)
         self.assertIn("Use restriction: INTERIOR REFERENCE ONLY", map_merger)
         self.assertIn("func _add_licensed_interior_photo_reference(", interior)
-        self.assertIn('ResourceLoader.load(texture_path) as Texture2D', interior)
+        self.assertIn("FileAccess.get_file_as_bytes(texture_path)", interior)
+        self.assertIn("photo_image.load_jpg_from_buffer(photo_bytes)", interior)
+        self.assertIn("ImageTexture.create_from_image(photo_image)", interior)
+        export_preset = (self.ROOT / "export_presets.cfg").read_text(encoding="utf-8")
+        self.assertIn('include_filter="*.photo_bytes"', export_preset)
         self.assertIn('photo_record.get("asset_relative_path", "")', interior)
         self.assertIn('panel.set_meta("use", "INTERIOR_REFERENCE_ONLY")', interior)
         self.assertIn('hashlib.sha256(photo_data).hexdigest()', verifier)
         self.assertIn("exact mapped building's runtime interior seed", verifier)
-        self.assertNotIn("ImageTexture.create_from_image(image)", interior)
+        self.assertNotIn("ResourceLoader.load(texture_path) as Texture2D", interior)
 
     def test_player_character_has_hero_detail_and_mobile_readable_camera_distance(self):
         visual = (self.ROOT / "character_visual.gd").read_text(encoding="utf-8")
