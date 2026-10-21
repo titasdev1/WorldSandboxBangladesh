@@ -392,6 +392,22 @@ if manasha_exterior is None:
     raise SystemExit("PRODUCTION GATE FAILED: no visually reviewed, licensed exterior facade photo is enabled for the Shariatpur map")
 if manasha_exterior.get("target_location_lat_lon") != [23.2004, 90.3484] or float(manasha_exterior.get("target_match_radius_metres", 0)) != 45.0:
     raise SystemExit("PRODUCTION GATE FAILED: Manasha exterior photograph lacks its bounded geographic target")
+required_exterior_photo_ids = {
+    "manasha_temple_back_view_01",
+    "rudrakar_moth_35",
+    "kartikpur_jomidar_bari_123242",
+}
+available_exterior_photo_ids = {str(item.get("id", "")) for item in eligible_exterior_photos}
+if not required_exterior_photo_ids.issubset(available_exterior_photo_ids):
+    missing = sorted(required_exterior_photo_ids - available_exterior_photo_ids)
+    raise SystemExit(f"PRODUCTION GATE FAILED: reviewed Shariatpur exterior photo catalog is incomplete: {missing}")
+for image_id, expected_license, expected_location in (
+    ("rudrakar_moth_35", "CC BY 4.0", [23.1830, 90.3459]),
+    ("kartikpur_jomidar_bari_123242", "CC BY-SA 4.0", [23.252441, 90.472991]),
+):
+    item = next(photo for photo in eligible_exterior_photos if photo.get("id") == image_id)
+    if item.get("license") != expected_license or item.get("target_location_lat_lon") != expected_location:
+        raise SystemExit(f"PRODUCTION GATE FAILED: {image_id} lacks its source/license/geographic-anchor metadata")
 
 
 
