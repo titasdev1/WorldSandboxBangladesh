@@ -563,7 +563,7 @@ for token in (
     'entity.set_script(load("res://systems/combat_enemy.gd") as Script)',
     'entity.add_to_group("combat_enemy")',
     'entity.set("combat_controller", self)',
-    "visual.has_combat_weapon = not practice_target",
+    "visual.has_combat_weapon = not is_practice_target",
 ):
     if token not in combat_controller_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: offline combat entity spawning is missing {token}")
