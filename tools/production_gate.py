@@ -375,6 +375,21 @@ for token in ("LeftEyeWhite", "NoseBridge", "ChestPocket_%s", "ShoeSole", "Radio
         raise SystemExit(f"PRODUCTION GATE FAILED: hero visual detail missing {token}.")
 if "visual.is_player_character = true" not in world_text or "camera_distance := 4.8 if Input.is_action_pressed" not in player_text or "else 7.4" not in player_text:
     raise SystemExit("PRODUCTION GATE FAILED: hero-detail selection or mobile-readable camera distance was lost.")
+for token in (
+    "func _build_player_weapon() -> void:",
+    "PlayerRifleRoot",
+    "RifleReceiver",
+    "RifleMagazine",
+    "RifleBarrel",
+    "RifleOpticLens",
+    "MuzzleFlash",
+    "func play_muzzle_flash() -> void:",
+    "mesh.radial_segments = 24",
+):
+    if token not in character_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: visible combat-hero detail is missing {token}")
+if 'hero_visual.call("play_muzzle_flash")' not in world_text:
+    raise SystemExit("PRODUCTION GATE FAILED: visible muzzle flash is not connected to the live fire action.")
 
 # Main.tscn owns one mission factory; dynamic clones duplicate the 4,000-job
 # catalogue and target markers and can create hidden CPU/memory load on mobile.
