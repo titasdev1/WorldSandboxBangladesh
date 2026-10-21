@@ -20,6 +20,7 @@ var jump_velocity := 7.2
 var crouch_speed := 3.2
 var _collision_shape: CollisionShape3D
 var _standing_capsule_height := 1.8
+const HUMANOID_BASE_SCALE := Vector3(0.90, 0.90, 0.90)
 var _is_crouched := false
 
 func set_camera_view_mode(mode: String) -> void:
@@ -171,8 +172,10 @@ func _set_crouched(should_crouch: bool) -> void:
   _collision_shape.position.y = capsule.height * 0.5 + 0.1
  var visual := get_node_or_null("HumanoidVisual") as Node3D
  if visual:
-  visual.scale.y = 0.72 if _is_crouched else 1.0
-  visual.position.y = 0.0 if _is_crouched else 0.0
+  # Preserve the model's measured base scale while crouching; setting only Y to
+  # 1.0 used to undo part of the character normalization when standing back up.
+  visual.scale = HUMANOID_BASE_SCALE * Vector3(1.0, 0.72, 1.0) if _is_crouched else HUMANOID_BASE_SCALE
+  visual.position.y = 0.0
 
 func interact():
  if not world:

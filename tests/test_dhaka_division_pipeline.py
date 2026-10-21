@@ -104,6 +104,13 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn('npc.add_to_group("mapped_road_npc")', world)
         self.assertIn('get_tree().get_nodes_in_group("mapped_road_npc").size()', world)
 
+    def test_player_crouch_preserves_normalized_humanoid_base_scale(self):
+        player = (self.ROOT / "player.gd").read_text(encoding="utf-8")
+        visual = (self.ROOT / "character_visual.gd").read_text(encoding="utf-8")
+        self.assertIn("const HUMANOID_BASE_SCALE := Vector3(0.90, 0.90, 0.90)", player)
+        self.assertIn("visual.scale = HUMANOID_BASE_SCALE * Vector3(1.0, 0.72, 1.0) if _is_crouched else HUMANOID_BASE_SCALE", player)
+        self.assertIn("scale = Vector3(0.90, 0.90, 0.90)", visual)
+
     def test_real_map_player_interaction_never_uses_starter_city_money_coordinates(self):
         player = (self.ROOT / "player.gd").read_text(encoding="utf-8")
         interact_start = player.index("func interact():")

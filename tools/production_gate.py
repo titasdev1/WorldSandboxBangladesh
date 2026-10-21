@@ -85,6 +85,11 @@ if "mesh_bounds.get_endpoint(endpoint_index)" not in city_factory_text or "insta
     raise SystemExit("PRODUCTION GATE FAILED: authored building scale/ground alignment is incomplete")
 if "target_size.x / 8.0" in city_factory_text or "target_size.y / 12.0" in city_factory_text:
     raise SystemExit("PRODUCTION GATE FAILED: stale guessed authored-building scale heuristic remains")
+player_scale_text = (ROOT / "player.gd").read_text(encoding="utf-8")
+if "const HUMANOID_BASE_SCALE := Vector3(0.90, 0.90, 0.90)" not in player_scale_text:
+    raise SystemExit("PRODUCTION GATE FAILED: shared normalized humanoid base scale is missing")
+if "visual.scale = HUMANOID_BASE_SCALE * Vector3(1.0, 0.72, 1.0) if _is_crouched else HUMANOID_BASE_SCALE" not in player_scale_text:
+    raise SystemExit("PRODUCTION GATE FAILED: crouch mode can corrupt the normalized character scale")
 character_visual_text = (ROOT / "character_visual.gd").read_text(encoding="utf-8")
 if "scale = Vector3(0.90, 0.90, 0.90)" not in character_visual_text or "position.y = -0.065" not in character_visual_text:
     raise SystemExit("PRODUCTION GATE FAILED: character render scale/ground alignment regressed")
