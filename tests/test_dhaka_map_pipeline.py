@@ -639,9 +639,10 @@ class DhakaMapPipelineTests(unittest.TestCase):
             }):
                 manifest = build_map(elements, out, DEFAULT_BBOX)
 
-            relative = Path("landmark_reference_photos/mosque-interior.jpg")
+            relative = Path("landmark_reference_photos/mosque-interior.jpg.photo_bytes")
             baked = out / relative
             self.assertTrue(baked.is_file())
+            self.assertEqual(baked.read_bytes(), (photo_dir / "mosque-interior.jpg").read_bytes())
             self.assertEqual(manifest["feature_counts"]["licensed_facade_photo_panels"], 0)
             self.assertEqual(manifest["feature_counts"]["interior_reference_photos"], 1)
             match = manifest["interior_reference_photo_matches"][0]
@@ -652,6 +653,7 @@ class DhakaMapPipelineTests(unittest.TestCase):
             seed = next(item for item in seeds if item["osm_id"] == 1155880717)
             self.assertEqual(seed["interior_reference_photo"]["image_id"], "burirhat_mosque_interior_01")
             self.assertEqual(seed["interior_reference_photo"]["asset_relative_path"], relative.as_posix())
+            self.assertEqual(seed["interior_reference_photo"]["image_format"], "jpg")
             self.assertEqual(seed["interior_reference_photo"]["use"], "INTERIOR_REFERENCE_ONLY")
             self.assertEqual(manifest["licensed_facade_photo_matches"], [])
 

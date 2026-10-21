@@ -148,12 +148,30 @@ func _add_licensed_interior_photo_reference(room_height: float, half_depth: floa
     if relative_path.is_empty() or relative_path.contains("..") or relative_path.begins_with("/"):
         return
     var texture_path := "res://assets/world/dhaka_tiles/%s/%s" % [active_tile_id, relative_path]
-    # ResourceLoader honours Godot's image import/remap table, including Android
-    # export builds where the original JPG may be stored as an imported texture.
-    var photo_texture := ResourceLoader.load(texture_path) as Texture2D
-    if photo_texture == null:
-        push_warning("Licensed interior reference photo is missing or unreadable: " + texture_path)
+    # Photo bytes use a non-resource .photo_bytes extension so the Android export
+    # preset can include them explicitly. ResourceLoader does not discover paths
+    # assembled dynamically from JSON; decode the packaged source bytes directly.
+    var photo_bytes := FileAccess.get_file_as_bytes(texture_path)
+    if photo_bytes.is_empty():
+        push_warning("Licensed interior reference photo bytes are missing or unreadable: " + texture_path)
         return
+    var photo_image := Image.new()
+    var image_format := str(photo_record.get("image_format", "jpg")).to_lower()
+    var decode_error := ERR_UNAVAILABLE
+    match image_format:
+        "jpg", "jpeg":
+            decode_error = photo_image.load_jpg_from_buffer(photo_bytes)
+        "png":
+            decode_error = photo_image.load_png_from_buffer(photo_bytes)
+        "webp":
+            decode_error = photo_image.load_webp_from_buffer(photo_bytes)
+        _:
+            push_warning("Licensed interior reference photo format is not supported: " + image_format)
+            return
+    if decode_error != OK:
+        push_warning("Licensed interior reference photo could not be decoded: " + texture_path)
+        return
+    var photo_texture := ImageTexture.create_from_image(photo_image)
     var license_name := str(photo_record.get("license", ""))
     if license_name not in ["CC BY 4.0", "CC BY-SA 4.0"]:
         push_warning("Interior reference photo has no approved license; skipping: " + texture_path)

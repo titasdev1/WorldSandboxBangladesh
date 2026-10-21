@@ -1399,15 +1399,21 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 source_photo = Path(str(interior_photo.get("path", "")))
                 photo_filename = str(photo_metadata.get("file_name", "")).strip()
                 if source_photo.is_file() and photo_filename:
-                    relative_photo_path = "landmark_reference_photos/" + photo_filename
+                    photo_format = Path(photo_filename).suffix.lower().lstrip(".")
+                    if photo_format not in {"jpg", "jpeg", "png", "webp"}:
+                        photo_format = ""
+                    relative_photo_path = "landmark_reference_photos/" + photo_filename + ".photo_bytes"
                     photo_destination = output_dir / relative_photo_path
                     photo_destination.parent.mkdir(parents=True, exist_ok=True)
-                    if not photo_destination.is_file():
-                        photo_destination.write_bytes(source_photo.read_bytes())
-                    image_bytes = photo_destination.read_bytes()
+                    # A non-resource extension plus Android include_filter makes the exact
+                    # licensed source bytes deterministic inside the APK. The runtime decodes
+                    # these bytes to ImageTexture; it does not depend on a missing Godot remap.
+                    image_bytes = source_photo.read_bytes()
+                    photo_destination.write_bytes(image_bytes)
                     interior_photo_reference = {
                         "image_id": str(photo_metadata.get("id", "")),
                         "asset_relative_path": relative_photo_path,
+                        "image_format": photo_format,
                         "source_page": str(photo_metadata.get("source_page", "")),
                         "author": str(photo_metadata.get("author", "")),
                         "license": str(photo_metadata.get("license", "")),

@@ -88,6 +88,12 @@ if "target_size.x / 8.0" in city_factory_text or "target_size.y / 12.0" in city_
 character_visual_text = (ROOT / "character_visual.gd").read_text(encoding="utf-8")
 if "scale = Vector3(0.90, 0.90, 0.90)" not in character_visual_text or "position.y = -0.065" not in character_visual_text:
     raise SystemExit("PRODUCTION GATE FAILED: character render scale/ground alignment regressed")
+export_presets_text = (ROOT / "export_presets.cfg").read_text(encoding="utf-8")
+if 'include_filter="*.photo_bytes"' not in export_presets_text:
+    raise SystemExit("PRODUCTION GATE FAILED: licensed map photo bytes are not explicitly included in Android export")
+interior_factory_text = (ROOT / "systems/interior_factory.gd").read_text(encoding="utf-8")
+if "FileAccess.get_file_as_bytes(texture_path)" not in interior_factory_text or "ImageTexture.create_from_image(photo_image)" not in interior_factory_text:
+    raise SystemExit("PRODUCTION GATE FAILED: interior reference photos still depend on untracked dynamic image imports")
 if "var hair_mesh := SphereMesh.new()" not in character_visual_text or "hair_node.scale.y = 0.68" not in character_visual_text:
     raise SystemExit("PRODUCTION GATE FAILED: invalid tall hair capsule regressed the character silhouette")
 map_builder_text = (ROOT / "tools/map_pipeline/build_dhaka_map.py").read_text(encoding="utf-8")
