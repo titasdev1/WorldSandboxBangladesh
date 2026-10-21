@@ -81,8 +81,8 @@ def request_bytes(opener, url: str, *, data: bytes | None = None, referer: str =
 
 def csrf_token(page: str) -> str:
     patterns = (
-        r'name=["\\']csrf_token["\\'][^>]*value=["\\']([^"\\']+)',
-        r'value=["\\']([^"\\']+)["\\'][^>]*name=["\\']csrf_token["\\']',
+        r"""name=["']csrf_token["'][^>]*value=["']([^"']+)""",
+        r"""value=["']([^"']+)["'][^>]*name=["']csrf_token["']""",
     )
     for pattern in patterns:
         match = re.search(pattern, page, flags=re.I)
