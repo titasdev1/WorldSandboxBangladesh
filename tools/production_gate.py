@@ -132,11 +132,14 @@ if "real_dhaka_loader.configure(self)" not in world_text:
 player_interact_source = (ROOT / "player.gd").read_text(encoding="utf-8")
 for token in (
     "var camera_recoil_pitch := 0.0",
+    "var first_person_pitch := 0.0",
+    "first_person_pitch = clampf(first_person_pitch - event.relative.y * camera_sensitivity, -65.0, 65.0)",
+    "deg_to_rad(first_person_pitch + camera_recoil_pitch)",
     "func _apply_weapon_recoil() -> void:",
     "_apply_weapon_recoil()",
     "camera_recoil_pitch + (0.72 if Input.is_action_pressed(\"aim\") else 0.98)",
     "camera_recoil_pitch = move_toward(camera_recoil_pitch, 0.0, 3.8 * delta)",
-    "deg_to_rad(-camera_pitch + camera_recoil_pitch)",
+    "deg_to_rad(first_person_pitch + camera_recoil_pitch)",
 ):
     if token not in player_interact_source:
         raise SystemExit(f"PRODUCTION GATE FAILED: camera recoil is not fully wired for fire/aim: {token}")

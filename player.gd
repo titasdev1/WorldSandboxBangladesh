@@ -14,6 +14,8 @@ var camera: Camera3D
 var camera_yaw := 0.0
 var camera_sensitivity := 0.12
 var camera_pitch := -28.0
+# First-person look starts level; the third-person orbit retains its raised camera angle.
+var first_person_pitch := 0.0
 # Recoil is an additive camera impulse, separate from the player's look input.
 # This lets sustained fire kick the sight upward without corrupting saved sensitivity
 # or the player's manually controlled camera angles.
@@ -65,9 +67,11 @@ func _unhandled_input(event):
   if event.position.x > get_viewport().get_visible_rect().size.x * 0.42:
    camera_yaw -= event.relative.x * camera_sensitivity
    camera_pitch = clamp(camera_pitch - event.relative.y * camera_sensitivity, -55.0, 15.0)
+   first_person_pitch = clampf(first_person_pitch - event.relative.y * camera_sensitivity, -65.0, 65.0)
  elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
   camera_yaw -= event.relative.x * camera_sensitivity
   camera_pitch = clamp(camera_pitch - event.relative.y * camera_sensitivity, -55.0, 15.0)
+  first_person_pitch = clampf(first_person_pitch - event.relative.y * camera_sensitivity, -65.0, 65.0)
 
 func _update_camera():
  if not camera:
@@ -81,7 +85,7 @@ func _update_camera():
   var eye := global_position + Vector3(0, 1.58, 0)
   camera.global_position = eye
   camera.fov = 50.0 if Input.is_action_pressed("aim") else 68.0
-  camera.global_rotation = Vector3(deg_to_rad(-camera_pitch + camera_recoil_pitch), yaw, 0.0)
+  camera.global_rotation = Vector3(deg_to_rad(first_person_pitch + camera_recoil_pitch), yaw, 0.0)
   return
  var camera_distance := 4.8 if Input.is_action_pressed("aim") else 7.4
  if world:
