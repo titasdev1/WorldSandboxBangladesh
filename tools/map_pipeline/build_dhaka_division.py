@@ -959,7 +959,7 @@ def main() -> int:
         missing_curated_photo_ids = sorted(set(curated_photo_target_ids) - embedded_photo_ids)
         if missing_curated_photo_ids:
             raise RuntimeError(
-                "Shariatpur target tile lacks textured licensed exterior photo panels for "
+                "Shariatpur target tile lacks actual GLB-embedded licensed exterior photo panels for "
                 f"{missing_curated_photo_ids}; downloaded images and catalogue eligibility do not count as embedding."
             )
         if is_manasha_target_tile and int(counts.get("licensed_facade_photo_panels", 0)) < 1:
