@@ -444,6 +444,31 @@ for token in (
 if division_builder_text.index("clipped = add_curated_manasha_footprint(clipped, boundary_tile)") > division_builder_text.index("manifest = build_map(clipped, tile_dir, bbox)"):
     raise SystemExit("PRODUCTION GATE FAILED: curated landmark must enter the feature list before GLB and GeoJSON baking")
 
+# Approved photo sources must become texture meshes at their own target tile, not
+# merely appear in the downloaded-image catalog or its diagnostic report.
+for token in (
+    "def add_curated_heritage_photo_footprints(",
+    "def curated_exterior_photo_ids_in_tile(",
+    'CURATED_HERITAGE_FOOTPRINT_SOURCE = "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED"',
+    "clipped = add_curated_heritage_photo_footprints(clipped, boundary_tile)",
+    "missing_curated_photo_ids = sorted(set(curated_photo_target_ids) - embedded_photo_ids)",
+    "Downloaded images and catalogue eligibility do not count as embedding.",
+):
+    if token not in division_builder_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: location-bound exterior-photo baking is missing {token}")
+curated_photo_catalog = json.loads(
+    (ROOT / "tools" / "map_pipeline" / "shariatpur_facade_images.json").read_text(encoding="utf-8")
+)
+for image_id in ("rudrakar_moth_35", "kartikpur_jomidar_bari_123242"):
+    photo = next((item for item in curated_photo_catalog.get("images", []) if item.get("id") == image_id), {})
+    if not photo.get("curated_feature_id") or not photo.get("curated_building_tags"):
+        raise SystemExit(f"PRODUCTION GATE FAILED: {image_id} has no explicitly identified photo-host fallback")
+    dimensions = photo.get("curated_footprint_dimensions_metres", [])
+    if not (isinstance(dimensions, list) and len(dimensions) == 2 and all(isinstance(v, (int, float)) and 4 <= v <= 30 for v in dimensions)):
+        raise SystemExit(f"PRODUCTION GATE FAILED: {image_id} has no bounded review-only footprint dimensions")
+    if "not surveyed" not in str(photo.get("curated_footprint_dimensions_note", "")).lower():
+        raise SystemExit(f"PRODUCTION GATE FAILED: {image_id} approximate footprint is not explicitly labeled unsurveyed")
+
 # Keep mapped doors, actual interaction-anchor placement and hero readability
 # connected to the generated metric world (without scaling real footprints).
 map_builder_text = (ROOT / "tools" / "map_pipeline" / "build_dhaka_map.py").read_text(encoding="utf-8")
