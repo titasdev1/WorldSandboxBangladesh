@@ -394,6 +394,20 @@ for token in (
 if division_builder_text.index("clipped = add_curated_manasha_footprint(clipped, boundary_tile)") > division_builder_text.index("manifest = build_map(clipped, tile_dir, bbox)"):
     raise SystemExit("PRODUCTION GATE FAILED: curated landmark must be included before GLB and GeoJSON baking")
 
+# The Manasha exterior photo must either match source geometry at the named site or
+# use the explicitly labeled fallback. A zero-panel landmark tile is never accepted.
+division_builder_text = (ROOT / "tools" / "map_pipeline" / "build_dhaka_division.py").read_text(encoding="utf-8")
+for token in (
+    "def add_curated_manasha_footprint(",
+    'MANASHA_APPROXIMATE_FOOTPRINT_SOURCE = "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED"',
+    "clipped = add_curated_manasha_footprint(clipped, boundary_tile)",
+    "Curated Manasha landmark exists in this tile but the licensed exterior photo panel was not embedded.",
+):
+    if token not in division_builder_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: guarded Manasha photo/footprint integration missing {token}")
+if division_builder_text.index("clipped = add_curated_manasha_footprint(clipped, boundary_tile)") > division_builder_text.index("manifest = build_map(clipped, tile_dir, bbox)"):
+    raise SystemExit("PRODUCTION GATE FAILED: curated landmark must enter the feature list before GLB and GeoJSON baking")
+
 # Keep mapped doors, actual interaction-anchor placement and hero readability
 # connected to the generated metric world (without scaling real footprints).
 map_builder_text = (ROOT / "tools" / "map_pipeline" / "build_dhaka_map.py").read_text(encoding="utf-8")
@@ -502,6 +516,25 @@ for token in (
         raise SystemExit(f"PRODUCTION GATE FAILED: weapon recoil animation is missing {token}")
 if "func _spawn_bullet_impact(point: Vector3, surface_normal: Vector3) -> void:" not in world_text or "_spawn_bullet_impact(hit.position, hit.normal)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: bullet impacts are not connected to live surface ray hits.")
+
+# Offline combat needs line-of-sight ranged enemy fire, a readable wind-up and tracer feedback.
+combat_enemy_text = (ROOT / "systems" / "combat_enemy.gd").read_text(encoding="utf-8")
+for token in (
+    "const MAX_RANGED_ATTACK_DISTANCE := 24.0",
+    "const PREFERRED_FIRING_DISTANCE := 11.0",
+    "const RANGED_SHOT_WINDUP := 0.42",
+    "func _ray_to_player(player: CharacterBody3D) -> Dictionary:",
+    "PhysicsRayQueryParameters3D.create(origin, target)",
+    "query.exclude = [get_rid()]",
+    'sight_hit.get("collider") == player',
+    "func _fire_at_player(player: CharacterBody3D) -> void:",
+    "func _emit_bullet_tracer(start: Vector3, finish: Vector3) -> void:",
+    'tracer.name = "EnemyBulletTracer"',
+    'world.event_text = "UNDER FIRE • BREAK LINE OF SIGHT"',
+    "world._spawn_bullet_impact(hit.position, hit.normal)",
+):
+    if token not in combat_enemy_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: tactical offline enemy combat is missing {token}")
 
 # Main.tscn owns one mission factory; dynamic clones duplicate the 4,000-job
 # catalogue and target markers and can create hidden CPU/memory load on mobile.
