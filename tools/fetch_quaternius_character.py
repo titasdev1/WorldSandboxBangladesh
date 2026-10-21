@@ -147,8 +147,9 @@ def find_archive_member(archive: zipfile.ZipFile, suffix: str) -> str:
 
 
 def extract_character_dependencies(archive_path: pathlib.Path, destination: pathlib.Path) -> pathlib.Path:
-    """Extract the male GLTF and only its referenced buffers/textures plus CC0 license."""
+    """Extract one GLTF and its referenced files, resolving archive-relative texture locations safely."""
     with zipfile.ZipFile(archive_path) as archive:
+        archive_names = archive.namelist()
         model_member = find_archive_member(archive, str(PACKS[0]["required_member_suffix"]))
         model_folder = posixpath.dirname(model_member)
         parts = model_member.split("/")
@@ -156,8 +157,16 @@ def extract_character_dependencies(archive_path: pathlib.Path, destination: path
         if standard_root_index is None:
             raise RuntimeError("Cannot identify the Standard pack root in the hero archive.")
         pack_root = "/".join(parts[: standard_root_index + 1]) + "/"
+        pack_files = [
+            name for name in archive_names
+            if name.startswith(pack_root) and not name.endswith("/")
+        ]
+        names_by_casefold = {name.casefold(): name for name in pack_files}
         model_data = json.loads(archive.read(model_member).decode("utf-8"))
-        required = {model_member}
+        # target archive path -> actual archive path. Copy dependencies to the path
+        # declared by the GLTF even when the publisher stores the source texture in
+        # a shared Textures folder or uses different filename capitalization.
+        required: dict[str, str] = {model_member: model_member}
         dependencies = [
             item.get("uri", "") for item in model_data.get("buffers", [])
         ] + [
@@ -168,21 +177,51 @@ def extract_character_dependencies(archive_path: pathlib.Path, destination: path
                 continue
             if urllib.parse.urlparse(uri).scheme:
                 raise RuntimeError(f"External network image dependency is not allowed in character GLTF: {uri}")
-            member = posixpath.normpath(posixpath.join(model_folder, urllib.parse.unquote(uri)))
-            if not member.startswith(pack_root) or member.startswith("../") or "/../" in member:
+            target_member = posixpath.normpath(posixpath.join(model_folder, urllib.parse.unquote(uri)))
+            if not target_member.startswith(pack_root) or target_member.startswith("../") or "/../" in target_member:
                 raise RuntimeError(f"Character dependency escapes its licensed archive folder: {uri}")
-            if member not in archive.namelist():
-                raise RuntimeError(f"Missing GLTF dependency in source archive: {member}")
-            required.add(member)
+            source_member = names_by_casefold.get(target_member.casefold())
+            if source_member is None:
+                filename = posixpath.basename(target_member).casefold()
+                candidates = [
+                    name for name in pack_files
+                    if posixpath.basename(name).casefold() == filename
+                ]
+                if len(candidates) == 1:
+                    source_member = candidates[0]
+                elif len(candidates) > 1:
+                    target_parts = posixpath.dirname(target_member).casefold().split("/")
+                    scored = []
+                    for candidate in candidates:
+                        candidate_parts = posixpath.dirname(candidate).casefold().split("/")
+                        shared = 0
+                        for left, right in zip(target_parts, candidate_parts):
+                            if left != right:
+                                break
+                            shared += 1
+                        scored.append((shared, candidate))
+                    best_score = max(score for score, _ in scored)
+                    best = [candidate for score, candidate in scored if score == best_score]
+                    if best_score >= 1 and len(best) == 1:
+                        source_member = best[0]
+                    else:
+                        raise RuntimeError(
+                            f"Ambiguous GLTF dependency {uri!r}; matching archive members: {candidates[:8]}"
+                        )
+                else:
+                    raise RuntimeError(
+                        f"Missing GLTF dependency {target_member}; archive has no file named {posixpath.basename(target_member)!r}"
+                    )
+            required[target_member] = source_member
         destination.mkdir(parents=True, exist_ok=True)
-        for member in sorted(required):
-            relative = member[len(pack_root):]
+        for target_member, source_member in sorted(required.items()):
+            relative = target_member[len(pack_root):]
             target = destination.joinpath(*pathlib.PurePosixPath(relative).parts)
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(archive.read(member))
+            target.write_bytes(archive.read(source_member))
         license_member = next(
-            (name for name in archive.namelist()
-             if name.startswith(pack_root) and pathlib.PurePosixPath(name).name.casefold() in
+            (name for name in pack_files
+             if pathlib.PurePosixPath(name).name.casefold() in
              {"license.txt", "license_standard.txt", "license.md", "license_standard.md"}),
             None,
         )
@@ -190,7 +229,6 @@ def extract_character_dependencies(archive_path: pathlib.Path, destination: path
             (OUTPUT / "LICENSE_Quaternius_Base_Characters.txt").write_bytes(archive.read(license_member))
         extracted_gltf = destination.joinpath(*pathlib.PurePosixPath(model_member[len(pack_root):]).parts)
         return extracted_gltf
-
 
 def extract_animation_glb(archive_path: pathlib.Path, suffix: str, destination: pathlib.Path) -> pathlib.Path:
     with zipfile.ZipFile(archive_path) as archive:
