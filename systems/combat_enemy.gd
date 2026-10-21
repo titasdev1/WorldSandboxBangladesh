@@ -34,7 +34,7 @@ func _physics_process(delta: float) -> void:
         )
         var distance := flat_to_player.length()
         var sight_hit := _ray_to_player(player)
-        var has_line_of_sight := not sight_hit.is_empty() and sight_hit.get("collider") == player
+        var has_line_of_sight: bool = not sight_hit.is_empty() and sight_hit.get("collider") == player
         attack_cooldown = maxf(0.0, attack_cooldown - delta)
 
         if distance <= MELEE_DISTANCE and has_line_of_sight:
