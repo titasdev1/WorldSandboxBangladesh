@@ -468,7 +468,13 @@ def add_curated_manasha_footprint(elements: list[dict[str, Any]], clip_shape: An
         if geometry.is_empty or not isinstance(geometry, (Polygon, MultiPolygon)):
             continue
         if distance_to_target_metres(geometry) <= MANASHA_PHOTO_MATCH_RADIUS_M:
-            return elements
+            # A site/religion boundary can enclose the landmark without representing
+            # any physical facade. Only an eligible building outline may suppress
+            # the transparent approximate footprint fallback; otherwise there is
+            # nothing for build_map() to attach the licensed photo panel to.
+            has_physical_building = str(tags.get("building", "")).strip().lower() not in {"", "no", "false", "0"}
+            if has_physical_building:
+                return elements
 
     # Eight by six metres is a temporary authored placeholder, not a surveyed outline.
     half_width_m, half_depth_m = 4.0, 3.0
@@ -734,6 +740,13 @@ def main() -> int:
         tile_dir = args.out / tile_id
         tile_polygon = box(w, s, e, n)
         boundary_tile = build_boundary.intersection(tile_polygon)
+        manasha_target_point = Point(MANASHA_TARGET_LAT_LON[1], MANASHA_TARGET_LAT_LON[0])
+        is_manasha_target_tile = args.stage == "shariatpur_review" and tile_polygon.covers(manasha_target_point)
+        if is_manasha_target_tile and not boundary_tile.covers(manasha_target_point):
+            raise RuntimeError(
+                "Approved Manasha exterior photo anchor falls outside Shariatpur District clipping boundary; "
+                "correct the verified point/boundary before packaging."
+            )
         clipped = _clip_elements(candidates[index - 1], boundary_tile)
         clipped, overture_duplicate_count = deduplicate_overture_overlaps(clipped)
         overture_count = sum(
@@ -748,6 +761,11 @@ def main() -> int:
         # features must not become a hole in the explorable world.
         manifest = build_map(clipped, tile_dir, bbox)
         counts = manifest.get("feature_counts", {})
+        if is_manasha_target_tile and int(counts.get("licensed_facade_photo_panels", 0)) < 1:
+            raise RuntimeError(
+                "Manasha target tile is missing its licensed exterior photo panel; image download, building match, "
+                "texture bake and manifest accounting must all succeed before packaging."
+            )
         if int(counts.get("curated_approximate_landmark_footprints", 0)) > 0:
             if int(counts.get("licensed_facade_photo_panels", 0)) < 1:
                 raise RuntimeError(

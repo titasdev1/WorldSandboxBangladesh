@@ -823,6 +823,54 @@ class DhakaMapPipelineTests(unittest.TestCase):
 
 
 
+    def test_worship_site_polygon_does_not_suppress_missing_physical_manasha_building(self):
+        from shapely.geometry import box
+        from tools.map_pipeline.build_dhaka_division import add_curated_manasha_footprint
+
+        lat, lon = 23.2004, 90.3484
+        half = 0.00005
+        site_only = {
+            "type": "way",
+            "id": 88008,
+            "tags": {"amenity": "place_of_worship", "religion": "hindu"},
+            "geometry": [
+                {"lat": lat - half, "lon": lon - half},
+                {"lat": lat - half, "lon": lon + half},
+                {"lat": lat + half, "lon": lon + half},
+                {"lat": lat + half, "lon": lon - half},
+                {"lat": lat - half, "lon": lon - half},
+            ],
+        }
+        clip = box(90.30, 23.18, 90.40, 23.24)
+        result = add_curated_manasha_footprint([site_only], clip)
+        curated = [item for item in result if item.get("id") == -62000085]
+        self.assertEqual(
+            len(curated), 1,
+            "A religious-site polygon without a building outline cannot receive an exterior photo panel",
+        )
+        self.assertEqual(curated[0]["tags"]["source:geometry"], "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED")
+
+    def test_mapped_physical_temple_footprint_prevents_duplicate_curated_landmark(self):
+        from shapely.geometry import box
+        from tools.map_pipeline.build_dhaka_division import add_curated_manasha_footprint
+
+        lat, lon = 23.2004, 90.3484
+        half = 0.00005
+        physical_temple = {
+            "type": "way",
+            "id": 88009,
+            "tags": {"building": "temple", "amenity": "place_of_worship", "religion": "hindu"},
+            "geometry": [
+                {"lat": lat - half, "lon": lon - half},
+                {"lat": lat - half, "lon": lon + half},
+                {"lat": lat + half, "lon": lon + half},
+                {"lat": lat + half, "lon": lon - half},
+                {"lat": lat - half, "lon": lon - half},
+            ],
+        }
+        result = add_curated_manasha_footprint([physical_temple], box(90.30, 23.18, 90.40, 23.24))
+        self.assertEqual(len(result), 1, "An existing physical temple footprint must not get duplicated")
+
     def test_verified_coordinate_photo_embeds_when_temple_footprint_has_no_matching_name(self):
         from PIL import Image
 

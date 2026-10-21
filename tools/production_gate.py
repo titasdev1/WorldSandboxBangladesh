@@ -384,6 +384,10 @@ for token in (
     "clipped = add_curated_manasha_footprint(clipped, boundary_tile)",
     "Curated Manasha landmark exists in this tile but the licensed exterior photo panel was not embedded.",
     "nearest_points(geometry, target)",
+    'has_physical_building = str(tags.get("building", "")).strip().lower() not in {"", "no", "false", "0"}',
+    'is_manasha_target_tile = args.stage == "shariatpur_review" and tile_polygon.covers(manasha_target_point)',
+    "Approved Manasha exterior photo anchor falls outside Shariatpur District clipping boundary",
+    "Manasha target tile is missing its licensed exterior photo panel",
 ):
     if token not in division_builder_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: guarded Manasha photo/footprint integration missing {token}")
