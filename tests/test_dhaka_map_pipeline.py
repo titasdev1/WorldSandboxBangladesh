@@ -99,6 +99,32 @@ class DhakaMapPipelineTests(unittest.TestCase):
         self.assertAlmostEqual(height, 15.5)
         self.assertFalse(inferred)
 
+    def test_midrise_balcony_geometry_is_deterministic_and_source_aware(self):
+        from shapely.geometry import box
+        from tools.map_pipeline.build_dhaka_map import facade_balcony_geometry
+
+        footprint = box(10.0, 10.0, 30.0, 30.0)
+        tile_bounds = box(0.0, 0.0, 100.0, 100.0)
+        tags = {"building": "apartments", "building:levels": "4"}
+        balcony_a = facade_balcony_geometry(footprint, 12.4, 102, tags, tile_bounds)
+        balcony_b = facade_balcony_geometry(footprint, 12.4, 102, tags, tile_bounds)
+        self.assertIsNotNone(balcony_a)
+        self.assertIsNotNone(balcony_b)
+        self.assertEqual(balcony_a[2], 6)
+        self.assertEqual(balcony_a[2], balcony_b[2])
+        self.assertTrue((balcony_a[1].vertices == balcony_b[1].vertices).all(),
+                        "The same OSM building ID must produce reproducible balcony geometry")
+        self.assertGreaterEqual(balcony_a[1].bounds[0][0], tile_bounds.bounds[0] - 0.01)
+        self.assertGreaterEqual(balcony_a[1].bounds[0][1], tile_bounds.bounds[1] - 0.01)
+        self.assertLessEqual(balcony_a[1].bounds[1][0], tile_bounds.bounds[2] + 0.01)
+        self.assertLessEqual(balcony_a[1].bounds[1][1], tile_bounds.bounds[3] + 0.01)
+        self.assertIsNone(facade_balcony_geometry(
+            footprint, 12.4, 102, {"building": "warehouse", "building:levels": "4"}, tile_bounds
+        ), "Industrial warehouses must not get residential balcony details")
+        self.assertIsNone(facade_balcony_geometry(
+            footprint, 12.4, 102, {"building": "apartments", "building:levels": "4", "balcony": "no"}, tile_bounds
+        ), "An explicit balcony=no tag must be respected")
+
     def test_facade_floor_bands_scale_with_building_floor_count_cue(self):
         from shapely.geometry import box
         from tools.map_pipeline.build_dhaka_map import facade_window_geometry
