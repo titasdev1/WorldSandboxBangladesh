@@ -114,9 +114,10 @@ if "city_asset_factory.configure(self)" not in world_text or "spawn_building(Vec
 if "real_dhaka_loader.configure(self)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: real-Dhaka tile loader is not wired into the canonical world")
 
-player_interact_start = player_text.find("func interact():")
-player_interact_end = player_text.find("func take_damage(", player_interact_start)
-player_interact_text = player_text[player_interact_start:player_interact_end]
+player_interact_source = (ROOT / "player.gd").read_text(encoding="utf-8")
+player_interact_start = player_interact_source.find("func interact():")
+player_interact_end = player_interact_source.find("func take_damage(", player_interact_start)
+player_interact_text = player_interact_source[player_interact_start:player_interact_end]
 map_interact_guard = player_interact_text.find('if not bool(world.get("real_dhaka_loaded")):')
 if map_interact_guard < 0:
     raise SystemExit("PRODUCTION GATE FAILED: player interaction lacks a real-map guard for starter-city interactions")
