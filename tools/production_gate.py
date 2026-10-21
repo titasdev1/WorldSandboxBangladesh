@@ -116,6 +116,17 @@ if "Dispatch Android APK build after complete Shariatpur assembly" in map_workfl
     raise SystemExit("PRODUCTION GATE FAILED: map workflow contains a duplicate APK dispatch path")
 if "name: Project-A-Square-Shariatpur-Review-Map-" not in map_workflow_text or "Assemble complete Shariatpur District review package" not in map_workflow_text:
     raise SystemExit("PRODUCTION GATE FAILED: complete Shariatpur package is not assembled and uploaded before the central APK dispatch gate")
+# The map-to-APK handoff must use an explicit sequence identity; timestamps alone
+# can select a newer stale ZIP produced by another concurrent/older sequence.
+for token in (
+    "map_sequence_id:",
+    "EXPECTED_MAP_ARTIFACT",
+    'MAP_SEQUENCE_ID: ${{ inputs.map_sequence_id }}',
+):
+    if token not in android_workflow_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: Android map selection is not bound to the exact sequence ({token})")
+if '"map_sequence_id": "${MAP_SEQUENCE_ID}"' not in map_workflow_text:
+    raise SystemExit("PRODUCTION GATE FAILED: completed map sequence ID is not passed to the canonical APK workflow")
 for token in (
     "name: Verify continuation matches its root batch pipeline commit",
     "pipeline_commit_sha",
