@@ -20,6 +20,7 @@ var _weapon_root: Node3D
 var _muzzle_flash: MeshInstance3D
 var _muzzle_light: OmniLight3D
 var _muzzle_flash_timer := 0.0
+var _weapon_recoil_offset := 0.0
 
 func _ready() -> void:
     # The mesh authoring coordinates were about 2.1 m tall while the controller
@@ -219,6 +220,7 @@ func play_muzzle_flash() -> void:
     if not is_player_character or not is_instance_valid(_muzzle_flash) or not is_instance_valid(_muzzle_light):
         return
     _muzzle_flash_timer = 0.075
+    _weapon_recoil_offset = minf(_weapon_recoil_offset + 0.06, 0.11)
     _muzzle_flash.visible = true
     _muzzle_light.visible = true
 
@@ -327,6 +329,9 @@ func _process(delta: float) -> void:
                 _muzzle_flash.visible = false
             if is_instance_valid(_muzzle_light):
                 _muzzle_light.visible = false
+    _weapon_recoil_offset = move_toward(_weapon_recoil_offset, 0.0, delta * 0.85)
+    if is_instance_valid(_weapon_root):
+        _weapon_root.position = Vector3(-0.12, -0.28, 0.13 + _weapon_recoil_offset)
 
     var body := actor as CharacterBody3D
     var planar_speed := Vector2(body.velocity.x, body.velocity.z).length()
