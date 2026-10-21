@@ -451,7 +451,8 @@ jobs:
           {
             "ref": "${GITHUB_REF_NAME}",
             "inputs": {
-              "map_package": "shariatpur_review"
+              "map_package": "shariatpur_review",
+              "map_sequence_id": "${MAP_SEQUENCE_ID}"
             }
           }
           EOF
