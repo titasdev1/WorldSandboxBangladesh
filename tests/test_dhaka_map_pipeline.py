@@ -437,16 +437,34 @@ class DhakaMapPipelineTests(unittest.TestCase):
         self.assertIsNone(match_facade_photo({"name": "nearby mosque"}, catalog))
         self.assertEqual(normalize_facade_name("A\u200b  B"), "a b")
 
-    def test_shariatpur_catalog_enables_only_a_verified_exterior_and_keeps_mosque_interior_blocked(self):
+    def test_shariatpur_catalog_enables_verified_landmark_exteriors_and_keeps_mosque_interior_blocked(self):
         catalog_path = Path(__file__).resolve().parents[1] / "tools" / "map_pipeline" / "shariatpur_facade_images.json"
         catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
         self.assertGreaterEqual(len(catalog["images"]), 3)
         by_id = {image["id"]: image for image in catalog["images"]}
-        for blocked_id in ("bibir_hat_mosque_01", "rudrakar_moth_35"):
-            image = by_id[blocked_id]
-            self.assertIs(image.get("facade_eligible"), False, image.get("id"))
-            self.assertEqual(image.get("view_type"), "unverified", image.get("id"))
-            self.assertEqual(image.get("visual_qa"), "pending", image.get("id"))
+        approved = [
+            image for image in catalog["images"]
+            if image.get("facade_eligible") is True
+            and image.get("view_type") == "exterior"
+            and image.get("visual_qa") == "passed"
+            and image.get("license") in {"CC BY 4.0", "CC BY-SA 4.0"}
+        ]
+        self.assertGreaterEqual(len(approved), 3)
+        bibir = by_id["bibir_hat_mosque_01"]
+        self.assertIs(bibir.get("facade_eligible"), False)
+        self.assertTrue(bibir.get("interior_reference_eligible"))
+        rudrakar = by_id["rudrakar_moth_35"]
+        self.assertIs(rudrakar.get("facade_eligible"), True)
+        self.assertEqual(rudrakar.get("view_type"), "exterior")
+        self.assertEqual(rudrakar.get("visual_qa"), "passed")
+        self.assertEqual(rudrakar.get("license"), "CC BY 4.0")
+        self.assertEqual(rudrakar.get("target_location_lat_lon"), [23.1830, 90.3459])
+        kartikpur = by_id["kartikpur_jomidar_bari_123242"]
+        self.assertIs(kartikpur.get("facade_eligible"), True)
+        self.assertEqual(kartikpur.get("view_type"), "exterior")
+        self.assertEqual(kartikpur.get("visual_qa"), "passed")
+        self.assertEqual(kartikpur.get("license"), "CC BY-SA 4.0")
+        self.assertEqual(kartikpur.get("target_location_lat_lon"), [23.252441, 90.472991])
         manasha = by_id["manasha_temple_back_view_01"]
         self.assertIs(manasha.get("facade_eligible"), True)
         self.assertEqual(manasha.get("view_type"), "exterior")
@@ -456,6 +474,23 @@ class DhakaMapPipelineTests(unittest.TestCase):
         self.assertEqual(manasha.get("target_location_lat_lon"), [23.2004, 90.3484])
         self.assertEqual(manasha.get("target_match_radius_metres"), 45.0)
         self.assertIn("interior photograph", " ".join(catalog.get("limitations", [])).lower())
+
+    def test_each_approved_heritage_exterior_photo_matches_its_own_exact_name_alias(self):
+        from tools.map_pipeline.build_dhaka_map import normalize_facade_name
+        catalog_path = Path(__file__).resolve().parents[1] / "tools" / "map_pipeline" / "shariatpur_facade_images.json"
+        images = json.loads(catalog_path.read_text(encoding="utf-8"))["images"]
+        for image_id in ("manasha_temple_back_view_01", "rudrakar_moth_35", "kartikpur_jomidar_bari_123242"):
+            photo = next(item for item in images if item["id"] == image_id)
+            aliases = {normalize_facade_name(alias): {"metadata": photo} for alias in photo["match_names"]}
+            match = match_facade_photo({"name": photo["match_names"][0]}, aliases)
+            self.assertIsNotNone(match, image_id)
+            self.assertEqual(match["metadata"]["id"], image_id)
+            self.assertTrue(photo["source_page"].startswith("https://commons.wikimedia.org/wiki/File:"))
+            self.assertIn(photo["license"], {"CC BY 4.0", "CC BY-SA 4.0"})
+        kartikpur = next(item for item in images if item["id"] == "kartikpur_jomidar_bari_123242")
+        self.assertEqual(kartikpur["author"], "Moheen Reeyad")
+        self.assertIn("CC BY-SA 4.0", kartikpur["attribution"])
+
 
     def test_verified_manasha_exterior_photo_matches_only_its_explicit_name_aliases(self):
         from tools.map_pipeline.build_dhaka_map import normalize_facade_name
