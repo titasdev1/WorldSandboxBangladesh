@@ -305,6 +305,10 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
                 "assets/external_content/polyhaven_pbr/asset_manifest.json",
             ):
                 archive.writestr(pack_manifest, "{}")
+            archive.writestr(
+                "assets/external_content/quaternius_hero/asset_manifest.json",
+                json.dumps({"available": False, "license": "CC0-1.0", "animation_count": 0}),
+            )
 
     def test_android_apk_verifier_confirms_interior_photo_bytes_and_seed_link(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -319,6 +323,42 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + "\n" + result.stderr)
             self.assertIn("APK content integration: PASS", result.stdout)
             self.assertIn("Interior reference photo assets SHA-256 verified and linked to runtime seeds: 1/1", result.stdout)
+
+    def test_android_apk_verifier_confirms_authored_hero_bytes_import_and_animation_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            apk_path = root / "candidate.apk"
+            self._make_minimal_shariatpur_apk(apk_path)
+            with zipfile.ZipFile(apk_path, "r") as archive:
+                members = {name: archive.read(name) for name in archive.namelist()}
+
+            hero_path = "assets/external_content/quaternius_hero/Project_A_Square_Hero.glb"
+            hero_bytes = b"glTF" + b"Project-A-Square-CC0-rigged-hero-test"
+            hero_manifest_path = "assets/external_content/quaternius_hero/asset_manifest.json"
+            members[hero_path] = hero_bytes
+            members[hero_path + ".import"] = b"remap"
+            members["assets/.godot/imported/Project_A_Square_Hero.glb-test.scn"] = b"imported-scene"
+            members[hero_manifest_path] = json.dumps({
+                "available": True,
+                "license": "CC0-1.0",
+                "hero_glb_sha256": hashlib.sha256(hero_bytes).hexdigest(),
+                "animation_count": 86,
+            }).encode("utf-8")
+
+            with zipfile.ZipFile(apk_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                for name, data in members.items():
+                    archive.writestr(name, data)
+
+            verifier = self.ROOT / "tools" / "verify_apk_contents.py"
+            result = subprocess.run(
+                [sys.executable, str(verifier), "--apk", str(apk_path), "--map-package", "shariatpur_review"],
+                cwd=root, capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + "\\n" + result.stderr)
+            self.assertIn("Authored CC0 hero packaged/imported: yes", result.stdout)
+            self.assertIn("Authored hero imported Godot scenes: 1", result.stdout)
+            self.assertIn("Authored hero animation clips: 86", result.stdout)
+
 
     def test_android_apk_verifier_rejects_wrong_interior_photo_hash(self):
         with tempfile.TemporaryDirectory() as tmp:
