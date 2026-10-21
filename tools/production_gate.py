@@ -116,6 +116,14 @@ if "Dispatch Android APK build after complete Shariatpur assembly" in map_workfl
     raise SystemExit("PRODUCTION GATE FAILED: map workflow contains a duplicate APK dispatch path")
 if "name: Project-A-Square-Shariatpur-Review-Map-" not in map_workflow_text or "Assemble complete Shariatpur District review package" not in map_workflow_text:
     raise SystemExit("PRODUCTION GATE FAILED: complete Shariatpur package is not assembled and uploaded before the central APK dispatch gate")
+for token in (
+    "name: Verify continuation matches its root batch pipeline commit",
+    "pipeline_commit_sha",
+    "sort -V | tail -n 1",
+    "Start a new sequence instead of mixing tile batches.",
+):
+    if token not in map_workflow_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: map continuation source-pin validation is missing {token}")
 if "city_asset_factory.configure(self)" not in world_text or "spawn_building(Vector3(x, 0, z)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: authored city building factory is not integrated into the world")
 if "real_dhaka_loader.configure(self)" not in world_text:
