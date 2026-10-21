@@ -138,6 +138,7 @@ class DhakaMapPipelineTests(unittest.TestCase):
         self.assertGreater(single_storey[3], 0)
         self.assertGreater(two_floor[3], 8, "Long walls should receive multiple windows per floor")
         self.assertGreater(five_floor[3], two_floor[3], "Taller buildings should retain repeated floor rhythms")
+        self.assertLessEqual(five_floor[3], 96, "Per-building window geometry must remain bounded for mobile rendering")
         self.assertIsNone(facade_window_geometry(footprint, 6.2, 101, tile_bounds, {"building": "house", "window": "no"}))
         self.assertIsNone(facade_window_geometry(footprint, 6.2, 101, tile_bounds, {"building": "house", "window": "false"}))
 
