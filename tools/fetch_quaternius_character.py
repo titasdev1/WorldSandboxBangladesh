@@ -35,7 +35,7 @@ PACKS = (
         "page": "https://quaternius.itch.io/universal-base-characters",
         "upload_id": 15861669,
         "sha256": "fdbf1804c90dfc1ea03e992bff7da2dfd1a79318e13270a660180f9308455f40",
-        "required_member_suffix": "Base Characters/Godot - UE/Superhero_Male_FullBody.gltf",
+        "required_member_suffix": "Base Characters/Godot - UE/Regular_Male_FullBody.gltf",
     },
     {
         "key": "animation_library_1",
@@ -209,9 +209,51 @@ def extract_character_dependencies(archive_path: pathlib.Path, destination: path
                             f"Ambiguous GLTF dependency {uri!r}; matching archive members: {candidates[:8]}"
                         )
                 else:
-                    raise RuntimeError(
-                        f"Missing GLTF dependency {target_member}; archive has no file named {posixpath.basename(target_member)!r}"
-                    )
+                    # Some exports append the image type to the texture basename
+                    # (for example T_Hair_1_Normal_png.png) while the publisher's
+                    # archive stores the underlying texture as T_Hair_1_Normal.png.
+                    # Resolve only a unique same-extension, same-normalized-stem file.
+                    target_path = pathlib.PurePosixPath(target_member)
+                    target_stem = target_path.stem.casefold()
+                    if target_stem.endswith("_png"):
+                        target_stem = target_stem[:-4]
+                    target_suffix = target_path.suffix.casefold()
+                    stem_candidates = [
+                        name for name in pack_files
+                        if pathlib.PurePosixPath(name).suffix.casefold() == target_suffix
+                        and pathlib.PurePosixPath(name).stem.casefold() == target_stem
+                    ]
+                    if len(stem_candidates) == 1:
+                        source_member = stem_candidates[0]
+                    elif len(stem_candidates) > 1:
+                        target_dir_parts = posixpath.dirname(target_member).casefold().split("/")
+                        ranked = []
+                        for candidate in stem_candidates:
+                            candidate_dir_parts = posixpath.dirname(candidate).casefold().split("/")
+                            shared = 0
+                            for left, right in zip(target_dir_parts, candidate_dir_parts):
+                                if left != right:
+                                    break
+                                shared += 1
+                            ranked.append((shared, candidate))
+                        best_score = max(score for score, _ in ranked)
+                        best_candidates = [candidate for score, candidate in ranked if score == best_score]
+                        if best_score >= 1 and len(best_candidates) == 1:
+                            source_member = best_candidates[0]
+                        else:
+                            raise RuntimeError(
+                                f"Ambiguous normalized GLTF dependency {uri!r}; candidates: {stem_candidates[:8]}"
+                            )
+                    else:
+                        similar_names = [
+                            name for name in pack_files
+                            if target_path.stem.split("_")[0].casefold() in pathlib.PurePosixPath(name).name.casefold()
+                            and pathlib.PurePosixPath(name).suffix.casefold() in {".png", ".jpg", ".jpeg", ".webp"}
+                        ]
+                        raise RuntimeError(
+                            f"Missing GLTF dependency {target_member}; archive has no matching texture. "
+                            f"Nearby candidates: {similar_names[:8]}"
+                        )
             required[target_member] = source_member
         destination.mkdir(parents=True, exist_ok=True)
         for target_member, source_member in sorted(required.items()):
@@ -344,7 +386,7 @@ def main() -> int:
                 "character_named_node_count": report.get("character_named_node_count", 0),
                 "animation_count": report.get("animation_clip_count", 0),
                 "animation_names": report.get("animation_names", []),
-                "note": "One rigged, textured male hero mesh with compatible CC0 in-place UAL1/UAL2 animation clips; stylized superhero model, not a final photorealistic Bangladeshi civilian wardrobe.",
+                "note": "One rigged, textured male hero mesh with compatible CC0 in-place UAL1/UAL2 animation clips; stylized regular-proportions character model, not a final photorealistic Bangladeshi civilian or CODM-quality military wardrobe.",
             }
             MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
             print(json.dumps({
