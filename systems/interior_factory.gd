@@ -41,17 +41,24 @@ func open_interior(seed: Dictionary, exterior_position: Vector3, direction: Vect
     exterior_return_position = exterior_position + exit_direction * 4.0 + Vector3(0, 0.25, 0)
     # Keep X/Z aligned to the real exterior tile so the map streamer retains
     # the correct tile while the interior is instantiated below the terrain.
-    var interior_origin := Vector3(exterior_position.x, -300.0, exterior_position.z)
+    # Align the generated room's front doorway with the mapped exterior doorway.
+    # The interior occupies the same tile X/Z coordinates but is lowered below terrain.
+    var room_dimensions := _infer_room_dimensions()
+    var room_scale := _infer_interior_scale()
+    var horizontal_exit_direction := Vector3(exit_direction.x, 0.0, exit_direction.z).normalized()
+    if horizontal_exit_direction.length_squared() < 0.01:
+        horizontal_exit_direction = Vector3(0, 0, 1)
+    var interior_origin := Vector3(exterior_position.x, -300.0, exterior_position.z) - horizontal_exit_direction * (room_dimensions.y * room_scale.z * 0.5)
     active_root = Node3D.new()
     active_root.name = "GeneratedInterior_" + str(seed.get("osm_id", "place"))
     active_root.position = interior_origin
-    # The generated entrance must face the actual baked exterior-door normal.
+    # The generated entrance faces the actual baked exterior-door normal.
     # OSM identity still varies the interior layout, furniture, lighting and detailing.
     var building_id: int = absi(int(seed.get("osm_id", 1)))
-    active_root.rotation.y = atan2(exit_direction.x, exit_direction.z)
+    active_root.rotation.y = atan2(horizontal_exit_direction.x, horizontal_exit_direction.z)
     # Fit the generated shell/furniture to this building's measured OSM footprint
     # and estimated storey height. The resident is counter-scaled in _add_resident.
-    active_root.scale = _infer_interior_scale()
+    active_root.scale = room_scale
     world.add_child(active_root)
     _build_room()
     var player := _player()
