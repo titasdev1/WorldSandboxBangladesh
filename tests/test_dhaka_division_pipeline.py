@@ -263,6 +263,38 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
             "use": "INTERIOR_REFERENCE_ONLY",
             "visual_identity_verified": True,
         }
+        exterior_matches = [
+            {
+                "osm_id": 620001,
+                "building_name": "Manasha Temple, Shariatpur",
+                "image_id": "manasha_temple_back_view_01",
+                "source_page": "https://commons.wikimedia.org/wiki/File:Manasha_Temple,_Shariatpur_(back_view).jpg",
+                "author": "Shuvajit BD",
+                "license": "CC BY-SA 4.0",
+                "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+                "attribution": "Photo: Shuvajit BD / Wikimedia Commons, CC BY-SA 4.0",
+            },
+            {
+                "osm_id": 620002,
+                "building_name": "Rudrakar Moth",
+                "image_id": "rudrakar_moth_35",
+                "source_page": "https://commons.wikimedia.org/wiki/File:Rudrakar_Moth_35.jpg",
+                "author": "Radman Siddiki",
+                "license": "CC BY 4.0",
+                "license_url": "https://creativecommons.org/licenses/by/4.0/",
+                "attribution": "Photo: Radman Siddiki / Wikimedia Commons, CC BY 4.0",
+            },
+            {
+                "osm_id": 620003,
+                "building_name": "Kartikpur Jomidar Bari",
+                "image_id": "kartikpur_jomidar_bari_123242",
+                "source_page": "https://commons.wikimedia.org/wiki/File:Kartikpur_Jomidar_Bari_(123242).jpg",
+                "author": "Moheen Reeyad",
+                "license": "CC BY-SA 4.0",
+                "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+                "attribution": "Photo: Moheen Reeyad / Wikimedia Commons, CC BY-SA 4.0",
+            },
+        ]
         manifest = {
             "build_stage": "shariatpur_review",
             "complete_district_map": True,
@@ -271,7 +303,11 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
             "tiles": [{"tile_id": item} for item in tile_ids],
             "interior_reference_photo_matches": [match],
             "interior_reference_photos_embedded": 1,
-            "licensed_facade_photo_matches": [],
+            "licensed_facade_photo_matches": exterior_matches,
+            "licensed_facade_photo_panels_embedded": len(exterior_matches),
+            "approved_facade_photo_ids_required": [item["image_id"] for item in exterior_matches],
+            "approved_facade_photo_ids_embedded": [item["image_id"] for item in exterior_matches],
+            "approved_facade_photo_ids_missing": [],
         }
         navigation = {"counts": {
             "named_places": 12,
@@ -284,9 +320,19 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
             archive.writestr(map_root + "map_tiles_manifest.json", json.dumps(manifest))
             archive.writestr(map_root + "real_world_navigation_index.json", json.dumps(navigation))
             for tile_id in tile_ids:
-                archive.writestr(map_root + tile_id + "/map_manifest.json", "{}")
+                tile_matches = exterior_matches if tile_id == photo_tile else []
+                tile_panel_count = len(tile_matches)
+                archive.writestr(
+                    map_root + tile_id + "/map_manifest.json",
+                    json.dumps({
+                        "feature_counts": {"licensed_facade_photo_panels": tile_panel_count},
+                        "licensed_facade_photo_matches": tile_matches,
+                    }),
+                )
                 archive.writestr(map_root + tile_id + "/Dhaka_Explorable_Map.glb.import", "remap")
                 archive.writestr("assets/.godot/imported/Dhaka_Explorable_Map.glb-" + tile_id + ".scn", "scene")
+                if tile_id == photo_tile:
+                    archive.writestr(map_root + tile_id + "/Dhaka_Explorable_Map.glb", b"glTF-test-tile-with-licensed-panels")
             seed = [{
                 "osm_id": 12345,
                 "interior_reference_photo": {
