@@ -13,10 +13,13 @@ const GAME_ORIGIN_LON := 90.4125
 const STREAM_INTERVAL := 0.5
 # Cap large GLB imports per stream tick to avoid multi-tile mobile frame hitches.
 const MAX_TILE_LOADS_PER_STREAM_TICK := 2
-const MAX_INTERIOR_ANCHORS_PER_TILE := 24
-const MAX_BUILDING_COLLISIONS_PER_TILE := 96
-const INTERIOR_ANCHOR_RADIUS_M := 220.0
-const INTERIOR_ANCHOR_REFRESH_DISTANCE_M := 80.0
+# Keep many more real doors available near the player without creating distant nodes
+# across every loaded tile. Anchors are refreshed as the player moves through a block.
+const MAX_INTERIOR_ANCHORS_PER_TILE := 96
+const MAX_BUILDING_COLLISIONS_PER_TILE := 192
+const INTERIOR_ANCHOR_RADIUS_M := 130.0
+const INTERIOR_ANCHOR_REFRESH_DISTANCE_M := 30.0
+const BUILDING_COLLISION_RADIUS_M := 120.0
 const DEFAULT_LOAD_RADIUS_M := 2450.0
 const DEFAULT_UNLOAD_RADIUS_M := 3150.0
 const NAVIGATION_RECALCULATE_DISTANCE_M := 28.0
@@ -1169,7 +1172,13 @@ func _add_seed_building_collisions(root: Node3D, record: Dictionary, player_posi
 			continue
 		var local_center := Vector3((min_x + max_x) * 0.5, 0.0, -(min_y + max_y) * 0.5)
 		var world_center := tile_position + local_center
-		ranked.append({"seed": seed, "distance_sq": world_center.distance_squared_to(player_position),
+		var distance_sq := world_center.distance_squared_to(player_position)
+		# Tile roots stream kilometres around the player, but detailed physics bodies
+		# are only needed nearby. Without this cutoff every loaded tile gets up to the
+		# collision cap even when all of those buildings are hundreds of metres away.
+		if distance_sq > BUILDING_COLLISION_RADIUS_M * BUILDING_COLLISION_RADIUS_M:
+			continue
+		ranked.append({"seed": seed, "distance_sq": distance_sq,
 			"min_x": min_x, "max_x": max_x, "min_y": min_y, "max_y": max_y})
 	ranked.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return float(a["distance_sq"]) < float(b["distance_sq"])
