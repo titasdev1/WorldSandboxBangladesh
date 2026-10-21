@@ -962,6 +962,16 @@ class DhakaMapPipelineTests(unittest.TestCase):
                 manifest = build_map(elements, out, bbox)
 
             self.assertEqual(manifest["feature_counts"]["licensed_facade_photo_panels"], 1)
+            self.assertEqual(
+                manifest["facade_photo_diagnostics"]["loaded_eligible_image_ids"],
+                ["manasha_temple_back_view_01"],
+            )
+            self.assertEqual(
+                manifest["facade_photo_diagnostics"]["embedded_panel_image_ids"],
+                ["manasha_temple_back_view_01"],
+            )
+            self.assertEqual(manifest["facade_photo_diagnostics"]["loaded_but_unmatched_image_ids"], [])
+            self.assertEqual(manifest["facade_photo_diagnostics"]["embedded_panel_count"], 1)
             photo_match = manifest["licensed_facade_photo_matches"][0]
             self.assertEqual(photo_match["match_method"], "verified_coordinate_compatible_tagged_landmark")
             self.assertEqual(photo_match["license"], "CC BY-SA 4.0")
