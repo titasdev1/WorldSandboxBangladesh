@@ -15,7 +15,7 @@ from tools.map_pipeline.build_dhaka_division import (
     order_tiles_shariatpur_first, select_tile_batch, effective_batch_limit, stage_gate_reached,
     build_boundary_for_stage, SHARIATPUR_PRIORITY_LAT_LON, has_feature,
     boundary_attribution_for_stage, tile_status_from_counts, pipeline_commit_sha,
-    validate_shariatpur_release_approval, add_curated_manasha_footprint,
+    validate_shariatpur_release_approval, add_curated_manasha_footprint, add_curated_heritage_photo_footprints,
 )
 from tools.map_pipeline.build_dhaka_map import build_map
 
@@ -709,6 +709,76 @@ class DhakaDivisionPipelineTests(unittest.TestCase):
             ],
         }]
         self.assertEqual(add_curated_manasha_footprint(existing, clip), existing)
+
+    def test_curated_heritage_photo_footprints_are_location_bound_and_explicitly_unsurveyed(self):
+        root = Path(__file__).resolve().parents[1]
+        catalog = json.loads((root / "tools" / "map_pipeline" / "shariatpur_facade_images.json").read_text(encoding="utf-8"))
+        targets = {
+            "rudrakar_moth_35": (23.1830, 90.3459),
+            "kartikpur_jomidar_bari_123242": (23.252441, 90.472991),
+        }
+        for image_id, (lat, lon) in targets.items():
+            with self.subTest(image_id=image_id):
+                clip = box(lon - 0.025, lat - 0.025, lon + 0.025, lat + 0.025)
+                features = add_curated_heritage_photo_footprints([], clip)
+                self.assertEqual(len(features), 1)
+                feature = features[0]
+                metadata = next(item for item in catalog["images"] if item["id"] == image_id)
+                self.assertEqual(feature["id"], metadata["curated_feature_id"])
+                self.assertEqual(feature["tags"]["source:geometry"], "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED")
+                self.assertEqual(feature["tags"]["height:source"], "CURATED_APPROXIMATE_NOT_SURVEYED")
+                self.assertEqual(feature["tags"]["building:levels:source"], "CURATED_APPROXIMATE_NOT_SURVEYED")
+                self.assertEqual(feature["tags"]["source:location:url"], metadata["target_location_source"])
+                self.assertEqual(feature["tags"]["facade:photo_source_id"], image_id)
+                self.assertTrue(clip.covers(_source_geometry(feature)))
+                # The placeholder is deterministic and isn't duplicated on a repeated tile pass.
+                self.assertEqual(len(add_curated_heritage_photo_footprints(features, clip)), 1)
+                distant_clip = box(lon + 0.10, lat + 0.10, lon + 0.15, lat + 0.15)
+                self.assertEqual(add_curated_heritage_photo_footprints([], distant_clip), [])
+
+
+    def test_rudrakar_and_kartikpur_licensed_exterior_photos_reach_the_actual_glb(self):
+        from PIL import Image
+        from unittest.mock import patch
+        import trimesh
+
+        root = Path(__file__).resolve().parents[1]
+        catalog_path = root / "tools" / "map_pipeline" / "shariatpur_facade_images.json"
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        targets = ("rudrakar_moth_35", "kartikpur_jomidar_bari_123242")
+        for image_id in targets:
+            with self.subTest(image_id=image_id), tempfile.TemporaryDirectory() as tmp:
+                metadata = next(item for item in catalog["images"] if item["id"] == image_id)
+                lat, lon = metadata["target_location_lat_lon"]
+                bbox = (lat - 0.025, lon - 0.025, lat + 0.025, lon + 0.025)
+                clip = box(bbox[1], bbox[0], bbox[3], bbox[2])
+                elements = add_curated_heritage_photo_footprints([], clip)
+                photo_dir = Path(tmp) / "photos"
+                photo_dir.mkdir()
+                Image.new("RGB", (640, 480), (154, 105, 78)).save(photo_dir / metadata["file_name"], format="JPEG")
+                out = Path(tmp) / "tile"
+                with patch.dict(os.environ, {
+                    "WSB_FACADE_IMAGE_DIR": str(photo_dir),
+                    "WSB_FACADE_IMAGE_CATALOG": str(catalog_path),
+                }):
+                    manifest = build_map(elements, out, bbox)
+                self.assertEqual(manifest["feature_counts"]["licensed_facade_photo_panels"], 1)
+                self.assertEqual(manifest["licensed_facade_photo_matches"][0]["image_id"], image_id)
+                self.assertEqual(
+                    manifest["licensed_facade_photo_matches"][0]["feature_geometry_source"],
+                    "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED",
+                )
+                self.assertEqual(
+                    manifest["facade_photo_diagnostics"]["embedded_panel_image_ids"],
+                    [image_id],
+                )
+                scene = trimesh.load(out / "Dhaka_Explorable_Map.glb", force="scene")
+                self.assertTrue(
+                    any(f"licensed_facade_photo_{image_id}_" in name and mesh.visual.kind == "texture"
+                        for name, mesh in scene.geometry.items()),
+                    f"{image_id} must exist as a textured mesh in the exported GLB, not only in metadata",
+                )
+
 
     def test_manasha_photo_is_embedded_in_glb_and_geometry_is_not_mislabeled_as_surveyed(self):
         from PIL import Image
