@@ -82,23 +82,23 @@ concurrency:
 
 jobs:
   build-map:
-    if: ${{ !inputs.assemble_only && github.event_name != 'pull_request' && !(github.event_name == 'push' && contains(github.event.head_commit.message, '[assemble-shariatpur-review:')) && (github.event_name != 'push' || github.ref == 'refs/heads/main' || contains(github.event.head_commit.message, '[build-shariatpur-review]')) }}
+    if: ${{ !inputs.assemble_only && (github.event_name != 'pull_request' || github.event.pull_request.head.ref == 'feature/real-world-navigation-floor-fidelity-verified') && !(github.event_name == 'push' && contains(github.event.head_commit.message, '[assemble-shariatpur-review:')) && (github.event_name != 'push' || github.ref == 'refs/heads/main' || contains(github.event.head_commit.message, '[build-shariatpur-review]')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     outputs:
       next_offset: ${{ steps.batch-meta.outputs.next_offset }}
       total_tiles: ${{ steps.batch-meta.outputs.total_tiles }}
       sequence_id: ${{ inputs.sequence_id || github.run_id }}
-      source_commit: ${{ inputs.source_commit || github.sha }}
+      source_commit: ${{ inputs.source_commit || (github.event_name == 'pull_request' && github.event.pull_request.head.sha) || github.sha }}
       tile_degrees: ${{ inputs.tile_degrees || '0.05' }}
-      max_tiles: ${{ inputs.max_tiles || (github.event_name == 'workflow_dispatch' && '8' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[build-shariatpur-review]') && '8' || '2')) }}
+      max_tiles: ${{ inputs.max_tiles || (github.event_name == 'workflow_dispatch' && '8' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[build-shariatpur-review]') && '8' || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feature/real-world-navigation-floor-fidelity-verified' && '8' || '2'))) }}
       build_stage: ${{ inputs.build_stage || 'shariatpur_review' }}
       stage_gate_reached: ${{ steps.batch-meta.outputs.stage_gate_reached }}
     steps:
       - name: Checkout pinned source commit for this map sequence
         uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.source_commit || github.sha }}
+          ref: ${{ inputs.source_commit || (github.event_name == 'pull_request' && github.event.pull_request.head.sha) || github.sha }}
 
       - name: Reject unpinned continuation batches
         if: ${{ inputs.continue_full_division && inputs.sequence_id != '' && inputs.source_commit == '' }}
@@ -178,7 +178,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/overture/
-          key: overture-buildings-${{ inputs.build_stage || 'shariatpur_review' }}-${{ inputs.source_commit || github.sha }}-${{ inputs.tile_degrees || '0.05' }}-${{ inputs.tile_offset || '0' }}-v1
+          key: overture-buildings-${{ inputs.build_stage || 'shariatpur_review' }}-${{ inputs.source_commit || (github.event_name == 'pull_request' && github.event.pull_request.head.sha) || github.sha }}-${{ inputs.tile_degrees || '0.05' }}-${{ inputs.tile_offset || '0' }}-v1
 
       - name: Validate Python syntax and offline fixtures
         run: |
@@ -205,7 +205,7 @@ jobs:
 
       - name: Build boundary-clipped Dhaka Division tiles
         env:
-          WSB_PIPELINE_COMMIT_SHA: ${{ inputs.source_commit || github.sha }}
+          WSB_PIPELINE_COMMIT_SHA: ${{ inputs.source_commit || (github.event_name == 'pull_request' && github.event.pull_request.head.sha) || github.sha }}
           WSB_FACADE_IMAGE_DIR: build/facade-images
           WSB_FACADE_IMAGE_CATALOG: tools/map_pipeline/shariatpur_facade_images.json
         run: |
@@ -213,13 +213,13 @@ jobs:
             --pbf build/osm/dhaka-division-envelope.osm.pbf \
             --tile-degrees "${{ inputs.tile_degrees || '0.05' }}" \
             --tile-offset "${{ inputs.tile_offset || '0' }}" \
-            --max-tiles "${{ inputs.max_tiles || (github.event_name == 'workflow_dispatch' && '8' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[build-shariatpur-review]') && '8' || '2')) }}" \
+            --max-tiles "${{ inputs.max_tiles || (github.event_name == 'workflow_dispatch' && '8' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[build-shariatpur-review]') && '8' || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feature/real-world-navigation-floor-fidelity-verified' && '8' || '2'))) }}" \
             --stage "${{ inputs.build_stage || 'shariatpur_review' }}" \
             --out build/dhaka-division
 
       - name: Verify map package and geographic provenance
         env:
-          EXPECTED_PIPELINE_COMMIT_SHA: ${{ inputs.source_commit || github.sha }}
+          EXPECTED_PIPELINE_COMMIT_SHA: ${{ inputs.source_commit || (github.event_name == 'pull_request' && github.event.pull_request.head.sha) || github.sha }}
         run: |
           python - <<'PY'
           import json
@@ -299,27 +299,28 @@ jobs:
 
   retry-map:
     needs: build-map
-    if: failure() && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[build-shariatpur-review]')) || (github.event_name == 'workflow_dispatch' && (inputs.sequence_id == '' || inputs.source_commit != ''))) && fromJSON(inputs.retry_count || '0') < 2
+    if: failure() && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[build-shariatpur-review]')) || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feature/real-world-navigation-floor-fidelity-verified') || (github.event_name == 'workflow_dispatch' && (inputs.sequence_id == '' || inputs.source_commit != ''))) && fromJSON(inputs.retry_count || '0') < 2
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Retry the same bounded batch after a failed run
         env:
           GH_TOKEN: ${{ github.token }}
+          DISPATCH_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
           TILE_DEGREES: ${{ inputs.tile_degrees || '0.05' }}
           TILE_OFFSET: ${{ inputs.tile_offset || '0' }}
           MAX_TILES: ${{ inputs.max_tiles || '8' }}
           SEQUENCE_ID: ${{ inputs.sequence_id || github.run_id }}
-          SOURCE_COMMIT: ${{ inputs.source_commit || github.sha }}
+          SOURCE_COMMIT: ${{ inputs.source_commit || (github.event_name == 'pull_request' && github.event.pull_request.head.sha) || github.sha }}
           RETRY_COUNT: ${{ inputs.retry_count || '0' }}
-          CONTINUE_FULL: ${{ inputs.continue_full_division || (github.event_name == 'push' && contains(github.event.head_commit.message, '[build-shariatpur-review]')) }}
+          CONTINUE_FULL: ${{ inputs.continue_full_division || (github.event_name == 'push' && contains(github.event.head_commit.message, '[build-shariatpur-review]')) || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feature/real-world-navigation-floor-fidelity-verified') }}
           BUILD_STAGE: ${{ inputs.build_stage || 'shariatpur_review' }}
         run: |
           set -euo pipefail
           NEXT_RETRY_COUNT=$((RETRY_COUNT + 1))
           gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/dispatches" --input - <<EOF
           {
-            "ref": "${GITHUB_REF_NAME}",
+            "ref": "${DISPATCH_REF}",
             "inputs": {
               "tile_degrees": "${TILE_DEGREES}",
               "tile_offset": "${TILE_OFFSET}",
@@ -335,14 +336,14 @@ jobs:
 
   continue-map:
     needs: build-map
-    if: ${{ always() && (inputs.assemble_only || (github.event_name == 'push' && contains(github.event.head_commit.message, '[assemble-shariatpur-review:')) || (success() && ((github.event_name == 'workflow_dispatch' && inputs.continue_full_division) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[build-shariatpur-review]')))) ) }}
+    if: ${{ always() && (inputs.assemble_only || (github.event_name == 'push' && contains(github.event.head_commit.message, '[assemble-shariatpur-review:')) || (success() && ((github.event_name == 'workflow_dispatch' && inputs.continue_full_division) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[build-shariatpur-review]')) || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feature/real-world-navigation-floor-fidelity-verified'))) ) }}
     runs-on: ubuntu-latest
     timeout-minutes: 50
     steps:
       - name: Checkout pinned source commit for package assembly
         uses: actions/checkout@v5
         with:
-          ref: ${{ needs.build-map.outputs.source_commit || inputs.source_commit || github.sha }}
+          ref: ${{ needs.build-map.outputs.source_commit || inputs.source_commit || (github.event_name == 'pull_request' && github.event.pull_request.head.sha) || github.sha }}
 
       - name: Set up Python for package assembly
         uses: actions/setup-python@v6
@@ -356,6 +357,7 @@ jobs:
         if: ${{ !inputs.assemble_only && !(github.event_name == 'push' && contains(github.event.head_commit.message, '[assemble-shariatpur-review:')) && needs.build-map.outputs.next_offset != '-1' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          DISPATCH_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
           NEXT_OFFSET: ${{ needs.build-map.outputs.next_offset }}
           TILE_DEGREES: ${{ needs.build-map.outputs.tile_degrees }}
           MAX_TILES: ${{ needs.build-map.outputs.max_tiles }}
@@ -366,7 +368,7 @@ jobs:
           set -euo pipefail
           gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/dispatches" --input - <<EOF
           {
-            "ref": "${GITHUB_REF_NAME}",
+            "ref": "${DISPATCH_REF}",
             "inputs": {
               "tile_degrees": "${TILE_DEGREES}",
               "tile_offset": "${NEXT_OFFSET}",
