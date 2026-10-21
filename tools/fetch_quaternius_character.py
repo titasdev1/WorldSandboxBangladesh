@@ -111,7 +111,7 @@ def download_itch_archive(pack: dict, destination: pathlib.Path) -> None:
     gate_url = urllib.parse.urljoin(page_url, str(gate_url))
     gate_page = request_bytes(opener, gate_url, referer=page_url).decode("utf-8", "replace")
     upload_id = str(pack["upload_id"])
-    if not re.search(r'data-upload_id=["\\']' + re.escape(upload_id) + r'["\\']', gate_page, flags=re.I):
+    if not re.search(r"""data-upload_id=["']""" + re.escape(upload_id) + r"""["']""", gate_page, flags=re.I):
         # Some itch pages do not render the button's upload ID, but the pinned upload
         # ID is still source-controlled and the second CSRF token remains mandatory.
         if "download" not in gate_page.casefold() and "file" not in gate_page.casefold():
