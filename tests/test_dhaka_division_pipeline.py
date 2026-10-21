@@ -104,6 +104,18 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn('npc.add_to_group("mapped_road_npc")', world)
         self.assertIn('get_tree().get_nodes_in_group("mapped_road_npc").size()', world)
 
+    def test_real_map_player_interaction_never_uses_starter_city_money_coordinates(self):
+        player = (self.ROOT / "player.gd").read_text(encoding="utf-8")
+        interact_start = player.index("func interact():")
+        interact_end = player.index("func take_damage(", interact_start)
+        code = player[interact_start:interact_end]
+        map_guard = code.index('if not bool(world.get("real_dhaka_loaded")):')
+        starter_bargain = code.index("Vector3(42, 0, 42)")
+        starter_reward = code.index("Vector3(30, 0, -30)")
+        self.assertLess(map_guard, starter_bargain)
+        self.assertLess(map_guard, starter_reward)
+        self.assertIn("else:\n  world.try_vehicle_interaction()", code)
+
     def test_real_world_map_suppresses_fictional_factory_overlays(self):
         factories = [
             ("systems/game_factory.gd", "_expand_ground()", "real_map_mode_fictional_grid_suppressed"),

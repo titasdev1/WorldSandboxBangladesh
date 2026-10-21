@@ -114,6 +114,16 @@ if "city_asset_factory.configure(self)" not in world_text or "spawn_building(Vec
 if "real_dhaka_loader.configure(self)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: real-Dhaka tile loader is not wired into the canonical world")
 
+player_interact_start = player_text.find("func interact():")
+player_interact_end = player_text.find("func take_damage(", player_interact_start)
+player_interact_text = player_text[player_interact_start:player_interact_end]
+map_interact_guard = player_interact_text.find('if not bool(world.get("real_dhaka_loaded")):')
+if map_interact_guard < 0:
+    raise SystemExit("PRODUCTION GATE FAILED: player interaction lacks a real-map guard for starter-city interactions")
+for marker in ("Vector3(42, 0, 42)", "Vector3(30, 0, -30)"):
+    if player_interact_text.find(marker) < map_interact_guard:
+        raise SystemExit(f"PRODUCTION GATE FAILED: fictional starter-city money marker is not confined to fallback mode: {marker}")
+
 # The mobile movement control must be a true analog circular stick, not four
 # directional buttons, and its hit rectangle must not overlap the sprint button.
 hud_text = (ROOT / "hud.gd").read_text(encoding="utf-8")

@@ -181,11 +181,16 @@ func interact():
   return
  if world.has_method("try_street_vendor") and world.try_street_vendor(global_position):
   return
- if position.distance_to(Vector3(42, 0, 42)) < 15:
-  world.cash = max(0, world.cash - world.bargain_offer)
-  world.bargain_offer = min(world.fare_requested, world.bargain_offer + 10)
- elif position.distance_to(Vector3(30, 0, -30)) < 18:
-  world.cash += 100
+ # These starter-city coordinates only belong to the fictional fallback map.
+ # Never award/charge money at arbitrary real-world coordinates in Shariatpur.
+ if not bool(world.get("real_dhaka_loaded")):
+  if position.distance_to(Vector3(42, 0, 42)) < 15:
+   world.cash = max(0, world.cash - world.bargain_offer)
+   world.bargain_offer = min(world.fare_requested, world.bargain_offer + 10)
+  elif position.distance_to(Vector3(30, 0, -30)) < 18:
+   world.cash += 100
+  else:
+   world.try_vehicle_interaction()
  else:
   world.try_vehicle_interaction()
 
