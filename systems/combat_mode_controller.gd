@@ -35,6 +35,7 @@ func start_mode(mode_id: String) -> void:
         return
     if mode_id == "arena_training":
         target_goal = 6
+        alive_enemies = target_goal
         for i in range(target_goal):
             var angle := TAU * float(i) / float(target_goal)
             var offset := Vector3(cos(angle) * 13.0, 0.0, sin(angle) * 13.0)

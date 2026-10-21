@@ -595,6 +595,13 @@ if "CombatCrosshair" not in hud_text:
     raise SystemExit("PRODUCTION GATE FAILED: combat reticle is missing from the HUD")
 if "camera.global_transform.basis.z.normalized()" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: firing direction is not aligned with the active camera aim")
+combat_controller_text = (ROOT / "systems" / "combat_mode_controller.gd").read_text(encoding="utf-8")
+if combat_controller_text.count("func _spawn_enemy(") != 1:
+    raise SystemExit("PRODUCTION GATE FAILED: combat modes must use one canonical enemy-spawn function")
+if 'target_goal = 6\n        alive_enemies = target_goal' not in combat_controller_text:
+    raise SystemExit("PRODUCTION GATE FAILED: Combat Lab target count is not initialized")
+if "visual.has_combat_weapon = not is_practice_target" not in combat_controller_text:
+    raise SystemExit("PRODUCTION GATE FAILED: armed combat enemies are missing their authored rifle rig")
 if 'Input.is_action_pressed("fire")' not in player_text or 'Input.is_action_just_pressed("reload")' not in player_text:
     raise SystemExit("PRODUCTION GATE FAILED: automatic fire and manual reload controls are missing")
 if 'add_touch_button("RELOAD"' not in hud_text or 'reload={' not in (ROOT / "project.godot").read_text(encoding="utf-8"):
