@@ -19,6 +19,8 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
@@ -75,8 +77,32 @@ def request_bytes(opener, url: str, *, data: bytes | None = None, referer: str =
         headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
         headers["X-Requested-With"] = "XMLHttpRequest"
     req = urllib.request.Request(url, data=data, headers=headers, method="POST" if data is not None else "GET")
-    with opener.open(req, timeout=90) as response:
-        return response.read()
+    # Anonymous itch.io downloads can be rate-limited when the Android and
+    # standalone Godot checks start together. Honor Retry-After when supplied,
+    # otherwise use bounded backoff. Do not turn a transient 429 into a false
+    # permanent "asset unavailable" result on the first request.
+    backoff_seconds = (5, 15, 30, 60, 90)
+    for attempt in range(len(backoff_seconds) + 1):
+        try:
+            with opener.open(req, timeout=90) as response:
+                return response.read()
+        except urllib.error.HTTPError as exc:
+            if exc.code != 429 and exc.code < 500:
+                raise
+            if attempt >= len(backoff_seconds):
+                raise
+            retry_after = exc.headers.get("Retry-After", "").strip()
+            try:
+                delay = max(1.0, min(120.0, float(retry_after))) if retry_after else backoff_seconds[attempt]
+            except ValueError:
+                delay = backoff_seconds[attempt]
+            print(
+                f"Transient asset-source HTTP {exc.code} for {urllib.parse.urlparse(url).netloc}; "
+                f"retry {attempt + 1}/{len(backoff_seconds)} in {delay:g}s.",
+                flush=True,
+            )
+            time.sleep(delay)
+    raise RuntimeError("Unreachable retry loop exit for asset request.")
 
 
 def csrf_token(page: str) -> str:
