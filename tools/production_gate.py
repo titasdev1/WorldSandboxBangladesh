@@ -320,11 +320,11 @@ character_text = (ROOT / "character_visual.gd").read_text(encoding="utf-8")
 player_text = (ROOT / "player.gd").read_text(encoding="utf-8")
 world_text = (ROOT / "world.gd").read_text(encoding="utf-8")
 for token in (
-    "const MAX_INTERIOR_ANCHORS_PER_TILE := 96",
-    "const INTERIOR_ANCHOR_RADIUS_M := 130.0",
-    "const INTERIOR_ANCHOR_REFRESH_DISTANCE_M := 30.0",
-    "const MAX_BUILDING_COLLISIONS_PER_TILE := 192",
-    "const BUILDING_COLLISION_RADIUS_M := 120.0",
+    "const MAX_INTERIOR_ANCHORS_PER_TILE := 256",
+    "const INTERIOR_ANCHOR_RADIUS_M := 90.0",
+    "const INTERIOR_ANCHOR_REFRESH_DISTANCE_M := 12.0",
+    "const MAX_BUILDING_COLLISIONS_PER_TILE := 320",
+    "const BUILDING_COLLISION_RADIUS_M := 55.0",
     "if distance_sq > BUILDING_COLLISION_RADIUS_M * BUILDING_COLLISION_RADIUS_M:",
 ):
     if token not in map_loader_text:
