@@ -559,7 +559,7 @@ for token in (
 # Offline combat must create entities rather than merely display mode names.
 combat_controller_text = (ROOT / "systems" / "combat_mode_controller.gd").read_text(encoding="utf-8")
 for token in (
-    "func _spawn_enemy(spawn_position: Vector3, practice_target: bool) -> void:",
+    "func _spawn_enemy(at: Vector3, is_practice_target: bool) -> void:",
     'entity.set_script(load("res://systems/combat_enemy.gd") as Script)',
     'entity.add_to_group("combat_enemy")',
     'entity.set("combat_controller", self)',
