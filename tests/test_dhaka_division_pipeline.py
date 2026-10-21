@@ -663,6 +663,12 @@ class DhakaDivisionPipelineTests(unittest.TestCase):
             exported_geojson = json.loads((out / "Dhaka_OSM_Source.geojson").read_text(encoding="utf-8"))
             props = exported_geojson["features"][0]["properties"]
             self.assertEqual(props["source:geometry"], "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED")
+            self.assertEqual(
+                props["source:location:url"],
+                "https://ghurifiri.bd/places/dhanuka-manasha-bari-shariatpur",
+            )
+            self.assertNotEqual(match["height_source"], "OSM_HEIGHT_TAG")
+            self.assertNotEqual(match["floor_count_source"], "OSM_BUILDING_LEVELS_TAG")
             scene = trimesh.load(out / "Dhaka_Explorable_Map.glb", force="scene")
             self.assertTrue(
                 any("licensed_facade_photo_manasha_temple_back_view_01" in name for name in scene.geometry),
