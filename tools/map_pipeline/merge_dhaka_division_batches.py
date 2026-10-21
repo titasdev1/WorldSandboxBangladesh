@@ -130,9 +130,12 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         if isinstance(interior_matches, list):
             interior_reference_photo_matches.extend(item for item in interior_matches if isinstance(item, dict))
 
-    # A Shariatpur review package with zero real photo panels is not an acceptable
-    # visual candidate. Check both the per-tile feature counts and the matched
-    # licensed-photo metadata so a stale, zero-photo sequence cannot be published.
+    approved_facade_photo_ids_required: list[str] = []
+    approved_facade_photo_ids_embedded: list[str] = []
+    # A Shariatpur review package must bake every currently approved, site-specific
+    # exterior reference—not merely one panel to satisfy a minimum counter. The
+    # catalog is intentionally landmark-only; this check does not imply that
+    # ordinary houses, shops, or every street facade have reference photography.
     if stage == "shariatpur_review":
         panel_count = int(feature_counts.get("licensed_facade_photo_panels", 0))
         if panel_count < 1:
@@ -143,6 +146,41 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
             raise RuntimeError(
                 "Shariatpur review assembly blocked: photo panel count has no matching licensed-photo records."
             )
+
+        catalog_path = pathlib.Path(__file__).resolve().parents[2] / "tools" / "map_pipeline" / "shariatpur_facade_images.json"
+        try:
+            catalog_payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"Cannot load approved Shariatpur exterior-photo catalog: {exc}") from exc
+        approved_facade_photo_ids_required = sorted({
+            str(photo.get("id", "")).strip()
+            for photo in catalog_payload.get("images", [])
+            if isinstance(photo, dict)
+            and photo.get("facade_eligible") is True
+            and str(photo.get("view_type", "")).casefold() == "exterior"
+            and str(photo.get("visual_qa", "")).casefold() == "passed"
+            and str(photo.get("license", "")) in {"CC BY 4.0", "CC BY-SA 4.0"}
+            and str(photo.get("id", "")).strip()
+            and isinstance(photo.get("target_location_lat_lon"), (list, tuple))
+            and len(photo.get("target_location_lat_lon", [])) == 2
+        })
+        if not approved_facade_photo_ids_required:
+            raise RuntimeError("Shariatpur review assembly blocked: no approved site-specific exterior-photo records exist in the catalog.")
+
+        approved_facade_photo_ids_embedded = sorted({
+            str(match.get("image_id", "")).strip()
+            for match in facade_photo_matches
+            if str(match.get("image_id", "")).strip()
+        })
+        missing_photo_ids = sorted(
+            set(approved_facade_photo_ids_required) - set(approved_facade_photo_ids_embedded)
+        )
+        if missing_photo_ids:
+            raise RuntimeError(
+                "Shariatpur review assembly blocked: approved exterior photo panel coverage is incomplete; "
+                f"missing embedded photo IDs: {', '.join(missing_photo_ids)}."
+            )
+
         required_photo_fields = ("image_id", "source_page", "author", "license")
         incomplete_matches = [
             match for match in facade_photo_matches
@@ -202,6 +240,11 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         ),
         "licensed_facade_photo_matches": facade_photo_matches,
         "licensed_facade_photo_panels_embedded": int(feature_counts.get("licensed_facade_photo_panels", 0)),
+        "approved_facade_photo_ids_required": approved_facade_photo_ids_required,
+        "approved_facade_photo_ids_embedded": approved_facade_photo_ids_embedded,
+        "approved_facade_photo_ids_missing": sorted(
+            set(approved_facade_photo_ids_required) - set(approved_facade_photo_ids_embedded)
+        ),
         "interior_reference_photo_matches": interior_reference_photo_matches,
         "interior_reference_photos_embedded": int(feature_counts.get("interior_reference_photos", 0)),
         "interior_reference_photo_note": "Interior reference photos are licensed, separate assets rendered only within the matching mapped building's generated in-game interior. They are not exterior textures or scans of the actual private interior.",
