@@ -15,11 +15,11 @@ const STREAM_INTERVAL := 0.5
 const MAX_TILE_LOADS_PER_STREAM_TICK := 2
 # Keep many more real doors available near the player without creating distant nodes
 # across every loaded tile. Anchors are refreshed as the player moves through a block.
-const MAX_INTERIOR_ANCHORS_PER_TILE := 96
-const MAX_BUILDING_COLLISIONS_PER_TILE := 192
-const INTERIOR_ANCHOR_RADIUS_M := 130.0
-const INTERIOR_ANCHOR_REFRESH_DISTANCE_M := 30.0
-const BUILDING_COLLISION_RADIUS_M := 120.0
+const MAX_INTERIOR_ANCHORS_PER_TILE := 256
+const MAX_BUILDING_COLLISIONS_PER_TILE := 320
+const INTERIOR_ANCHOR_RADIUS_M := 90.0
+const INTERIOR_ANCHOR_REFRESH_DISTANCE_M := 12.0
+const BUILDING_COLLISION_RADIUS_M := 55.0
 const DEFAULT_LOAD_RADIUS_M := 2450.0
 const DEFAULT_UNLOAD_RADIUS_M := 3150.0
 const NAVIGATION_RECALCULATE_DISTANCE_M := 28.0
