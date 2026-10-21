@@ -45,9 +45,10 @@ func open_interior(seed: Dictionary, exterior_position: Vector3, direction: Vect
     active_root = Node3D.new()
     active_root.name = "GeneratedInterior_" + str(seed.get("osm_id", "place"))
     active_root.position = interior_origin
-    # A stable per-building rotation makes layouts reproducible but not identical.
+    # The generated entrance must face the actual baked exterior-door normal.
+    # OSM identity still varies the interior layout, furniture, lighting and detailing.
     var building_id: int = absi(int(seed.get("osm_id", 1)))
-    active_root.rotation.y = float(building_id % 4) * PI * 0.5
+    active_root.rotation.y = atan2(exit_direction.x, exit_direction.z)
     world.add_child(active_root)
     _build_room()
     var player := _player()
