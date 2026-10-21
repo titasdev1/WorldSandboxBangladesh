@@ -263,6 +263,10 @@ map_builder_text = (ROOT / "tools" / "map_pipeline" / "build_dhaka_map.py").read
 map_merger_text = (ROOT / "tools" / "map_pipeline" / "merge_dhaka_division_batches.py").read_text(encoding="utf-8")
 interior_factory_text = (ROOT / "systems" / "interior_factory.gd").read_text(encoding="utf-8")
 apk_verifier_text = (ROOT / "tools" / "verify_apk_contents.py").read_text(encoding="utf-8")
+if "active_root.rotation.y = atan2(exit_direction.x, exit_direction.z)" not in interior_factory_text:
+    raise SystemExit("PRODUCTION GATE FAILED: generated interior entry is not aligned to the mapped exterior doorway")
+if "player.global_position = active_root.to_global(Vector3(0, 0.25, 1.5))" not in interior_factory_text:
+    raise SystemExit("PRODUCTION GATE FAILED: player interior spawn is not coupled to the doorway-facing room transform")
 for token in (
     "def load_interior_reference_catalog(",
     "interior_reference_eligible",
