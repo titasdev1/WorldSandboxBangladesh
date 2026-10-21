@@ -149,7 +149,13 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
             write_batch(
                 batches, 0,
                 [{"tile_id": "sp_mosque", "status": "BAKED_FROM_OSM",
-                  "feature_counts": {"building_footprints": 1, "interior_reference_photos": 1}}],
+                  "feature_counts": {"building_footprints": 1, "interior_reference_photos": 1, "licensed_facade_photo_panels": 1},
+                  "licensed_facade_photo_matches": [{
+                      "image_id": "manasha_temple_back_view_01",
+                      "source_page": "https://commons.wikimedia.org/wiki/File:Manasha_Temple,_Shariatpur_(back_view).jpg",
+                      "author": "Shuvajit BD",
+                      "license": "CC BY-SA 4.0",
+                  }]}],
                 total=1, geometry_count=1, stage="shariatpur_review", division_total=10,
             )
             tile = batches / "0" / "sp_mosque"
@@ -172,9 +178,15 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
                 "use": "INTERIOR_REFERENCE_ONLY",
                 "visual_identity_verified": True,
             }
+            exterior_match = {
+                "image_id": "manasha_temple_back_view_01",
+                "source_page": "https://commons.wikimedia.org/wiki/File:Manasha_Temple,_Shariatpur_(back_view).jpg",
+                "author": "Shuvajit BD",
+                "license": "CC BY-SA 4.0",
+            }
             (tile / "map_manifest.json").write_text(json.dumps({
                 "interior_reference_photo_matches": [match],
-                "licensed_facade_photo_matches": [],
+                "licensed_facade_photo_matches": [exterior_match],
             }), encoding="utf-8")
 
             output = root / "shariatpur"
@@ -186,7 +198,7 @@ class MergeDhakaDivisionBatchesTests(unittest.TestCase):
             self.assertEqual(manifest["interior_reference_photos_embedded"], 1)
             self.assertEqual(manifest["interior_reference_photo_matches"][0]["image_id"], "burirhat_mosque_interior_01")
             self.assertEqual(manifest["interior_reference_photo_matches"][0]["use"], "INTERIOR_REFERENCE_ONLY")
-            self.assertEqual(manifest["licensed_facade_photo_matches"], [])
+            self.assertEqual(manifest["licensed_facade_photo_matches"][0]["image_id"], "manasha_temple_back_view_01")
             self.assertEqual((output / "sp_mosque" / "landmark_reference_photos" / "mosque-interior.jpg").read_bytes(), photo_bytes)
             self.assertIn("INTERIOR REFERENCE ONLY", attribution)
             self.assertIn("CC BY-SA 4.0", attribution)
