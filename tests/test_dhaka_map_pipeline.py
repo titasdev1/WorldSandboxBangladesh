@@ -141,6 +141,27 @@ class DhakaMapPipelineTests(unittest.TestCase):
         self.assertIsNone(facade_window_geometry(footprint, 6.2, 101, tile_bounds, {"building": "house", "window": "no"}))
         self.assertIsNone(facade_window_geometry(footprint, 6.2, 101, tile_bounds, {"building": "house", "window": "false"}))
 
+    def test_small_homes_get_windows_on_short_walls_too(self):
+        from shapely.geometry import box
+        from tools.map_pipeline.build_dhaka_map import facade_window_geometry
+
+        tile_bounds = box(-20.0, -20.0, 50.0, 50.0)
+        small_home = box(5.0, 5.0, 8.0, 8.0)
+        result = facade_window_geometry(small_home, 3.0, 221, tile_bounds, {"building": "house"})
+        self.assertIsNotNone(result, "Small one-room homes should still receive visible windows")
+        self.assertGreaterEqual(result[3], 4, "Short walls should receive details on several faces")
+
+    def test_window_panels_distribute_across_four_sides_of_a_small_home(self):
+        from shapely.geometry import box
+        from tools.map_pipeline.build_dhaka_map import facade_window_geometry
+
+        tile_bounds = box(-20.0, -20.0, 50.0, 50.0)
+        home = box(5.0, 5.0, 15.0, 12.0)
+        result = facade_window_geometry(home, 3.0, 223, tile_bounds, {"building": "house"})
+        self.assertIsNotNone(result)
+        self.assertGreaterEqual(result[3], 8,
+                                "One-storey home panels should be distributed across all four exterior walls")
+
     def test_facade_floor_bands_scale_with_building_floor_count_cue(self):
         from shapely.geometry import box
         from tools.map_pipeline.build_dhaka_map import facade_window_geometry
