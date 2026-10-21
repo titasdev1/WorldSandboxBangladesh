@@ -391,6 +391,24 @@ jobs:
           retention-days: 90
           compression-level: 1
 
+      - name: Dispatch one Android candidate against the freshly assembled map
+        if: ${{ inputs.assemble_only || (github.event_name == 'push' && contains(github.event.head_commit.message, '[assemble-shariatpur-review:')) || (needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'shariatpur_review') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAP_SEQUENCE_ID: ${{ inputs.sequence_id || needs.build-map.outputs.sequence_id || github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Dispatching one canonical Android candidate for Shariatpur map sequence ${MAP_SEQUENCE_ID}."
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/android.yml/dispatches" --input - <<EOF
+          {
+            "ref": "${GITHUB_REF_NAME}",
+            "inputs": {
+              "map_package": "shariatpur_review"
+            }
+          }
+          EOF
+
       - name: Assemble all batches into one complete Dhaka Division map
         if: needs.build-map.outputs.next_offset == '-1' && needs.build-map.outputs.build_stage == 'full_division'
         env:
