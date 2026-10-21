@@ -130,6 +130,16 @@ if "real_dhaka_loader.configure(self)" not in world_text:
     raise SystemExit("PRODUCTION GATE FAILED: real-Dhaka tile loader is not wired into the canonical world")
 
 player_interact_source = (ROOT / "player.gd").read_text(encoding="utf-8")
+for token in (
+    "var camera_recoil_pitch := 0.0",
+    "func _apply_weapon_recoil() -> void:",
+    "_apply_weapon_recoil()",
+    "camera_recoil_pitch + (0.72 if Input.is_action_pressed(\"aim\") else 0.98)",
+    "camera_recoil_pitch = move_toward(camera_recoil_pitch, 0.0, 3.8 * delta)",
+    "deg_to_rad(-camera_pitch + camera_recoil_pitch)",
+):
+    if token not in player_interact_source:
+        raise SystemExit(f"PRODUCTION GATE FAILED: camera recoil is not fully wired for fire/aim: {token}")
 player_interact_start = player_interact_source.find("func interact():")
 player_interact_end = player_interact_source.find("func take_damage(", player_interact_start)
 player_interact_text = player_interact_source[player_interact_start:player_interact_end]

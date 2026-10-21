@@ -14,6 +14,11 @@ var camera: Camera3D
 var camera_yaw := 0.0
 var camera_sensitivity := 0.12
 var camera_pitch := -28.0
+# Recoil is an additive camera impulse, separate from the player's look input.
+# This lets sustained fire kick the sight upward without corrupting saved sensitivity
+# or the player's manually controlled camera angles.
+var camera_recoil_pitch := 0.0
+var camera_recoil_yaw := 0.0
 
 var camera_view_mode := "third_person"
 var jump_velocity := 7.2
@@ -67,15 +72,16 @@ func _unhandled_input(event):
 func _update_camera():
  if not camera:
   return
- var yaw := deg_to_rad(camera_yaw)
- var pitch := deg_to_rad(camera_pitch)
+ var yaw := deg_to_rad(camera_yaw + camera_recoil_yaw)
+ var effective_pitch := clampf(camera_pitch + camera_recoil_pitch, -55.0, 15.0)
+ var pitch := deg_to_rad(effective_pitch)
  var target := global_position + Vector3(0, 1.0, 0)
  if camera_view_mode == "first_person":
-  # Eye-height camera shares the orbit camera's yaw/pitch and movement basis.
+  # In first-person, positive recoil rotates the view a few degrees upward.
   var eye := global_position + Vector3(0, 1.58, 0)
   camera.global_position = eye
   camera.fov = 50.0 if Input.is_action_pressed("aim") else 68.0
-  camera.global_rotation = Vector3(deg_to_rad(-camera_pitch), yaw, 0.0)
+  camera.global_rotation = Vector3(deg_to_rad(-camera_pitch + camera_recoil_pitch), yaw, 0.0)
   return
  var camera_distance := 4.8 if Input.is_action_pressed("aim") else 7.4
  if world:
@@ -100,6 +106,8 @@ func _physics_process(delta):
     world.event_text = "RELOAD COMPLETE • %d/%d" % [ammo, reserve_ammo]
     world.event_time_left = 1.8
  fire_cooldown = maxf(0.0, fire_cooldown - delta)
+ camera_recoil_pitch = move_toward(camera_recoil_pitch, 0.0, 3.8 * delta)
+ camera_recoil_yaw = move_toward(camera_recoil_yaw, 0.0, 3.0 * delta)
 
  # Four-button movement is camera-relative. Godot's get_vector returns
  # negative Y for "forward"; convert it to a positive forward amount here.
@@ -149,6 +157,7 @@ func _physics_process(delta):
  _update_camera()
  if Input.is_action_pressed("fire") and world and ammo > 0 and reload_time <= 0.0 and fire_cooldown <= 0.0:
   ammo -= 1
+  _apply_weapon_recoil()
   world.try_fire()
   fire_cooldown = 0.13 if Input.is_action_pressed("aim") else 0.17
   if ammo == 0 and reserve_ammo > 0:
@@ -161,6 +170,16 @@ func _physics_process(delta):
   world.event_time_left = 1.5
  if Input.is_action_just_pressed("interact") and world:
   interact()
+
+func _apply_weapon_recoil() -> void:
+ # Accurate taps settle quickly; sustained automatic fire accumulates a readable
+ # upward impulse. Hip-fire has slightly more spread than aimed fire.
+ camera_recoil_pitch = minf(
+  camera_recoil_pitch + (0.72 if Input.is_action_pressed("aim") else 0.98),
+  4.8
+ )
+ camera_recoil_yaw = clampf(camera_recoil_yaw + randf_range(-0.18, 0.18), -1.1, 1.1)
+
 
 func _set_crouched(should_crouch: bool) -> void:
  if _is_crouched == should_crouch:
