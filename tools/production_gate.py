@@ -267,9 +267,11 @@ if "active_root.rotation.y = atan2(exit_direction.x, exit_direction.z)" not in i
     raise SystemExit("PRODUCTION GATE FAILED: generated interior entry is not aligned to the mapped exterior doorway")
 for token in (
     "func _infer_interior_scale() -> Vector3:",
-    "active_root.scale = _infer_interior_scale()",
+    "active_root.scale = room_scale",
     'active_seed.get("footprint_local_m", [])',
     'active_seed.get("height_metres", 3.1 * level_count)',
+    "var room_dimensions := _infer_room_dimensions()",
+    "horizontal_exit_direction * (room_dimensions.y * room_scale.z * 0.5)",
     "resident.scale = Vector3(",
     "clampf(3.0 * room_interaction_scale, 0.9, 3.0)",
 ):
