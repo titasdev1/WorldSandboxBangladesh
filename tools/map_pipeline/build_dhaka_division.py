@@ -21,7 +21,7 @@ from typing import Any
 import osmium
 import trimesh
 from shapely.geometry import GeometryCollection, LineString, MultiLineString, MultiPolygon, Point, Polygon, box, shape
-from shapely.ops import transform
+from shapely.ops import nearest_points, transform
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -400,6 +400,107 @@ def _clip_elements(elements: list[dict[str, Any]], clip_shape: Any) -> list[dict
     return result
 
 
+
+MANASHA_TARGET_LAT_LON = (23.2004, 90.3484)
+MANASHA_PHOTO_MATCH_RADIUS_M = 45.0
+MANASHA_APPROXIMATE_FOOTPRINT_SOURCE = "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED"
+
+
+def add_curated_manasha_footprint(elements: list[dict[str, Any]], clip_shape: Any) -> list[dict[str, Any]]:
+    """Add a disclosed landmark placeholder only when its compatible mapped footprint is missing.
+
+    The published coordinate locates the landmark but does not survey its wall outline.
+    This fallback is deliberately marked approximate and pending local review.
+    """
+    target_lat, target_lon = MANASHA_TARGET_LAT_LON
+    target = Point(target_lon, target_lat)
+    if clip_shape is None or clip_shape.is_empty or not clip_shape.covers(target):
+        return elements
+
+    aliases = {
+        "manasha temple, shariatpur", "manasha temple", "manasa temple, shariatpur",
+        "মনসা মন্দির, শরীয়তপুর", "মনসা মন্দির", "ধানুকার মানসা মন্দির",
+        "dhanuka manasha bari", "dhanuka manasa bari", "dhanuka mansa bari",
+        "dhanuka manasa temple", "dhanuka manasha temple", "ধানুকা মনসাবাড়ি",
+        "ধানুকা মনসাবাড়ি", "ধানুকা মনসা বাড়ি", "ধানুকা মনসা বাড়ি",
+        "ধানুকা মনসা মন্দির", "ধানুকা মনসামন্দির", "মনসাবাড়ি", "মনসাবাড়ি",
+        "মনসা বাড়ি", "মনসা বাড়ি", "ধানুকা মনসা বাড়ি, শরীয়তপুর", "ধানুকার মনসা মন্দির",
+    }
+    compatible_groups = (
+        {"amenity": "place_of_worship"}, {"building": "temple"}, {"historic": "temple"},
+        {"historic": "monument", "religion": "hindu"}, {"religion": "hindu"},
+    )
+
+    def distance_to_target_metres(geometry: Any) -> float:
+        nearest = nearest_points(geometry, target)[0]
+        east = (float(nearest.x) - target_lon) * 111320.0 * math.cos(math.radians(target_lat))
+        north = (float(nearest.y) - target_lat) * 110574.0
+        return math.hypot(east, north)
+
+    for element in elements:
+        if element.get("type") not in {"way", "relation"}:
+            continue
+        tags = element.get("tags", {})
+        if not tags:
+            continue
+        normalized_names = {
+            " ".join(str(tags.get(key, "")).split()).casefold()
+            for key in ("name", "name:bn", "name:en", "official_name")
+        }
+        is_named_target = bool(normalized_names.intersection(aliases))
+        is_compatible = any(
+            all(str(tags.get(key, "")).strip().casefold() == expected for key, expected in group.items())
+            for group in compatible_groups
+        )
+        if not (is_named_target or is_compatible):
+            continue
+        try:
+            geometry = _source_geometry(element)
+        except (KeyError, TypeError, ValueError):
+            continue
+        if geometry.is_empty or not isinstance(geometry, (Polygon, MultiPolygon)):
+            continue
+        if distance_to_target_metres(geometry) <= MANASHA_PHOTO_MATCH_RADIUS_M:
+            return elements
+
+    # Eight by six metres is a temporary authored placeholder, not a surveyed outline.
+    half_width_m, half_depth_m = 4.0, 3.0
+    half_lon = half_width_m / (111320.0 * math.cos(math.radians(target_lat)))
+    half_lat = half_depth_m / 110574.0
+    footprint = box(
+        target_lon - half_lon, target_lat - half_lat,
+        target_lon + half_lon, target_lat + half_lat,
+    ).intersection(clip_shape)
+    if not isinstance(footprint, Polygon) or footprint.is_empty or footprint.area < 1e-10:
+        return elements
+    ring = [{"lat": float(lat), "lon": float(lon)} for lon, lat in footprint.exterior.coords]
+    feature = {
+        "type": "way",
+        "id": -62000085,
+        "tags": {
+            "building": "temple",
+            "building:levels": "1",
+            "building:levels:estimate": "1",
+            "building:levels:source": "CURATED_APPROXIMATE_NOT_SURVEYED",
+            "height": "4.5 m",
+            "height:source": "CURATED_APPROXIMATE_NOT_SURVEYED",
+            "historic": "temple",
+            "amenity": "place_of_worship",
+            "religion": "hindu",
+            "name": "Manasha Temple, Shariatpur",
+            "name:en": "Manasha Temple, Shariatpur",
+            "name:bn": "মনসা মন্দির, শরীয়তপুর",
+            "official_name": "Dhanuka Manasha Bari",
+            "source:geometry": MANASHA_APPROXIMATE_FOOTPRINT_SOURCE,
+            "source:geometry:url": "https://commons.wikimedia.org/wiki/Category:Manasha_Temple,_Shariatpur",
+            "source:location": "Published place coordinate; approximate footprint dimensions have not been surveyed.",
+            "source:location:url": "https://ghurifiri.bd/places/dhanuka-manasha-bari-shariatpur",
+        },
+        "geometry": ring,
+    }
+    return [*elements, feature]
+
+
 def _replace_ground_with_boundary(path: pathlib.Path, boundary_tile: Any, bbox: tuple[float, float, float, float]) -> None:
     """Clip the tile ground itself to the division polygon, not just its features."""
     if boundary_tile.is_empty:
@@ -615,12 +716,18 @@ def main() -> int:
         tile_polygon = box(w, s, e, n)
         boundary_tile = build_boundary.intersection(tile_polygon)
         clipped = _clip_elements(candidates[index - 1], boundary_tile)
+        clipped = add_curated_manasha_footprint(clipped, boundary_tile)
         tile_dir.mkdir(parents=True, exist_ok=True)
-        print(f"[{index}/{len(tiles)}] {tile_id}: {len(clipped):,} clipped features", flush=True)
+        print(f"[{index}/{len(tiles)}] {tile_id}: {len(clipped):,} clipped source + curated features", flush=True)
         # Always bake a ground mesh for every tile. A tile with no mapped OSM
         # features must not become a hole in the explorable world.
         manifest = build_map(clipped, tile_dir, bbox)
         counts = manifest.get("feature_counts", {})
+        if int(counts.get("curated_approximate_landmark_footprints", 0)) > 0:
+            if int(counts.get("licensed_facade_photo_panels", 0)) < 1:
+                raise RuntimeError(
+                    "Curated Manasha landmark exists in this tile but the licensed exterior photo panel was not embedded."
+                )
         glb_path = tile_dir / "Dhaka_Explorable_Map.glb"
         _replace_ground_with_boundary(glb_path, boundary_tile, bbox)
         tile_records.append({
@@ -631,12 +738,18 @@ def main() -> int:
             "geojson": f"{tile_id}/Dhaka_OSM_Source.geojson",
             "interior_seeds": f"{tile_id}/AI_Interior_Seeds.json",
             "feature_counts": counts, "status": tile_status_from_counts(counts),
+            "curated_landmark_geometry_confidence": (
+                "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED"
+                if int(counts.get("curated_approximate_landmark_footprints", 0)) > 0
+                else "SOURCE_DERIVED_FEATURES_ONLY"
+            ),
         })
     valid = sum("glb" in t for t in tile_records)
     output_manifest = {
         "product": "Project A-Square — " + build_boundary_name + " boundary-clipped 3D map tile batch",
-        "source": "Geofabrik Bangladesh OpenStreetMap PBF",
+        "source": "Geofabrik Bangladesh OpenStreetMap PBF plus a disclosed curated landmark fallback where the source footprint is missing",
         "source_url": PBF_URL,
+        "curated_landmark_fallback_note": "The Manasha Temple fallback is an approximate, unsurveyed footprint positioned using a published place coordinate. It is pending local outline/placement review and is not an OSM building survey.",
         "attribution": OSM_ATTRIBUTION,
         "license": "OSM data: ODbL 1.0. Administrative boundary license is recorded from geoBoundaries API metadata in administrative_boundary.metadata.boundary_license.",
         "administrative_boundary": {"name": build_boundary_name,

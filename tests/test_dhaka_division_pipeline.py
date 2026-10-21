@@ -14,7 +14,7 @@ from tools.map_pipeline.build_dhaka_division import (
     order_tiles_shariatpur_first, select_tile_batch, effective_batch_limit, stage_gate_reached,
     build_boundary_for_stage, SHARIATPUR_PRIORITY_LAT_LON, has_feature,
     boundary_attribution_for_stage, tile_status_from_counts, pipeline_commit_sha,
-    validate_shariatpur_release_approval,
+    validate_shariatpur_release_approval, add_curated_manasha_footprint,
 )
 from tools.map_pipeline.build_dhaka_map import build_map
 
@@ -596,6 +596,77 @@ class DhakaDivisionPipelineTests(unittest.TestCase):
             self.assertTrue(any(name.startswith("terrain_base") for name in scene.geometry),
                             "Division-clipped ground must retain the name used by the game's collision builder")
 
+
+    def test_curated_manasha_fallback_is_labeled_and_not_duplicated(self):
+        target_lat, target_lon = 23.2004, 90.3484
+        clip = box(90.30, 23.17, 90.37, 23.24)
+        fallback = add_curated_manasha_footprint([], clip)
+        self.assertEqual(len(fallback), 1)
+        feature = fallback[0]
+        self.assertEqual(feature["tags"]["name:bn"], "মনসা মন্দির, শরীয়তপুর")
+        self.assertEqual(feature["tags"]["source:geometry"], "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED")
+        self.assertEqual(feature["tags"]["height:source"], "CURATED_APPROXIMATE_NOT_SURVEYED")
+        self.assertEqual(feature["tags"]["building:levels:source"], "CURATED_APPROXIMATE_NOT_SURVEYED")
+        self.assertTrue(clip.covers(_source_geometry(feature)))
+        self.assertEqual(len(add_curated_manasha_footprint(fallback, clip)), 1)
+
+        distant_clip = box(90.20, 23.10, 90.25, 23.15)
+        self.assertEqual(add_curated_manasha_footprint([], distant_clip), [])
+
+        existing = [{
+            "type": "way", "id": 67890,
+            "tags": {"building": "temple", "name": "Existing mapped shrine"},
+            "geometry": [
+                {"lat": target_lat - 0.00002, "lon": target_lon - 0.00003},
+                {"lat": target_lat - 0.00002, "lon": target_lon + 0.00003},
+                {"lat": target_lat + 0.00002, "lon": target_lon + 0.00003},
+                {"lat": target_lat + 0.00002, "lon": target_lon - 0.00003},
+                {"lat": target_lat - 0.00002, "lon": target_lon - 0.00003},
+            ],
+        }]
+        self.assertEqual(add_curated_manasha_footprint(existing, clip), existing)
+
+    def test_manasha_photo_is_embedded_in_glb_and_geometry_is_not_mislabeled_as_surveyed(self):
+        from PIL import Image
+        from unittest.mock import patch
+        import trimesh
+
+        root = Path(__file__).resolve().parents[1]
+        catalog_path = root / "tools" / "map_pipeline" / "shariatpur_facade_images.json"
+        bbox = (23.175, 90.32, 23.225, 90.37)
+        clip = box(bbox[1], bbox[0], bbox[3], bbox[2])
+        elements = add_curated_manasha_footprint([], clip)
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            photos = tmp_path / "photos"
+            photos.mkdir()
+            Image.new("RGB", (640, 480), (148, 96, 66)).save(
+                photos / "manasha_temple_shariatpur_back_view.jpg", format="JPEG"
+            )
+            out = tmp_path / "tile"
+            with patch.dict(os.environ, {
+                "WSB_FACADE_IMAGE_DIR": str(photos),
+                "WSB_FACADE_IMAGE_CATALOG": str(catalog_path),
+            }):
+                manifest = build_map(elements, out, bbox)
+
+            counts = manifest["feature_counts"]
+            self.assertEqual(counts["licensed_facade_photo_panels"], 1)
+            self.assertEqual(counts["curated_approximate_landmark_footprints"], 1)
+            match = manifest["licensed_facade_photo_matches"][0]
+            self.assertEqual(match["image_id"], "manasha_temple_back_view_01")
+            self.assertEqual(match["license"], "CC BY-SA 4.0")
+            self.assertEqual(match["feature_geometry_source"], "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED")
+            self.assertEqual(match["height_source"], "CURATED_APPROXIMATE_NOT_SURVEYED")
+            self.assertEqual(match["floor_count_source"], "CURATED_APPROXIMATE_NOT_SURVEYED")
+            exported_geojson = json.loads((out / "Dhaka_OSM_Source.geojson").read_text(encoding="utf-8"))
+            props = exported_geojson["features"][0]["properties"]
+            self.assertEqual(props["source:geometry"], "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED")
+            scene = trimesh.load(out / "Dhaka_Explorable_Map.glb", force="scene")
+            self.assertTrue(
+                any("licensed_facade_photo_manasha_temple_back_view_01" in name for name in scene.geometry),
+                "The actual textured exterior panel must survive GLB export, not just be counted in source metadata.",
+            )
 
 if __name__ == "__main__":
     unittest.main()

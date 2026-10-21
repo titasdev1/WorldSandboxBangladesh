@@ -147,7 +147,8 @@
         {
           "religion": "hindu"
         }
-      ]
+      ],
+      "target_location_note": "Published landmark coordinate used to locate the photo target; fallback footprint dimensions are approximate and not surveyed."
     }
   ]
 }

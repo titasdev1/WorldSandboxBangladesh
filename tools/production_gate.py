@@ -375,6 +375,21 @@ if manasha_exterior.get("target_location_lat_lon") != [23.2004, 90.3484] or floa
 
 
 
+# Require the missing Manasha landmark to be represented transparently at its published location,
+# and require the licensed exterior photograph to be baked before accepting that tile.
+division_builder_text = (ROOT / "tools" / "map_pipeline" / "build_dhaka_division.py").read_text(encoding="utf-8")
+for token in (
+    "def add_curated_manasha_footprint(",
+    'MANASHA_APPROXIMATE_FOOTPRINT_SOURCE = "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED"',
+    "clipped = add_curated_manasha_footprint(clipped, boundary_tile)",
+    "Curated Manasha landmark exists in this tile but the licensed exterior photo panel was not embedded.",
+    "nearest_points(geometry, target)",
+):
+    if token not in division_builder_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: guarded Manasha photo/footprint integration missing {token}")
+if division_builder_text.index("clipped = add_curated_manasha_footprint(clipped, boundary_tile)") > division_builder_text.index("manifest = build_map(clipped, tile_dir, bbox)"):
+    raise SystemExit("PRODUCTION GATE FAILED: curated landmark must be included before GLB and GeoJSON baking")
+
 # Keep mapped doors, actual interaction-anchor placement and hero readability
 # connected to the generated metric world (without scaling real footprints).
 map_builder_text = (ROOT / "tools" / "map_pipeline" / "build_dhaka_map.py").read_text(encoding="utf-8")
@@ -425,6 +440,10 @@ for token in (
     if token not in map_builder_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: per-building balcony geometry is missing {token}")
 for token in (
+    'tags.get("height:source", "")).strip() == "CURATED_APPROXIMATE_NOT_SURVEYED"',
+    'return "CURATED_APPROXIMATE_NOT_SURVEYED"',
+    '"feature_geometry_source": str(tags.get("source:geometry", "OSM_FOOTPRINT"))',
+    '"curated_approximate_landmark_footprints": sum(',
     "def facade_window_geometry(",
     "max_window_panels = min(96, max(12, floor_rows * 16))",
     'tags.get("window", "")',

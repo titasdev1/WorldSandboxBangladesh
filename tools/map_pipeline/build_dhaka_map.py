@@ -441,7 +441,14 @@ def facade_photo_panel(
 def building_height(
     tags: dict[str, str], osm_id: int, footprint_area_m2: float | None = None
 ) -> tuple[float, bool]:
-    """Prefer mapped height/levels; otherwise return a flagged footprint-based estimate."""
+    """Prefer mapped height/levels; curated placeholders remain explicitly unverified."""
+    if str(tags.get("height:source", "")).strip() == "CURATED_APPROXIMATE_NOT_SURVEYED":
+        try:
+            curated_height = float(str(tags.get("height", "")).replace(" m", "").strip())
+            if 2.5 <= curated_height <= 250:
+                return curated_height, True
+        except (TypeError, ValueError):
+            pass
     raw_height = tags.get("height", "").replace(" m", "").strip()
     try:
         height = float(raw_height)
@@ -473,7 +480,9 @@ def building_height(
 
 
 def building_height_source(tags: dict[str, str]) -> str:
-    """Describe whether a height came from OSM tags or an unverified estimate."""
+    """Preserve curated/estimated provenance rather than dressing it as OSM survey data."""
+    if str(tags.get("height:source", "")).strip() == "CURATED_APPROXIMATE_NOT_SURVEYED":
+        return "CURATED_APPROXIMATE_NOT_SURVEYED"
     raw_height = str(tags.get("height", "")).replace(" m", "").strip()
     try:
         height = float(raw_height)
@@ -492,6 +501,8 @@ def building_height_source(tags: dict[str, str]) -> str:
 
 
 def building_floors_source(tags: dict[str, str]) -> str:
+    if str(tags.get("building:levels:source", "")).strip() == "CURATED_APPROXIMATE_NOT_SURVEYED":
+        return "CURATED_APPROXIMATE_NOT_SURVEYED"
     raw_levels = str(tags.get("building:levels", "")).strip()
     try:
         levels = int(float(raw_levels))
@@ -1565,6 +1576,13 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                         "status": "EMBEDDED_TEXTURE_PANEL_REQUIRES_VISUAL_REVIEW",
                         "match_method": facade_photo.get("match_method", "exact_name_alias"),
                         "match_distance_m": float(facade_photo.get("match_distance_m", 0.0)),
+                        "feature_geometry_source": str(tags.get("source:geometry", "OSM_FOOTPRINT")),
+                        "feature_geometry_confidence": str(tags.get(
+                            "source:geometry", "OSM_FOOTPRINT_FROM_SOURCE_DATA"
+                        )),
+                        "height_source": building_height_source(tags),
+                        "floor_count_source": building_floors_source(tags),
+                        "location_source_url": str(tags.get("source:location:url", "")),
                     }
                     facade_photo_matches.append(match_record)
             # Keep a cap for every building, adding pitched silhouettes when source
@@ -1717,15 +1735,25 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 "name": name or tags.get("shop", tags.get("amenity", "Unnamed building")),
                 "category": interior_category,
                 "anchor_kind": "named_or_tagged" if has_specific_place_tags else "generic_building",
-                "floors_estimate": max(1, round(height / 3.1)),
+                "floors_estimate": (
+                    max(1, int(float(tags.get("building:levels:estimate", "1"))))
+                    if str(tags.get("building:levels:source", "")).strip() == "CURATED_APPROXIMATE_NOT_SURVEYED"
+                    else max(1, round(height / 3.1))
+                ),
                 "floors_source": building_floors_source(tags),
                 "height_metres": round(height, 2),
                 "height_source": building_height_source(tags),
                 "facade_status": "PROCEDURAL_LOW_POLY_WINDOW_PANELS; SELECTED_DETERMINISTIC_BALCONIES; MAPPED_COLOUR_TAGS_IF_PRESENT; OTHERWISE_APPROXIMATE_CATEGORY_COLOUR",
-                "geometry_confidence": "OSM_FOOTPRINT; HEIGHT_IS_TAGGED_OR_FLAGGED_AREA_CATEGORY_ESTIMATE",
+                "geometry_confidence": (
+                    "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED"
+                    if str(tags.get("source:geometry", "")).strip() == "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED"
+                    else "OSM_FOOTPRINT; HEIGHT_IS_TAGGED_OR_FLAGGED_AREA_CATEGORY_ESTIMATE"
+                ),
                 "building_tags": {
                     key: tags[key] for key in (
-                        "building", "building:levels", "height", "building:material",
+                        "building", "building:levels", "building:levels:estimate", "building:levels:source",
+                        "height", "height:source", "source:geometry", "source:geometry:url",
+                        "source:location", "source:location:url", "building:material",
                         "building:colour", "building:color", "facade:material",
                         "facade:colour", "facade:color", "roof:shape", "roof:material",
                         "roof:colour", "roof:color", "name", "name:bn", "name:en",
@@ -2000,14 +2028,19 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "extent_metres_approx": {"east_west": round(width, 1), "north_south": round(depth, 1)},
         "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "road_ways": roads,
                            "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places,
-                           "interior_anchors": len(interior_seeds), "licensed_facade_photo_panels": facade_photo_panels, "interior_reference_photos": interior_reference_photos_embedded, "mapped_trees": trees,
+                           "interior_anchors": len(interior_seeds), "licensed_facade_photo_panels": facade_photo_panels, "interior_reference_photos": interior_reference_photos_embedded,
+                            "curated_approximate_landmark_footprints": sum(
+                                1 for item in elements
+                                if str(item.get("tags", {}).get("source:geometry", "")) == "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED"
+                            ),
+                            "mapped_trees": trees,
                            "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "facade_door_panels": facade_doors, "facade_balcony_units": facade_balconies, "doors_from_mapped_entrance_nodes": doors_from_mapped_entrance_nodes, "inferred_doors": inferred_doors, "modeled_roofs": modeled_roofs, "inferred_roof_shapes": inferred_roofs, "edge_clipped_roofs_suppressed": edge_clipped_roofs_suppressed, "gabled_roofs": gabled_roofs, "hipped_roofs": hipped_roofs, "skillion_roofs": skillion_roofs, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color), "procedural_vegetation_trees": procedural_trees, "vegetation_mesh_batches": len(vegetation_meshes_by_color),
                             "water_polygons": water_polygons, "waterway_segments": waterway_segments,
                             "landuse_areas": landuse_areas, "railway_ways": railway_ways, "bridge_ways": bridge_ways},
         "licensed_facade_photo_matches": facade_photo_matches,
         "interior_reference_photo_matches": interior_reference_photo_matches,
         "interior_reference_photo_note": "Explicitly licensed interior photos are copied as separate runtime assets and shown only inside the exact-name mapped building's fictional generated interior. They are never applied to an exterior facade.",
-        "facade_photo_note": "Only exact OSM name aliases from the rights-reviewed catalog receive a photo panel. These are licensed reference-photo panels, not full photogrammetric facade reconstruction; visual identity, orientation, and building match must be reviewed.",
+        "facade_photo_note": "Only licensed, visually reviewed photos matched by exact name or a bounded target coordinate plus compatible tags receive panels. Curated landmark fallback footprints are explicitly approximate and not surveyed. Panels are reference-photo textures, not full photogrammetric reconstruction; every placement still requires visual review.",
         "height_note": "OSM height/building:levels tags are used when present; otherwise footprint-area/building-category estimates with deterministic floor-height variation are flagged as inferred, not surveyed facts.",
         "hydrography_note": "Mapped OSM water polygons are kept to their source outlines. River/canal centerlines without mapped widths use type-based approximate widths and are not survey-grade water boundaries.",
          "visual_fidelity_note": "Real OSM road alignments, building footprints, mapped water and land-use surfaces, and tagged bridges are included. Mapped forest, orchard, park, scrub and farm polygons receive bounded deterministic low-poly tree props where individual OSM tree nodes are sparse; vegetation remains procedural rather than a surveyed inventory. Sufficiently large buildings receive lightweight procedural low-poly window panels; selected source-aware mid-rise residential/commercial footprints receive deterministic balcony modules, while industrial and explicitly balcony-free buildings are excluded. Building, roof, balcony and vegetation meshes are batched by material colour to reduce mobile draw calls. Explicit facade/roof colour tags are used where available. Bangla/English names and exterior image references are preserved per building. This is not photorealistic street imagery; that requires separately licensed source data.",
