@@ -316,6 +316,15 @@ if "if not hub_created and is_instance_valid(world) and bool(world.get(\"real_dh
 # counted as an exterior facade photo.
 map_builder_text = (ROOT / "tools" / "map_pipeline" / "build_dhaka_map.py").read_text(encoding="utf-8")
 map_merger_text = (ROOT / "tools" / "map_pipeline" / "merge_dhaka_division_batches.py").read_text(encoding="utf-8")
+for token in (
+    'if stage == "shariatpur_review":',
+    'feature_counts.get("licensed_facade_photo_panels", 0)',
+    "Shariatpur review assembly blocked: zero embedded licensed exterior photo panels.",
+    "Shariatpur review assembly blocked: photo panel count has no matching licensed-photo records.",
+    'required_photo_fields = ("image_id", "source_page", "author", "license")',
+):
+    if token not in map_merger_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: Shariatpur assembly accepts zero/anonymous exterior photo panels; missing {token}")
 interior_factory_text = (ROOT / "systems" / "interior_factory.gd").read_text(encoding="utf-8")
 apk_verifier_text = (ROOT / "tools" / "verify_apk_contents.py").read_text(encoding="utf-8")
 if "active_root.rotation.y = atan2(horizontal_exit_direction.x, horizontal_exit_direction.z)" not in interior_factory_text:
