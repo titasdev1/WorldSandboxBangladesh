@@ -632,6 +632,9 @@ func update_marker():
 func try_fire():
  if not player:
   return
+ var hero_visual := player.get_node_or_null("HumanoidVisual")
+ if is_instance_valid(hero_visual) and hero_visual.has_method("play_muzzle_flash"):
+  hero_visual.call("play_muzzle_flash")
  var controlled_combat_mode: bool = is_instance_valid(combat_controller) and bool(combat_controller.active) and not bool(combat_controller.run_over) and String(combat_controller.active_mode) in ["survival", "arena_training", "street_skirmish"]
  if not controlled_combat_mode and gunfire_wanted_cooldown <= 0.0:
   wanted = min(5, wanted + 1)
