@@ -130,6 +130,29 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         if isinstance(interior_matches, list):
             interior_reference_photo_matches.extend(item for item in interior_matches if isinstance(item, dict))
 
+    # A Shariatpur review package with zero real photo panels is not an acceptable
+    # visual candidate. Check both the per-tile feature counts and the matched
+    # licensed-photo metadata so a stale, zero-photo sequence cannot be published.
+    if stage == "shariatpur_review":
+        panel_count = int(feature_counts.get("licensed_facade_photo_panels", 0))
+        if panel_count < 1:
+            raise RuntimeError(
+                "Shariatpur review assembly blocked: zero embedded licensed exterior photo panels."
+            )
+        if not facade_photo_matches:
+            raise RuntimeError(
+                "Shariatpur review assembly blocked: photo panel count has no matching licensed-photo records."
+            )
+        required_photo_fields = ("image_id", "source_page", "author", "license")
+        incomplete_matches = [
+            match for match in facade_photo_matches
+            if any(not str(match.get(field, "")).strip() for field in required_photo_fields)
+        ]
+        if incomplete_matches:
+            raise RuntimeError(
+                "Shariatpur review assembly blocked: at least one exterior photo panel lacks license/identity provenance."
+            )
+
     attribution_source = next((path / "ATTRIBUTION.txt" for _, path, _ in batches if (path / "ATTRIBUTION.txt").is_file()), None)
     if attribution_source is None:
         raise RuntimeError("No batch contains required attribution")
