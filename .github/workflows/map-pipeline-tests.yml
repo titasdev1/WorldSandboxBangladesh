@@ -42,6 +42,10 @@ jobs:
       - name: Compile map pipeline scripts
         run: |
           python -m py_compile tools/map_pipeline/build_dhaka_map.py tools/map_pipeline/build_dhaka_division.py tools/map_pipeline/prepare_dhaka_division_pbf.py tools/map_pipeline/merge_dhaka_division_batches.py tools/map_pipeline/tile_grid.py tools/map_pipeline/build_real_world_navigation_index.py tools/map_pipeline/fetch_licensed_facade_images.py
+      - name: Compile KartaView coverage audit
+        run: python -m py_compile tools/map_pipeline/audit_kartaview_coverage.py
+      - name: Run KartaView coverage audit tests
+        run: python -m unittest discover -s tests -p 'test_kartaview_coverage_audit.py' -v
       - name: Run offline map pipeline regression tests
         run: |
           python -m unittest discover -s tests -p 'test_dhaka*_pipeline.py' -v

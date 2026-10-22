@@ -122,3 +122,12 @@ A feature-branch review bake is triggered only by an explicit commit message con
 
 
 The source-pinned continuation now dispatches on the same branch as the initial review build, so the same Pillow dependency, licensed-image fetch step, and map-pipeline code are used by every batch. A failed continuation from an older workflow revision is not considered a completed Shariatpur build.
+
+
+## Street-level 360° imagery coverage and facade matching
+
+The optional KartaView audit in `tools/map_pipeline/audit_kartaview_coverage.py` reads only public coverage-track tiles and writes `kartaview_coverage.geojson`, a request/failure report, and dataset attribution. By default it uses zoom 12 and caps one scan at 90 requests to stay below the public endpoint's documented 100-requests/hour unauthenticated limit. Lower zoom or split the district rather than bypassing that limit.
+
+A coverage line is not a photo and is not evidence that a specific facade is identifiable. The next imagery-ingestion stage must match candidate photo GPS, heading/FOV, capture time and contributor permalink to the exact target building; preserve a per-image CC BY-SA 4.0 attribution record; visually verify facade orientation; and bake only verified, rights-cleared images. Do not map a 360 panorama onto a flat building wall without extracting the correct view direction and validating scale/perspective.
+
+Google Street View / Google Maps Platform imagery is deliberately excluded from the offline-bake pipeline: current policies generally prohibit prefetching, caching, bulk downloading, or creating derived map/building content from that imagery. Use Google imagery only through a compliant interactive integration if its terms, billing, attribution and runtime connectivity fit the game; do not scrape it into bundled assets.
