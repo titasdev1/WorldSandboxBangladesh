@@ -329,16 +329,23 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
                         "licensed_facade_photo_matches": tile_matches,
                     }),
                 )
-                archive.writestr(map_root + tile_id + "/Dhaka_Explorable_Map.glb.import", "remap")
-                archive.writestr("assets/.godot/imported/Dhaka_Explorable_Map.glb-" + tile_id + ".scn", "scene")
+                archive.writestr(
+                    map_root + tile_id + "/Dhaka_Explorable_Map.glb.import",
+                    f'[remap]\nimporter="scene"\npath="res://.godot/imported/Dhaka_Explorable_Map.glb-{tile_id}.scn"\n',
+                )
+                scene_payload = "scene"
                 if tile_id == photo_tile:
-                    archive.writestr(
-                        map_root + tile_id + "/Dhaka_Explorable_Map.glb",
-                        ApkGlbFacadeEmbeddedAssetTests._make_glb([
-                            f"licensed_facade_photo_{item['image_id']}_{item['osm_id']}"
-                            for item in exterior_matches
-                        ]),
+                    scene_payload += "|" + "|".join(
+                        f"licensed_facade_photo_{item['image_id']}_{item['osm_id']}"
+                        for item in exterior_matches
                     )
+                archive.writestr("assets/.godot/imported/Dhaka_Explorable_Map.glb-" + tile_id + ".scn", scene_payload)
+            source_glb = apk_path.parent / "assets" / "world" / "dhaka_tiles" / photo_tile / "Dhaka_Explorable_Map.glb"
+            source_glb.parent.mkdir(parents=True, exist_ok=True)
+            source_glb.write_bytes(ApkGlbFacadeEmbeddedAssetTests._make_glb([
+                f"licensed_facade_photo_{item['image_id']}_{item['osm_id']}"
+                for item in exterior_matches
+            ]))
             seed = [{
                 "osm_id": 12345,
                 "interior_reference_photo": {
@@ -375,6 +382,9 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + "\n" + result.stderr)
             self.assertIn("APK content integration: PASS", result.stdout)
             self.assertIn("Interior reference photo assets SHA-256 verified and linked to runtime seeds: 1/1", result.stdout)
+            with zipfile.ZipFile(apk_path, "r") as archive:
+                self.assertFalse(any(name.endswith("/Dhaka_Explorable_Map.glb") for name in archive.namelist()))
+            self.assertIn("Licensed exterior façade panels validated in source GLBs and mapped into APK scenes: 3", result.stdout)
 
     def test_android_apk_verifier_confirms_authored_hero_bytes_import_and_animation_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:
