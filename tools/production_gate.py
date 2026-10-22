@@ -595,6 +595,8 @@ for token in ("LeftEyeWhite", "NoseBridge", "ChestPocket_%s", "ShoeSole", "Radio
 for token in (
     "func _build_authored_combat_gear() -> void:",
     '"AuthoredCombatGear"',
+    "gear.scale = Vector3(",
+    "1.0 / maxf(absf(scale.x), 0.01)",
     '"GearPlateCarrier"',
     '"GearMagazinePouch_%d" % index',
     '"GearKneePad_%s" % side_label',
