@@ -332,7 +332,13 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
                 archive.writestr(map_root + tile_id + "/Dhaka_Explorable_Map.glb.import", "remap")
                 archive.writestr("assets/.godot/imported/Dhaka_Explorable_Map.glb-" + tile_id + ".scn", "scene")
                 if tile_id == photo_tile:
-                    archive.writestr(map_root + tile_id + "/Dhaka_Explorable_Map.glb", b"glTF-test-tile-with-licensed-panels")
+                    archive.writestr(
+                        map_root + tile_id + "/Dhaka_Explorable_Map.glb",
+                        ApkGlbFacadeEmbeddedAssetTests._make_glb([
+                            f"licensed_facade_photo_{item['image_id']}_{item['osm_id']}"
+                            for item in exterior_matches
+                        ]),
+                    )
             seed = [{
                 "osm_id": 12345,
                 "interior_reference_photo": {
@@ -1017,37 +1023,65 @@ class SelectedHeroModelTests(unittest.TestCase):
 
 class ApkGlbFacadeEmbeddedAssetTests(unittest.TestCase):
     @staticmethod
-    def _make_glb(mesh_name: str, external_image_uri: bool = False) -> bytes:
+    def _make_glb(mesh_name: str | list[str], external_image_uri: bool = False) -> bytes:
         import json
         import struct
 
-        image = b"\x89PNG\r\n\x1a\n" + b"test-image-bytes"
-        binary = b"POSITIONUV00INDEX" + image
-        image_offset = len(binary) - len(image)
-        image_record = {"uri": "photo.png"} if external_image_uri else {
-            "bufferView": 3, "mimeType": "image/png"
-        }
+        mesh_names = [mesh_name] if isinstance(mesh_name, str) else list(mesh_name)
+        if not mesh_names:
+            raise ValueError("at least one synthetic mesh name is required")
+        binary = bytearray(b"POSITIONUV00INDEX")
+        buffer_views = [
+            {"buffer": 0, "byteOffset": 0, "byteLength": 8},
+            {"buffer": 0, "byteOffset": 8, "byteLength": 4},
+            {"buffer": 0, "byteOffset": 12, "byteLength": 5},
+        ]
+        image_records = []
+        textures = []
+        materials = []
+        meshes = []
+        nodes = []
+        for index, name in enumerate(mesh_names):
+            if external_image_uri:
+                image_records.append({"uri": "photo.png"})
+            else:
+                image = b"\x89PNG\r\n\x1a\n" + (f"embedded-test-image-{index}").encode("ascii")
+                image_offset = len(binary)
+                binary.extend(image)
+                image_records.append({
+                    "bufferView": len(buffer_views),
+                    "mimeType": "image/png",
+                })
+                buffer_views.append({
+                    "buffer": 0,
+                    "byteOffset": image_offset,
+                    "byteLength": len(image),
+                })
+            textures.append({"source": index})
+            materials.append({"pbrMetallicRoughness": {"baseColorTexture": {"index": index}}})
+            meshes.append({
+                "name": name,
+                "primitives": [{
+                    "attributes": {"POSITION": 0, "TEXCOORD_0": 1},
+                    "indices": 2,
+                    "material": index,
+                }],
+            })
+            nodes.append({"name": name, "mesh": index})
+
         document = {
             "asset": {"version": "2.0"},
             "buffers": [{"byteLength": len(binary)}],
-            "bufferViews": [
-                {"buffer": 0, "byteOffset": 0, "byteLength": 8},
-                {"buffer": 0, "byteOffset": 8, "byteLength": 4},
-                {"buffer": 0, "byteOffset": 12, "byteLength": 5},
-                {"buffer": 0, "byteOffset": image_offset, "byteLength": len(image)},
-            ],
-            "images": [image_record],
-            "textures": [{"source": 0}],
-            "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}}}],
-            "meshes": [{
-                "name": mesh_name,
-                "primitives": [{"attributes": {"POSITION": 0, "TEXCOORD_0": 1}, "indices": 2, "material": 0}],
-            }],
-            "nodes": [{"name": mesh_name, "mesh": 0}],
+            "bufferViews": buffer_views,
+            "images": image_records,
+            "textures": textures,
+            "materials": materials,
+            "meshes": meshes,
+            "nodes": nodes,
         }
         json_chunk = json.dumps(document, separators=(",", ":")).encode("utf-8")
         json_chunk += b" " * ((-len(json_chunk)) % 4)
-        binary_chunk = binary + b"\x00" * ((-len(binary)) % 4)
+        binary_chunk = bytes(binary) + b"\x00" * ((-len(binary)) % 4)
         total_length = 12 + 8 + len(json_chunk) + 8 + len(binary_chunk)
         return (
             struct.pack("<4sII", b"glTF", 2, total_length)
