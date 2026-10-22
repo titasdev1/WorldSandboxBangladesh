@@ -30,7 +30,7 @@ OUTPUT = ROOT / "external_content" / "quaternius_hero"
 HERO_GLB = OUTPUT / "Project_A_Square_Hero.glb"
 MANIFEST = OUTPUT / "asset_manifest.json"
 MERGE_REPORT = OUTPUT / "merge_report.json"
-CHARACTER_MEMBER_SUFFIX = "Base Characters/Godot - UE/Regular_Male_FullBody.gltf"
+CHARACTER_MEMBER_SUFFIX = "Base Characters/Godot - UE/Superhero_Male_FullBody.gltf"
 
 PACKS = (
     {
@@ -343,7 +343,7 @@ def write_unavailable(reason: str) -> None:
         "source_pages": [pack["page"] for pack in PACKS],
         "source_archive_sha256": {p["key"]: p["sha256"] for p in PACKS},
         "character_model_member": CHARACTER_MEMBER_SUFFIX,
-        "character_archetype": "Regular Male",
+        "character_archetype": "Superhero Male",
         "animation_count": 0,
         "note": "The runtime uses its existing procedural character fallback until the pinned CC0 model and animation libraries can be fetched and merged.",
         "reason": reason[:1200],
@@ -413,13 +413,13 @@ def main() -> int:
                 "source_pages": [pack["page"] for pack in PACKS],
                 "source_archive_sha256": {p["key"]: p["sha256"] for p in PACKS},
                 "character_model_member": CHARACTER_MEMBER_SUFFIX,
-                "character_archetype": "Regular Male",
+                "character_archetype": "Superhero Male",
                 "hero_glb_sha256": glb_sha,
                 "hero_glb_size_bytes": HERO_GLB.stat().st_size,
                 "character_named_node_count": report.get("character_named_node_count", 0),
                 "animation_count": report.get("animation_clip_count", 0),
                 "animation_names": report.get("animation_names", []),
-                "note": "Rigged, textured Regular Male base with natural everyday proportions and compatible CC0 UAL1/UAL2 animation clips. This is a better-proportioned base, not a final photorealistic Bangladeshi civilian or CODM-quality military wardrobe.",
+                "note": "Rigged, textured Regular Male base with stylized superhero proportions and compatible CC0 UAL1/UAL2 animation clips. This is a better-proportioned base, not a final photorealistic Bangladeshi civilian or CODM-quality military wardrobe.",
             }
             MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
             print(json.dumps({
