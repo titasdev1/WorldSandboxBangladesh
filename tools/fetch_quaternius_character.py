@@ -30,6 +30,7 @@ OUTPUT = ROOT / "external_content" / "quaternius_hero"
 HERO_GLB = OUTPUT / "Project_A_Square_Hero.glb"
 MANIFEST = OUTPUT / "asset_manifest.json"
 MERGE_REPORT = OUTPUT / "merge_report.json"
+CHARACTER_MEMBER_SUFFIX = "Base Characters/Godot - UE/Regular_Male_FullBody.gltf"
 
 PACKS = (
     {
@@ -37,7 +38,7 @@ PACKS = (
         "page": "https://quaternius.itch.io/universal-base-characters",
         "upload_id": 15861669,
         "sha256": "fdbf1804c90dfc1ea03e992bff7da2dfd1a79318e13270a660180f9308455f40",
-        "required_member_suffix": "Base Characters/Godot - UE/Superhero_Male_FullBody.gltf",
+        "required_member_suffix": CHARACTER_MEMBER_SUFFIX,
     },
     {
         "key": "animation_library_1",
@@ -322,6 +323,7 @@ def cache_is_valid() -> bool:
         return (
             manifest.get("available") is True
             and manifest.get("license") == LICENSE
+            and manifest.get("character_model_member") == CHARACTER_MEMBER_SUFFIX
             and manifest.get("source_archive_sha256") == {p["key"]: p["sha256"] for p in PACKS}
             and HERO_GLB.is_file()
             and sha256_file(HERO_GLB) == manifest.get("hero_glb_sha256")
@@ -340,6 +342,8 @@ def write_unavailable(reason: str) -> None:
         "license": LICENSE,
         "source_pages": [pack["page"] for pack in PACKS],
         "source_archive_sha256": {p["key"]: p["sha256"] for p in PACKS},
+        "character_model_member": CHARACTER_MEMBER_SUFFIX,
+        "character_archetype": "Regular Male",
         "animation_count": 0,
         "note": "The runtime uses its existing procedural character fallback until the pinned CC0 model and animation libraries can be fetched and merged.",
         "reason": reason[:1200],
@@ -408,12 +412,14 @@ def main() -> int:
                 "attribution_required": False,
                 "source_pages": [pack["page"] for pack in PACKS],
                 "source_archive_sha256": {p["key"]: p["sha256"] for p in PACKS},
+                "character_model_member": CHARACTER_MEMBER_SUFFIX,
+                "character_archetype": "Regular Male",
                 "hero_glb_sha256": glb_sha,
                 "hero_glb_size_bytes": HERO_GLB.stat().st_size,
                 "character_named_node_count": report.get("character_named_node_count", 0),
                 "animation_count": report.get("animation_clip_count", 0),
                 "animation_names": report.get("animation_names", []),
-                "note": "One rigged, textured male hero mesh with compatible CC0 in-place UAL1/UAL2 animation clips; stylized regular-proportions character model, not a final photorealistic Bangladeshi civilian or CODM-quality military wardrobe.",
+                "note": "Rigged, textured Regular Male base with natural everyday proportions and compatible CC0 UAL1/UAL2 animation clips. This is a better-proportioned base, not a final photorealistic Bangladeshi civilian or CODM-quality military wardrobe.",
             }
             MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
             print(json.dumps({
