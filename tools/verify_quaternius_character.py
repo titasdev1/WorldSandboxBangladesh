@@ -13,6 +13,7 @@ ASSET_ROOT = ROOT / "external_content" / "quaternius_hero"
 MANIFEST = ASSET_ROOT / "asset_manifest.json"
 HERO = ASSET_ROOT / "Project_A_Square_Hero.glb"
 REPORT = ASSET_ROOT / "merge_report.json"
+EXPECTED_CHARACTER_MODEL_MEMBER = "Base Characters/Godot - UE/Regular_Male_FullBody.gltf"
 
 
 def sha256(path: Path) -> str:
@@ -39,6 +40,10 @@ def main() -> int:
         message = f"Authored hero unavailable; game will use its procedural fallback. {reason}"
         print(("ERROR: " if args.required else "WARNING: ") + message)
         return 1 if args.required else 0
+
+    if manifest.get("character_model_member") != EXPECTED_CHARACTER_MODEL_MEMBER:
+        print("ERROR: cached hero is not the selected Regular Male model; rebuild the character asset.")
+        return 1
 
     if not HERO.is_file() or HERO.read_bytes()[:4] != b"glTF":
         print("ERROR: authored hero GLB is missing or not a binary glTF.")
@@ -70,6 +75,8 @@ def main() -> int:
         "animation_count": len(names),
         "required_motion": required_motion,
         "license": manifest.get("license"),
+        "character_model_member": manifest.get("character_model_member"),
+        "character_archetype": manifest.get("character_archetype"),
         "runtime_fallback": False,
     }, indent=2))
     return 0
