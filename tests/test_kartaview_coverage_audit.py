@@ -125,7 +125,7 @@ class KartaViewCoverageAuditTests(unittest.TestCase):
             audit_coverage(
                 (23.18, 90.34, 23.19, 90.35),
                 zoom=12,
-                max_requests=5,
+                max_requests=3,
                 fetch_json=fake,
                 photo_grid_size=2,
                 max_photo_queries=3,
