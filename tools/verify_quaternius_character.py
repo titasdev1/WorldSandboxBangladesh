@@ -13,7 +13,7 @@ ASSET_ROOT = ROOT / "external_content" / "quaternius_hero"
 MANIFEST = ASSET_ROOT / "asset_manifest.json"
 HERO = ASSET_ROOT / "Project_A_Square_Hero.glb"
 REPORT = ASSET_ROOT / "merge_report.json"
-EXPECTED_CHARACTER_MODEL_MEMBER = "Base Characters/Godot - UE/Regular_Male_FullBody.gltf"
+EXPECTED_CHARACTER_MODEL_MEMBER = "Base Characters/Godot - UE/Superhero_Male_FullBody.gltf"
 
 
 def sha256(path: Path) -> str:
@@ -42,7 +42,7 @@ def main() -> int:
         return 1 if args.required else 0
 
     if manifest.get("character_model_member") != EXPECTED_CHARACTER_MODEL_MEMBER:
-        print("ERROR: cached hero is not the selected Regular Male model; rebuild the character asset.")
+        print("ERROR: cached hero does not match the pinned, verified Superhero Male CC0 source; rebuild the character asset.")
         return 1
 
     if not HERO.is_file() or HERO.read_bytes()[:4] != b"glTF":
