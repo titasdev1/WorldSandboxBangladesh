@@ -12,12 +12,14 @@ import json
 import math
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 API_ROOT = "https://api.openstreetcam.org/2.0/sequence/tiles"
+PHOTO_API_ROOT = "https://api.openstreetcam.org/2.0/photo/"
 DATASET_ATTRIBUTION = "KartaView / GrabMaps 360 Imagery Dataset and contributing photographers"
 DATASET_LICENSE = "CC BY-SA 4.0"
 USER_AGENT = "WorldSandboxBangladesh/1.0 (KartaView coverage audit; open-data attribution preserved)"
@@ -52,6 +54,165 @@ def tiles_for_bbox(bbox: tuple[float, float, float, float], zoom: int) -> list[t
         for y in range(min(y0, y1), max(y0, y1) + 1)
         for x in range(min(x0, x1), max(x0, x1) + 1)
     ]
+
+
+def _photo_items(payload: Any) -> list[dict[str, Any]]:
+    """Extract photo items from documented KartaView API response variants."""
+    if not isinstance(payload, dict):
+        return []
+    result = payload.get("result")
+    candidates = [result.get("data")] if isinstance(result, dict) else []
+    candidates.append(payload.get("data"))
+    for candidate in candidates:
+        if isinstance(candidate, list):
+            return [item for item in candidate if isinstance(item, dict)]
+        if isinstance(candidate, dict):
+            for key in ("photos", "items", "results"):
+                value = candidate.get(key)
+                if isinstance(value, list):
+                    return [item for item in value if isinstance(item, dict)]
+    return []
+
+
+def _inside_bbox(lat: float, lon: float, bbox: tuple[float, float, float, float]) -> bool:
+    south, west, north, east = bbox
+    return south <= lat <= north and west <= lon <= east
+
+
+def _haversine_metres(lat_a: float, lon_a: float, lat_b: float, lon_b: float) -> float:
+    earth_radius = 6_371_000.0
+    d_lat = math.radians(lat_b - lat_a)
+    d_lon = math.radians(lon_b - lon_a)
+    a = (
+        math.sin(d_lat / 2.0) ** 2
+        + math.cos(math.radians(lat_a))
+        * math.cos(math.radians(lat_b))
+        * math.sin(d_lon / 2.0) ** 2
+    )
+    return 2.0 * earth_radius * math.asin(min(1.0, math.sqrt(a)))
+
+
+def _photo_grid_points(
+    bbox: tuple[float, float, float, float],
+    grid_size: int,
+    max_queries: int,
+) -> list[tuple[float, float]]:
+    if grid_size <= 0 or max_queries <= 0:
+        return []
+    if grid_size > 10:
+        raise ValueError("photo grid size must not exceed 10")
+    south, west, north, east = bbox
+    points = [
+        (
+            south + (row + 0.5) * (north - south) / grid_size,
+            west + (col + 0.5) * (east - west) / grid_size,
+        )
+        for row in range(grid_size)
+        for col in range(grid_size)
+    ]
+    count = min(len(points), max_queries)
+    if count >= len(points):
+        return points
+    if count == 1:
+        return [points[len(points) // 2]]
+    indices = sorted({round(i * (len(points) - 1) / (count - 1)) for i in range(count)})
+    return [points[index] for index in indices]
+
+
+def discover_360_photo_candidates(
+    bbox: tuple[float, float, float, float],
+    grid_size: int = 0,
+    max_queries: int = 0,
+    radius_m: int = 500,
+    fetch_json=_fetch_json,
+    photo_grid_size: int = 0,
+    max_photo_queries: int = 0,
+    photo_radius_m: int = 500,
+) -> dict[str, Any]:
+    """Probe a bounded grid for 360-degree photo metadata; never downloads image bytes."""
+    if radius_m < 1 or radius_m > 500:
+        raise ValueError("photo query radius must be between 1 and 500 metres")
+    sample_points = _photo_grid_points(bbox, grid_size, max_queries)
+    by_id: dict[str, dict[str, Any]] = {}
+    failures: list[dict[str, Any]] = []
+    outside_bbox_count = 0
+    response_photo_count = 0
+    for index, (sample_lat, sample_lon) in enumerate(sample_points):
+        query = urllib.parse.urlencode({
+            "lat": f"{sample_lat:.7f}",
+            "lng": f"{sample_lon:.7f}",
+            "radius": str(radius_m),
+            "zoomLevel": "18",
+            "join": "sequence",
+            "orderBy": "id",
+            "orderDirection": "desc",
+            "searchFieldOfView": "360",
+        })
+        try:
+            payload = fetch_json(PHOTO_API_ROOT + "?" + query)
+        except Exception as exc:
+            failures.append({
+                "sample_index": index,
+                "sample_lat": sample_lat,
+                "sample_lon": sample_lon,
+                "error": str(exc),
+            })
+            continue
+        for item in _photo_items(payload):
+            response_photo_count += 1
+            sequence = item.get("sequence") if isinstance(item.get("sequence"), dict) else {}
+            try:
+                lat = float(item.get("lat", item.get("latitude")))
+                lon = float(item.get("lng", item.get("lon", item.get("longitude"))))
+                fov = float(item.get("fieldOfView", item.get("field_of_view", 0)))
+            except (TypeError, ValueError):
+                continue
+            projection = str(item.get("projection", "")).strip().upper()
+            if fov < 350.0 or not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                continue
+            if not _inside_bbox(lat, lon, bbox):
+                outside_bbox_count += 1
+                continue
+            photo_id = str(item.get("id", item.get("photoId", ""))).strip()
+            sequence_id = str(sequence.get("id", item.get("sequenceId", ""))).strip()
+            if not photo_id:
+                continue
+            record = {
+                "photo_id": photo_id,
+                "sequence_id": sequence_id,
+                "contributor_id": str(item.get("userId", sequence.get("userId", ""))).strip(),
+                "latitude": lat,
+                "longitude": lon,
+                "field_of_view_degrees": fov,
+                "projection": projection,
+                "heading_degrees": item.get("heading"),
+                "captured_at": item.get("captureDate", item.get("dateTaken", item.get("capturedAt"))),
+                "uploaded_at": item.get("dateAdded"),
+                "photo_url_candidate": str(item.get("fileurl", item.get("fileUrl", item.get("photoUrl", "")))).strip(),
+                "source_page_url": str(item.get("permalink", item.get("sourcePage", ""))).strip(),
+                "license": DATASET_LICENSE,
+                "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+                "attribution_required": True,
+                "query_sample_lat_lon": [sample_lat, sample_lon],
+                "distance_from_query_metres": round(
+                    _haversine_metres(sample_lat, sample_lon, lat, lon), 2
+                ),
+            }
+            existing = by_id.get(photo_id)
+            if existing is None or record["distance_from_query_metres"] < existing["distance_from_query_metres"]:
+                by_id[photo_id] = record
+    candidates = sorted(by_id.values(), key=lambda item: (
+        item["latitude"], item["longitude"], item["photo_id"]
+    ))
+    return {
+        "sample_points": [{"latitude": lat, "longitude": lon} for lat, lon in sample_points],
+        "query_count": len(sample_points),
+        "photo_rows_returned": response_photo_count,
+        "unique_360_photo_candidates_inside_bbox": len(candidates),
+        "360_photo_candidates_outside_bbox": outside_bbox_count,
+        "query_failures": failures,
+        "candidates": candidates,
+    }
 
 
 def _candidate_line_lists(payload: Any) -> list[Any]:
@@ -236,10 +397,12 @@ def audit_coverage(
     safe_cap = min(max_requests, PUBLIC_REQUEST_LIMIT)
     if safe_cap < 1:
         raise ValueError("max_requests must be positive")
-    if len(tiles) > safe_cap:
+    sample_points = _photo_grid_points(bbox, photo_grid_size, max_photo_queries)
+    total_requests = len(tiles) + len(sample_points)
+    if total_requests > safe_cap:
         raise ValueError(
-            f"bbox requires {len(tiles)} coverage requests at zoom {zoom}, above the "
-            f"safe cap of {safe_cap}; lower zoom or split the area"
+            f"coverage plus 360-photo scan requires {total_requests} requests, above the "
+            f"safe cap of {safe_cap}; lower zoom or reduce photo-grid queries"
         )
     features: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
@@ -267,16 +430,27 @@ def audit_coverage(
         "name": "kartaview_street_level_coverage",
         "features": [bbox_polygon, *features],
     }
+    photo_scan = discover_360_photo_candidates(
+        bbox, grid_size=photo_grid_size, max_queries=max_photo_queries,
+        radius_m=photo_radius_m, fetch_json=fetch_json,
+    )
     report = {
         "schema_version": 1,
-        "source": "KartaView public coverage tiles",
+        "source": "KartaView public coverage tiles + bounded photo metadata scan",
         "dataset_attribution": DATASET_ATTRIBUTION,
         "license": DATASET_LICENSE,
         "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
         "retrieved_at_utc": datetime.now(timezone.utc).isoformat(),
         "bbox_south_west_north_east": list(bbox),
         "zoom": zoom,
-        "request_count": len(tiles),
+        "request_count": total_requests,
+        "coverage_tile_request_count": len(tiles),
+        "photo_query_count": photo_scan["query_count"],
+        "photo_rows_returned": photo_scan["photo_rows_returned"],
+        "unique_360_photo_candidates_inside_bbox": photo_scan["unique_360_photo_candidates_inside_bbox"],
+        "360_photo_candidates_outside_bbox": photo_scan["360_photo_candidates_outside_bbox"],
+        "photo_query_failures": photo_scan["query_failures"],
+        "photo_sample_points": photo_scan["sample_points"],
         "tile_count": len(tiles),
         "tiles_with_coverage_tracks": tiles_with_tracks,
         "coverage_track_count": len(features),
@@ -286,12 +460,37 @@ def audit_coverage(
         "failed_tiles": failures,
         "limitations": [
             "Coverage tracks indicate where street-level imagery was collected; they do not prove every building has a usable view.",
-            "This audit downloads coverage metadata only, not panorama images.",
+            "This audit downloads coverage and 360-photo metadata only, not panorama image bytes.",
+            "Grid photo queries are sparse probes, not evidence that every building has a matching facade photograph.",
             "Individual photos must be matched to target buildings and preserve photographer, permalink, capture date and license attribution before baking.",
             "Street-level images may be old, occluded, angled away from a building, blurred, or not captured in full 360-degree mode.",
         ],
     }
-    return {"geojson": geojson, "report": report}
+    photo_features = [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [candidate["longitude"], candidate["latitude"]],
+            },
+            "properties": {
+                key: value for key, value in candidate.items()
+                if key not in {"latitude", "longitude"}
+            },
+        }
+        for candidate in photo_scan["candidates"]
+    ]
+    photo_geojson = {
+        "type": "FeatureCollection",
+        "name": "kartaview_360_photo_candidates",
+        "features": photo_features,
+    }
+    return {
+        "geojson": geojson,
+        "report": report,
+        "photo_candidates": photo_scan,
+        "photo_geojson": photo_geojson,
+    }
 
 
 def bbox_from_manifest(path: Path) -> tuple[float, float, float, float]:
@@ -313,6 +512,9 @@ def main() -> int:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--zoom", type=int, default=12, help="default 12 keeps district requests bounded")
     parser.add_argument("--max-requests", type=int, default=90, help="public API documents 100 requests/hour")
+    parser.add_argument("--photo-grid", type=int, default=0, help="optional grid size for nearby 360-photo probes")
+    parser.add_argument("--photo-max-queries", type=int, default=0, help="maximum photo endpoint queries; shares the request cap")
+    parser.add_argument("--photo-radius-m", type=int, default=500, help="nearby-photo query radius (1-500 m)")
     parser.add_argument("--allow-partial", action="store_true", help="exit 0 if some tiles fail and failures are recorded")
     args = parser.parse_args()
     try:
@@ -323,7 +525,11 @@ def main() -> int:
             if len(values) != 4:
                 raise ValueError("--bbox needs four comma-separated coordinates")
             bbox = tuple(values)  # type: ignore[assignment]
-        result = audit_coverage(bbox, zoom=args.zoom, max_requests=args.max_requests)
+        result = audit_coverage(
+            bbox, zoom=args.zoom, max_requests=args.max_requests,
+            photo_grid_size=args.photo_grid, max_photo_queries=args.photo_max_queries,
+            photo_radius_m=args.photo_radius_m,
+        )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         parser.error(str(exc))
     args.out.mkdir(parents=True, exist_ok=True)
@@ -333,9 +539,15 @@ def main() -> int:
     (args.out / "kartaview_coverage_report.json").write_text(
         json.dumps(result["report"], ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
+    (args.out / "kartaview_360_photo_candidates.json").write_text(
+        json.dumps(result["photo_candidates"], ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    (args.out / "kartaview_360_photo_candidates.geojson").write_text(
+        json.dumps(result["photo_geojson"], ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     (args.out / "KARTAVIEW_ATTRIBUTION.txt").write_text(
         f"{DATASET_ATTRIBUTION}\nLicense: {DATASET_LICENSE} — https://creativecommons.org/licenses/by-sa/4.0/\n"
-        "Coverage tracks only; no panorama images downloaded by this audit. Each panorama used in-game needs its own photographer, permalink, capture date, and license in the shipped attribution manifest.\n",
+        "Coverage tracks and sampled 360-photo metadata only; no panorama image bytes downloaded by this audit. Each panorama used in-game needs its own photographer, permalink, capture date, and license in the shipped attribution manifest.\n",
         encoding="utf-8",
     )
     report = result["report"]
@@ -346,10 +558,14 @@ def main() -> int:
         "coverage_track_count": report["coverage_track_count"],
         "matched_to_osm_track_count": report["matched_to_osm_track_count"],
         "failed_tile_count": report["failed_tile_count"],
+        "photo_query_count": report["photo_query_count"],
+        "unique_360_photo_candidates_inside_bbox": report["unique_360_photo_candidates_inside_bbox"],
+        "photo_query_failures": len(report["photo_query_failures"]),
         "geojson": str(args.out / "kartaview_coverage.geojson"),
         "report": str(args.out / "kartaview_coverage_report.json"),
+        "photo_candidates": str(args.out / "kartaview_360_photo_candidates.json"),
     }, ensure_ascii=False))
-    return 0 if args.allow_partial or report["failed_tile_count"] == 0 else 1
+    return 0 if args.allow_partial or (report["failed_tile_count"] == 0 and not report["photo_query_failures"]) else 1
 
 
 if __name__ == "__main__":
