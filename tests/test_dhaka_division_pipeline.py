@@ -925,7 +925,7 @@ class QuaterniusCharacterDependencyTests(unittest.TestCase):
             unpacked = root / "extracted"
             output = root / "output"
             prefix = "Universal Base Characters[Standard]/"
-            model_member = prefix + "Base Characters/Godot - UE/Regular_Male_FullBody.gltf"
+            model_member = prefix + "Base Characters/Godot - UE/Superhero_Male_FullBody.gltf"
             expected_texture_uri = "T_Hair_1_Normal_png.png"
             texture_member = prefix + "Shared Textures/T_Hair_1_Normal.png"
             buffer_member = prefix + "Base Characters/Godot - UE/character.bin"
@@ -943,7 +943,7 @@ class QuaterniusCharacterDependencyTests(unittest.TestCase):
             with patch("tools.fetch_quaternius_character.OUTPUT", output):
                 extracted_gltf = extract_character_dependencies(archive_path, unpacked)
 
-            expected_model = unpacked / "Base Characters" / "Godot - UE" / "Regular_Male_FullBody.gltf"
+            expected_model = unpacked / "Base Characters" / "Godot - UE" / "Superhero_Male_FullBody.gltf"
             expected_buffer = unpacked / "Base Characters" / "Godot - UE" / "character.bin"
             expected_texture = unpacked / "Base Characters" / "Godot - UE" / expected_texture_uri
             self.assertEqual(extracted_gltf, expected_model)
@@ -962,7 +962,7 @@ class QuaterniusCharacterDependencyTests(unittest.TestCase):
             archive_path = root / "quaternius-pack.zip"
             unpacked = root / "extracted"
             prefix = "Universal Base Characters[Standard]/"
-            model_member = prefix + "Base Characters/Godot - UE/Regular_Male_FullBody.gltf"
+            model_member = prefix + "Base Characters/Godot - UE/Superhero_Male_FullBody.gltf"
             gltf = {"asset": {"version": "2.0"}, "images": [{"uri": "T_Hair_1_Normal_png.png"}]}
             with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
                 archive.writestr(model_member, json.dumps(gltf))
@@ -1006,10 +1006,10 @@ class LicensedFacadeDownloaderUrlTests(unittest.TestCase):
 
 
 class SelectedHeroModelTests(unittest.TestCase):
-    def test_playable_hero_uses_regular_proportions_model(self):
+    def test_playable_hero_uses_pinned_free_cc0_model(self):
         from tools.fetch_quaternius_character import CHARACTER_MEMBER_SUFFIX, PACKS
 
-        expected = "Base Characters/Godot - UE/Regular_Male_FullBody.gltf"
+        expected = "Base Characters/Godot - UE/Superhero_Male_FullBody.gltf"
         self.assertEqual(CHARACTER_MEMBER_SUFFIX, expected)
         self.assertEqual(PACKS[0]["required_member_suffix"], expected)
 
