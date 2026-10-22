@@ -129,7 +129,19 @@ def _resolve_imported_scene_from_remap(remap_data: bytes) -> str:
     except UnicodeDecodeError as exc:
         raise ValueError("GLB import remap is not UTF-8 text") from exc
     match = re.search(
-        r'(?m)^path="res://\.godot/imported/([^"/]+\.scn)"\s*    parser = argparse.ArgumentParser()
+        r'(?m)^path="res://\.godot/imported/([^"/]+\.scn)"\s*$',
+        remap_text,
+    )
+    if not match:
+        raise ValueError("GLB import remap does not name a safe imported .scn resource")
+    filename = match.group(1)
+    if not filename.startswith("Dhaka_Explorable_Map.glb-"):
+        raise ValueError("GLB import remap points to an unexpected imported scene")
+    return IMPORTED_ROOT + filename
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
     parser.add_argument("--apk", required=True, type=pathlib.Path)
     parser.add_argument("--map-package", required=True, choices=("greater_dhaka", "shariatpur_review"))
     args = parser.parse_args()
