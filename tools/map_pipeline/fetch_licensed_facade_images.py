@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -42,24 +43,63 @@ def download_catalog(catalog_path: Path, output_dir: Path, allow_missing: bool) 
             failures.append({"id": image_id, "error": "download host is not allowlisted"})
             continue
         target = output_dir / filename
-        try:
-            request = urllib.request.Request(
-                url,
-                headers={"User-Agent": "WorldSandboxBangladesh/1.0 (open-license asset pipeline; attribution in package)"},
+        # Wikimedia Commons may temporarily rate-limit repeated CI jobs. Try the
+        # direct upload host as well as Special:FilePath, with bounded backoff;
+        # never treat a missing download as an embedded panel.
+        candidate_urls = [url]
+        if urlparse(url).hostname == "commons.wikimedia.org":
+            canonical_name = filename.replace(" ", "_")
+            digest = hashlib.md5(canonical_name.encode("utf-8")).hexdigest()
+            from urllib.parse import quote
+            encoded_name = quote(canonical_name, safe="()_,.-")
+            candidate_urls.insert(
+                0,
+                "https://upload.wikimedia.org/wikipedia/commons/thumb/"
+                f"{digest[0]}/{digest[:2]}/{encoded_name}/1024px-{encoded_name}",
             )
-            with urllib.request.urlopen(request, timeout=45) as response:
-                final_host = urlparse(response.geturl()).hostname
-                content_type = response.headers.get_content_type()
-                data = response.read(MAX_IMAGE_BYTES + 1)
-            if final_host not in ALLOWED_HOSTS:
-                raise ValueError(f"redirected to non-allowlisted host: {final_host}")
-            if not content_type.startswith("image/"):
-                raise ValueError(f"unexpected content type: {content_type}")
-            if not data or len(data) > MAX_IMAGE_BYTES:
-                raise ValueError(f"image size outside allowed range: {len(data)} bytes")
-            if not data.startswith(b"\xff\xd8\xff") and not data.startswith(b"\x89PNG\r\n\x1a\n") and not data.startswith(b"RIFF"):
-                raise ValueError("downloaded payload does not look like a supported raster image")
-            target.write_bytes(data)
+        last_error: Exception | None = None
+        data = b""
+        content_type = ""
+        final_host = ""
+        for candidate_url in candidate_urls:
+            for attempt in range(3):
+                try:
+                    request = urllib.request.Request(
+                        candidate_url,
+                        headers={
+                            "User-Agent": "WorldSandboxBangladesh/1.1 (open-license asset pipeline; Wikimedia Commons attribution is packaged)",
+                            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                        },
+                    )
+                    with urllib.request.urlopen(request, timeout=45) as response:
+                        final_host = urlparse(response.geturl()).hostname or ""
+                        content_type = response.headers.get_content_type()
+                        data = response.read(MAX_IMAGE_BYTES + 1)
+                    last_error = None
+                    break
+                except (OSError, urllib.error.URLError, TimeoutError, ValueError) as exc:
+                    last_error = exc
+                    retry_after = 0
+                    if isinstance(exc, urllib.error.HTTPError):
+                        try:
+                            retry_after = min(20, int(exc.headers.get("Retry-After", "0")))
+                        except (TypeError, ValueError):
+                            retry_after = 0
+                    if attempt < 2:
+                        time.sleep(max(retry_after, (2, 6)[attempt]))
+            if last_error is None:
+                break
+        if last_error is not None:
+            raise last_error
+        if final_host not in ALLOWED_HOSTS:
+            raise ValueError(f"redirected to non-allowlisted host: {final_host}")
+        if not content_type.startswith("image/"):
+            raise ValueError(f"unexpected content type: {content_type}")
+        if not data or len(data) > MAX_IMAGE_BYTES:
+            raise ValueError(f"image size outside allowed range: {len(data)} bytes")
+        if not data.startswith(b"\xff\xd8\xff") and not data.startswith(b"\x89PNG\r\n\x1a\n") and not data.startswith(b"RIFF"):
+            raise ValueError("downloaded payload does not look like a supported raster image")
+        target.write_bytes(data)
             record = {
                 "id": image_id,
                 "subject": item.get("subject"),
