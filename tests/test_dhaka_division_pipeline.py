@@ -1014,5 +1014,74 @@ class SelectedHeroModelTests(unittest.TestCase):
         self.assertEqual(PACKS[0]["required_member_suffix"], expected)
 
 
+
+class ApkGlbFacadeEmbeddedAssetTests(unittest.TestCase):
+    @staticmethod
+    def _make_glb(mesh_name: str, external_image_uri: bool = False) -> bytes:
+        import json
+        import struct
+
+        image = b"\x89PNG\r\n\x1a\n" + b"test-image-bytes"
+        binary = b"POSITIONUV00INDEX" + image
+        image_offset = len(binary) - len(image)
+        image_record = {"uri": "photo.png"} if external_image_uri else {
+            "bufferView": 3, "mimeType": "image/png"
+        }
+        document = {
+            "asset": {"version": "2.0"},
+            "buffers": [{"byteLength": len(binary)}],
+            "bufferViews": [
+                {"buffer": 0, "byteOffset": 0, "byteLength": 8},
+                {"buffer": 0, "byteOffset": 8, "byteLength": 4},
+                {"buffer": 0, "byteOffset": 12, "byteLength": 5},
+                {"buffer": 0, "byteOffset": image_offset, "byteLength": len(image)},
+            ],
+            "images": [image_record],
+            "textures": [{"source": 0}],
+            "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}}}],
+            "meshes": [{
+                "name": mesh_name,
+                "primitives": [{"attributes": {"POSITION": 0, "TEXCOORD_0": 1}, "indices": 2, "material": 0}],
+            }],
+            "nodes": [{"name": mesh_name, "mesh": 0}],
+        }
+        json_chunk = json.dumps(document, separators=(",", ":")).encode("utf-8")
+        json_chunk += b" " * ((-len(json_chunk)) % 4)
+        binary_chunk = binary + b"\x00" * ((-len(binary)) % 4)
+        total_length = 12 + 8 + len(json_chunk) + 8 + len(binary_chunk)
+        return (
+            struct.pack("<4sII", b"glTF", 2, total_length)
+            + struct.pack("<II", len(json_chunk), 0x4E4F534A) + json_chunk
+            + struct.pack("<II", len(binary_chunk), 0x004E4942) + binary_chunk
+        )
+
+    def test_apk_verifier_accepts_named_facade_mesh_with_embedded_texture(self):
+        from tools.verify_apk_contents import _assert_glb_has_embedded_facade_panel
+
+        image_id = "rudrakar_moth_35"
+        osm_id = "-62900001"
+        mesh_name = f"licensed_facade_photo_{image_id}_{osm_id}"
+        _assert_glb_has_embedded_facade_panel(self._make_glb(mesh_name), image_id, osm_id)
+
+    def test_apk_verifier_rejects_manifest_only_panel_without_mesh(self):
+        from tools.verify_apk_contents import _assert_glb_has_embedded_facade_panel
+
+        with self.assertRaisesRegex(ValueError, "named mesh"):
+            _assert_glb_has_embedded_facade_panel(
+                self._make_glb("unrelated_procedural_wall"), "rudrakar_moth_35", "-62900001"
+            )
+
+    def test_apk_verifier_rejects_external_texture_that_is_not_embedded_in_glb(self):
+        from tools.verify_apk_contents import _assert_glb_has_embedded_facade_panel
+
+        image_id = "rudrakar_moth_35"
+        osm_id = "-62900001"
+        mesh_name = f"licensed_facade_photo_{image_id}_{osm_id}"
+        with self.assertRaisesRegex(ValueError, "embedded raster texture"):
+            _assert_glb_has_embedded_facade_panel(
+                self._make_glb(mesh_name, external_image_uri=True), image_id, osm_id
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

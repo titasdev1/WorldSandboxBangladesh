@@ -414,6 +414,9 @@ for token in (
     "approved_facade_photo_ids_embedded",
     "approved Shariatpur exterior photo coverage is incomplete",
     "tile-specific GLB/remap missing for licensed exterior photo",
+    "def _assert_glb_has_embedded_facade_panel(",
+    "Licensed exterior façade panels confirmed inside actual GLBs:",
+    "APK CONTENT GATE FAILED: actual GLB is missing the embedded licensed exterior panel",
     "license_url",
     "Licensed exterior façade panels in packaged manifest:",
 ):

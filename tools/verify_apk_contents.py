@@ -13,7 +13,7 @@ import hashlib
 import json
 import pathlib
 from pathlib import PurePosixPath
-import pathlib
+import struct
 import sys
 import zipfile
 
@@ -28,6 +28,96 @@ REQUIRED_ASSET_MANIFESTS = (
     "assets/external_content/polyhaven_pbr/asset_manifest.json",
     "assets/external_content/quaternius_hero/asset_manifest.json",
 )
+
+
+def _assert_glb_has_embedded_facade_panel(glb_data: bytes, image_id: str, osm_id: str) -> None:
+    """Require a named facade mesh whose material resolves to image bytes embedded in the GLB."""
+    if len(glb_data) < 20:
+        raise ValueError("GLB is too short")
+    magic, version, declared_length = struct.unpack_from("<4sII", glb_data, 0)
+    if magic != b"glTF" or version != 2 or declared_length != len(glb_data):
+        raise ValueError("invalid GLB magic, version, or declared length")
+
+    json_document = None
+    binary_chunk = None
+    cursor = 12
+    while cursor + 8 <= declared_length:
+        chunk_length, chunk_type = struct.unpack_from("<II", glb_data, cursor)
+        cursor += 8
+        chunk_end = cursor + chunk_length
+        if chunk_end > declared_length:
+            raise ValueError("GLB chunk extends beyond the declared file length")
+        chunk_data = glb_data[cursor:chunk_end]
+        cursor = chunk_end
+        if chunk_type == 0x4E4F534A and json_document is None:  # JSON
+            try:
+                json_document = json.loads(chunk_data.decode("utf-8").rstrip(" \t\r\n\x00"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise ValueError("GLB JSON chunk is malformed") from exc
+        elif chunk_type == 0x004E4942 and binary_chunk is None:  # BIN
+            binary_chunk = chunk_data
+    if cursor != declared_length or not isinstance(json_document, dict) or binary_chunk is None:
+        raise ValueError("GLB is missing a complete JSON/BIN chunk pair")
+
+    expected_name = f"licensed_facade_photo_{image_id}_{osm_id}"
+    meshes = json_document.get("meshes", [])
+    nodes = json_document.get("nodes", [])
+    materials = json_document.get("materials", [])
+    textures = json_document.get("textures", [])
+    images = json_document.get("images", [])
+    buffer_views = json_document.get("bufferViews", [])
+    if not all(isinstance(collection, list) for collection in
+               (meshes, nodes, materials, textures, images, buffer_views)):
+        raise ValueError("GLB mesh/material/texture tables are malformed")
+
+    mesh_index = next(
+        (index for index, mesh in enumerate(meshes)
+         if isinstance(mesh, dict) and str(mesh.get("name", "")) == expected_name),
+        None,
+    )
+    if mesh_index is None:
+        raise ValueError(f"named mesh {expected_name!r} is absent from the GLB")
+    if not any(isinstance(node, dict) and node.get("mesh") == mesh_index for node in nodes):
+        raise ValueError(f"named mesh {expected_name!r} is not referenced by a GLB node")
+
+    mesh = meshes[mesh_index]
+    primitives = mesh.get("primitives", [])
+    if not isinstance(primitives, list) or not primitives:
+        raise ValueError("named facade mesh has no primitives")
+
+    for primitive in primitives:
+        if not isinstance(primitive, dict):
+            continue
+        try:
+            material_index = int(primitive["material"])
+            material = materials[material_index]
+            pbr = material.get("pbrMetallicRoughness", {})
+            texture_index = int(pbr["baseColorTexture"]["index"])
+            texture = textures[texture_index]
+            image_index = int(texture["source"])
+            image = images[image_index]
+            image_view_index = int(image["bufferView"])
+            image_view = buffer_views[image_view_index]
+            if "uri" in image:
+                continue
+            if int(image_view.get("buffer", 0)) != 0:
+                continue
+            byte_offset = int(image_view.get("byteOffset", 0))
+            byte_length = int(image_view["byteLength"])
+            if byte_offset < 0 or byte_length <= 0 or byte_offset + byte_length > len(binary_chunk):
+                continue
+            image_bytes = binary_chunk[byte_offset:byte_offset + byte_length]
+            mime_type = str(image.get("mimeType", "")).strip().lower()
+            signature_valid = (
+                mime_type == "image/png" and image_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+                or mime_type in {"image/jpeg", "image/jpg"} and image_bytes.startswith(b"\xff\xd8\xff")
+                or mime_type == "image/webp" and image_bytes.startswith(b"RIFF") and image_bytes[8:12] == b"WEBP"
+            )
+            if signature_valid:
+                return
+        except (KeyError, IndexError, TypeError, ValueError):
+            continue
+    raise ValueError(f"named facade mesh {expected_name!r} has no material linked to a valid embedded raster texture")
 
 
 def main() -> int:
@@ -138,6 +228,7 @@ def main() -> int:
                 for item in facade_matches if isinstance(item, dict)
                 and str(item.get("image_id", "")).strip()
             }
+            verified_facade_glb_panels = 0
             if args.map_package == "shariatpur_review":
                 required_facade_ids = {
                     str(value).strip()
@@ -193,6 +284,14 @@ def main() -> int:
                     glb_path = tile_dir + "/Dhaka_Explorable_Map.glb"
                     if glb_path not in names or glb_path + ".import" not in names:
                         raise SystemExit(f"APK CONTENT GATE FAILED: tile-specific GLB/remap missing for licensed exterior photo {pair[0]}.")
+                    try:
+                        _assert_glb_has_embedded_facade_panel(apk.read(glb_path), pair[0], pair[1])
+                    except ValueError as exc:
+                        raise SystemExit(
+                            f"APK CONTENT GATE FAILED: actual GLB is missing the embedded licensed exterior panel "
+                            f"for {pair[0]} / {pair[1]}: {exc}"
+                        ) from exc
+                    verified_facade_glb_panels += 1
 
             missing_art = [p for p in REQUIRED_ASSET_MANIFESTS if p not in names]
             if missing_art:
@@ -248,6 +347,7 @@ def main() -> int:
                 f"Buildings with source floor counts: {source_floors}",
                 f"Independently verified floor counts: {verified_floors}",
                 f"Licensed exterior façade panels in packaged manifest: {declared_panel_count}",
+                f"Licensed exterior façade panels confirmed inside actual GLBs: {verified_facade_glb_panels}",
                 f"Approved exterior photo IDs present: {len(required_facade_ids & facade_image_ids)}/{len(required_facade_ids)}" if args.map_package == "shariatpur_review" else "Approved Shariatpur photo coverage: not applicable",
                 f"Interior reference photo assets SHA-256 verified and linked to runtime seeds: {verified_interior_photos}/{len(interior_matches)}",
                 f"Core art pack manifests present: {len(REQUIRED_ASSET_MANIFESTS)}/{len(REQUIRED_ASSET_MANIFESTS)}",
