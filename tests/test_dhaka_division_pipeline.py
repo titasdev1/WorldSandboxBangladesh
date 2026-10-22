@@ -974,5 +974,36 @@ class QuaterniusCharacterDependencyTests(unittest.TestCase):
                     extract_character_dependencies(archive_path, unpacked)
 
 
+class LicensedFacadeDownloaderUrlTests(unittest.TestCase):
+    def test_commons_thumbnail_uses_remote_filename_not_local_output_alias(self):
+        import hashlib
+        from urllib.parse import quote
+        from tools.map_pipeline.fetch_licensed_facade_images import wikimedia_thumbnail_url
+
+        item = {
+            "source_page": "https://commons.wikimedia.org/wiki/File:Manasha_Temple,_Shariatpur_(back_view).jpg",
+            # The pipeline intentionally uses a shorter local filename.
+            "file_name": "manasha_temple_shariatpur_back_view.jpg",
+        }
+        actual = wikimedia_thumbnail_url(item)
+        source_filename = "Manasha_Temple,_Shariatpur_(back_view).jpg"
+        digest = hashlib.md5(source_filename.encode("utf-8")).hexdigest()
+        encoded = quote(source_filename, safe="()_,.-")
+        expected = (
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/"
+            f"{digest[0]}/{digest[:2]}/{encoded}/1024px-{encoded}"
+        )
+        self.assertEqual(actual, expected)
+        self.assertNotIn(item["file_name"], actual)
+
+    def test_thumbnail_url_rejects_non_commons_source(self):
+        from tools.map_pipeline.fetch_licensed_facade_images import wikimedia_thumbnail_url
+
+        self.assertIsNone(wikimedia_thumbnail_url({
+            "source_page": "https://example.com/wiki/File:photo.jpg",
+            "file_name": "photo.jpg",
+        }))
+
+
 if __name__ == "__main__":
     unittest.main()
