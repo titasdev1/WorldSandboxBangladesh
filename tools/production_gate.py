@@ -101,6 +101,7 @@ for token in (
     "func _try_load_authored_hero() -> void:",
     "func _update_authored_animation(body: CharacterBody3D, planar_speed: float) -> void:",
     "AUTHORED_HERO_READY",
+    "AUTHORED_HERO_GEAR_READY",
     "AUTHORED_HERO_FALLBACK",
     "_procedural_root.visible = false",
 ):
@@ -118,6 +119,9 @@ for workflow_path in (".github/workflows/android.yml", ".github/workflows/valida
 hero_android_workflow_text = (ROOT / ".github" / "workflows" / "android.yml").read_text(encoding="utf-8")
 if "external_content/quaternius_hero/**" not in hero_android_workflow_text or "Fetch and validate the CC0 rigged player hero" not in hero_android_workflow_text:
     raise SystemExit("PRODUCTION GATE FAILED: canonical Android export does not fetch/import the rigged CC0 hero before Godot export")
+hero_validation_workflow_text = (ROOT / ".github" / "workflows" / "validate-godot.yml").read_text(encoding="utf-8")
+if "AUTHORED_HERO_GEAR_READY" not in hero_android_workflow_text or "AUTHORED_HERO_GEAR_READY" not in hero_validation_workflow_text:
+    raise SystemExit("PRODUCTION GATE FAILED: runtime validation does not verify the playable hero's attached gear layer.")
 if "AUTHORED_HERO_READY" not in hero_android_workflow_text or "Project_A_Square_Hero.glb" not in (ROOT / "tools" / "verify_apk_contents.py").read_text(encoding="utf-8"):
     raise SystemExit("PRODUCTION GATE FAILED: authored hero activation/package verification is disconnected")
 export_presets_text = (ROOT / "export_presets.cfg").read_text(encoding="utf-8")

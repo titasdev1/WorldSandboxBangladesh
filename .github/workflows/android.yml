@@ -377,6 +377,10 @@ jobs:
               echo "ERROR: CC0 hero asset is available but the game did not activate its imported rig/animations."
               exit 1
             fi
+            if ! grep -Fq "AUTHORED_HERO_GEAR_READY" "$GODOT_DIR/startup.log"; then
+              echo "ERROR: CC0 hero activated but scale-matched combat gear was not created at runtime."
+              exit 1
+            fi
           fi
 
       - name: Fetch optional CC0 vehicle art

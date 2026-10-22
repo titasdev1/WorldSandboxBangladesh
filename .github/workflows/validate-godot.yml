@@ -119,6 +119,10 @@ jobs:
               echo "CC0 hero asset is available but the runtime did not activate it." >&2
               exit 1
             }
+            grep -Fq "AUTHORED_HERO_GEAR_READY" "$RUNNER_TEMP/godot/startup.log" || {
+              echo "CC0 hero activated but scale-matched combat gear was not created at runtime." >&2
+              exit 1
+            }
           fi
 
       - name: Upload validation logs

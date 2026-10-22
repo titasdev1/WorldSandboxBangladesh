@@ -293,6 +293,7 @@ func _build_authored_combat_gear() -> void:
     _box(gear, "GearBackpackFlap", Vector3(0, 1.435, 0.215), Vector3(0.25, 0.07, 0.18), armor_edge, 0.88)
     _box(gear, "GearBackpackStrapL", Vector3(-0.14, 1.31, 0.09), Vector3(0.045, 0.30, 0.035), webbing, 0.92)
     _box(gear, "GearBackpackStrapR", Vector3(0.14, 1.31, 0.09), Vector3(0.045, 0.30, 0.035), webbing, 0.92)
+    print("AUTHORED_HERO_GEAR_READY • pieces=%d • normalized_to_rig=true" % gear.get_child_count())
 
 
 func _play_authored_animation(state: String) -> void:
