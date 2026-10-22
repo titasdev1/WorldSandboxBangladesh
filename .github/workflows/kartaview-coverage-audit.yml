@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: kartaview-coverage-\${{ github.ref }}
+  group: kartaview-coverage-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -41,6 +41,9 @@ jobs:
             --bbox 23.003880881,90.220512089,23.451613610,90.607763484 \
             --zoom 12 \
             --max-requests 90 \
+            --photo-grid 3 \
+            --photo-max-queries 5 \
+            --photo-radius-m 500 \
             --allow-partial \
             --out build/kartaview-coverage | tee build-kartaview-summary.json
           python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
@@ -53,7 +56,10 @@ jobs:
           print(f"- Coverage track lines: {report['coverage_track_count']}")
           print(f"- Tracks matched to OSM: {report['matched_to_osm_track_count']}")
           print(f"- Failed coverage tiles: {report['failed_tile_count']}")
-          print("- Licence: CC BY-SA 4.0; this run fetches coverage metadata only, not photos.")
+          print(f"- Photo metadata queries: {report['photo_query_count']}")
+          print(f"- 360 photo candidates inside district bbox: {report['unique_360_photo_candidates_inside_bbox']}")
+          print(f"- Failed photo queries: {len(report['photo_query_failures'])}")
+          print("- Licence: CC BY-SA 4.0; this run fetches metadata only, not panorama bytes.")
           for failure in report['failed_tiles'][:10]:
               print(f"  - Failed tile z={failure['zoom']} x={failure['x']} y={failure['y']}: {failure['error']}")
           print("\nA coverage line is not proof that a particular building facade is visible or identified.")
@@ -66,6 +72,8 @@ jobs:
             build/kartaview-coverage/kartaview_coverage.geojson
             build/kartaview-coverage/kartaview_coverage_report.json
             build/kartaview-coverage/KARTAVIEW_ATTRIBUTION.txt
+            build/kartaview-coverage/kartaview_360_photo_candidates.json
+            build/kartaview-coverage/kartaview_360_photo_candidates.geojson
           if-no-files-found: error
           retention-days: 30
           compression-level: 6

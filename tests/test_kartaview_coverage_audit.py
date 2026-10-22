@@ -86,6 +86,52 @@ class KartaViewCoverageAuditTests(unittest.TestCase):
         self.assertGreaterEqual(first[1], bbox[0])
         self.assertLessEqual(last[1], bbox[2])
 
+    def test_bounded_photo_queries_deduplicate_360_candidates(self):
+        photo = {
+            "id": "photo-360-1",
+            "lat": "23.185",
+            "lng": "90.345",
+            "fieldOfView": "360",
+            "projection": "SPHERE",
+            "heading": "180",
+            "fileurl": "https://storage.openstreetcam.org/example.jpg",
+            "sequence": {"id": "sequence-1", "userId": 77},
+        }
+        calls = []
+        def fake_fetch(url):
+            calls.append(url)
+            if "/sequence/tiles/" in url:
+                return {"lines": []}
+            return {"result": {"data": [photo]}}
+        result = audit_coverage(
+            (23.18, 90.34, 23.19, 90.35),
+            zoom=12,
+            max_requests=10,
+            fetch_json=fake_fetch,
+            photo_grid_size=2,
+            max_photo_queries=3,
+        )
+        scan = result["photo_candidates"]
+        self.assertEqual(scan["query_count"], 3)
+        self.assertEqual(scan["unique_360_photo_candidates_inside_bbox"], 1)
+        self.assertEqual(scan["candidates"][0]["sequence_id"], "sequence-1")
+        self.assertEqual(scan["candidates"][0]["contributor_id"], "77")
+        self.assertEqual(len(calls), result["report"]["request_count"])
+        self.assertEqual(result["report"]["photo_query_count"], 3)
+
+    def test_photo_queries_are_included_in_request_cap(self):
+        fake = Mock(return_value={"lines": []})
+        with self.assertRaisesRegex(ValueError, "coverage plus 360-photo scan requires"):
+            audit_coverage(
+                (23.18, 90.34, 23.19, 90.35),
+                zoom=12,
+                max_requests=5,
+                fetch_json=fake,
+                photo_grid_size=2,
+                max_photo_queries=3,
+            )
+        fake.assert_not_called()
+
     def test_too_many_tile_requests_fail_before_network_calls(self):
         fake = Mock()
         with self.assertRaisesRegex(ValueError, "above the safe cap"):

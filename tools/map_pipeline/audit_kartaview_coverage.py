@@ -124,12 +124,11 @@ def discover_360_photo_candidates(
     grid_size: int = 0,
     max_queries: int = 0,
     radius_m: int = 500,
-    fetch_json=_fetch_json,
-    photo_grid_size: int = 0,
-    max_photo_queries: int = 0,
-    photo_radius_m: int = 500,
+    fetch_json=None,
 ) -> dict[str, Any]:
     """Probe a bounded grid for 360-degree photo metadata; never downloads image bytes."""
+    if fetch_json is None:
+        fetch_json = _fetch_json
     if radius_m < 1 or radius_m > 500:
         raise ValueError("photo query radius must be between 1 and 500 metres")
     sample_points = _photo_grid_points(bbox, grid_size, max_queries)
@@ -391,6 +390,9 @@ def audit_coverage(
     zoom: int = 12,
     max_requests: int = 90,
     fetch_json=_fetch_json,
+    photo_grid_size: int = 0,
+    max_photo_queries: int = 0,
+    photo_radius_m: int = 500,
 ) -> dict[str, Any]:
     """Fetch bounded coverage tiles and return GeoJSON plus a reproducible report."""
     tiles = tiles_for_bbox(bbox, zoom)
