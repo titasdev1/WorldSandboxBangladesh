@@ -69,7 +69,81 @@ def _candidate_line_lists(payload: Any) -> list[Any]:
     return [value for value in candidates if isinstance(value, list)]
 
 
-def parse_coverage_tracks(payload: Any, zoom: int, x: int, y: int) -> list[dict[str, Any]]:
+def _clip_segment_to_bbox(
+    start: list[float],
+    end: list[float],
+    bbox: tuple[float, float, float, float],
+) -> tuple[list[float], list[float]] | None:
+    """Liang-Barsky clipping of one lon/lat segment to a bounding rectangle."""
+    south, west, north, east = bbox
+    x0, y0 = start
+    x1, y1 = end
+    dx, dy = x1 - x0, y1 - y0
+    p_values = (-dx, dx, -dy, dy)
+    q_values = (x0 - west, east - x0, y0 - south, north - y0)
+    u0, u1 = 0.0, 1.0
+    for p, q in zip(p_values, q_values):
+        if abs(p) < 1e-15:
+            if q < 0:
+                return None
+            continue
+        ratio = q / p
+        if p < 0:
+            if ratio > u1:
+                return None
+            u0 = max(u0, ratio)
+        else:
+            if ratio < u0:
+                return None
+            u1 = min(u1, ratio)
+    if u0 > u1:
+        return None
+    clipped_start = [x0 + u0 * dx, y0 + u0 * dy]
+    clipped_end = [x0 + u1 * dx, y0 + u1 * dy]
+    return clipped_start, clipped_end
+
+
+def clip_polyline_to_bbox(
+    coordinates: list[list[float]],
+    bbox: tuple[float, float, float, float],
+) -> list[list[list[float]]]:
+    """Clip a polyline to bbox; retain separate inside segments when it exits/re-enters."""
+    output: list[list[list[float]]] = []
+    current: list[list[float]] = []
+    epsilon = 1e-9
+    for start, end in zip(coordinates, coordinates[1:]):
+        clipped = _clip_segment_to_bbox(start, end, bbox)
+        if clipped is None:
+            if len(current) >= 2:
+                output.append(current)
+            current = []
+            continue
+        clipped_start, clipped_end = clipped
+        joins_previous = bool(current) and (
+            abs(current[-1][0] - clipped_start[0]) <= epsilon
+            and abs(current[-1][1] - clipped_start[1]) <= epsilon
+        )
+        if not joins_previous:
+            if len(current) >= 2:
+                output.append(current)
+            current = [clipped_start]
+        if not current or (
+            abs(current[-1][0] - clipped_end[0]) > epsilon
+            or abs(current[-1][1] - clipped_end[1]) > epsilon
+        ):
+            current.append(clipped_end)
+    if len(current) >= 2:
+        output.append(current)
+    return output
+
+
+def parse_coverage_tracks(
+    payload: Any,
+    zoom: int,
+    x: int,
+    y: int,
+    bbox: tuple[float, float, float, float] | None = None,
+) -> list[dict[str, Any]]:
     """Normalize documented KartaView track arrays into GeoJSON features."""
     lines = next(iter(_candidate_line_lists(payload)), [])
     features: list[dict[str, Any]] = []
@@ -93,10 +167,17 @@ def parse_coverage_tracks(payload: Any, zoom: int, x: int, y: int) -> list[dict[
             coords.append([lon, lat])
         if len(coords) < 2:
             continue
+        clipped_segments = [coords] if bbox is None else clip_polyline_to_bbox(coords, bbox)
+        if not clipped_segments:
+            continue
+        if len(clipped_segments) == 1:
+            geometry = {"type": "LineString", "coordinates": clipped_segments[0]}
+        else:
+            geometry = {"type": "MultiLineString", "coordinates": clipped_segments}
         matched_value = str(line.get("matched", "")).strip().lower()
         features.append({
             "type": "Feature",
-            "geometry": {"type": "LineString", "coordinates": coords},
+            "geometry": geometry,
             "properties": {
                 "source": "KartaView",
                 "dataset": DATASET_ATTRIBUTION,
@@ -166,7 +247,7 @@ def audit_coverage(
     for zoom_value, x, y in tiles:
         url = f"{API_ROOT}/{x}/{y}/{zoom_value}.json"
         try:
-            tile_features = parse_coverage_tracks(fetch_json(url), zoom_value, x, y)
+            tile_features = parse_coverage_tracks(fetch_json(url), zoom_value, x, y, bbox)
             if tile_features:
                 tiles_with_tracks += 1
                 features.extend(tile_features)

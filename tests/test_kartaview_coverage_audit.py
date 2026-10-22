@@ -58,6 +58,34 @@ class KartaViewCoverageAuditTests(unittest.TestCase):
         self.assertEqual(result["report"]["failed_tile_count"], result["report"]["tile_count"])
         self.assertEqual(result["report"]["coverage_track_count"], 0)
 
+    def test_outside_tracks_are_not_counted_as_shariatpur_coverage(self):
+        payload = {"lines": [{
+            "matched": "1",
+            "track": [
+                {"lat": "23.3995", "lng": "90.1880"},
+                {"lat": "23.3990", "lng": "90.2140"},
+            ],
+        }]}
+        bbox = (23.003880881, 90.220512089, 23.451613610, 90.607763484)
+        self.assertEqual(parse_coverage_tracks(payload, 12, 3074, 1774, bbox), [])
+
+    def test_edge_crossing_track_is_clipped_to_bbox_boundary(self):
+        payload = {"lines": [{
+            "matched": "1",
+            "track": [
+                {"lat": "23.3995", "lng": "90.2140"},
+                {"lat": "23.3990", "lng": "90.2300"},
+            ],
+        }]}
+        bbox = (23.003880881, 90.220512089, 23.451613610, 90.607763484)
+        features = parse_coverage_tracks(payload, 12, 3074, 1774, bbox)
+        self.assertEqual(len(features), 1)
+        first, last = features[0]["geometry"]["coordinates"]
+        self.assertAlmostEqual(first[0], 90.220512089, places=9)
+        self.assertAlmostEqual(last[0], 90.2300, places=6)
+        self.assertGreaterEqual(first[1], bbox[0])
+        self.assertLessEqual(last[1], bbox[2])
+
     def test_too_many_tile_requests_fail_before_network_calls(self):
         fake = Mock()
         with self.assertRaisesRegex(ValueError, "above the safe cap"):
