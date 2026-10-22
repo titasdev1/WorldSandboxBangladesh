@@ -210,8 +210,81 @@ func _try_load_authored_hero() -> void:
 
     _procedural_root.visible = false
     _authored_hero_ready = true
+    if is_player_character:
+        _build_authored_combat_gear()
     _play_authored_animation("idle")
     print("AUTHORED_HERO_READY • height=1.8m • clips=%d • source=Quaternius-CC0" % hero_clip_count)
+
+
+func _build_authored_combat_gear() -> void:
+    # The imported humanoid's procedural body/detail layer is intentionally hidden
+    # after rig activation. Keep a separate, scale-matched gear layer visible on the
+    # real animated hero instead of losing all readable clothing equipment details.
+    if get_node_or_null("AuthoredCombatGear") != null:
+        return
+    var gear := Node3D.new()
+    gear.name = "AuthoredCombatGear"
+    add_child(gear)
+
+    var armor := Color("#343c32")
+    var armor_edge := Color("#535b4a")
+    var pouch := Color("#4a5142")
+    var webbing := Color("#262c27")
+    var metal := Color("#666d65")
+    var cloth := Color("#303934")
+
+    # Chest carrier, front plate, segmented MOLLE rows, shoulder straps and side bands.
+    _box(gear, "GearPlateCarrier", Vector3(0, 1.205, -0.205), Vector3(0.43, 0.39, 0.075), armor, 0.88)
+    _box(gear, "GearFrontPlate", Vector3(0, 1.225, -0.249), Vector3(0.315, 0.25, 0.025), armor_edge, 0.82)
+    for row in range(3):
+        var row_y := 1.135 + float(row) * 0.078
+        _box(gear, "GearMolleBand_%d" % row, Vector3(0, row_y, -0.265), Vector3(0.33, 0.018, 0.016), webbing, 0.9)
+    for side in [-1.0, 1.0]:
+        var side_label := "L" if side < 0.0 else "R"
+        var strap := _box(gear, "GearShoulderStrap_%s" % side_label,
+            Vector3(side * 0.155, 1.405, -0.075), Vector3(0.075, 0.31, 0.075), webbing, 0.92)
+        strap.rotation.z = -side * 0.16
+        _box(gear, "GearSideBand_%s" % side_label,
+            Vector3(side * 0.215, 1.19, 0.005), Vector3(0.04, 0.25, 0.25), armor, 0.9)
+
+    # Four front magazine/utility pouches with individual lid seams and fasteners.
+    for index in range(4):
+        var pouch_x := (float(index) - 1.5) * 0.083
+        var pouch_y := 1.085 if index < 2 else 1.105
+        var pouch_z := -0.283
+        _box(gear, "GearMagazinePouch_%d" % index,
+            Vector3(pouch_x, pouch_y, pouch_z), Vector3(0.073, 0.105, 0.048), pouch, 0.9)
+        _box(gear, "GearMagazineFlap_%d" % index,
+            Vector3(pouch_x, pouch_y + 0.042, pouch_z - 0.028), Vector3(0.069, 0.022, 0.012), armor_edge, 0.86)
+        _box(gear, "GearMagazineSnap_%d" % index,
+            Vector3(pouch_x, pouch_y + 0.044, pouch_z - 0.036), Vector3(0.012, 0.012, 0.008), metal, 0.42, 0.35)
+
+    # Load-bearing waist belt, buckle, side pouch and radio battery/antenna.
+    _box(gear, "GearWaistBelt", Vector3(0, 0.935, 0.0), Vector3(0.50, 0.075, 0.34), webbing, 0.9)
+    _box(gear, "GearBeltBuckle", Vector3(0, 0.935, -0.178), Vector3(0.085, 0.058, 0.025), metal, 0.44, 0.35)
+    _box(gear, "GearUtilityPouch", Vector3(0.245, 0.915, -0.055), Vector3(0.115, 0.13, 0.105), pouch, 0.9)
+    _box(gear, "GearUtilityFlap", Vector3(0.245, 0.972, -0.113), Vector3(0.105, 0.023, 0.015), armor_edge, 0.84)
+    _box(gear, "GearRadio", Vector3(-0.22, 1.37, -0.095), Vector3(0.074, 0.15, 0.073), cloth, 0.68)
+    _box(gear, "GearRadioScreen", Vector3(-0.22, 1.385, -0.136), Vector3(0.043, 0.047, 0.012), Color("#7fa99a"), 0.36)
+    _box(gear, "GearRadioAntenna", Vector3(-0.245, 1.48, -0.088), Vector3(0.012, 0.095, 0.012), webbing, 0.7)
+
+    # Knee panels, boot toe caps and ankle cuffs add silhouette breaks below the vest.
+    for side in [-1.0, 1.0]:
+        var side_label := "L" if side < 0.0 else "R"
+        _box(gear, "GearKneePad_%s" % side_label,
+            Vector3(side * 0.15, 0.535, -0.126), Vector3(0.145, 0.15, 0.055), armor, 0.87)
+        _box(gear, "GearKneeRidge_%s" % side_label,
+            Vector3(side * 0.15, 0.574, -0.158), Vector3(0.11, 0.018, 0.012), armor_edge, 0.82)
+        _box(gear, "GearBootToe_%s" % side_label,
+            Vector3(side * 0.15, 0.115, -0.115), Vector3(0.235, 0.12, 0.30), Color("#242925"), 0.83)
+        _box(gear, "GearBootCuff_%s" % side_label,
+            Vector3(side * 0.15, 0.205, 0.005), Vector3(0.22, 0.055, 0.20), webbing, 0.88)
+
+    # Compact rear pack and stitched top flap; kept low enough not to widen the silhouette excessively.
+    _box(gear, "GearBackpack", Vector3(0, 1.25, 0.205), Vector3(0.32, 0.39, 0.17), armor, 0.92)
+    _box(gear, "GearBackpackFlap", Vector3(0, 1.435, 0.215), Vector3(0.25, 0.07, 0.18), armor_edge, 0.88)
+    _box(gear, "GearBackpackStrapL", Vector3(-0.14, 1.31, 0.09), Vector3(0.045, 0.30, 0.035), webbing, 0.92)
+    _box(gear, "GearBackpackStrapR", Vector3(0.14, 1.31, 0.09), Vector3(0.045, 0.30, 0.035), webbing, 0.92)
 
 
 func _play_authored_animation(state: String) -> void:
