@@ -224,6 +224,14 @@ func _build_authored_combat_gear() -> void:
         return
     var gear := Node3D.new()
     gear.name = "AuthoredCombatGear"
+    # HumanoidVisual is globally normalized to 0.90 scale; cancel that parent
+    # scale for this overlay so its 1.8 m measurements line up with the imported
+    # hero, instead of turning the armor into a too-small set of props.
+    gear.scale = Vector3(
+        1.0 / maxf(absf(scale.x), 0.01),
+        1.0 / maxf(absf(scale.y), 0.01),
+        1.0 / maxf(absf(scale.z), 0.01)
+    )
     add_child(gear)
 
     var armor := Color("#343c32")
