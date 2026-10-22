@@ -106,6 +106,15 @@ for token in (
 ):
     if token not in character_visual_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: rigged hero is not safely integrated into the player visual: {token}")
+hero_fetcher_text = (ROOT / "tools" / "fetch_quaternius_character.py").read_text(encoding="utf-8")
+hero_verifier_text = (ROOT / "tools" / "verify_quaternius_character.py").read_text(encoding="utf-8")
+regular_model = "Base Characters/Godot - UE/Regular_Male_FullBody.gltf"
+if regular_model not in hero_fetcher_text or regular_model not in hero_verifier_text:
+    raise SystemExit("PRODUCTION GATE FAILED: the playable hero must use and verify the natural-proportion Regular Male model.")
+for workflow_path in (".github/workflows/android.yml", ".github/workflows/validate-godot.yml"):
+    workflow_text = (ROOT / workflow_path).read_text(encoding="utf-8")
+    if "quaternius-hero-v2-regular-male" not in workflow_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: {workflow_path} may restore a cached superhero-proportion model.")
 hero_android_workflow_text = (ROOT / ".github" / "workflows" / "android.yml").read_text(encoding="utf-8")
 if "external_content/quaternius_hero/**" not in hero_android_workflow_text or "Fetch and validate the CC0 rigged player hero" not in hero_android_workflow_text:
     raise SystemExit("PRODUCTION GATE FAILED: canonical Android export does not fetch/import the rigged CC0 hero before Godot export")
