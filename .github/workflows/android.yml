@@ -299,7 +299,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: external_content/quaternius_hero
-          key: ${{ runner.os }}-quaternius-hero-v2-regular-male-fdbf1804-cc73fc4e-4008ea20
+          key: ${{ runner.os }}-quaternius-hero-v3-superhero-pinned-source-fdbf1804-cc73fc4e-4008ea20
 
       - name: Fetch and validate the CC0 rigged player hero
         shell: bash
