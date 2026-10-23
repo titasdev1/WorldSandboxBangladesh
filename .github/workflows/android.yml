@@ -59,7 +59,7 @@ permissions:
 
 concurrency:
   group: canonical-android-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
