@@ -35,6 +35,11 @@ var _road_labels_by_tile: Dictionary = {}
 var _navigation_index: Dictionary = {}
 var _navigation_graph: Dictionary = {}
 var _navigation_node_positions: Dictionary = {}
+var _navigation_display_routes: Array = []
+var _minimap_route_cache: Array = []
+var _minimap_route_cache_bucket := Vector2i(2147483647, 2147483647)
+var _minimap_route_cache_radius_bucket := -1
+var _failed_tile_load_paths: Array[String] = []
 var _navigation_route: Array[Vector3] = []
 var _navigation_steps: Array[Dictionary] = []
 var _navigation_mode := "driving"
@@ -144,9 +149,15 @@ func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.j
 	if valid_records.is_empty():
 		return false
 	_records = valid_records
+	_failed_tile_load_paths.clear()
 	_load_navigation_index()
 	_ready_for_streaming = true
 	_stream_tiles(Vector3.ZERO)
+	if _loaded.is_empty():
+		_ready_for_streaming = false
+		push_error("REAL_MAP_LOAD_FAILED: map manifest is valid, but no GLB tile scene could be instantiated at the player start.")
+		return false
+	print("REAL_MAP_INITIAL_TILES: ", _loaded.size(), " / ", _records.size())
 	return true
 
 func _process(delta: float) -> void:
@@ -219,6 +230,63 @@ func get_road_routes() -> Array:
 	return result
 
 
+# Draw source-coordinate roads even before a particular GLB tile finishes loading.
+# This prevents the minimap from silently falling back to the old fictional grid.
+func get_minimap_road_routes(world_position: Vector3, radius_m: float) -> Array:
+	var bucket := Vector2i(floori(world_position.x / 100.0), floori(world_position.z / 100.0))
+	var radius_bucket := int(round(radius_m / 100.0))
+	if bucket == _minimap_route_cache_bucket and radius_bucket == _minimap_route_cache_radius_bucket:
+		return _minimap_route_cache
+	var center := Vector2((float(bucket.x) + 0.5) * 100.0, (float(bucket.y) + 0.5) * 100.0)
+	var reach := maxf(radius_m + 240.0, 320.0)
+	var left := center.x - reach
+	var right := center.x + reach
+	var top := center.y - reach
+	var bottom := center.y + reach
+	var source_routes: Array = _navigation_display_routes
+	if source_routes.is_empty():
+		source_routes = get_road_routes()
+	var result: Array = []
+	for route in source_routes:
+		if not (route is Array) or route.size() < 2:
+			continue
+		var min_x := INF
+		var max_x := -INF
+		var min_z := INF
+		var max_z := -INF
+		for point in route:
+			if not (point is Vector3):
+				continue
+			min_x = minf(min_x, point.x)
+			max_x = maxf(max_x, point.x)
+			min_z = minf(min_z, point.z)
+			max_z = maxf(max_z, point.z)
+		if min_x <= right and max_x >= left and min_z <= bottom and max_z >= top:
+			result.append(route)
+	_minimap_route_cache = result
+	_minimap_route_cache_bucket = bucket
+	_minimap_route_cache_radius_bucket = radius_bucket
+	return _minimap_route_cache
+
+
+func get_runtime_map_diagnostics() -> Dictionary:
+	var road_records: Variant = _navigation_index.get("roads", [])
+	var place_records: Variant = _navigation_index.get("places", [])
+	return {
+		"map_name": _map_display_name,
+		"ready": _ready_for_streaming,
+		"tile_records": _records.size(),
+		"loaded_tiles": _loaded.size(),
+		"failed_tile_loads": _failed_tile_load_paths.size(),
+		"navigation_roads": road_records.size() if road_records is Array else 0,
+		"navigation_places": place_records.size() if place_records is Array else 0,
+		"indexed_display_routes": _navigation_display_routes.size(),
+		"loaded_display_routes": get_road_routes().size(),
+		"origin_lat_lon": [_manifest_origin_lat, _manifest_origin_lon],
+		"map_packs_mounted": _mounted_map_packs.size(),
+	}
+
+
 func get_vehicle_route_records() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for records in _vehicle_route_records_by_tile.values():
@@ -283,6 +351,10 @@ func _load_navigation_index() -> void:
 	_navigation_index.clear()
 	_navigation_graph.clear()
 	_navigation_node_positions.clear()
+	_navigation_display_routes.clear()
+	_minimap_route_cache.clear()
+	_minimap_route_cache_bucket = Vector2i(2147483647, 2147483647)
+	_minimap_route_cache_radius_bucket = -1
 	var index_path := MAP_ROOT + "/real_world_navigation_index.json"
 	if not FileAccess.file_exists(index_path):
 		push_warning("Map has no named-place/routing index; coordinate teleport remains available.")
@@ -307,6 +379,16 @@ func _load_navigation_index() -> void:
 		for path in paths:
 			if not (path is Array) or path.size() < 2:
 				continue
+			var display_route: Array[Vector3] = []
+			for coordinate in path:
+				if not (coordinate is Array and coordinate.size() >= 2):
+					continue
+				var display_point := _geo_to_world(float(coordinate[1]), float(coordinate[0]))
+				display_point.y = 0.12
+				if display_route.is_empty() or display_route[display_route.size() - 1].distance_to(display_point) >= 1.0:
+					display_route.append(display_point)
+			if display_route.size() >= 2:
+				_navigation_display_routes.append(display_route)
 			for i in range(1, path.size()):
 				var a: Variant = path[i - 1]
 				var b: Variant = path[i]
@@ -799,6 +881,17 @@ func _stream_tiles(player_position: Vector3) -> void:
 		var distance := Vector2(player_position.x - tile_position.x, player_position.z - tile_position.z).length()
 		if distance <= _load_radius_m:
 			desired[str(record["tile_id"])] = record
+	# Never silently accept an origin outside the radius of every emitted tile.
+	if desired.is_empty() and not _records.is_empty():
+		var nearest_record: Dictionary = _records[0]
+		var nearest_distance := INF
+		for record in _records:
+			var tile_position: Vector3 = record["world_position"]
+			var distance := Vector2(player_position.x - tile_position.x, player_position.z - tile_position.z).length()
+			if distance < nearest_distance:
+				nearest_distance = distance
+				nearest_record = record
+		desired[str(nearest_record.get("tile_id", ""))] = nearest_record
 	for key in _loaded.keys():
 		var record: Dictionary = _loaded[key]
 		var tile_position: Vector3 = record["world_position"]
@@ -835,12 +928,18 @@ func _stream_tiles(player_position: Vector3) -> void:
 		if loaded_this_tick >= MAX_TILE_LOADS_PER_STREAM_TICK:
 			break
 		var record: Dictionary = desired[key]
-		var packed := load(str(record["full_path"])) as PackedScene
+		var full_path := str(record["full_path"])
+		var packed := load(full_path) as PackedScene
 		if packed == null:
-			push_warning("Could not import real Dhaka tile: " + str(record["full_path"]))
+			if not _failed_tile_load_paths.has(full_path):
+				_failed_tile_load_paths.append(full_path)
+			push_error("REAL_MAP_TILE_LOAD_FAILED: could not load imported GLB scene: " + full_path)
 			continue
 		var instance := packed.instantiate() as Node3D
 		if instance == null:
+			if not _failed_tile_load_paths.has(full_path):
+				_failed_tile_load_paths.append(full_path)
+			push_error("REAL_MAP_TILE_INSTANTIATE_FAILED: imported GLB did not instantiate as Node3D: " + full_path)
 			continue
 		instance.name = str(record["tile_id"])
 		instance.position = record["world_position"]

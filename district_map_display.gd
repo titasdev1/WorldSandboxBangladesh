@@ -114,7 +114,11 @@ func _draw() -> void:
  if real_map:
   var loader = world.get("real_dhaka_loader")
   if is_instance_valid(loader) and loader.has_method("get_road_routes"):
-   var routes: Array = loader.get_road_routes()
+   var routes: Array
+   if loader.has_method("get_minimap_road_routes"):
+    routes = loader.call("get_minimap_road_routes", _player_position, range_m)
+   else:
+    routes = loader.get_road_routes()
    for route in routes:
     for i in range(1, route.size()):
      var a3: Vector3 = route[i - 1]

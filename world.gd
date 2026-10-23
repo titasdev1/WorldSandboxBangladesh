@@ -64,6 +64,9 @@ func _ready():
  real_dhaka_loader.name = "RealDhakaTileLoader"
  add_child(real_dhaka_loader)
  real_dhaka_loaded = real_dhaka_loader.configure(self)
+ var map_runtime_report: Dictionary = real_dhaka_loader.get_runtime_map_diagnostics()
+ map_runtime_report["real_map_loaded"] = real_dhaka_loaded
+ print("REAL_MAP_RUNTIME:" + JSON.stringify(map_runtime_report))
  if not real_dhaka_loaded:
   build_city()
   build_landmarks()

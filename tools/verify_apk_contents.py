@@ -169,6 +169,22 @@ def main() -> int:
             if args.map_package == "shariatpur_review":
                 if manifest.get("build_stage") != "shariatpur_review" or not manifest.get("complete_district_map"):
                     raise SystemExit("APK CONTENT GATE FAILED: APK does not contain the selected Shariatpur review district package")
+                origin = manifest.get("game_origin_lat_lon")
+                priority = manifest.get("tile_order_priority", {})
+                seed = priority.get("seed_lat_lon", []) if isinstance(priority, dict) else []
+                if not (isinstance(origin, list) and len(origin) == 2 and
+                        isinstance(seed, list) and len(seed) == 2):
+                    raise SystemExit("APK CONTENT GATE FAILED: Shariatpur world origin or priority seed is missing.")
+                try:
+                    origin_pair = [float(origin[0]), float(origin[1])]
+                    seed_pair = [float(seed[0]), float(seed[1])]
+                except (TypeError, ValueError) as exc:
+                    raise SystemExit("APK CONTENT GATE FAILED: Shariatpur origin/seed is nonnumeric.") from exc
+                if any(abs(a - b) > 0.000001 for a, b in zip(origin_pair, seed_pair)):
+                    raise SystemExit(
+                        "APK CONTENT GATE FAILED: Shariatpur world origin does not match the "
+                        "priority seed; the player could spawn outside the useful streamed map."
+                    )
 
             # Check the explicit licensed interior reference photo actually ships
             # inside the selected tile, matches its checksum, and is linked to an
