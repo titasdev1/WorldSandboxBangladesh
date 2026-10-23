@@ -500,6 +500,26 @@ jobs:
           export/android/debug_keystore_pass = "$WSB_STORE_PASSWORD"
           EOF
 
+      # The preview APK uses a separate package ID so it can coexist with a
+      # previously installed candidate. This avoids forced uninstall/data loss when
+      # the hosted runner has to use a newly generated debug-signing key.
+      - name: Prepare isolated Shariatpur preview package identifier
+        if: ${{ github.event_name == 'pull_request' && github.head_ref == 'feature/real-world-navigation-floor-fidelity-verified' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("export_presets.cfg")
+          content = path.read_text(encoding="utf-8")
+          source = 'package/unique_name="com.titasdev1.worldsandboxbangladesh"'
+          target = 'package/unique_name="com.titasdev1.worldsandboxbangladesh.shariatpurpreview"'
+          if content.count(source) != 1:
+              raise SystemExit("Expected exactly one canonical Android package ID; refusing ambiguous preview export.")
+          path.write_text(content.replace(source, target, 1), encoding="utf-8")
+          print("Preview application ID: com.titasdev1.worldsandboxbangladesh.shariatpurpreview")
+          PY
+
       - name: Export Godot Android APK
         env:
           GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ runner.temp }}/godot-debug.keystore
