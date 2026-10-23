@@ -386,7 +386,7 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
                 self.assertFalse(any(name.endswith("/Dhaka_Explorable_Map.glb") for name in archive.namelist()))
             self.assertIn("Licensed exterior façade panels validated in source GLBs and mapped into APK scenes: 3", result.stdout)
 
-    def test_android_apk_verifier_confirms_authored_hero_bytes_import_and_animation_manifest(self):
+    def test_android_apk_verifier_confirms_authored_hero_source_checksum_and_imported_scene(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             apk_path = root / "candidate.apk"
@@ -394,11 +394,18 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
             with zipfile.ZipFile(apk_path, "r") as archive:
                 members = {name: archive.read(name) for name in archive.namelist()}
 
-            hero_path = "assets/external_content/quaternius_hero/Project_A_Square_Hero.glb"
+            hero_source_path = "external_content/quaternius_hero/Project_A_Square_Hero.glb"
+            hero_apk_path = "assets/" + hero_source_path
             hero_bytes = b"glTF" + b"Project-A-Square-CC0-rigged-hero-test"
+            source_file = root / hero_source_path
+            source_file.parent.mkdir(parents=True, exist_ok=True)
+            source_file.write_bytes(hero_bytes)
+
             hero_manifest_path = "assets/external_content/quaternius_hero/asset_manifest.json"
-            members[hero_path] = hero_bytes
-            members[hero_path + ".import"] = b"remap"
+            remap_path = hero_apk_path + ".import"
+            members[remap_path] = (
+                'path="res://.godot/imported/Project_A_Square_Hero.glb-test.scn"\\n'
+            ).encode("utf-8")
             members["assets/.godot/imported/Project_A_Square_Hero.glb-test.scn"] = b"imported-scene"
             members[hero_manifest_path] = json.dumps({
                 "available": True,
@@ -420,6 +427,11 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
             self.assertIn("Authored CC0 hero packaged/imported: yes", result.stdout)
             self.assertIn("Authored hero imported Godot scenes: 1", result.stdout)
             self.assertIn("Authored hero animation clips: 86", result.stdout)
+            with zipfile.ZipFile(apk_path, "r") as archive:
+                names = set(archive.namelist())
+            self.assertNotIn(hero_apk_path, names, "Godot may omit the original imported source GLB while shipping its scene and remap")
+            self.assertIn(remap_path, names)
+            self.assertIn("assets/.godot/imported/Project_A_Square_Hero.glb-test.scn", names)
 
 
     def test_android_apk_verifier_rejects_wrong_interior_photo_hash(self):
