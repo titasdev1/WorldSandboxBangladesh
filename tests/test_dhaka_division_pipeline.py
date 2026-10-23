@@ -404,7 +404,7 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
             hero_manifest_path = "assets/external_content/quaternius_hero/asset_manifest.json"
             remap_path = hero_apk_path + ".import"
             members[remap_path] = (
-                'path="res://.godot/imported/Project_A_Square_Hero.glb-test.scn"\\n'
+                'path="res://.godot/imported/Project_A_Square_Hero.glb-test.scn"\n'
             ).encode("utf-8")
             members["assets/.godot/imported/Project_A_Square_Hero.glb-test.scn"] = b"imported-scene"
             members[hero_manifest_path] = json.dumps({
