@@ -530,7 +530,7 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("photo_image.load_jpg_from_buffer(photo_bytes)", interior)
         self.assertIn("ImageTexture.create_from_image(photo_image)", interior)
         export_preset = (self.ROOT / "export_presets.cfg").read_text(encoding="utf-8")
-        self.assertIn('include_filter="*.photo_bytes"', export_preset)
+        self.assertIn('include_filter="*.photo_bytes,*.geojson"', export_preset)
         self.assertIn('photo_record.get("asset_relative_path", "")', interior)
         self.assertIn('panel.set_meta("use", "INTERIOR_REFERENCE_ONLY")', interior)
         self.assertIn('hashlib.sha256(photo_data).hexdigest()', verifier)
