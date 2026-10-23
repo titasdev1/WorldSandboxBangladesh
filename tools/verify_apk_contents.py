@@ -166,6 +166,40 @@ def main() -> int:
                 raise SystemExit("APK CONTENT GATE FAILED: tile manifest is empty or internally inconsistent")
             if len(tiles) != 60:
                 raise SystemExit(f"APK CONTENT GATE FAILED: expected current 60-tile district package, found {len(tiles)} tile records")
+
+            # Road traffic, real-map spawn placement and some nearby-road gameplay
+            # consume the per-tile GeoJSON at runtime via FileAccess. Godot's
+            # all_resources export can omit custom *.geojson source files unless
+            # they are explicitly included; a navigation index alone is not a
+            # substitute for each tile's source geometry.
+            verified_geojson_tiles = 0
+            for tile in tiles:
+                if not isinstance(tile, dict):
+                    raise SystemExit("APK CONTENT GATE FAILED: malformed tile record while checking road-source data.")
+                tile_id = str(tile.get("tile_id", "")).strip()
+                relative_geojson = PurePosixPath(str(tile.get("geojson", "")).strip())
+                if (not tile_id or relative_geojson.is_absolute() or not relative_geojson.parts
+                        or any(part in {"", ".", ".."} for part in relative_geojson.parts)
+                        or relative_geojson.parts[0] != tile_id
+                        or relative_geojson.suffix.lower() != ".geojson"):
+                    raise SystemExit(f"APK CONTENT GATE FAILED: tile {tile_id or '<unnamed>'} has no safe road-source GeoJSON path.")
+                geojson_path = MAP_ROOT + relative_geojson.as_posix()
+                if geojson_path not in names:
+                    raise SystemExit(
+                        f"APK CONTENT GATE FAILED: road-source GeoJSON missing from APK: {geojson_path}. "
+                        "The real map may render, but mapped roads/traffic would be unavailable."
+                    )
+                try:
+                    geojson_data = json.loads(apk.read(geojson_path).decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                    raise SystemExit(f"APK CONTENT GATE FAILED: road-source GeoJSON is invalid: {geojson_path}") from exc
+                if not isinstance(geojson_data, dict) or not isinstance(geojson_data.get("features"), list):
+                    raise SystemExit(f"APK CONTENT GATE FAILED: road-source GeoJSON has no feature array: {geojson_path}")
+                verified_geojson_tiles += 1
+            if verified_geojson_tiles != len(tiles):
+                raise SystemExit("APK CONTENT GATE FAILED: not every map tile retained its road-source data.")
+            print(f"Road-source GeoJSON files embedded and validated: {verified_geojson_tiles}/{len(tiles)}")
+
             if args.map_package == "shariatpur_review":
                 if manifest.get("build_stage") != "shariatpur_review" or not manifest.get("complete_district_map"):
                     raise SystemExit("APK CONTENT GATE FAILED: APK does not contain the selected Shariatpur review district package")

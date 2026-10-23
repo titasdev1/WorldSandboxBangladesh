@@ -310,7 +310,10 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
             "game_origin_lat_lon": [23.25, 90.25],
             "tile_count_with_geometry": 60,
             "tile_count_total": 60,
-            "tiles": [{"tile_id": item} for item in tile_ids],
+            "tiles": [
+                {"tile_id": item, "geojson": f"{item}/Dhaka_OSM_Source.geojson"}
+                for item in tile_ids
+            ],
             "interior_reference_photo_matches": [match],
             "interior_reference_photos_embedded": 1,
             "licensed_facade_photo_matches": exterior_matches,
@@ -329,7 +332,26 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         with zipfile.ZipFile(apk_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             archive.writestr(map_root + "map_tiles_manifest.json", json.dumps(manifest))
             archive.writestr(map_root + "real_world_navigation_index.json", json.dumps(navigation))
-            for tile_id in tile_ids:
+            for tile_index, tile_id in enumerate(tile_ids):
+                # Keep the same custom-extension source data required by the
+                # exported game for mapped roads/traffic and tile-local routes.
+                road_feature = {
+                    "type": "Feature",
+                    "properties": {
+                        "osm_id": str(700000 + tile_index),
+                        "highway": "residential",
+                        "name": "Test Road",
+                        "tags": {"highway": "residential", "name": "Test Road"},
+                    },
+                    "geometry": {
+                        "type": "LineString",
+                        "coordinates": [[90.35, 23.2167], [90.351, 23.2177]],
+                    },
+                }
+                archive.writestr(
+                    map_root + tile_id + "/Dhaka_OSM_Source.geojson",
+                    json.dumps({"type": "FeatureCollection", "features": [road_feature] if tile_index == 0 else []}),
+                )
                 tile_matches = exterior_matches if tile_id == photo_tile else []
                 tile_panel_count = len(tile_matches)
                 archive.writestr(
@@ -378,6 +400,34 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
                 "assets/external_content/quaternius_hero/asset_manifest.json",
                 json.dumps({"available": False, "license": "CC0-1.0", "animation_count": 0}),
             )
+
+    def test_android_export_and_apk_verifier_keep_per_tile_geojson_road_data(self):
+        preset = (self.ROOT / "export_presets.cfg").read_text(encoding="utf-8")
+        verifier = (self.ROOT / "tools" / "verify_apk_contents.py").read_text(encoding="utf-8")
+        loader = (self.ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
+        self.assertIn('include_filter="*.photo_bytes,*.geojson"', preset)
+        self.assertIn("Road-source GeoJSON files embedded and validated", verifier)
+        self.assertIn('var relative_geojson := str(record.get("geojson", ""))', loader)
+        self.assertIn('var path := MAP_ROOT + "/" + relative_geojson', loader)
+
+    def test_android_apk_verifier_rejects_missing_road_source_geojson(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            apk_path = root / "candidate.apk"
+            self._make_minimal_shariatpur_apk(apk_path)
+            with zipfile.ZipFile(apk_path, "r") as archive:
+                members = {name: archive.read(name) for name in archive.namelist()}
+            members.pop("assets/assets/world/dhaka_tiles/tile_00/Dhaka_OSM_Source.geojson")
+            with zipfile.ZipFile(apk_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                for name, data in members.items():
+                    archive.writestr(name, data)
+            verifier = self.ROOT / "tools" / "verify_apk_contents.py"
+            result = subprocess.run(
+                [sys.executable, str(verifier), "--apk", str(apk_path), "--map-package", "shariatpur_review"],
+                cwd=root, capture_output=True, text=True, check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("road-source GeoJSON missing from APK", result.stderr)
 
     def test_android_apk_verifier_confirms_interior_photo_bytes_and_seed_link(self):
         with tempfile.TemporaryDirectory() as tmp:
