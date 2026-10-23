@@ -125,8 +125,15 @@ if "AUTHORED_HERO_GEAR_READY" not in hero_android_workflow_text or "AUTHORED_HER
 if "AUTHORED_HERO_READY" not in hero_android_workflow_text or "Project_A_Square_Hero.glb" not in (ROOT / "tools" / "verify_apk_contents.py").read_text(encoding="utf-8"):
     raise SystemExit("PRODUCTION GATE FAILED: authored hero activation/package verification is disconnected")
 export_presets_text = (ROOT / "export_presets.cfg").read_text(encoding="utf-8")
-if 'include_filter="*.photo_bytes"' not in export_presets_text:
-    raise SystemExit("PRODUCTION GATE FAILED: licensed map photo bytes are not explicitly included in Android export")
+# The Android preset must retain both the licensed-image payloads used by
+# interior references and the tile-local GeoJSON needed by real-world roads,
+# mapped traffic, spawn placement and navigation. Requiring the old exact
+# single-glob string would reject the safe comma-separated combined filter.
+if '*.photo_bytes' not in export_presets_text or '*.geojson' not in export_presets_text:
+    raise SystemExit(
+        "PRODUCTION GATE FAILED: Android export must explicitly include both "
+        "licensed map photo bytes (*.photo_bytes) and real-road source data (*.geojson)"
+    )
 interior_factory_text = (ROOT / "systems/interior_factory.gd").read_text(encoding="utf-8")
 if "FileAccess.get_file_as_bytes(texture_path)" not in interior_factory_text or "ImageTexture.create_from_image(photo_image)" not in interior_factory_text:
     raise SystemExit("PRODUCTION GATE FAILED: interior reference photos still depend on untracked dynamic image imports")
