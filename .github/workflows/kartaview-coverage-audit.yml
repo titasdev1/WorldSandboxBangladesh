@@ -7,7 +7,7 @@ on:
       - ".github/workflows/kartaview-coverage-audit.yml"
       - "MAP_PIPELINE.md"
   push:
-    branches: [main]
+    branches: [main, "feature/real-world-navigation-floor-fidelity-verified"]
     paths:
       - "tools/map_pipeline/audit_kartaview_coverage.py"
       - ".github/workflows/kartaview-coverage-audit.yml"
@@ -23,9 +23,9 @@ concurrency:
 
 jobs:
   coverage-audit:
-    # Live public API calls are manual or main-only. PRs run the offline mocked
-    # tests in map-pipeline-tests.yml and must not burn the public hourly quota.
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    # Run one bounded live coverage audit on main or the active development branch.
+    # PRs still use offline mocked tests and do not consume public API quota.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/real-world-navigation-floor-fidelity-verified'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
