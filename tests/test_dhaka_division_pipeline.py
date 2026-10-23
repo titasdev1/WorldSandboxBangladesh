@@ -160,6 +160,13 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         ground_call = factory.index("_expand_ground()", bootstrap_start)
         self.assertLess(real_map_guard, ground_call)
 
+    def test_real_map_loader_checks_imported_glbs_through_resource_loader_for_android_exports(self):
+        loader = (self.ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
+        # Android packs the imported scene/remap for a GLB; the original source
+        # bytes may not be present, so FileAccess.file_exists falsely rejects it.
+        self.assertIn("if not ResourceLoader.exists(full_path):", loader)
+        self.assertNotIn("FileAccess.file_exists(full_path)", loader)
+
     def test_real_map_initial_player_spawn_uses_mapped_roads(self):
         world = (self.ROOT / "world.gd").read_text(encoding="utf-8")
         spawn_start = world.index("func spawn_player():")

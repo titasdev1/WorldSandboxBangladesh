@@ -59,7 +59,9 @@ permissions:
 
 concurrency:
   group: canonical-android-${{ github.ref }}
-  cancel-in-progress: false
+  # Superseded PR revisions are stale validation candidates, not separate releases.
+  # Keep main/manual builds intact while ensuring the latest PR revision gets the runner.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:

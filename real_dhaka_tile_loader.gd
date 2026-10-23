@@ -132,8 +132,11 @@ func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.j
 		if relative_glb.is_empty():
 			continue
 		var full_path := MAP_ROOT + "/" + relative_glb
-		if not FileAccess.file_exists(full_path):
-			push_warning("Real Dhaka map package is incomplete; keeping the existing playable world. Missing: " + full_path)
+		# GLBs are imported resources. Android exports may omit the original .glb
+		# bytes and keep only the .import remap + imported .scn resource. FileAccess
+		# bypasses those remaps and incorrectly rejects an otherwise complete APK.
+		if not ResourceLoader.exists(full_path):
+			push_error("REAL_MAP_RESOURCE_MISSING: imported GLB resource is absent from the exported project: " + full_path)
 			return false
 		var origin: Variant = item.get("origin_lat_lon", [])
 		if not (origin is Array and origin.size() == 2):
