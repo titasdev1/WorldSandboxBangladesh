@@ -298,6 +298,9 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         manifest = {
             "build_stage": "shariatpur_review",
             "complete_district_map": True,
+            "region_south_west_north_east": [23.0, 90.0, 23.5, 90.5],
+            "tile_order_priority": {"seed_lat_lon": [23.25, 90.25]},
+            "game_origin_lat_lon": [23.25, 90.25],
             "tile_count_with_geometry": 60,
             "tile_count_total": 60,
             "tiles": [{"tile_id": item} for item in tile_ids],
