@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.map_pipeline.build_real_world_navigation_index import build_index
+from tools.map_pipeline.build_real_world_navigation_index import build_index, runtime_navigation_projection
 
 
 class RealWorldNavigationIndexTests(unittest.TestCase):
@@ -148,6 +148,33 @@ class RealWorldNavigationIndexTests(unittest.TestCase):
             next(item for item in report["buildings"] if item["osm_id"] == "way/404")["building_type"],
             "wall",
         )
+
+
+    def test_runtime_projection_keeps_named_and_verified_buildings_but_preserves_total_counts(self):
+        report = {
+            "counts": {
+                "buildings": 370110,
+                "buildings_with_independently_verified_floor_count": 1,
+            },
+            "buildings": [
+                {"osm_id": "way/1", "name": "Named Shop", "floor_count_independently_verified": False},
+                {"osm_id": "way/2", "name": None, "floor_count_independently_verified": False},
+                {"osm_id": "way/3", "name": None, "floor_count_independently_verified": True},
+            ],
+            "roads": [{"osm_id": "way/10"}],
+            "places": [{"osm_id": "node/11"}],
+        }
+        runtime = runtime_navigation_projection(report)
+        self.assertEqual(runtime["counts"]["buildings"], 370110)
+        self.assertEqual(runtime["counts"]["searchable_buildings"], 2)
+        self.assertEqual(
+            {building["osm_id"] for building in runtime["buildings"]},
+            {"way/1", "way/3"},
+        )
+        self.assertEqual(len(runtime["roads"]), 1)
+        self.assertEqual(len(runtime["places"]), 1)
+        self.assertEqual(len(report["buildings"]), 3, "full audit report must remain unchanged")
+        self.assertEqual(runtime["runtime_projection"]["total_mapped_buildings"], 370110)
 
 
 
