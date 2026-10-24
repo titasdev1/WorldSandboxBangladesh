@@ -552,8 +552,8 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         ):
             self.assertIn(component, visual)
         self.assertIn("visual.is_player_character = true", world)
-        self.assertIn("camera_distance := 4.8 if Input.is_action_pressed", player)
-        self.assertIn("else 7.4", player)
+        self.assertIn("camera_distance := 4.4 if Input.is_action_pressed", player)
+        self.assertIn("else 6.2", player)
         # Real building footprints stay at their mapped metric dimensions; improving
         # character detail must not scale the world or distort real map coordinates.
         map_builder = (self.ROOT / "tools" / "map_pipeline" / "build_dhaka_map.py").read_text(encoding="utf-8")

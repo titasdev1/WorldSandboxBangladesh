@@ -622,7 +622,7 @@ for token in (
 ):
     if token not in character_visual_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: the rigged hero lost visible attached equipment detail: {token}")
-if "visual.is_player_character = true" not in world_text or "camera_distance := 4.8 if Input.is_action_pressed" not in player_text or "else 7.4" not in player_text:
+if "visual.is_player_character = true" not in world_text or "camera_distance := 4.4 if Input.is_action_pressed" not in player_text or "else 6.2" not in player_text:
     raise SystemExit("PRODUCTION GATE FAILED: hero-detail selection or mobile-readable camera distance was lost.")
 for token in (
     "func _build_player_weapon() -> void:",
