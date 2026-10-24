@@ -1240,6 +1240,7 @@ class PausedStartupStreamingTests(unittest.TestCase):
 
     def test_authored_hero_load_is_threaded_and_keeps_fallback_visible(self):
         visual = (self.ROOT / "character_visual.gd").read_text(encoding="utf-8")
+        self.assertIn("if is_player_character:\n        process_mode = Node.PROCESS_MODE_ALWAYS", visual)
         self.assertIn('ResourceLoader.load_threaded_request(AUTHORED_HERO_PATH, "PackedScene")', visual)
         self.assertIn("ResourceLoader.load_threaded_get_status(AUTHORED_HERO_PATH, progress)", visual)
         self.assertIn("AUTHORED_HERO_LOAD_QUEUED", visual)

@@ -36,9 +36,10 @@ var _authored_hero_load_pending := false
 
 
 func _ready() -> void:
-    # The preview character and authored rig should keep animating while the lobby
-    # pauses the world; gameplay physics remains paused on the parent player.
-    process_mode = Node.PROCESS_MODE_ALWAYS
+    # Only the featured player character needs lobby-time animation. NPC visuals
+    # remain paused so startup does not wake the whole crowd while the lobby is open.
+    if is_player_character:
+        process_mode = Node.PROCESS_MODE_ALWAYS
     # Keep the tested procedural model as a reliable fallback while allowing CI
     # builds to ship a real rigged/textured hero when the pinned CC0 source merges.
     scale = Vector3(0.90, 0.90, 0.90)
