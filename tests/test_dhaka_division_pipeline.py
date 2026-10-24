@@ -1218,7 +1218,8 @@ class AsyncTileBootstrapSafetyTests(unittest.TestCase):
 
     def test_tile_scene_uses_threaded_resource_loading_and_staged_activation(self):
         loader = (self.ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
-        self.assertIn("ResourceLoader.load_threaded_request", loader)
+        self.assertIn('ResourceLoader.load_threaded_request(full_path, "PackedScene")', loader)
+        self.assertNotIn('ResourceLoader.load_threaded_request(full_path, "PackedScene", true)', loader)
         self.assertIn("ResourceLoader.load_threaded_get_status", loader)
         self.assertIn("ResourceLoader.load_threaded_get(full_path)", loader)
         self.assertIn("func _poll_pending_tile_loads()", loader)

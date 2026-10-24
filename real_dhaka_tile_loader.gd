@@ -1047,7 +1047,7 @@ func _stream_tiles(player_position: Vector3) -> void:
 		var full_path := str(record["full_path"])
 		if _failed_tile_load_paths.has(full_path):
 			continue
-		var request_error := ResourceLoader.load_threaded_request(full_path, "PackedScene", true)
+		var request_error := ResourceLoader.load_threaded_request(full_path, "PackedScene")
 		if request_error != OK and request_error != ERR_BUSY:
 			if not _failed_tile_load_paths.has(full_path):
 				_failed_tile_load_paths.append(full_path)
