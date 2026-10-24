@@ -81,6 +81,10 @@ jobs:
         shell: bash
         run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py
 
+      - name: Run navigation-index unit tests
+        shell: bash
+        run: python3 -m unittest discover -s tests -p "test_real_world_navigation_index.py"
+
       # Release/push builds retain Greater Dhaka by default. PR validation uses the
       # latest assembled Shariatpur review package so map/game changes are tested
       # together without promoting the review map as a production release.
@@ -306,6 +310,7 @@ jobs:
             python3 tools/map_pipeline/build_real_world_navigation_index.py \
               --source assets/world/dhaka_tiles \
               --out assets/world/dhaka_tiles/real_world_navigation_index.json
+            --runtime
             python3 - <<'PY'
           import json
           from pathlib import Path
