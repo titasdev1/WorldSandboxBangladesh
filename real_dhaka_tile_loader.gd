@@ -40,6 +40,13 @@ var _minimap_route_cache: Array = []
 var _minimap_route_cache_bucket := Vector2i(2147483647, 2147483647)
 var _minimap_route_cache_radius_bucket := -1
 var _failed_tile_load_paths: Array[String] = []
+# At most one map tile is read/activated at a time. The APK keeps all map data on
+# disk; startup must not synchronously parse and instantiate a whole GLB before
+# the first interactive frame.
+var _pending_tile_loads: Dictionary = {}
+var _activating_tiles: Dictionary = {}
+var _anchor_refresh_in_progress := false
+var _building_collision_refresh_in_progress := false
 var _navigation_route: Array[Vector3] = []
 var _navigation_steps: Array[Dictionary] = []
 var _navigation_mode := "driving"
@@ -155,17 +162,16 @@ func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.j
 	_failed_tile_load_paths.clear()
 	_load_navigation_index()
 	_ready_for_streaming = true
-	_stream_tiles(Vector3.ZERO)
-	if _loaded.is_empty():
-		_ready_for_streaming = false
-		push_error("REAL_MAP_LOAD_FAILED: map manifest is valid, but no GLB tile scene could be instantiated at the player start.")
-		return false
-	print("REAL_MAP_INITIAL_TILES: ", _loaded.size(), " / ", _records.size())
+	print("REAL_MAP_STREAMER_READY: ", _records.size(), " tile records; nearest tile will load asynchronously.")
+	# configure() runs inside World._ready(). Do not block it with GLB parsing,
+	# scene instantiation, collision creation, or interior-marker creation.
+	call_deferred("_start_initial_tile_stream")
 	return true
 
 func _process(delta: float) -> void:
 	if not _ready_for_streaming or _world == null:
 		return
+	_poll_pending_tile_loads()
 	_stream_clock += delta
 	if _stream_clock < STREAM_INTERVAL:
 		return
@@ -183,6 +189,102 @@ func _process(delta: float) -> void:
 			_refresh_loaded_interior_anchors(player_position)
 			_refresh_loaded_building_collisions(player_position)
 			_last_anchor_refresh_position = player_position
+
+func _current_player_position() -> Vector3:
+	if is_instance_valid(_world):
+		var current_player := _world.get("player") as Node3D
+		if is_instance_valid(current_player):
+			return current_player.global_position
+	return Vector3.ZERO
+
+
+func _start_initial_tile_stream() -> void:
+	if not _ready_for_streaming or not is_instance_valid(_world):
+		return
+	_stream_tiles(_current_player_position())
+
+
+func _poll_pending_tile_loads() -> void:
+	# Poll status over multiple frames; never call load_threaded_get until Godot
+	# confirms the background resource load has completed.
+	for key_value in _pending_tile_loads.keys():
+		var tile_key := str(key_value)
+		var request: Dictionary = _pending_tile_loads[tile_key]
+		var full_path := str(request.get("full_path", ""))
+		if full_path.is_empty():
+			_pending_tile_loads.erase(tile_key)
+			continue
+		var progress: Array = []
+		var status := ResourceLoader.load_threaded_get_status(full_path, progress)
+		if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+			continue
+		_pending_tile_loads.erase(tile_key)
+		if status != ResourceLoader.THREAD_LOAD_LOADED:
+			if not _failed_tile_load_paths.has(full_path):
+				_failed_tile_load_paths.append(full_path)
+			push_error("REAL_MAP_TILE_THREADED_LOAD_FAILED: %s (status=%s)" % [full_path, str(status)])
+			continue
+		var packed := ResourceLoader.load_threaded_get(full_path) as PackedScene
+		if packed == null:
+			if not _failed_tile_load_paths.has(full_path):
+				_failed_tile_load_paths.append(full_path)
+			push_error("REAL_MAP_TILE_LOAD_FAILED: threaded resource was not a PackedScene: " + full_path)
+			continue
+		_activating_tiles[tile_key] = true
+		_activate_loaded_tile(tile_key, request.get("record", {}) as Dictionary, packed)
+
+
+func _activate_loaded_tile(tile_key: String, record: Dictionary, packed: PackedScene) -> void:
+	# Let the scene tree and renderer advance between resource IO, scene creation,
+	# visibility, physics setup, road indexing, and nearby building interactions.
+	await get_tree().process_frame
+	if not _ready_for_streaming or not is_instance_valid(_world):
+		_activating_tiles.erase(tile_key)
+		return
+	var instance := packed.instantiate() as Node3D
+	if instance == null:
+		_activating_tiles.erase(tile_key)
+		push_error("REAL_MAP_TILE_INSTANTIATE_FAILED: imported GLB did not instantiate as Node3D: " + str(record.get("full_path", "")))
+		return
+	await get_tree().process_frame
+	if not _ready_for_streaming or not is_instance_valid(_world):
+		instance.free()
+		_activating_tiles.erase(tile_key)
+		return
+	instance.name = tile_key
+	instance.position = record.get("world_position", Vector3.ZERO)
+	_world.add_child(instance)
+	record["instance"] = instance
+	record["interior_anchors"] = []
+	_loaded[tile_key] = record
+
+	# Emit a second runtime report after a real map scene is attached. CI uses the
+	# last report, rather than mistaking manifest parsing for rendered map loading.
+	var runtime_report := get_runtime_map_diagnostics()
+	runtime_report["real_map_loaded"] = true
+	print("REAL_MAP_TILE_SCENE_ATTACHED: ", tile_key)
+	print("REAL_MAP_RUNTIME:" + JSON.stringify(runtime_report))
+
+	await get_tree().process_frame
+	if not _loaded.has(tile_key) or not is_instance_valid(instance):
+		_activating_tiles.erase(tile_key)
+		return
+	await _add_walkable_collisions(instance, record, _current_player_position())
+	await get_tree().process_frame
+	if not _loaded.has(tile_key) or not is_instance_valid(instance):
+		_activating_tiles.erase(tile_key)
+		return
+	await _load_road_routes(record)
+	_loaded[tile_key] = record
+	await get_tree().process_frame
+	if not _loaded.has(tile_key) or not is_instance_valid(instance):
+		_activating_tiles.erase(tile_key)
+		return
+	record["interior_anchors"] = await _load_interior_anchors(record, _current_player_position())
+	_loaded[tile_key] = record
+	_activating_tiles.erase(tile_key)
+	print("REAL_MAP_TILE_ACTIVE: ", tile_key, " nodes=", instance.get_child_count())
+
 
 func get_map_display_name() -> String:
 	return _map_display_name
@@ -280,6 +382,8 @@ func get_runtime_map_diagnostics() -> Dictionary:
 		"ready": _ready_for_streaming,
 		"tile_records": _records.size(),
 		"loaded_tiles": _loaded.size(),
+		"pending_tile_loads": _pending_tile_loads.size(),
+		"activating_tiles": _activating_tiles.size(),
 		"failed_tile_loads": _failed_tile_load_paths.size(),
 		"navigation_roads": road_records.size() if road_records is Array else 0,
 		"navigation_places": place_records.size() if place_records is Array else 0,
@@ -800,7 +904,11 @@ func _load_road_routes(record: Dictionary) -> void:
 	var routes: Array = []
 	var vehicle_route_records: Array[Dictionary] = []
 	var labels: Array[Dictionary] = []
+	var processed_features := 0
 	for feature in features:
+		processed_features += 1
+		if processed_features % 128 == 0:
+			await get_tree().process_frame
 		if not (feature is Dictionary):
 			continue
 		var properties: Variant = feature.get("properties", {})
@@ -911,11 +1019,15 @@ func _stream_tiles(player_position: Vector3) -> void:
 			_road_routes_by_tile.erase(key)
 			_vehicle_route_records_by_tile.erase(key)
 			_road_labels_by_tile.erase(key)
-	# Load nearest missing tiles first, with a bounded per-tick budget.
+	# Do not overlap a tile's import/activation with another tile. Once a request
+	# finishes, each expensive activation phase yields before the next phase.
+	if not _pending_tile_loads.is_empty() or not _activating_tiles.is_empty():
+		return
+	# Load nearest missing tiles first, with a bounded request budget.
 	var pending_keys: Array[String] = []
 	for key in desired.keys():
 		var tile_key := str(key)
-		if not _loaded.has(tile_key):
+		if not _loaded.has(tile_key) and not _pending_tile_loads.has(tile_key) and not _activating_tiles.has(tile_key):
 			pending_keys.append(tile_key)
 	pending_keys.sort_custom(func(a: String, b: String) -> bool:
 		var a_record: Dictionary = desired[a]
@@ -926,33 +1038,27 @@ func _stream_tiles(player_position: Vector3) -> void:
 		var b_distance := Vector2(player_position.x - b_position.x, player_position.z - b_position.z).length_squared()
 		return a_distance < b_distance
 	)
-	var loaded_this_tick := 0
+	var requested_this_tick := 0
 	for key in pending_keys:
-		if loaded_this_tick >= MAX_TILE_LOADS_PER_STREAM_TICK:
+		if requested_this_tick >= MAX_TILE_LOADS_PER_STREAM_TICK:
 			break
-		var record: Dictionary = desired[key]
+		var tile_key := str(key)
+		var record: Dictionary = desired[tile_key]
 		var full_path := str(record["full_path"])
-		var packed := load(full_path) as PackedScene
-		if packed == null:
+		if _failed_tile_load_paths.has(full_path):
+			continue
+		var request_error := ResourceLoader.load_threaded_request(full_path, "PackedScene", true)
+		if request_error != OK and request_error != ERR_BUSY:
 			if not _failed_tile_load_paths.has(full_path):
 				_failed_tile_load_paths.append(full_path)
-			push_error("REAL_MAP_TILE_LOAD_FAILED: could not load imported GLB scene: " + full_path)
+			push_error("REAL_MAP_TILE_THREADED_REQUEST_FAILED: %s (error=%s)" % [full_path, str(request_error)])
 			continue
-		var instance := packed.instantiate() as Node3D
-		if instance == null:
-			if not _failed_tile_load_paths.has(full_path):
-				_failed_tile_load_paths.append(full_path)
-			push_error("REAL_MAP_TILE_INSTANTIATE_FAILED: imported GLB did not instantiate as Node3D: " + full_path)
-			continue
-		instance.name = str(record["tile_id"])
-		instance.position = record["world_position"]
-		_world.add_child(instance)
-		_add_walkable_collisions(instance, record, player_position)
-		_load_road_routes(record)
-		record["interior_anchors"] = _load_interior_anchors(record, player_position)
-		record["instance"] = instance
-		_loaded[key] = record
-		loaded_this_tick += 1
+		_pending_tile_loads[tile_key] = {
+			"full_path": full_path,
+			"record": record.duplicate(true),
+		}
+		print("REAL_MAP_TILE_LOAD_QUEUED: ", tile_key, " path=", full_path)
+		requested_this_tick += 1
 
 func get_world_bounds() -> Dictionary:
 	return _world_bounds.duplicate(true)
@@ -1030,6 +1136,8 @@ func _load_interior_anchors(record: Dictionary, player_position: Vector3) -> Arr
 		_world.add_child(anchor)
 		_add_mapped_exterior_sign(anchor, seed)
 		anchors.append(anchor)
+		if anchors.size() % 16 == 0:
+			await get_tree().process_frame
 	record["interior_anchor_center"] = player_position
 	return anchors
 
@@ -1109,14 +1217,20 @@ func _interior_seed_distance(seed: Dictionary, tile_position: Vector3, player_po
 	return Vector2(world_point.x - player_position.x, world_point.z - player_position.z).length()
 
 func _refresh_loaded_interior_anchors(player_position: Vector3) -> void:
+	if _anchor_refresh_in_progress:
+		return
+	_anchor_refresh_in_progress = true
 	for key in _loaded.keys():
 		var record: Dictionary = _loaded[key]
 		var old_anchors: Array = record.get("interior_anchors", [])
 		for anchor in old_anchors:
 			if is_instance_valid(anchor):
 				anchor.queue_free()
-		record["interior_anchors"] = _load_interior_anchors(record, player_position)
+		record["interior_anchors"] = []
 		_loaded[key] = record
+		record["interior_anchors"] = await _load_interior_anchors(record, player_position)
+		_loaded[key] = record
+	_anchor_refresh_in_progress = false
 
 func _interior_seed_priority(seed: Dictionary) -> int:
 	var category := str(seed.get("category", "")).to_lower()
@@ -1184,8 +1298,12 @@ func _interior_anchor_placement(seed: Dictionary, tile_position: Vector3, road_r
 func _add_walkable_collisions(root: Node, record: Dictionary, player_position: Vector3) -> void:
 	var pending: Array[Node] = [root]
 	var individual_building_meshes := 0
+	var visited_nodes := 0
 	while not pending.is_empty():
 		var current: Node = pending.pop_back()
+		visited_nodes += 1
+		if visited_nodes % 128 == 0:
+			await get_tree().process_frame
 		for child in current.get_children():
 			pending.append(child)
 		if current is MeshInstance3D:
@@ -1211,10 +1329,13 @@ func _add_walkable_collisions(root: Node, record: Dictionary, player_position: V
 	# creating hundreds of distant physics bodies per streamed tile.
 	if individual_building_meshes == 0:
 		record["uses_seed_building_collisions"] = true
-		_add_seed_building_collisions(root, record, player_position)
+		await _add_seed_building_collisions(root, record, player_position)
 
 
 func _refresh_loaded_building_collisions(player_position: Vector3) -> void:
+	if _building_collision_refresh_in_progress:
+		return
+	_building_collision_refresh_in_progress = true
 	for value in _loaded.values():
 		if not (value is Dictionary):
 			continue
@@ -1228,7 +1349,8 @@ func _refresh_loaded_building_collisions(player_position: Vector3) -> void:
 			if child is StaticBody3D and child.name.begins_with("BuildingCollisionSeed_"):
 				root.remove_child(child)
 				child.free()
-		_add_seed_building_collisions(root, record, player_position)
+		await _add_seed_building_collisions(root, record, player_position)
+	_building_collision_refresh_in_progress = false
 
 
 func _add_seed_building_collisions(root: Node3D, record: Dictionary, player_position: Vector3) -> void:
@@ -1249,7 +1371,11 @@ func _add_seed_building_collisions(root: Node3D, record: Dictionary, player_posi
 		record["interior_seed_records"] = seeds
 	var ranked: Array[Dictionary] = []
 	var tile_position: Vector3 = record.get("world_position", Vector3.ZERO)
+	var scanned_seeds := 0
 	for seed in seeds:
+		scanned_seeds += 1
+		if scanned_seeds % 128 == 0:
+			await get_tree().process_frame
 		if not (seed is Dictionary):
 			continue
 		var footprint: Array = seed.get("footprint_local_m", [])
@@ -1305,3 +1431,5 @@ func _add_seed_building_collisions(root: Node3D, record: Dictionary, player_posi
 		collision.shape = shape
 		static_body.add_child(collision)
 		root.add_child(static_body)
+		if (index + 1) % 16 == 0:
+			await get_tree().process_frame

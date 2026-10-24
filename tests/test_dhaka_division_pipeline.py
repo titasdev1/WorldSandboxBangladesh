@@ -1201,3 +1201,26 @@ class ApkGlbFacadeEmbeddedAssetTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AsyncTileBootstrapSafetyTests(unittest.TestCase):
+    """Guard against synchronous first-tile import on the Android startup path."""
+
+    ROOT = Path(__file__).resolve().parents[1]
+
+    def test_map_configuration_defers_first_tile_loading(self):
+        loader = (self.ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
+        configure_start = loader.index("func configure(")
+        process_start = loader.index("\nfunc _process(", configure_start)
+        configure_code = loader[configure_start:process_start]
+        self.assertNotIn("_stream_tiles(Vector3.ZERO)", configure_code)
+        self.assertIn('call_deferred("_start_initial_tile_stream")', configure_code)
+
+    def test_tile_scene_uses_threaded_resource_loading_and_staged_activation(self):
+        loader = (self.ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
+        self.assertIn("ResourceLoader.load_threaded_request", loader)
+        self.assertIn("ResourceLoader.load_threaded_get_status", loader)
+        self.assertIn("ResourceLoader.load_threaded_get(full_path)", loader)
+        self.assertIn("func _poll_pending_tile_loads()", loader)
+        self.assertIn("func _activate_loaded_tile(", loader)
+        self.assertGreaterEqual(loader.count("await get_tree().process_frame"), 5)
