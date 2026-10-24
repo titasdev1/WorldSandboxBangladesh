@@ -2,6 +2,8 @@ extends CharacterBody3D
 
 var world
 var speed := 4.0
+var fuel := 100.0
+var engine_empty_notified := false
 var lane_axis := "z"
 var vehicle_type := "Car"
 var body_size := Vector3(2.0, 1.0, 4.0)
@@ -18,6 +20,8 @@ var indicator_time := 0.0
 var route_points: Array = []
 var route_index := 0
 var route_direction := 1
+var route_oneway := false
+var route_id := ""
 
 func _ready() -> void:
     cruise_speed = speed
@@ -296,12 +300,22 @@ func _follow_mapped_route(delta: float) -> void:
     if to_target.length() < maxf(1.6, speed * delta * 1.4):
         if route_direction > 0:
             if route_index >= route_points.size() - 1:
+                if route_oneway:
+                    if is_instance_valid(world) and world.has_method("advance_mapped_traffic_route") and world.advance_mapped_traffic_route(self):
+                        return
+                    queue_free()
+                    return
                 route_direction = -1
                 route_index = maxi(0, route_points.size() - 2)
             else:
                 route_index += 1
         else:
             if route_index <= 0:
+                if route_oneway:
+                    if is_instance_valid(world) and world.has_method("advance_mapped_traffic_route") and world.advance_mapped_traffic_route(self):
+                        return
+                    queue_free()
+                    return
                 route_direction = 1
                 route_index = mini(1, route_points.size() - 1)
             else:
@@ -330,8 +344,17 @@ func _animate_wheels(delta: float) -> void:
 func _drive_player_vehicle(delta: float) -> void:
     var steer: float = Input.get_axis("move_left", "move_right")
     var throttle: float = Input.get_axis("move_back", "move_forward")
-    if absf(throttle) > 0.01:
+    if absf(throttle) > 0.01 and fuel > 0.01:
         speed = move_toward(speed, throttle * 14.0, delta * 10.0)
+        fuel = maxf(0.0, fuel - delta * (0.55 + absf(speed) * 0.045))
+        if fuel <= 0.01:
+            speed = move_toward(speed, 0.0, delta * 10.0)
+    elif fuel <= 0.01:
+        speed = move_toward(speed, 0.0, delta * 12.0)
+        if not engine_empty_notified and is_instance_valid(world):
+            world.set("event_text", "FUEL EMPTY • REFUEL OR EXIT VEHICLE")
+            world.set("event_time_left", 5.0)
+            engine_empty_notified = true
     else:
         speed = move_toward(speed, 0.0, delta * 3.0)
     var steering_strength: float = clampf(absf(speed) / 8.0, 0.25, 1.0)
@@ -344,6 +367,17 @@ func _drive_player_vehicle(delta: float) -> void:
     if Input.is_action_just_pressed("interact"):
         exit_player()
 
+
+func refuel(amount: float) -> bool:
+    if amount <= 0.0 or fuel >= 99.9:
+        return false
+    fuel = minf(100.0, fuel + amount)
+    engine_empty_notified = false
+    if is_instance_valid(world) and occupied:
+        world.set("event_text", "VEHICLE REFUELLED • %d%%" % roundi(fuel))
+        world.set("event_time_left", 3.0)
+    return true
+
 func on_hit() -> void:
     if world:
         world.cash += 20
@@ -354,6 +388,8 @@ func enter_player(p: CharacterBody3D) -> bool:
     if occupied or not is_instance_valid(p):
         return false
     occupied = true
+    if is_instance_valid(world):
+        world.set("occupied_vehicle", self)
     p.visible = false
     p.set_physics_process(false)
     speed = 0.0
@@ -369,6 +405,8 @@ func exit_player() -> void:
         return
     var p: CharacterBody3D = world.player
     occupied = false
+    if is_instance_valid(world) and world.get("occupied_vehicle") == self:
+        world.set("occupied_vehicle", null)
     p.visible = true
     p.set_physics_process(true)
     p.global_position = global_position + global_transform.basis.x * 2.5 + Vector3(0, 0.1, 0)

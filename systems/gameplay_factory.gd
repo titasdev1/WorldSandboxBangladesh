@@ -32,6 +32,15 @@ func _bootstrap() -> void:
     if not is_instance_valid(player):
         await get_tree().process_frame
         player = world.get_node_or_null("Player")
+    # Fixed-coordinate hubs/shops/incident markers belong only to the fictional
+    # starter city. In real-map mode missions and the HUD economy use live systems.
+    if bool(world.get("real_dhaka_loaded")):
+        set_meta("gameplay_factory_status", "real_map_mode_fixed_markers_suppressed")
+        set_meta("real_map_overlay_suppressed", true)
+        set_meta("job_hubs", 0)
+        set_meta("fixed_shops", 0)
+        set_meta("fixed_incidents", 0)
+        return
     _create_job_hubs()
     _create_shops()
     _create_incident_zones()

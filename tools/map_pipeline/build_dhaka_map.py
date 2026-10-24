@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import hashlib
 import math
 import os
 import re
@@ -53,6 +54,8 @@ def overpass_query(bbox: tuple[float, float, float, float]) -> str:
   way["amenity"]({box});
   node["shop"]({box});
   node["amenity"]({box});
+  node["entrance"]({box});
+  node["door"]({box});
   node["tourism"]({box});
   node["historic"]({box});
   node["natural"="tree"]({box});
@@ -201,10 +204,291 @@ def extruded_polygon(geom: Polygon, height: float, color: tuple[int, int, int, i
     return result
 
 
+
+def normalize_facade_name(value: Any) -> str:
+    """Normalize Unicode and spacing without weakening exact landmark-name matching."""
+    import unicodedata
+
+    text = unicodedata.normalize("NFKC", str(value or ""))
+    text = text.replace("\u200b", "").replace("\ufeff", "")
+    return " ".join(text.split()).casefold()
+
+
+def load_facade_photo_catalog() -> dict[str, dict[str, Any]]:
+    """Load only locally downloaded, allowlisted photos; map aliases to exact matches."""
+    catalog_path = Path(os.environ.get("WSB_FACADE_IMAGE_CATALOG", "tools/map_pipeline/shariatpur_facade_images.json"))
+    image_dir = Path(os.environ.get("WSB_FACADE_IMAGE_DIR", "build/facade-images"))
+    if not catalog_path.is_file() or not image_dir.is_dir():
+        return {}
+    try:
+        from PIL import Image
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    result: dict[str, Any] = {}
+    for item in catalog.get("images", []):
+        # Rights and name matching are not enough to prove a photograph is the
+        # correct exterior view. Only use images with explicit visual QA approval.
+        if item.get("facade_eligible") is not True:
+            continue
+        if str(item.get("view_type", "")).strip().lower() != "exterior":
+            continue
+        if str(item.get("visual_qa", "")).strip().lower() != "passed":
+            continue
+        filename = str(item.get("file_name", "")).strip()
+        path = image_dir / filename
+        if not filename or not path.is_file():
+            continue
+        try:
+            with Image.open(path) as source:
+                image = source.convert("RGB")
+                image.load()
+        except Exception:
+            continue
+        record = {"image": image, "metadata": item}
+        target_location = item.get("target_location_lat_lon")
+        if isinstance(target_location, (list, tuple)) and len(target_location) == 2:
+            # Secondary matching is available only for explicitly reviewed, licensed
+            # exterior photos with a declared geographic anchor in the catalog.
+            result.setdefault("__geo_targets__", []).append(record)
+        for alias in item.get("match_names", []):
+            normalized = normalize_facade_name(alias)
+            if normalized:
+                result[normalized] = record
+    return result
+
+
+def facade_photo_catalog_image_ids(catalog: dict[str, Any]) -> list[str]:
+    """Return unique source-photo IDs that actually loaded as eligible facade textures."""
+    ids: set[str] = set()
+
+    def collect(record: Any) -> None:
+        if not isinstance(record, dict):
+            return
+        metadata = record.get("metadata", {})
+        if not isinstance(metadata, dict):
+            return
+        image_id = str(metadata.get("id", "")).strip()
+        if image_id:
+            ids.add(image_id)
+
+    for key, record in catalog.items():
+        if key == "__geo_targets__" and isinstance(record, list):
+            for target_record in record:
+                collect(target_record)
+        elif key != "__geo_targets__":
+            collect(record)
+    return sorted(ids)
+
+
+def load_interior_reference_catalog() -> dict[str, dict[str, Any]]:
+    """Load explicitly licensed interior photos for exact-name in-game interiors only."""
+    catalog_path = Path(os.environ.get("WSB_FACADE_IMAGE_CATALOG", "tools/map_pipeline/shariatpur_facade_images.json"))
+    image_dir = Path(os.environ.get("WSB_FACADE_IMAGE_DIR", "build/facade-images"))
+    if not catalog_path.is_file() or not image_dir.is_dir():
+        return {}
+    try:
+        from PIL import Image
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    for item in catalog.get("images", []):
+        if item.get("interior_reference_eligible") is not True:
+            continue
+        if str(item.get("interior_view_type", "")).strip().lower() != "interior":
+            continue
+        if str(item.get("interior_visual_qa", "")).strip().lower() != "passed":
+            continue
+        if str(item.get("license", "")).strip() not in {"CC BY 4.0", "CC BY-SA 4.0"}:
+            continue
+        filename = str(item.get("file_name", "")).strip()
+        path = image_dir / filename
+        if not filename or not path.is_file():
+            continue
+        try:
+            with Image.open(path) as source:
+                image = source.convert("RGB")
+                image.load()
+        except Exception:
+            continue
+        record = {"image": image, "metadata": item, "path": path}
+        for alias in item.get("match_names", []):
+            normalized = normalize_facade_name(alias)
+            if normalized:
+                result[normalized] = record
+    return result
+
+
+def match_named_image(tags: dict[str, str], catalog: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    """Match a licensed image to the exact mapped building name; never use fuzzy nearest-place guesses."""
+    for key in ("name", "name:bn", "official_name", "name:en"):
+        value = normalize_facade_name(tags.get(key, ""))
+        if value and value in catalog:
+            return catalog[value]
+    return None
+
+
+def match_facade_photo(
+    tags: dict[str, str],
+    catalog: dict[str, Any],
+    geometry: Polygon | MultiPolygon | None = None,
+    origin_lat: float | None = None,
+    origin_lon: float | None = None,
+) -> dict[str, Any] | None:
+    """Match exact mapped names first, then a verified geo-anchor plus compatible tags.
+
+    Geographic fallback is limited to individually approved photos, their own
+    catalogued target coordinates, an explicit compatible-feature tag group, and
+    a small radius. A nearest/random building is never enough.
+    """
+    named = match_named_image(tags, catalog)
+    if named is not None:
+        return {**named, "match_method": "exact_name_alias", "match_distance_m": 0.0}
+    if geometry is None or origin_lat is None or origin_lon is None:
+        return None
+
+    normalized_tags = {str(key): str(value).strip().casefold() for key, value in tags.items()}
+    matches: list[tuple[float, dict[str, Any]]] = []
+    for candidate in catalog.get("__geo_targets__", []):
+        metadata = candidate.get("metadata", {})
+        coords = metadata.get("target_location_lat_lon")
+        if not isinstance(coords, (list, tuple)) or len(coords) != 2:
+            continue
+        tag_groups = metadata.get("target_tag_groups", [
+            {"amenity": "place_of_worship"},
+            {"building": "temple"},
+            {"historic": "temple"},
+        ])
+        if not isinstance(tag_groups, list) or not any(
+            isinstance(group, dict) and group and all(
+                normalized_tags.get(str(key), "") == str(value).strip().casefold()
+                for key, value in group.items()
+            )
+            for group in tag_groups
+        ):
+            continue
+        try:
+            target_x, target_y = local_xy(float(coords[0]), float(coords[1]), origin_lat, origin_lon)
+            radius_m = float(metadata.get("target_match_radius_metres", 45.0))
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(radius_m) or radius_m <= 0.0:
+            continue
+        target_point = Point(target_x, target_y)
+        distance_m = float(geometry.distance(target_point))
+        if distance_m <= radius_m:
+            matches.append((distance_m, candidate))
+
+    if not matches:
+        return None
+    distance_m, selected = min(matches, key=lambda item: item[0])
+    return {
+        **selected,
+        "match_method": "verified_coordinate_compatible_tagged_landmark",
+        "match_distance_m": round(distance_m, 2),
+    }
+
+
+def facade_photo_panel(
+    polygon: Polygon | MultiPolygon,
+    building_height_m: float,
+    image: Any,
+    osm_id: int,
+    image_id: str,
+) -> trimesh.Trimesh | None:
+    """Place a licensed landmark photograph as a textured panel on its named building wall."""
+    if isinstance(polygon, MultiPolygon):
+        parts = [part for part in polygon.geoms if isinstance(part, Polygon) and not part.is_empty]
+        if not parts:
+            return None
+        part = max(parts, key=lambda item: item.area)
+    else:
+        part = polygon
+    coordinates = list(part.exterior.coords)
+    if len(coordinates) < 4:
+        return None
+    best = None
+    best_length = 0.0
+    for index in range(1, len(coordinates)):
+        start = np.asarray(coordinates[index - 1], dtype=np.float64)
+        end = np.asarray(coordinates[index], dtype=np.float64)
+        delta = end - start
+        length = float(np.linalg.norm(delta))
+        if length > best_length:
+            best = (start, end, delta / max(length, 1e-9), length)
+            best_length = length
+    if best is None or best_length < 2.0:
+        return None
+    start, end, tangent, wall_length = best
+    midpoint = (start + end) * 0.5
+    normal = np.asarray([-tangent[1], tangent[0]], dtype=np.float64)
+    centroid = np.asarray([part.centroid.x, part.centroid.y], dtype=np.float64)
+    if float(np.dot(normal, midpoint - centroid)) < 0.0:
+        normal *= -1.0
+    try:
+        image_width, image_height = image.size
+        aspect = float(image_width) / max(1.0, float(image_height))
+    except Exception:
+        return None
+    panel_height = min(max(1.6, float(building_height_m) * 0.78), max(1.0, float(building_height_m) - 0.35))
+    panel_width = min(wall_length * 0.82, panel_height * aspect)
+    if panel_width < 1.0 or panel_height < 1.0:
+        return None
+    center = midpoint + normal * 0.065
+    left = center - tangent * (panel_width * 0.5)
+    right = center + tangent * (panel_width * 0.5)
+    z_bottom = 0.22
+    z_top = z_bottom + panel_height
+    vertices = np.asarray([
+        [left[0], left[1], z_bottom],
+        [right[0], right[1], z_bottom],
+        [right[0], right[1], z_top],
+        [left[0], left[1], z_top],
+    ], dtype=np.float64)
+    faces = np.asarray([[0, 1, 2], [0, 2, 3]], dtype=np.int64)
+    material = trimesh.visual.material.PBRMaterial(
+        name=f"LicensedFacadePhoto_{image_id}",
+        baseColorTexture=image,
+        metallicFactor=0.0,
+        roughnessFactor=1.0,
+    )
+    panel = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+    panel.visual = trimesh.visual.texture.TextureVisuals(
+        uv=np.asarray([[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]], dtype=np.float64),
+        material=material,
+    )
+    panel.metadata["name"] = f"licensed_facade_photo_{image_id}_{osm_id}"
+    return panel
+
+def _valid_map_number(value: Any, minimum: float, maximum: float) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(parsed) or not minimum <= parsed <= maximum:
+        return None
+    return parsed
+
+
 def building_height(
     tags: dict[str, str], osm_id: int, footprint_area_m2: float | None = None
 ) -> tuple[float, bool]:
-    """Prefer mapped height/levels; otherwise return a flagged footprint-based estimate."""
+    """Prefer mapped height/levels; curated placeholders remain explicitly unverified."""
+    if str(tags.get("height:source", "")).strip() == "CURATED_APPROXIMATE_NOT_SURVEYED":
+        try:
+            curated_height = float(str(tags.get("height", "")).replace(" m", "").strip())
+            if 2.5 <= curated_height <= 250:
+                return curated_height, True
+        except (TypeError, ValueError):
+            pass
+    if str(tags.get("source_dataset", "")).strip() == "Overture Maps buildings theme":
+        overture_height = _valid_map_number(tags.get("overture:height"), 2.5, 250.0)
+        if overture_height is not None:
+            return overture_height, False
+        overture_levels = _valid_map_number(tags.get("overture:num_floors"), 1.0, 70.0)
+        if overture_levels is not None:
+            return max(3.2, int(overture_levels) * 3.1), False
     raw_height = tags.get("height", "").replace(" m", "").strip()
     try:
         height = float(raw_height)
@@ -236,7 +520,14 @@ def building_height(
 
 
 def building_height_source(tags: dict[str, str]) -> str:
-    """Describe whether a height came from OSM tags or an unverified estimate."""
+    """Preserve curated, Overture, mapped, and estimated provenance separately."""
+    if str(tags.get("height:source", "")).strip() == "CURATED_APPROXIMATE_NOT_SURVEYED":
+        return "CURATED_APPROXIMATE_NOT_SURVEYED"
+    if str(tags.get("source_dataset", "")).strip() == "Overture Maps buildings theme":
+        if _valid_map_number(tags.get("overture:height"), 2.5, 250.0) is not None:
+            return "OVERTURE_HEIGHT_TAG"
+        if _valid_map_number(tags.get("overture:num_floors"), 1.0, 70.0) is not None:
+            return "OVERTURE_NUM_FLOORS"
     raw_height = str(tags.get("height", "")).replace(" m", "").strip()
     try:
         height = float(raw_height)
@@ -255,6 +546,13 @@ def building_height_source(tags: dict[str, str]) -> str:
 
 
 def building_floors_source(tags: dict[str, str]) -> str:
+    if str(tags.get("building:levels:source", "")).strip() == "CURATED_APPROXIMATE_NOT_SURVEYED":
+        return "CURATED_APPROXIMATE_NOT_SURVEYED"
+    if str(tags.get("source_dataset", "")).strip() == "Overture Maps buildings theme":
+        if _valid_map_number(tags.get("overture:num_floors"), 1.0, 70.0) is not None:
+            return "OVERTURE_NUM_FLOORS"
+        if _valid_map_number(tags.get("overture:height"), 2.5, 250.0) is not None:
+            return "DERIVED_FROM_OVERTURE_HEIGHT_TAG"
     raw_levels = str(tags.get("building:levels", "")).strip()
     try:
         levels = int(float(raw_levels))
@@ -318,6 +616,147 @@ def roof_color(tags: dict[str, str], osm_id: int) -> tuple[int, int, int, int]:
     if material in {"concrete", "concrete_slab"}:
         return (151, 150, 143, 255)
     return building_color(tags, osm_id)
+
+def roof_shape_for_building(tags: dict[str, str], footprint_area_m2: float, height_m: float) -> tuple[str, str]:
+    """Prefer OSM roof-shape tags; infer pitched roofs only for small low-rise homes."""
+    raw = str(tags.get("roof:shape", "")).strip().lower().replace("-", "_").replace(" ", "_")
+    if raw in {"flat", "terrace"}:
+        return "flat", "OSM_ROOF_SHAPE_TAG"
+    if raw in {"gabled", "saltbox"}:
+        return "gabled", "OSM_ROOF_SHAPE_TAG" if raw == "gabled" else "OSM_SALTB0X_APPROXIMATED_AS_GABLED"
+    if raw in {"hipped", "half_hipped"}:
+        return "hipped", "OSM_ROOF_SHAPE_TAG"
+    if raw in {"skillion", "lean_to"}:
+        return "skillion", "OSM_ROOF_SHAPE_TAG"
+    kind = str(tags.get("building", "")).strip().lower()
+    material = str(tags.get("roof:material", "")).strip().lower().replace(" ", "_")
+    low_rise_home = kind in {
+        "house", "detached", "semidetached_house", "terrace", "bungalow", "residential"
+    } and footprint_area_m2 <= 350.0 and height_m <= 6.0
+    likely_tin_home = material in {
+        "metal", "metal_sheet", "steel", "tin", "corrugated_metal", "corrugated_steel"
+    } and footprint_area_m2 <= 500.0 and height_m <= 6.0
+    # Many rural/suburban Bangladesh homes are only mapped as building=yes.
+    # Avoid leaving these ordinary homes as completely flat boxes: infer a modest
+    # pitched roof only for small, low-rise, untyped footprints with no explicit
+    # height/floor/roof data and no shop/amenity/commercial/industrial identity.
+    # This is deliberately labelled inference; it is not a surveyed roof claim.
+    generic_home_exclusions = (
+        "shop", "office", "amenity", "industrial", "healthcare", "tourism",
+        "craft", "building:use", "power", "man_made", "military", "religion",
+        "historic", "public_transport",
+    )
+    has_non_home_tags = any(str(tags.get(key, "")).strip() for key in generic_home_exclusions)
+    has_explicit_vertical_data = bool(
+        str(tags.get("height", "")).strip()
+        or str(tags.get("building:levels", "")).strip()
+    )
+    generic_low_rise_home = (
+        kind in {"yes", "building", ""}
+        and footprint_area_m2 <= 70.0
+        and height_m <= 6.5
+        and not has_non_home_tags
+        and not has_explicit_vertical_data
+        and not material
+        and not raw
+    )
+    if low_rise_home:
+        return "gabled", "INFERRED_SMALL_LOW_RISE_HOME_NO_ROOF_SHAPE_TAG"
+    if likely_tin_home:
+        return "gabled", "INFERRED_SMALL_TIN_ROOF_NO_ROOF_SHAPE_TAG"
+    if generic_low_rise_home:
+        return "gabled", "INFERRED_UNTYPED_SMALL_LOW_RISE_BUILDING_AS_LOCAL_HOME"
+    if raw:
+        return "flat", "OSM_ROOF_SHAPE_TAG_NOT_RENDERED:" + raw
+    return "flat", "FLAT_CAP_DEFAULT_NO_ROOF_SHAPE_SOURCE"
+
+
+def procedural_roof_color(tags: dict[str, str], osm_id: int, shape_source: str) -> tuple[int, int, int, int]:
+    """Preserve explicit roof data; use a separate labelled palette only when it is absent."""
+    if any(str(tags.get(key, "")).strip() for key in ("roof:colour", "roof:color", "roof:material")):
+        return roof_color(tags, osm_id)
+    if shape_source.startswith("INFERRED_") or shape_source == "OSM_ROOF_SHAPE_TAG" or shape_source == "OSM_SALTB0X_APPROXIMATED_AS_GABLED":
+        palette = (
+            (104, 111, 112, 255), (124, 129, 127, 255), (88, 98, 101, 255),
+            (137, 113, 92, 255), (102, 105, 99, 255),
+        )
+        return palette[abs(int(osm_id)) % len(palette)]
+    return roof_color(tags, osm_id)
+
+
+def procedural_roof_mesh(geometry: Any, wall_height_m: float, shape_name: str, osm_id: int) -> trimesh.Trimesh | None:
+    """Create a low-cost metric roof shell when a mapped footprint supports the shape."""
+    if shape_name not in {"gabled", "hipped", "skillion"} or geometry.is_empty:
+        return None
+    parts = list(geometry.geoms) if isinstance(geometry, MultiPolygon) else [geometry]
+    valid_parts = [part for part in parts if isinstance(part, Polygon) and not part.is_empty and part.area >= 8.0]
+    if not valid_parts:
+        return None
+    part = max(valid_parts, key=lambda item: item.area)
+    rotated = part.minimum_rotated_rectangle
+    if rotated.is_empty or rotated.area <= 0.0 or part.area / rotated.area < 0.74:
+        return None
+    pts = [(float(x), float(y)) for x, y in list(rotated.exterior.coords)[:-1]]
+    if len(pts) != 4:
+        return None
+    lengths = [
+        math.hypot(pts[(i + 1) % 4][0] - pts[i][0], pts[(i + 1) % 4][1] - pts[i][1])
+        for i in range(4)
+    ]
+    if max(lengths) < 3.0 or min(lengths) < 2.2:
+        return None
+    if lengths[0] >= lengths[1]:
+        a, b, c, d = pts
+    else:
+        a, b, c, d = pts[1], pts[2], pts[3], pts[0]
+    left_mid = ((a[0] + d[0]) * 0.5, (a[1] + d[1]) * 0.5)
+    right_mid = ((b[0] + c[0]) * 0.5, (b[1] + c[1]) * 0.5)
+    short_width = min(math.hypot(b[0] - a[0], b[1] - a[1]),
+                      math.hypot(c[0] - b[0], c[1] - b[1]))
+    pitch = min(1.45, max(0.48, short_width * 0.27))
+    eave_z = float(wall_height_m) + 0.08
+    ridge_z = eave_z + pitch
+    vertices = np.asarray([
+        [a[0], a[1], eave_z], [b[0], b[1], eave_z],
+        [c[0], c[1], eave_z], [d[0], d[1], eave_z],
+        [left_mid[0], left_mid[1], ridge_z], [right_mid[0], right_mid[1], ridge_z],
+    ], dtype=np.float64)
+    if shape_name == "skillion":
+        vertices[2, 2] = eave_z + pitch
+        vertices[3, 2] = eave_z + pitch
+        faces = np.asarray([[0, 1, 2], [0, 2, 3]], dtype=np.int64)
+    elif shape_name == "hipped":
+        long_vec = np.asarray([right_mid[0] - left_mid[0], right_mid[1] - left_mid[1]])
+        length = float(np.linalg.norm(long_vec))
+        if length > 1e-5:
+            unit = long_vec / length
+            inset = min(short_width * 0.48, length * 0.22)
+            vertices[4, 0:2] = np.asarray(left_mid) + unit * inset
+            vertices[5, 0:2] = np.asarray(right_mid) - unit * inset
+        faces = np.asarray([
+            [0, 1, 5], [0, 5, 4],
+            [3, 2, 5], [3, 5, 4],
+            [0, 4, 3], [1, 2, 5],
+        ], dtype=np.int64)
+    else:
+        faces = np.asarray([
+            [0, 1, 5], [0, 5, 4],
+            [3, 5, 2], [3, 4, 5],
+            [0, 4, 3], [1, 2, 5],
+        ], dtype=np.int64)
+    mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+    try:
+        mesh.fix_normals()
+    except Exception:
+        # Open roof shells are not watertight solids. Preserve valid triangles
+        # if a trimesh release cannot orient an open multi-face shell.
+        pass
+    if not np.isfinite(mesh.vertices).all() or mesh.area < 1.0:
+        return None
+    mesh.metadata["roof_shape"] = shape_name
+    mesh.metadata["source_osm_id"] = int(osm_id)
+    return mesh
+
 
 def road_width(tags: dict[str, str]) -> float:
     raw_width = str(tags.get("width", "")).replace(" m", "").strip()
@@ -541,6 +980,261 @@ _WINDOW_GLASS_PALETTE = (
     (59, 94, 108, 255),
     (70, 104, 116, 255),
 )
+_DOOR_COLOR_PALETTE = (
+    (91, 60, 39, 255),
+    (111, 73, 47, 255),
+    (72, 81, 74, 255),
+    (86, 65, 55, 255),
+    (67, 76, 85, 255),
+)
+
+
+def facade_door_geometry(
+    geometry: Any,
+    height: float,
+    osm_id: int,
+    tile_bounds: Polygon,
+    mapped_entrance: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Create a metric door on an actual footprint wall; prefer an OSM entrance node."""
+    if geometry.is_empty or height < 2.2:
+        return None
+    parts = list(geometry.geoms) if isinstance(geometry, MultiPolygon) else [geometry]
+    preferred_edges = []
+    all_edges = []
+    for part in parts:
+        if not isinstance(part, Polygon) or part.is_empty:
+            continue
+        coords = list(part.exterior.coords)
+        for p1, p2 in zip(coords, coords[1:]):
+            dx, dy = float(p2[0] - p1[0]), float(p2[1] - p1[1])
+            length = math.hypot(dx, dy)
+            if length < 2.8:
+                continue
+            mid_x, mid_y = (float(p1[0]) + float(p2[0])) * 0.5, (float(p1[1]) + float(p2[1])) * 0.5
+            nx, ny = -dy / length, dx / length
+            if part.contains(Point(mid_x + nx * 0.25, mid_y + ny * 0.25)):
+                nx, ny = -nx, -ny
+            angle = math.atan2(dy, dx)
+            edge = (length, (float(p1[0]), float(p1[1])), (float(p2[0]), float(p2[1])), nx, ny, angle)
+            all_edges.append(edge)
+            if tile_bounds.boundary.distance(Point(mid_x, mid_y)) >= 0.7:
+                preferred_edges.append(edge)
+    candidates = preferred_edges or all_edges
+    if not candidates:
+        return None
+
+    door_width = 1.05
+    door_height = min(2.12, max(1.75, height * 0.68))
+    selected_entrance: dict[str, Any] | None = None
+    edge_projection_distance = float("inf")
+    selected_edge = None
+    if isinstance(mapped_entrance, dict):
+        entrance_point = Point(float(mapped_entrance["x"]), float(mapped_entrance["y"]))
+        # Snap a mapped entrance-node to its nearest footprint wall. It is
+        # accepted only when it is genuinely close to that building outline;
+        # otherwise retain the conservative inferred-door fallback.
+        for edge in candidates:
+            length, p1, p2, nx, ny, angle = edge
+            edge_line = LineString([p1, p2])
+            distance = edge_line.distance(entrance_point)
+            if distance < edge_projection_distance:
+                edge_projection_distance = distance
+                selected_edge = edge
+        if selected_edge is not None and edge_projection_distance <= 2.2:
+            selected_entrance = mapped_entrance
+
+    if selected_edge is None or selected_entrance is None:
+        # No reliable mapped entrance node: create a clearly-labelled procedural cue.
+        selected_edge = max(candidates, key=lambda edge: edge[0])
+    length, p1, p2, nx, ny, angle = selected_edge
+
+    if selected_entrance is not None:
+        entrance_point = Point(float(selected_entrance["x"]), float(selected_entrance["y"]))
+        edge_line = LineString([p1, p2])
+        projected = edge_line.interpolate(edge_line.project(entrance_point))
+        projected_distance = edge_line.project(projected)
+        # Keep the entire generated leaf within the wall segment.
+        projected_distance = min(max(door_width * 0.60, projected_distance), length - door_width * 0.60)
+        fraction = projected_distance / length
+        placement_source = (
+            "OSM_ENTRANCE_NODE:%s:%s"
+            % (str(selected_entrance.get("osm_id", "")), str(selected_entrance.get("entrance", selected_entrance.get("door", ""))))
+        )
+        entrance_node_osm_id = str(selected_entrance.get("osm_id", ""))
+    else:
+        distance_from_start = min(max(1.0, length * 0.18), length * 0.28)
+        fraction = distance_from_start / length
+        placement_source = "PROCEDURAL_LONGEST_EXTERIOR_EDGE_NO_MAPPED_ENTRANCE_NODE"
+        entrance_node_osm_id = ""
+
+    cx = p1[0] + (p2[0] - p1[0]) * fraction + nx * 0.048
+    cy = p1[1] + (p2[1] - p1[1]) * fraction + ny * 0.048
+    params = np.asarray([cx, cy, door_height * 0.5 + 0.025, door_width, door_height, angle], dtype=np.float32)
+    vertices = _WINDOW_BOX_TEMPLATE.vertices.astype(np.float32).copy()
+    vertices[:, 0] *= params[3]
+    vertices[:, 1] *= 0.06
+    vertices[:, 2] *= params[4]
+    cos_angle, sin_angle = math.cos(float(params[5])), math.sin(float(params[5]))
+    rotated_x = vertices[:, 0] * cos_angle - vertices[:, 1] * sin_angle
+    rotated_y = vertices[:, 0] * sin_angle + vertices[:, 1] * cos_angle
+    vertices[:, 0] = rotated_x + params[0]
+    vertices[:, 1] = rotated_y + params[1]
+    vertices[:, 2] += params[2]
+    return {
+        "color": _DOOR_COLOR_PALETTE[abs(int(osm_id)) % len(_DOOR_COLOR_PALETTE)],
+        "vertices": vertices,
+        "faces": _WINDOW_BOX_TEMPLATE.faces.astype(np.int32).copy(),
+        "door_count": 1,
+        "door_height_m": round(float(door_height), 2),
+        "door_width_m": round(float(door_width), 2),
+        "anchor_local_m": [round(float(cx - nx * 0.048), 3), round(float(cy - ny * 0.048), 3)],
+        "outward_xy": [round(float(nx), 5), round(float(ny), 5)],
+        "placement_source": placement_source,
+        "entrance_node_osm_id": entrance_node_osm_id,
+    }
+
+def facade_balcony_geometry(
+    geometry: Any,
+    height: float,
+    osm_id: int,
+    tags: dict[str, str],
+    tile_bounds: Polygon,
+) -> tuple[tuple[int, int, int, int], trimesh.Trimesh, int] | None:
+    """Add light, deterministic balcony details to selected suitable mid-rise facades.
+
+    This is an authored architectural cue, not evidence that a real building has a
+    balcony. Explicit balcony=no is respected; industrial/utility structures are
+    excluded; generic buildings receive the detail only at a stable low frequency.
+    """
+    if geometry.is_empty or height < 7.2 or geometry.area < 45.0:
+        return None
+
+    kind = str(tags.get("building", "yes")).strip().lower()
+    excluded_kinds = {
+        "industrial", "warehouse", "barn", "shed", "garage", "carport",
+        "hangar", "stable", "farm_auxiliary", "greenhouse", "roof", "bridge",
+        "construction", "ruins", "service",
+    }
+    if kind in excluded_kinds:
+        return None
+
+    balcony_tag = str(tags.get("balcony", "")).strip().lower()
+    if balcony_tag in {"no", "false", "0", "none"}:
+        return None
+
+    residential_kinds = {
+        "apartments", "residential", "house", "terrace", "commercial",
+        "office", "retail", "hotel", "dormitory", "public", "school",
+        "university", "civic", "mixed_use", "yes", "building",
+    }
+    if kind not in residential_kinds:
+        return None
+
+    raw_levels = str(tags.get("building:levels", "")).strip()
+    try:
+        floor_count = int(round(float(raw_levels)))
+    except (TypeError, ValueError):
+        floor_count = int(round(height / 3.1))
+    floor_count = max(1, floor_count)
+    if floor_count < 3:
+        return None
+
+    # Honor an explicit yes tag. Otherwise use a deterministic, sparse selection:
+    # apartment/residential-style buildings occur more often than generic "yes"
+    # footprints, avoiding blanket balconies on every polygon.
+    if balcony_tag not in {"yes", "true", "1"}:
+        selection_modulus = 3 if kind in {"apartments", "residential", "house", "terrace"} else 11
+        if abs(int(osm_id)) % selection_modulus != 0:
+            return None
+
+    parts = list(geometry.geoms) if isinstance(geometry, MultiPolygon) else [geometry]
+    candidates: list[tuple[float, tuple[float, float], tuple[float, float], float, float, float]] = []
+    for part in parts:
+        if not isinstance(part, Polygon) or part.is_empty:
+            continue
+        coords = list(part.exterior.coords)
+        for p1, p2 in zip(coords, coords[1:]):
+            dx = float(p2[0] - p1[0])
+            dy = float(p2[1] - p1[1])
+            length = math.hypot(dx, dy)
+            if length < 7.0:
+                continue
+            mid_x = (float(p1[0]) + float(p2[0])) * 0.5
+            mid_y = (float(p1[1]) + float(p2[1])) * 0.5
+            # A balcony projects beyond the wall. Require clearance from the tile
+            # edge so tile seams never clip this newly generated geometry.
+            if tile_bounds.boundary.distance(Point(mid_x, mid_y)) < 3.2:
+                continue
+            nx, ny = -dy / length, dx / length
+            if part.contains(Point(mid_x + nx * 0.25, mid_y + ny * 0.25)):
+                nx, ny = -nx, -ny
+            candidates.append((length, (float(p1[0]), float(p1[1])),
+                               (float(p2[0]), float(p2[1])), nx, ny,
+                               math.atan2(dy, dx)))
+    if not candidates:
+        return None
+
+    length, p1, p2, nx, ny, angle = max(candidates, key=lambda edge: edge[0])
+    balconies_per_floor = 2 if length >= 15.0 and abs(int(osm_id)) % 2 == 0 else 1
+    balcony_width = min(2.0, max(1.2, length / (balconies_per_floor + 1) * 0.55))
+    palette = (
+        (190, 187, 176, 255),
+        (163, 171, 168, 255),
+        (202, 196, 183, 255),
+        (147, 157, 160, 255),
+    )
+    color = palette[abs(int(osm_id)) % len(palette)]
+    cos_angle, sin_angle = math.cos(angle), math.sin(angle)
+    pieces: list[trimesh.Trimesh] = []
+
+    def add_box(
+        box_width: float,
+        box_depth: float,
+        box_height: float,
+        along_wall: float,
+        outward: float,
+        center_z: float,
+    ) -> None:
+        piece = trimesh.creation.box(extents=(box_width, box_depth, box_height))
+        rotation = np.eye(4)
+        rotation[0, 0] = cos_angle
+        rotation[0, 1] = -sin_angle
+        rotation[1, 0] = sin_angle
+        rotation[1, 1] = cos_angle
+        piece.apply_transform(rotation)
+        center_x = p1[0] + (p2[0] - p1[0]) * along_wall + nx * outward
+        center_y = p1[1] + (p2[1] - p1[1]) * along_wall + ny * outward
+        piece.apply_translation((center_x, center_y, center_z))
+        pieces.append(piece)
+
+    floors_with_balconies = min(5, floor_count - 1)
+    floor_height = height / float(floor_count)
+    balcony_units = 0
+    for floor_index in range(1, floors_with_balconies + 1):
+        floor_z = floor_height * floor_index
+        if floor_z + 0.95 >= height:
+            continue
+        for balcony_index in range(balconies_per_floor):
+            if balconies_per_floor == 1:
+                fraction = 0.42 + float(abs(int(osm_id)) % 4) * 0.04
+            else:
+                fraction = (0.34, 0.66)[balcony_index]
+            fraction = min(max(0.5 * balcony_width / length, fraction),
+                           1.0 - 0.5 * balcony_width / length)
+            add_box(balcony_width, 0.76, 0.12, fraction, 0.39, floor_z - 0.06)
+            add_box(balcony_width, 0.07, 0.84, fraction, 0.76, floor_z + 0.42)
+            add_box(0.07, 0.76, 0.84, fraction - balcony_width / (2.0 * length),
+                    0.39, floor_z + 0.42)
+            add_box(0.07, 0.76, 0.84, fraction + balcony_width / (2.0 * length),
+                    0.39, floor_z + 0.42)
+            balcony_units += 1
+
+    if not pieces:
+        return None
+    combined = trimesh.util.concatenate(pieces)
+    color_mesh(combined, color)
+    return color, combined, balcony_units
 
 
 def facade_window_geometry(
@@ -548,22 +1242,37 @@ def facade_window_geometry(
     height: float,
     osm_id: int,
     tile_bounds: Polygon,
+    tags: dict[str, str] | None = None,
 ) -> tuple[tuple[int, int, int, int], np.ndarray, np.ndarray, int] | None:
-    """Build capped, low-poly window panels as one mesh chunk per building."""
-    if height < 3.2 or geometry.is_empty:
+    """Build source-aware window rhythms, including ordinary one-storey homes.
+
+    Window panels are facade cues, not claims of surveyed window positions. Real
+    dimensions, floor evidence and any explicit window=no tag remain authoritative.
+    """
+    if height < 2.8 or geometry.is_empty:
         return None
+    tags = tags or {}
+    if str(tags.get("window", "")).strip().lower() in {"no", "false", "0", "none"}:
+        return None
+    kind = str(tags.get("building", "yes")).strip().lower()
     parts = list(geometry.geoms) if isinstance(geometry, MultiPolygon) else [geometry]
     window_centers: list[tuple[float, float, float, float, float]] = []
-    floor_rows = min(2, max(1, int(height // 3.2)))
+    # Preserve a multi-window rhythm across actual metric wall lengths. Earlier
+    # logic capped the entire building at two panels per floor, leaving long walls
+    # almost blank; standard facades now use roughly one window per 3.2 m.
+    floor_rows = min(12, max(1, int(round(height / 3.1))))
+    max_window_panels = min(96, max(12, floor_rows * 16))
+    industrial_kinds = {"industrial", "warehouse", "hangar", "barn", "shed", "farm", "greenhouse", "stable"}
+    slot_window_style = kind in industrial_kinds
     for part in parts:
-        if not isinstance(part, Polygon) or part.area < 20.0:
+        if not isinstance(part, Polygon) or part.area < 6.0:
             continue
         edges: list[tuple[float, tuple[float, float], tuple[float, float], float, float, float]] = []
         coords = list(part.exterior.coords)
         for p1, p2 in zip(coords, coords[1:]):
             dx, dy = float(p2[0] - p1[0]), float(p2[1] - p1[1])
             length = math.hypot(dx, dy)
-            if length < 5.0:
+            if length < 2.2:
                 continue
             mid_x, mid_y = (float(p1[0]) + float(p2[0])) * 0.5, (float(p1[1]) + float(p2[1])) * 0.5
             if tile_bounds.boundary.distance(Point(mid_x, mid_y)) < 1.0:
@@ -573,12 +1282,21 @@ def facade_window_geometry(
                 nx, ny = -nx, -ny
             angle = math.atan2(dy, dx)
             edges.append((length, (float(p1[0]), float(p1[1])), (float(p2[0]), float(p2[1])), nx, ny, angle))
-        # Two longest exterior walls provide visible detail without multiplying draw calls.
+        # Cover all four exterior faces, including the small side walls on homes.
+        # A per-edge budget prevents the first long wall from consuming every panel.
         edges.sort(key=lambda edge: edge[0], reverse=True)
-        for edge in edges[:2]:
+        selected_edges = edges[:4]
+        if not selected_edges:
+            continue
+        per_edge_budget = max(1, max_window_panels // len(selected_edges))
+        for edge in selected_edges:
             length, p1, p2, nx, ny, angle = edge
-            window_count = min(2, max(1, int(length / 4.5)))
-            window_width = min(0.95, max(0.55, length / (window_count + 1) * 0.4))
+            if slot_window_style:
+                window_count = min(6, max(1, int(length / 5.0)))
+            else:
+                window_count = min(8, max(1, int(length / 3.2)))
+            window_width = min(1.25, max(0.42, length / (window_count + 1) * 0.56))
+            edge_window_count = 0
             for row in range(floor_rows):
                 center_z = 0.02 + 1.65 + float(row) * 3.0
                 if center_z + 0.45 >= height + 0.02:
@@ -588,13 +1306,14 @@ def facade_window_geometry(
                     cx = p1[0] + (p2[0] - p1[0]) * fraction + nx * 0.035
                     cy = p1[1] + (p2[1] - p1[1]) * fraction + ny * 0.035
                     window_centers.append((cx, cy, center_z, window_width, angle))
-                    if len(window_centers) >= 8:
+                    edge_window_count += 1
+                    if edge_window_count >= per_edge_budget:
                         break
-                if len(window_centers) >= 8:
+                if edge_window_count >= per_edge_budget:
                     break
-            if len(window_centers) >= 8:
+            if len(window_centers) >= max_window_panels:
                 break
-        if len(window_centers) >= 8:
+        if len(window_centers) >= max_window_panels:
             break
     if not window_centers:
         return None
@@ -746,24 +1465,66 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     tile_bounds = Polygon([(-width / 2, -depth / 2), (width / 2, -depth / 2),
                            (width / 2, depth / 2), (-width / 2, depth / 2)])
     scene = trimesh.Scene()
+    facade_photo_catalog = load_facade_photo_catalog()
+    loaded_facade_photo_ids = facade_photo_catalog_image_ids(facade_photo_catalog)
+    interior_reference_catalog = load_interior_reference_catalog()
+    facade_photo_matches: list[dict[str, Any]] = []
+    interior_reference_photo_matches: list[dict[str, Any]] = []
+    facade_photo_panels = 0
+    interior_reference_photos_embedded = 0
     ground = trimesh.creation.box(extents=(width, depth, 0.20))
     ground.apply_translation((0.0, 0.0, -0.10))
     color_mesh(ground, (104, 119, 91, 255))
     scene.add_geometry(ground, node_name="terrain_base", geom_name="terrain_base")
 
     buildings = roads = inferred_heights = named_places = 0
+    overture_buildings = 0
     trees = utility_poles = street_lamps = 0
     water_polygons = waterway_segments = landuse_areas = railway_ways = bridge_ways = facade_windows = 0
+    facade_doors = 0
+    facade_balconies = 0
+    doors_from_mapped_entrance_nodes = 0
+    inferred_doors = 0
+    modeled_roofs = 0
+    inferred_roofs = 0
+    edge_clipped_roofs_suppressed = 0
+    gabled_roofs = 0
+    hipped_roofs = 0
+    skillion_roofs = 0
     surface_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
     building_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
     roof_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
     facade_vertices_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
     facade_faces_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
     facade_vertex_counts: dict[tuple[int, int, int, int], int] = {}
+    balcony_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
+    door_vertices_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
+    door_faces_by_color: dict[tuple[int, int, int, int], list[np.ndarray]] = {}
+    door_vertex_counts: dict[tuple[int, int, int, int], int] = {}
     vegetation_meshes_by_color: dict[tuple[int, int, int, int], list[trimesh.Trimesh]] = {}
     vegetation_polygons: list[tuple[Polygon | MultiPolygon, int, str]] = []
     blocked_vegetation_polygons: list[Polygon | MultiPolygon] = []
     interior_seeds: list[dict[str, Any]] = []
+    mapped_entrance_nodes: list[dict[str, Any]] = []
+    for candidate in elements:
+        candidate_tags = candidate.get("tags", {})
+        if candidate.get("type") != "node" or ("entrance" not in candidate_tags and "door" not in candidate_tags):
+            continue
+        if candidate.get("lat") is None or candidate.get("lon") is None:
+            continue
+        entrance_kind = str(candidate_tags.get("entrance", candidate_tags.get("door", ""))).strip().lower()
+        if entrance_kind in {"", "no", "false", "0", "wall"}:
+            continue
+        entrance_x, entrance_y = local_xy(
+            float(candidate["lat"]), float(candidate["lon"]), origin_lat, origin_lon
+        )
+        mapped_entrance_nodes.append({
+            "osm_id": str(candidate.get("id", "")),
+            "x": entrance_x,
+            "y": entrance_y,
+            "entrance": str(candidate_tags.get("entrance", "")),
+            "door": str(candidate_tags.get("door", "")),
+        })
     used_ids: set[tuple[str, int]] = set()
     for el in elements:
         el_type, osm_id = str(el.get("type", "")), int(el.get("id", 0))
@@ -841,12 +1602,110 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             for mesh in extruded_polygon(polygon, height, facade_color, f"osm_building_{osm_id}"):
                 mesh.apply_translation((0.0, 0.0, 0.02))
                 building_meshes_by_color.setdefault(facade_color, []).append(mesh)
-            # Roof caps are batched by mapped colour to reduce mobile draw calls.
-            mapped_roof_color = roof_color(tags, osm_id)
+            facade_photo = match_facade_photo(tags, facade_photo_catalog, polygon, origin_lat, origin_lon)
+            if facade_photo is not None:
+                photo_metadata: dict[str, Any] = facade_photo["metadata"]
+                photo_panel = facade_photo_panel(
+                    polygon, height, facade_photo["image"], osm_id, str(photo_metadata.get("id", "licensed_photo"))
+                )
+                if photo_panel is not None:
+                    scene.add_geometry(
+                        photo_panel,
+                        node_name=f"licensed_facade_photo_{photo_metadata.get('id')}_{osm_id}",
+                        geom_name=f"licensed_facade_photo_{photo_metadata.get('id')}_{osm_id}",
+                    )
+                    facade_photo_panels += 1
+                    match_record = {
+                        "osm_id": osm_id,
+                        "building_name": tags.get("name", tags.get("name:bn", tags.get("official_name", ""))),
+                        "image_id": photo_metadata.get("id"),
+                        "subject": photo_metadata.get("subject"),
+                        "source_page": photo_metadata.get("source_page"),
+                        "author": photo_metadata.get("author"),
+                        "license": photo_metadata.get("license"),
+                        "license_url": photo_metadata.get("license_url"),
+                        "attribution": photo_metadata.get("attribution"),
+                        "status": "EMBEDDED_TEXTURE_PANEL_REQUIRES_VISUAL_REVIEW",
+                        "match_method": facade_photo.get("match_method", "exact_name_alias"),
+                        "match_distance_m": float(facade_photo.get("match_distance_m", 0.0)),
+                        "feature_geometry_source": str(tags.get("source:geometry", "OSM_FOOTPRINT")),
+                        "feature_geometry_confidence": str(tags.get(
+                            "source:geometry", "OSM_FOOTPRINT_FROM_SOURCE_DATA"
+                        )),
+                        "height_source": building_height_source(tags),
+                        "floor_count_source": building_floors_source(tags),
+                        "location_source_url": str(tags.get("source:location:url", "")),
+                    }
+                    facade_photo_matches.append(match_record)
+            # Keep a cap for every building, adding pitched silhouettes when source
+            # tags exist or a small low-rise house needs a clearly labelled inference.
+            roof_shape_model, roof_shape_source = roof_shape_for_building(tags, polygon.area, height)
+            mapped_roof_color = procedural_roof_color(tags, osm_id, roof_shape_source)
             for roof_mesh in extruded_polygon(polygon, 0.055, mapped_roof_color, f"osm_roof_{osm_id}"):
                 roof_mesh.apply_translation((0.0, 0.0, height + 0.025))
                 roof_meshes_by_color.setdefault(mapped_roof_color, []).append(roof_mesh)
-            window_geometry = facade_window_geometry(polygon, height, osm_id, tile_bounds)
+            if roof_shape_source.startswith("INFERRED_"):
+                inferred_roofs += 1
+            pitched_roof = procedural_roof_mesh(polygon, height, roof_shape_model, osm_id)
+            if pitched_roof is not None:
+                # minimum_rotated_rectangle can recreate an uncropped roof outline
+                # around a footprint that was clipped at the tile edge. The flat
+                # roof cap above already follows the exact clipped footprint, so
+                # keep that cap rather than letting a pitched shell leak into the
+                # neighbouring tile.
+                roof_bounds = pitched_roof.bounds
+                tile_min_x, tile_min_y, tile_max_x, tile_max_y = tile_bounds.bounds
+                roof_within_tile = (
+                    roof_bounds[0][0] >= tile_min_x - 0.01
+                    and roof_bounds[1][0] <= tile_max_x + 0.01
+                    and roof_bounds[0][1] >= tile_min_y - 0.01
+                    and roof_bounds[1][1] <= tile_max_y + 0.01
+                )
+                if not roof_within_tile:
+                    edge_clipped_roofs_suppressed += 1
+                else:
+                    color_mesh(pitched_roof, mapped_roof_color)
+                    roof_meshes_by_color.setdefault(mapped_roof_color, []).append(pitched_roof)
+                    modeled_roofs += 1
+                    if roof_shape_model == "gabled":
+                        gabled_roofs += 1
+                    elif roof_shape_model == "hipped":
+                        hipped_roofs += 1
+                    elif roof_shape_model == "skillion":
+                        skillion_roofs += 1
+            nearest_mapped_entrance: dict[str, Any] | None = None
+            nearest_entrance_distance = 2.2
+            for entrance_candidate in mapped_entrance_nodes:
+                entrance_point = Point(float(entrance_candidate["x"]), float(entrance_candidate["y"]))
+                boundary_distance = polygon.boundary.distance(entrance_point)
+                if boundary_distance <= nearest_entrance_distance:
+                    nearest_entrance_distance = boundary_distance
+                    nearest_mapped_entrance = entrance_candidate
+            door_info = facade_door_geometry(
+                polygon, height, osm_id, tile_bounds, nearest_mapped_entrance
+            )
+            door_anchor_local_m: list[float] = []
+            door_outward_xy: list[float] = []
+            door_placement_source = "NO_PROCEDURAL_DOOR_ANCHOR"
+            door_entrance_node_osm_id = ""
+            if door_info is not None:
+                door_color = door_info["color"]
+                door_vertices = door_info["vertices"]
+                door_faces = door_info["faces"]
+                vertex_offset = door_vertex_counts.get(door_color, 0)
+                door_vertices_by_color.setdefault(door_color, []).append(door_vertices)
+                door_faces_by_color.setdefault(door_color, []).append(door_faces + vertex_offset)
+                door_vertex_counts[door_color] = vertex_offset + len(door_vertices)
+                facade_doors += int(door_info["door_count"])
+                door_anchor_local_m = list(door_info["anchor_local_m"])
+                door_outward_xy = list(door_info["outward_xy"])
+                door_placement_source = str(door_info["placement_source"])
+                door_entrance_node_osm_id = str(door_info.get("entrance_node_osm_id", ""))
+                if door_entrance_node_osm_id:
+                    doors_from_mapped_entrance_nodes += 1
+                else:
+                    inferred_doors += 1
+            window_geometry = facade_window_geometry(polygon, height, osm_id, tile_bounds, tags)
             if window_geometry is not None:
                 window_color, window_vertices, window_faces, window_count = window_geometry
                 vertex_offset = facade_vertex_counts.get(window_color, 0)
@@ -854,10 +1713,56 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 facade_faces_by_color.setdefault(window_color, []).append(window_faces + vertex_offset)
                 facade_vertex_counts[window_color] = vertex_offset + len(window_vertices)
                 facade_windows += window_count
+            balcony_info = facade_balcony_geometry(polygon, height, osm_id, tags, tile_bounds)
+            if balcony_info is not None:
+                balcony_color, balcony_mesh, balcony_count = balcony_info
+                balcony_meshes_by_color.setdefault(balcony_color, []).append(balcony_mesh)
+                facade_balconies += int(balcony_count)
             buildings += 1
+            if tags.get("source_dataset") == "Overture Maps buildings theme":
+                overture_buildings += 1
             name = tags.get("name", "")
             has_specific_place_tags = bool(name or tags.get("shop") or tags.get("amenity") or tags.get("tourism"))
             building_kind = str(tags.get("building", "building")).lower()
+            interior_photo_reference: dict[str, Any] | None = None
+            interior_photo = match_named_image(tags, interior_reference_catalog)
+            if interior_photo is not None:
+                photo_metadata: dict[str, Any] = interior_photo["metadata"]
+                source_photo = Path(str(interior_photo.get("path", "")))
+                photo_filename = str(photo_metadata.get("file_name", "")).strip()
+                if source_photo.is_file() and photo_filename:
+                    photo_format = Path(photo_filename).suffix.lower().lstrip(".")
+                    if photo_format not in {"jpg", "jpeg", "png", "webp"}:
+                        photo_format = ""
+                    relative_photo_path = "landmark_reference_photos/" + photo_filename + ".photo_bytes"
+                    photo_destination = output_dir / relative_photo_path
+                    photo_destination.parent.mkdir(parents=True, exist_ok=True)
+                    # A non-resource extension plus Android include_filter makes the exact
+                    # licensed source bytes deterministic inside the APK. The runtime decodes
+                    # these bytes to ImageTexture; it does not depend on a missing Godot remap.
+                    image_bytes = source_photo.read_bytes()
+                    photo_destination.write_bytes(image_bytes)
+                    interior_photo_reference = {
+                        "image_id": str(photo_metadata.get("id", "")),
+                        "asset_relative_path": relative_photo_path,
+                        "image_format": photo_format,
+                        "source_page": str(photo_metadata.get("source_page", "")),
+                        "author": str(photo_metadata.get("author", "")),
+                        "license": str(photo_metadata.get("license", "")),
+                        "license_url": str(photo_metadata.get("license_url", "")),
+                        "attribution": str(photo_metadata.get("attribution", "")),
+                        "sha256": hashlib.sha256(image_bytes).hexdigest(),
+                        "use": "INTERIOR_REFERENCE_ONLY",
+                        "visual_identity_verified": True,
+                    }
+                    interior_reference_photo_matches.append({
+                        "osm_id": osm_id,
+                        "building_name": tags.get("name", tags.get("name:bn", tags.get("official_name", ""))),
+                        "image_id": interior_photo_reference["image_id"],
+                        "tile_id": output_dir.name,
+                        **interior_photo_reference,
+                    })
+                    interior_reference_photos_embedded += 1
             if tags.get("shop"):
                 interior_category = str(tags["shop"])
             elif tags.get("amenity"):
@@ -884,19 +1789,31 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 "name": name or tags.get("shop", tags.get("amenity", "Unnamed building")),
                 "category": interior_category,
                 "anchor_kind": "named_or_tagged" if has_specific_place_tags else "generic_building",
-                "floors_estimate": max(1, round(height / 3.1)),
+                "floors_estimate": (
+                    max(1, int(float(tags.get("building:levels:estimate", "1"))))
+                    if str(tags.get("building:levels:source", "")).strip() == "CURATED_APPROXIMATE_NOT_SURVEYED"
+                    else max(1, round(height / 3.1))
+                ),
                 "floors_source": building_floors_source(tags),
                 "height_metres": round(height, 2),
                 "height_source": building_height_source(tags),
-                "facade_status": "PROCEDURAL_LOW_POLY_WINDOW_PANELS; MAPPED_COLOUR_TAGS_IF_PRESENT; OTHERWISE_APPROXIMATE_CATEGORY_COLOUR",
-                "geometry_confidence": "OSM_FOOTPRINT; HEIGHT_IS_TAGGED_OR_FLAGGED_AREA_CATEGORY_ESTIMATE",
+                "facade_status": "PROCEDURAL_LOW_POLY_WINDOW_PANELS; SELECTED_DETERMINISTIC_BALCONIES; MAPPED_COLOUR_TAGS_IF_PRESENT; OTHERWISE_APPROXIMATE_CATEGORY_COLOUR",
+                "geometry_confidence": (
+                    "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED"
+                    if str(tags.get("source:geometry", "")).strip() == "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED"
+                    else "OSM_FOOTPRINT; HEIGHT_IS_TAGGED_OR_FLAGGED_AREA_CATEGORY_ESTIMATE"
+                ),
                 "building_tags": {
                     key: tags[key] for key in (
-                        "building", "building:levels", "height", "building:material",
+                        "building", "building:levels", "building:levels:estimate", "building:levels:source",
+                        "height", "height:source", "source:geometry", "source:geometry:url",
+                        "source:location", "source:location:url", "building:material",
                         "building:colour", "building:color", "facade:material",
                         "facade:colour", "facade:color", "roof:shape", "roof:material",
                         "roof:colour", "roof:color", "name", "name:bn", "name:en",
-                        "official_name", "brand", "shop", "amenity", "tourism",
+                        "official_name", "brand", "shop", "amenity", "tourism", "source_dataset",
+                        "overture_id", "overture_source_datasets", "overture:height", "overture:num_floors",
+                        "overture:class", "overture:subtype",
                         "addr:street", "addr:housenumber", "addr:place",
                         "image", "wikimedia_commons", "mapillary"
                     ) if key in tags
@@ -913,10 +1830,17 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                     "note": "References only; verify access and reuse rights before runtime use."
                 },
                 "footprint_local_m": footprint_for_anchor,
+                "door_anchor_local_m": door_anchor_local_m,
+                "door_outward_xy": door_outward_xy,
+                "door_placement_source": door_placement_source,
+                "door_entrance_node_osm_id": door_entrance_node_osm_id,
+                "roof_shape_model": roof_shape_model,
+                "roof_shape_source": roof_shape_source,
                 "interior_status": "FICTIONAL_BUILDING_SPECIFIC_INTERIOR_GENERATED_AT_RUNTIME",
                 "npc_seed": "Generate fictional residents/workers from this building's own mapped name, category, address and exterior tags; never imply actual occupants.",
                 "rooms_seed": ["entrance", "public_or_living_area", "counter_or_reception", "back_room"],
                 "interior_generation_key": f"osm:{el_type}/{osm_id}",
+                "interior_reference_photo": interior_photo_reference,
             })
             if has_specific_place_tags:
                 named_places += 1
@@ -1028,6 +1952,17 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             safe_polygon = safe_polygon.buffer(0)
         if safe_polygon.is_empty:
             continue
+        # A mapped land-use polygon can reach the tile edge. Tree centres inside
+        # that polygon are not enough: the crown has real width and may overhang
+        # into its neighbour. Erode the tile footprint before placing any
+        # procedural vegetation so the largest crown (1.65 m radius) remains
+        # wholly inside this tile, without weakening the final bounds gate.
+        tree_safe_bounds = tile_bounds.buffer(-1.9, join_style=2)
+        if tree_safe_bounds.is_empty:
+            continue
+        safe_polygon = safe_polygon.intersection(tree_safe_bounds)
+        if safe_polygon.is_empty:
+            continue
         kind_budget = {"forest": 90, "orchard": 130, "scrub": 42, "park": 48, "farmland": 22}.get(kind, 30)
         sites = procedural_tree_sites(safe_polygon, osm_id, kind, min(kind_budget, per_tile_tree_budget - procedural_trees))
         for tree_index, (tree_x, tree_y) in enumerate(sites):
@@ -1070,6 +2005,24 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         color_name = "".join(f"{channel:02x}" for channel in color[:3])
         scene.add_geometry(combined, node_name=f"mapped_surface_{color_name}", geom_name=f"mapped_surface_{color_name}")
 
+    for color, vertex_chunks in door_vertices_by_color.items():
+        if not vertex_chunks:
+            continue
+        vertices = np.concatenate(vertex_chunks, axis=0)
+        faces = np.concatenate(door_faces_by_color[color], axis=0)
+        combined = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+        color_mesh(combined, color)
+        color_name = "".join(f"{channel:02x}" for channel in color[:3])
+        scene.add_geometry(combined, node_name=f"facade_doors_{color_name}", geom_name=f"facade_doors_{color_name}")
+
+    for color, meshes in balcony_meshes_by_color.items():
+        if not meshes:
+            continue
+        combined = trimesh.util.concatenate(meshes)
+        color_mesh(combined, color)
+        color_name = "".join(f"{channel:02x}" for channel in color[:3])
+        scene.add_geometry(combined, node_name=f"facade_balconies_{color_name}", geom_name=f"facade_balconies_{color_name}")
+
     for color, vertex_chunks in facade_vertices_by_color.items():
         if not vertex_chunks:
             continue
@@ -1083,7 +2036,20 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     scene_bounds = scene.bounds
     if (scene_bounds[0][0] < -width / 2 - 1 or scene_bounds[1][0] > width / 2 + 1 or
             scene_bounds[0][1] < -depth / 2 - 1 or scene_bounds[1][1] > depth / 2 + 1):
-        raise RuntimeError("Export geometry extends beyond the requested tile; refusing to publish an oversized map.")
+        offending = []
+        for geometry_name, geometry in scene.geometry.items():
+            bounds = geometry.bounds
+            if (bounds[0][0] < -width / 2 - 1 or bounds[1][0] > width / 2 + 1 or
+                    bounds[0][1] < -depth / 2 - 1 or bounds[1][1] > depth / 2 + 1):
+                offending.append({
+                    "name": geometry_name,
+                    "bounds_xy": [[round(float(value), 3) for value in row[:2]] for row in bounds],
+                })
+        raise RuntimeError(
+            "Export geometry extends beyond the requested tile; refusing to publish an oversized map. "
+            f"Tile half extents (m): x={width / 2:.3f}, y={depth / 2:.3f}; "
+            f"scene bounds (m): {scene_bounds.tolist()}; offending meshes: {offending[:8]}"
+        )
     # Convert the internal Z-up extrusion coordinates (X=east, Y=north, Z=up)
     # to glTF/Godot coordinates (X=east, Y=up, Z=south). Without this transform,
     # the imported city can stand on its side despite having valid GLB geometry.
@@ -1109,31 +2075,77 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "pipeline_commit_sha": os.environ.get("WSB_PIPELINE_COMMIT_SHA", "").strip(),
         "product": "Dhaka Explorable 3D Map — first offline map slice",
         "format": "glTF 2.0 binary (.glb)",
-        "source": "OpenStreetMap ways/nodes via Overpass API",
+        "source": ("OpenStreetMap features" + (" plus Overture Maps building footprints" if overture_buildings else "")),
+        "source_feature_counts": {"overture_building_footprints": overture_buildings},
         "attribution": OSM_COPYRIGHT,
         "license": "OpenStreetMap data is available under the Open Database License (ODbL); review attribution/share-alike obligations before redistribution.",
         "bbox_south_west_north_east": list(bbox),
         "local_origin_lat_lon": [origin_lat, origin_lon],
         "projected_local_units": "metres; local equirectangular projection; Z is up",
         "extent_metres_approx": {"east_west": round(width, 1), "north_south": round(depth, 1)},
-        "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "road_ways": roads,
+        "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "overture_building_footprints": overture_buildings, "road_ways": roads,
                            "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places,
-                           "interior_anchors": len(interior_seeds), "mapped_trees": trees,
-                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color), "procedural_vegetation_trees": procedural_trees, "vegetation_mesh_batches": len(vegetation_meshes_by_color),
+                           "interior_anchors": len(interior_seeds), "licensed_facade_photo_panels": facade_photo_panels, "interior_reference_photos": interior_reference_photos_embedded,
+                            "curated_approximate_landmark_footprints": sum(
+                                1 for item in elements
+                                if str(item.get("tags", {}).get("source:geometry", "")) == "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED"
+                            ),
+                            "mapped_trees": trees,
+                           "mapped_utility_poles": utility_poles, "mapped_street_lamps": street_lamps, "facade_window_panels": facade_windows, "facade_door_panels": facade_doors, "facade_balcony_units": facade_balconies, "doors_from_mapped_entrance_nodes": doors_from_mapped_entrance_nodes, "inferred_doors": inferred_doors, "modeled_roofs": modeled_roofs, "inferred_roof_shapes": inferred_roofs, "edge_clipped_roofs_suppressed": edge_clipped_roofs_suppressed, "gabled_roofs": gabled_roofs, "hipped_roofs": hipped_roofs, "skillion_roofs": skillion_roofs, "building_mesh_batches": len(building_meshes_by_color), "roof_mesh_batches": len(roof_meshes_by_color), "procedural_vegetation_trees": procedural_trees, "vegetation_mesh_batches": len(vegetation_meshes_by_color),
                             "water_polygons": water_polygons, "waterway_segments": waterway_segments,
                             "landuse_areas": landuse_areas, "railway_ways": railway_ways, "bridge_ways": bridge_ways},
+        "licensed_facade_photo_matches": facade_photo_matches,
+        "facade_photo_diagnostics": {
+            "loaded_eligible_image_ids": loaded_facade_photo_ids,
+            "embedded_panel_image_ids": sorted({
+                str(match.get("image_id", "")).strip()
+                for match in facade_photo_matches
+                if str(match.get("image_id", "")).strip()
+            }),
+            "loaded_but_unmatched_image_ids": sorted(
+                set(loaded_facade_photo_ids) - {
+                    str(match.get("image_id", "")).strip()
+                    for match in facade_photo_matches
+                    if str(match.get("image_id", "")).strip()
+                }
+            ),
+            "embedded_panel_count": facade_photo_panels,
+            "interpretation": "A downloaded or loaded source does not count as embedded. Only licensed_facade_photo_panels and embedded_panel_image_ids show that this tile received a textured exterior panel.",
+        },
+        "interior_reference_photo_matches": interior_reference_photo_matches,
+        "interior_reference_photo_note": "Explicitly licensed interior photos are copied as separate runtime assets and shown only inside the exact-name mapped building's fictional generated interior. They are never applied to an exterior facade.",
+        "facade_photo_note": "Only licensed, visually reviewed photos matched by exact name or a bounded target coordinate plus compatible tags receive panels. Curated landmark fallback footprints are explicitly approximate and not surveyed. Panels are reference-photo textures, not full photogrammetric reconstruction; every placement still requires visual review.",
         "height_note": "OSM height/building:levels tags are used when present; otherwise footprint-area/building-category estimates with deterministic floor-height variation are flagged as inferred, not surveyed facts.",
         "hydrography_note": "Mapped OSM water polygons are kept to their source outlines. River/canal centerlines without mapped widths use type-based approximate widths and are not survey-grade water boundaries.",
-         "visual_fidelity_note": "Real OSM road alignments, building footprints, mapped water and land-use surfaces, and tagged bridges are included. Mapped forest, orchard, park, scrub and farm polygons receive bounded deterministic low-poly tree props where individual OSM tree nodes are sparse; vegetation remains procedural rather than a surveyed inventory. Sufficiently large buildings receive lightweight procedural low-poly window panels; building, roof and vegetation meshes are batched by material colour to reduce mobile draw calls. Explicit facade/roof colour tags are used where available. Bangla/English names and exterior image references are preserved per building. This is not photorealistic street imagery; that requires separately licensed source data.",
+         "visual_fidelity_note": "Real OSM road alignments, building footprints, mapped water and land-use surfaces, and tagged bridges are included. Mapped forest, orchard, park, scrub and farm polygons receive bounded deterministic low-poly tree props where individual OSM tree nodes are sparse; vegetation remains procedural rather than a surveyed inventory. Sufficiently large buildings receive lightweight procedural low-poly window panels; selected source-aware mid-rise residential/commercial footprints receive deterministic balcony modules, while industrial and explicitly balcony-free buildings are excluded. Building, roof, balcony and vegetation meshes are batched by material colour to reduce mobile draw calls. Explicit facade/roof colour tags are used where available. Bangla/English names and exterior image references are preserved per building. This is not photorealistic street imagery; that requires separately licensed source data.",
         "interiors_and_people": "AI_Interior_Seeds.json includes anchors for every mapped building footprint plus named/tagged places; the game generates fictional interiors and residents at runtime, not actual private interiors or real people.",
         "engine_import": "Import Dhaka_Explorable_Map.glb as a Godot MeshInstance3D/scene; retain GeoJSON and manifest for labels, navigation and source attribution.",
     }
     (output_dir / "map_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    (output_dir / "ATTRIBUTION.txt").write_text(
+    attribution_text = (
         OSM_COPYRIGHT + "\nData license: Open Database License (ODbL) 1.0.\n"
-        "Source data is modified into a local 3D representation. See https://www.openstreetmap.org/copyright\n",
-        encoding="utf-8",
+        "Source data is modified into a local 3D representation. See https://www.openstreetmap.org/copyright\n"
     )
+    seen_photo_attributions: set[str] = set()
+    for match in interior_reference_photo_matches:
+        attribution = str(match.get("attribution", "")).strip()
+        license_name = str(match.get("license", "")).strip()
+        license_url = str(match.get("license_url", "")).strip()
+        entry = f"{attribution}\nLicense: {license_name} — {license_url}\nUse: interior reference only; not an exterior facade texture."
+        if attribution and entry not in seen_photo_attributions:
+            seen_photo_attributions.add(entry)
+            attribution_text += "\n" + entry + "\n"
+    for match in facade_photo_matches:
+        attribution = str(match.get("attribution", "")).strip()
+        license_name = str(match.get("license", "")).strip()
+        license_url = str(match.get("license_url", "")).strip()
+        entry = f"{attribution}\nLicense: {license_name} — {license_url}"
+        if attribution and entry not in seen_photo_attributions:
+            seen_photo_attributions.add(entry)
+            attribution_text += "\n" + entry + "\n"
+    if overture_buildings:
+        attribution_text += "\nSupplemental building footprints: Overture Maps Foundation Buildings theme, accessed using the official Overture Maps Python client. Feature-level source datasets and record IDs are retained in building tags. Follow current source attribution and terms: https://docs.overturemaps.org/getting-data/\n"
+    (output_dir / "ATTRIBUTION.txt").write_text(attribution_text, encoding="utf-8")
     return manifest
 
 

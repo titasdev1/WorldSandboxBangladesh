@@ -1,0 +1,290 @@
+{
+  "schema_version": 1,
+  "purpose": "Separate licensed photo uses by verified view: exterior facade panels require facade_eligible/view_type/visual_qa; interior reference photos require interior_reference_eligible/interior_view_type/interior_visual_qa. Never put an interior photo on an exterior wall.",
+  "limitations": [
+    "These are landmark reference photographs, not a complete set for every Shariatpur building.",
+    "OSM name matching is not proof of surveyed coordinates; inspect the resulting GLB before release.",
+    "CC BY-SA 4.0 texture derivatives must remain available under compatible share-alike terms; keep each photo and attribution separate from unrelated game assets.",
+    "No Google Maps imagery is downloaded or redistributed.",
+    "Interior photographs must never be baked onto building exteriors; a candidate can be enabled only after visual confirmation of an exterior view and its mapped-building match.",
+    "Only individual entries with facade_eligible=true, view_type=exterior and visual_qa=passed may be baked. Each approved photograph is restricted to its matched landmark; the current catalog is selected heritage coverage, not a photo survey of ordinary homes, shops or every street facade.",
+    "The Manasha Temple exterior photo first uses exact mapped-name aliases; if OSM has no usable name, it may attach only to a compatible worship/temple/historic-tagged mapped footprint within 45 m of the catalogued approximate public map pin. Generic nearby buildings are ineligible.",
+    "The Kartikpur Jomidar Bari coordinate is the Wikimedia Commons object location and is not a surveyed footprint; its 8 m placement gate requires a nearby mapped building geometry or an exact name alias.",
+    "The Rudrakar Moth coordinate is an approximate public travel-guide pin; matching requires a named alias or compatible monument/worship tags within 35 m."
+  ],
+  "images": [
+    {
+      "id": "bibir_hat_mosque_01",
+      "subject": "Bibir Hat Mosque, Shariatpur",
+      "match_names": [
+        "Bibir Hat Mosque",
+        "বিবির হাট মসজিদ",
+        "Bibir Hat Jame Mosque",
+        "বুড়িরহাট ঐতিহাসিক জামে মসজিদ",
+        "বুড়ির হাট ঐতিহাসিক জামে মসজিদ",
+        "বুড়ির হাট ঐতিহাসিক জামে মসজিদ,"
+      ],
+      "source_page": "https://commons.wikimedia.org/wiki/File:Bibir_Hat_Mosque_01.jpg",
+      "download_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Bibir_Hat_Mosque_01.jpg?width=1024",
+      "author": "Radman Siddiki (Wikimedia username: Redmin)",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "Photo: Radman Siddiki / Wikimedia Commons, Bibir Hat Mosque 01.jpg, CC BY-SA 4.0. Source: https://commons.wikimedia.org/wiki/File:Bibir_Hat_Mosque_01.jpg",
+      "file_name": "bibir_hat_mosque_01.jpg",
+      "status": "BLOCKED_FROM_FACADE_BAKE: CURRENTLY_DOWNLOADED_PHOTOGRAPH_VISUALLY_IDENTIFIED_AS_INTERIOR_VIEW",
+      "identity_evidence": {
+        "official_shariatpur_district_directory": "https://shariatpur.gov.bd/pages/religious-institutes/%E0%A6%AC%E0%A7%81%E0%A7%9C%E0%A6%BF%E0%A6%B0-%E0%A6%B9%E0%A6%BE%E0%A6%9F-%E0%A6%90%E0%A6%A4%E0%A6%BF%E0%A6%B9%E0%A6%BE%E0%A6%B8%E0%A6%BF%E0%A6%95-%E0%A6%9C%E0%A6%BE%E0%A6%AE%E0%A7%87-%E0%A6%AE%E0%A6%B8%E0%A6%9C%E0%A6%BF%E0%A6%A6-17f034-6995640735ce18e1c0759e7d",
+        "mapped_osm_name_bn": "বুড়িরহাট ঐতিহাসিক জামে মসজিদ",
+        "evidence_note": "The Bengali building-name match supports the landmark identity, but does not make the photographed interior valid as an exterior facade. Do not bake this image on the outside wall."
+      },
+      "facade_eligible": false,
+      "view_type": "unverified",
+      "visual_qa": "pending",
+      "intended_use": "interior_reference_only_until_a_correctly_licensed_exterior_photo_is_verified",
+      "interior_reference_eligible": true,
+      "interior_view_type": "interior",
+      "interior_visual_qa": "passed",
+      "interior_reference_evidence": {
+        "evidence_type": "visually_reviewed_interior_photo",
+        "source_page": "https://commons.wikimedia.org/wiki/File:Bibir_Hat_Mosque_01.jpg",
+        "linked_mapped_building_name": "বুড়িরহাট ঐতিহাসিক জামে মসজিদ",
+        "official_identity_reference": "https://shariatpur.gov.bd/pages/religious-institutes/%E0%A6%AC%E0%A7%81%E0%A7%9C%E0%A6%BF%E0%A6%B0-%E0%A6%B9%E0%A6%BE%E0%A6%9F-%E0%A6%90%E0%A6%A4%E0%A6%BF%E0%A6%B9%E0%A6%BE%E0%A6%B8%E0%A6%BF%E0%A6%95-%E0%A6%9C%E0%A6%BE%E0%A6%AE%E0%A7%87-%E0%A6%AE%E0%A6%B8%E0%A6%9C%E0%A6%BF%E0%A6%A6-17f034-6995640735ce18e1c0759e7d",
+        "intended_use": "photo panel inside this mapped mosque's generated game interior only; never an exterior facade",
+        "evidence_note": "The photographed view is interior, and the OSM building way carries the matching Bengali name. It is restricted to the generated interior of this exact mapped mosque."
+      }
+    },
+    {
+      "id": "rudrakar_moth_35",
+      "subject": "Rudrakar Moth (Rudrakar Abbey), Shariatpur",
+      "match_names": [
+        "Rudrakar Moth",
+        "Rudrakar Abbey",
+        "Rudrakar Matha",
+        "Rudrakar Monastery",
+        "রুদ্রকর মঠ"
+      ],
+      "source_page": "https://commons.wikimedia.org/wiki/File:Rudrakar_Moth_35.jpg",
+      "download_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Rudrakar_Moth_35.jpg?width=1024",
+      "author": "Radman Siddiki (Wikimedia username: Redmin)",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "attribution": "Photo: Radman Siddiki / Wikimedia Commons, Rudrakar Moth 35.jpg, CC BY 4.0. Source: https://commons.wikimedia.org/wiki/File:Rudrakar_Moth_35.jpg",
+      "file_name": "rudrakar_moth_35.jpg",
+      "status": "APPROVED_FOR_EXTERIOR_PANEL: WIKIMEDIA_COMMONS_IDENTIFIES_THE_SUBJECT_AS_RUDRAKAR_ABBEY_MOTH_IN_SHARIATPUR",
+      "facade_eligible": true,
+      "view_type": "exterior",
+      "visual_qa": "passed",
+      "intended_use": "one building-specific licensed exterior photo panel on the matched Rudrakar Moth landmark",
+      "alterations": "Rescaled and UV-mapped as a wall reference panel; source photograph and CC BY 4.0 attribution retained.",
+      "target_location_lat_lon": [
+        23.183,
+        90.3459
+      ],
+      "target_location_source": "https://ghurifiri.bd/places/rudrakar-moth-shariatpur",
+      "target_location_precision": "Approximate public travel-guide map pin, not a survey-grade footprint coordinate; photo matching also requires a compatible mapped landmark tag group.",
+      "target_match_radius_metres": 35,
+      "target_tag_groups": [
+        {
+          "building": "temple"
+        },
+        {
+          "historic": "temple"
+        },
+        {
+          "historic": "monument"
+        },
+        {
+          "historic": "archaeological_site"
+        },
+        {
+          "man_made": "monument"
+        },
+        {
+          "amenity": "place_of_worship"
+        }
+      ],
+      "identity_evidence": {
+        "evidence_type": "WIKIMEDIA_COMMONS_PHOTOGRAPH_PAGE_AND_MONUMENT_IDENTITY",
+        "source_page": "https://commons.wikimedia.org/wiki/File:Rudrakar_Moth_35.jpg",
+        "mapped_name_aliases": [
+          "রুদ্রকর মঠ",
+          "Rudrakar Moth",
+          "Rudrakar Abbey"
+        ],
+        "wikidata": "https://www.wikidata.org/wiki/Q97497457",
+        "evidence_note": "The Commons page identifies the photograph as Rudrakar Abbey (Moth), Shariatpur, and provides a CC BY 4.0 license. The geographic anchor is approximate; a panel is allowed only for a name-alias match or a compatible tagged mapped footprint within the bounded radius."
+      },
+      "curated_feature_id": -62900001,
+      "curated_name": "Rudrakar Moth, Shariatpur",
+      "curated_footprint_dimensions_metres": [
+        8,
+        6
+      ],
+      "curated_footprint_dimensions_note": "Temporary 8 m x 6 m footprint to host the exact-site licensed photo panel; not surveyed and must be replaced by a verified footprint when available.",
+      "curated_height_metres": 4.5,
+      "curated_building_tags": {
+        "building": "temple",
+        "historic": "temple",
+        "amenity": "place_of_worship",
+        "religion": "hindu"
+      }
+    },
+    {
+      "id": "manasha_temple_back_view_01",
+      "subject": "Manasha Temple, Shariatpur (back view)",
+      "match_names": [
+        "Manasha Temple, Shariatpur",
+        "Manasha Temple",
+        "Manasa Temple, Shariatpur",
+        "মনসা মন্দির, শরীয়তপুর",
+        "মনসা মন্দির",
+        "ধানুকার মানসা মন্দির",
+        "Dhanuka Manasha Bari",
+        "Dhanuka Manasa Bari",
+        "Dhanuka Mansa Bari",
+        "Dhanuka Manasa Temple",
+        "Dhanuka Manasha Temple",
+        "ধানুকা মনসাবাড়ি",
+        "ধানুকা মনসাবাড়ি",
+        "ধানুকা মনসা বাড়ি",
+        "ধানুকা মনসা বাড়ি",
+        "ধানুকা মনসা মন্দির",
+        "ধানুকা মনসামন্দির",
+        "মনসাবাড়ি",
+        "মনসাবাড়ি",
+        "মনসা বাড়ি",
+        "মনসা বাড়ি",
+        "ধানুকা মনসা বাড়ি, শরীয়তপুর",
+        "ধানুকার মনসা মন্দির"
+      ],
+      "source_page": "https://commons.wikimedia.org/wiki/File:Manasha_Temple,_Shariatpur_(back_view).jpg",
+      "download_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Manasha_Temple%2C_Shariatpur_%28back_view%29.jpg?width=1024",
+      "author": "Shuvajit BD",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "Photo: Shuvajit BD / Wikimedia Commons, Manasha Temple, Shariatpur (back view).jpg, CC BY-SA 4.0. Source: https://commons.wikimedia.org/wiki/File:Manasha_Temple,_Shariatpur_(back_view).jpg",
+      "file_name": "manasha_temple_shariatpur_back_view.jpg",
+      "status": "APPROVED_FOR_EXTERIOR_PANEL: NAMED_SHARIATPUR_MONUMENT_PHOTO_PAGE_AND_BACK_VIEW_CONFIRMED",
+      "facade_eligible": true,
+      "view_type": "exterior",
+      "visual_qa": "passed",
+      "identity_evidence": {
+        "evidence_type": "WIKIMEDIA_COMMONS_PHOTOGRAPH_PAGE_AND_MONUMENT_ID",
+        "source_page": "https://commons.wikimedia.org/wiki/File:Manasha_Temple,_Shariatpur_(back_view).jpg",
+        "monument_id": "BD-C-62-85",
+        "mapped_name_aliases": [
+          "মনসা মন্দির, শরীয়তপুর",
+          "মনসা মন্দির",
+          "Manasha Temple, Shariatpur"
+        ],
+        "evidence_note": "The Commons page identifies the photo as the back view of Manasha Temple, Shariatpur, gives the Bengali monument name and monument ID BD-C-62-85, credits Shuvajit BD, and states CC BY-SA 4.0. This is an exterior-view asset for the exact named monument, not a generic building texture. Placement still requires checking the matched OSM feature and baked panel in the resulting map."
+      },
+      "intended_use": "one building-specific, licensed exterior reference panel on the exact matched Manasha Temple building",
+      "alterations": "Rescaled/UV-mapped as a wall reference panel in the game map; source photograph retained in attribution records.",
+      "target_location_lat_lon": [
+        23.2004,
+        90.3484
+      ],
+      "target_location_source": "https://ghurifiri.bd/places/dhanuka-manasha-bari-shariatpur",
+      "target_location_precision": "Approximate public travel-guide map pin, not a survey-grade footprint coordinate; used only as a bounded secondary match anchor.",
+      "target_match_radius_metres": 45,
+      "target_tag_groups": [
+        {
+          "amenity": "place_of_worship"
+        },
+        {
+          "building": "temple"
+        },
+        {
+          "historic": "temple"
+        },
+        {
+          "historic": "monument",
+          "religion": "hindu"
+        },
+        {
+          "religion": "hindu"
+        }
+      ],
+      "target_location_note": "Published landmark coordinate used to locate the photo target; fallback footprint dimensions are approximate and not surveyed."
+    },
+    {
+      "id": "kartikpur_jomidar_bari_123242",
+      "subject": "Kartikpur Jomidar Bari, Naria, Shariatpur (front exterior)",
+      "match_names": [
+        "Kartikpur Jomidar Bari",
+        "Kartikpur Zamindar Bari",
+        "Kartikpur Zamindar House",
+        "কার্তিকপুর জমিদার বাড়ি",
+        "কার্তিকপুর জমিদার বাড়ি",
+        "কার্তিকপুর জমিদারবাড়ি",
+        "কার্তিকপুর জমিদারবাড়ি"
+      ],
+      "source_page": "https://commons.wikimedia.org/wiki/File:Kartikpur_Jomidar_Bari_(123242).jpg",
+      "download_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Kartikpur_Jomidar_Bari_%28123242%29.jpg?width=1024",
+      "author": "Moheen Reeyad",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "Photo: Moheen Reeyad / Wikimedia Commons, Kartikpur Jomidar Bari (123242).jpg, CC BY-SA 4.0. Source: https://commons.wikimedia.org/wiki/File:Kartikpur_Jomidar_Bari_(123242).jpg",
+      "file_name": "kartikpur_jomidar_bari_123242.jpg",
+      "status": "APPROVED_FOR_EXTERIOR_PANEL: COMMONS_CAPTION_IDENTIFIES_THE_FRONT_OF_KARTIKPUR_JOMIDAR_BARI_IN_NARIA_SHARIATPUR",
+      "facade_eligible": true,
+      "view_type": "exterior",
+      "visual_qa": "passed",
+      "identity_evidence": {
+        "evidence_type": "WIKIMEDIA_COMMONS_PHOTOGRAPH_PAGE_WITH_OBJECT_LOCATION",
+        "source_page": "https://commons.wikimedia.org/wiki/File:Kartikpur_Jomidar_Bari_(123242).jpg",
+        "object_location_lat_lon": [
+          23.252441,
+          90.472991
+        ],
+        "evidence_note": "The Commons file caption identifies the south-east front exposure of Kartikpur Jomidar Bari in Kartikpur, Naria, Shariatpur; its structured object location is used as a bounded matching anchor, not as a surveyed building footprint."
+      },
+      "intended_use": "one building-specific licensed exterior photo panel on the matched Kartikpur Jomidar Bari building",
+      "alterations": "Rescaled and UV-mapped as a wall reference panel. The CC BY-SA 4.0 source attribution and compatible share-alike terms are retained.",
+      "target_location_lat_lon": [
+        23.252441,
+        90.472991
+      ],
+      "target_location_source": "https://commons.wikimedia.org/wiki/File:Kartikpur_Jomidar_Bari_(123242).jpg",
+      "target_location_precision": "Wikimedia Commons structured object location for the depicted building, not a surveyed footprint polygon.",
+      "target_match_radius_metres": 8,
+      "target_tag_groups": [
+        {
+          "historic": "manor"
+        },
+        {
+          "historic": "ruins"
+        },
+        {
+          "historic": "heritage"
+        },
+        {
+          "building": "historic"
+        },
+        {
+          "heritage": "yes"
+        },
+        {
+          "tourism": "attraction"
+        },
+        {
+          "building": "yes"
+        }
+      ],
+      "curated_feature_id": -62900002,
+      "curated_name": "Kartikpur Jomidar Bari, Shariatpur",
+      "curated_footprint_dimensions_metres": [
+        10,
+        8
+      ],
+      "curated_footprint_dimensions_note": "Temporary 10 m x 8 m footprint to host the exact-site licensed photo panel; not surveyed and must be replaced by a verified footprint when available.",
+      "curated_height_metres": 4.5,
+      "curated_building_tags": {
+        "building": "yes",
+        "historic": "manor",
+        "tourism": "attraction"
+      }
+    }
+  ]
+}
