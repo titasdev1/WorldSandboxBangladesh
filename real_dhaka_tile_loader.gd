@@ -221,7 +221,18 @@ func _stream_tiles(player_position: Vector3) -> void:
 					anchor.queue_free()
 			_loaded.erase(key)
 			_road_routes_by_tile.erase(key)
-	for key in desired.keys():
+	var desired_keys: Array = desired.keys()
+	desired_keys.sort_custom(func(a: Variant, b: Variant) -> bool:
+		var pos_a: Vector3 = desired[a]["world_position"]
+		var pos_b: Vector3 = desired[b]["world_position"]
+		var da := Vector2(player_position.x - pos_a.x, player_position.z - pos_a.z).length_squared()
+		var db := Vector2(player_position.x - pos_b.x, player_position.z - pos_b.z).length_squared()
+		return da < db
+	)
+	# Load only one new GLB tile per streaming pass. The previous implementation
+	# synchronously instantiated every tile in range during startup, which could
+	# spike memory and make Android kill the app before the first frame.
+	for key in desired_keys:
 		if _loaded.has(key):
 			continue
 		var record: Dictionary = desired[key]
@@ -240,6 +251,7 @@ func _stream_tiles(player_position: Vector3) -> void:
 		record["interior_anchors"] = _load_interior_anchors(record, player_position)
 		record["instance"] = instance
 		_loaded[key] = record
+		return
 
 func get_world_bounds() -> Dictionary:
 	return _world_bounds.duplicate(true)
