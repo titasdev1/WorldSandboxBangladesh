@@ -312,11 +312,50 @@ def build_index(source: Path, floor_evidence_path: Path | None = None) -> dict[s
     }
 
 
+def runtime_navigation_projection(report: dict[str, Any]) -> dict[str, Any]:
+    """Keep the shipped navigation index lean without dropping mapped geometry.
+
+    Every mapped building remains represented in the per-tile GeoJSON/GLB and
+    aggregate counts. Runtime search/nearest-place code ignores unnamed buildings,
+    so serializing hundreds of thousands of those metadata dictionaries only
+    adds APK startup parsing and RAM cost. Preserve named buildings and any
+    independently verified floor-count records in the runtime projection.
+    The unprojected build_index() result remains the full audit/report object.
+    """
+    output = dict(report)
+    counts = dict(report.get("counts", {}))
+    all_buildings = report.get("buildings", [])
+    if not isinstance(all_buildings, list):
+        all_buildings = []
+    searchable = []
+    for building in all_buildings:
+        if not isinstance(building, dict):
+            continue
+        has_searchable_name = any(
+            str(building.get(field) or "").strip()
+            for field in ("name", "name_bn", "official_name", "brand", "ref")
+        )
+        has_verified_floor_evidence = bool(building.get("floor_count_independently_verified"))
+        if has_searchable_name or has_verified_floor_evidence:
+            searchable.append(building)
+    counts["searchable_buildings"] = len(searchable)
+    output["counts"] = counts
+    output["buildings"] = sorted(searchable, key=lambda item: str(item.get("osm_id", "")))
+    output["runtime_projection"] = {
+        "building_records": "named_or_independently_verified_only",
+        "total_mapped_buildings": int(counts.get("buildings", len(all_buildings))),
+        "geometry_source": "per-tile GeoJSON and GLB retain mapped building geometry",
+        "purpose": "avoid loading unused unnamed-building metadata during Android startup",
+    }
+    return output
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True, help="Map package directory containing source GeoJSON")
     parser.add_argument("--out", type=Path, required=True, help="Output JSON path")
     parser.add_argument("--floor-evidence", type=Path, help="Human-reviewed evidence registry; only validated records are applied")
+    parser.add_argument("--runtime", action="store_true", help="Write a compact runtime projection; retain all map geometry in source tiles and keep full audit counts")
     args = parser.parse_args()
     if not args.source.is_dir():
         parser.error(f"source directory does not exist: {args.source}")
@@ -324,9 +363,10 @@ def main() -> int:
     if evidence_path is None and (args.source / "building_floor_evidence.json").is_file():
         evidence_path = args.source / "building_floor_evidence.json"
     report = build_index(args.source, evidence_path)
+    output = runtime_navigation_projection(report) if args.runtime else report
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps(report["counts"], ensure_ascii=False, sort_keys=True))
+    args.out.write_text(json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(output["counts"], ensure_ascii=False, sort_keys=True))
     return 0
 
 
