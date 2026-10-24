@@ -31,7 +31,7 @@ func _bootstrap() -> void:
     rng.seed = 20261007
     _expand_ground()
     _generate_outer_arterials()
-    _generate_sectors()
+    await _generate_sectors()
     _generate_transport_hubs()
     _generate_public_spaces()
     generated = true
@@ -94,6 +94,8 @@ func _generate_sectors() -> void:
         var angle := float(sector) / float(SECTOR_COUNT) * TAU
         var center := Vector3(cos(angle) * 210.0, 0.0, sin(angle) * 210.0)
         _generate_sector(sector, center, angle)
+        # Yield once per sector so phones can present frames during fallback generation.
+        await get_tree().process_frame
 
 func _generate_sector(index: int, center: Vector3, angle: float) -> void:
     var kinds := ["residential", "commercial", "industrial", "school", "market", "riverfront"]

@@ -13,7 +13,7 @@ var fire_cooldown := 0.0
 var camera: Camera3D
 var camera_yaw := 0.0
 var camera_sensitivity := 0.12
-var camera_pitch := -28.0
+var camera_pitch := -22.0
 # First-person look starts level; the third-person orbit retains its raised camera angle.
 var first_person_pitch := 0.0
 # Recoil is an additive camera impulse, separate from the player's look input.
@@ -50,7 +50,7 @@ func _ready():
   _standing_capsule_height = (_collision_shape.shape as CapsuleShape3D).height
  camera = Camera3D.new()
  camera.name = "ThirdPersonCamera"
- camera.position = Vector3(0, 4.8, 7.4)
+ camera.position = Vector3(0, 4.1, 6.2)
  camera.rotation_degrees = Vector3(-28, 180, 0)
  camera.fov = 68.0
  camera.near = 0.05
@@ -87,7 +87,7 @@ func _update_camera():
   camera.fov = 50.0 if Input.is_action_pressed("aim") else 68.0
   camera.global_rotation = Vector3(deg_to_rad(first_person_pitch + camera_recoil_pitch), yaw, 0.0)
   return
- var camera_distance := 4.8 if Input.is_action_pressed("aim") else 7.4
+ var camera_distance := 4.4 if Input.is_action_pressed("aim") else 6.2
  if world:
   var interior_node: Node = world.get("interior_factory")
   if is_instance_valid(interior_node) and interior_node.has_method("is_inside") and bool(interior_node.call("is_inside")):

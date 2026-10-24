@@ -12,7 +12,7 @@ const GAME_ORIGIN_LAT := 23.8103
 const GAME_ORIGIN_LON := 90.4125
 const STREAM_INTERVAL := 0.5
 # Cap large GLB imports per stream tick to avoid multi-tile mobile frame hitches.
-const MAX_TILE_LOADS_PER_STREAM_TICK := 2
+const MAX_TILE_LOADS_PER_STREAM_TICK := 1
 # Keep many more real doors available near the player without creating distant nodes
 # across every loaded tile. Anchors are refreshed as the player moves through a block.
 const MAX_INTERIOR_ANCHORS_PER_TILE := 256

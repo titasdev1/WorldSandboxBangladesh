@@ -24,8 +24,8 @@ func _bootstrap() -> void:
         set_meta("outer_npcs", 0)
         return
     rng.seed = 424242
-    _spawn_outer_traffic()
-    _spawn_outer_people()
+    await _spawn_outer_traffic()
+    await _spawn_outer_people()
     set_meta("population_factory_status","live")
     set_meta("outer_vehicles",OUTER_VEHICLES)
     set_meta("outer_npcs",OUTER_NPCS)
@@ -56,6 +56,8 @@ func _spawn_outer_traffic() -> void:
         v.body_size = t.size
         v.body_color = t.color
         world.add_child(v)
+        if (i + 1) % 6 == 0:
+            await get_tree().process_frame
 
 func _spawn_outer_people() -> void:
     for i in range(OUTER_NPCS):
@@ -82,6 +84,8 @@ func _spawn_outer_people() -> void:
         cs.position.y = 0.75
         npc.add_child(cs)
         world.add_child(npc)
+        if (i + 1) % 6 == 0:
+            await get_tree().process_frame
 
 func _mat(c: Color) -> StandardMaterial3D:
     var m:=StandardMaterial3D.new()
