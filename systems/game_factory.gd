@@ -84,6 +84,8 @@ func _generate_sectors() -> void:
         var angle := float(sector) / float(SECTOR_COUNT) * TAU
         var center := Vector3(cos(angle) * 210.0, 0.0, sin(angle) * 210.0)
         _generate_sector(sector, center, angle)
+        # Yield between sectors so mobile devices can render and service memory.
+        await get_tree().process_frame
         # Yield between sectors so mobile devices can render and service memory
         # before the next batch of procedural geometry is allocated.
         await get_tree().process_frame
