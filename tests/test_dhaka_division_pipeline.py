@@ -1225,3 +1225,28 @@ class AsyncTileBootstrapSafetyTests(unittest.TestCase):
         self.assertIn("func _poll_pending_tile_loads()", loader)
         self.assertIn("func _activate_loaded_tile(", loader)
         self.assertGreaterEqual(loader.count("await get_tree().process_frame"), 5)
+
+
+class PausedStartupStreamingTests(unittest.TestCase):
+    """The game lobby pauses gameplay; streaming must still finish behind it."""
+
+    ROOT = Path(__file__).resolve().parents[1]
+
+    def test_map_loader_processes_while_lobby_pauses_gameplay(self):
+        loader = (self.ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
+        self.assertIn("process_mode = Node.PROCESS_MODE_ALWAYS", loader)
+        self.assertIn('call_deferred("_start_initial_tile_stream")', loader)
+        self.assertIn("ResourceLoader.load_threaded_get_status(full_path, progress)", loader)
+
+    def test_authored_hero_load_is_threaded_and_keeps_fallback_visible(self):
+        visual = (self.ROOT / "character_visual.gd").read_text(encoding="utf-8")
+        self.assertIn('ResourceLoader.load_threaded_request(AUTHORED_HERO_PATH, "PackedScene")', visual)
+        self.assertIn("ResourceLoader.load_threaded_get_status(AUTHORED_HERO_PATH, progress)", visual)
+        self.assertIn("AUTHORED_HERO_LOAD_QUEUED", visual)
+        self.assertIn("var _procedural_root", visual)
+        self.assertNotIn("var packed := load(AUTHORED_HERO_PATH) as PackedScene", visual)
+
+    def test_android_map_gate_requires_a_fully_activated_tile(self):
+        workflow = (self.ROOT / ".github" / "workflows" / "android.yml").read_text(encoding="utf-8")
+        self.assertIn('("ready", "real_map_loaded", "tile_active")', workflow)
+        self.assertIn('"loaded_display_routes"', workflow)

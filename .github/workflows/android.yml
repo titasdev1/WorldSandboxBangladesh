@@ -418,10 +418,10 @@ jobs:
               raise SystemExit("MAP RUNTIME GATE FAILED: startup emitted no REAL_MAP_RUNTIME diagnostic.")
           report = reports[-1]
           print("Real-map runtime smoke report:", json.dumps(report, ensure_ascii=False, sort_keys=True))
-          for key in ("ready", "real_map_loaded"):
+          for key in ("ready", "real_map_loaded", "tile_active"):
               if report.get(key) is not True:
                   raise SystemExit(f"MAP RUNTIME GATE FAILED: {key} is not true: {report}")
-          for key in ("loaded_tiles", "navigation_roads", "indexed_display_routes"):
+          for key in ("loaded_tiles", "navigation_roads", "indexed_display_routes", "loaded_display_routes"):
               if int(report.get(key, 0)) < 1:
                   raise SystemExit(f"MAP RUNTIME GATE FAILED: {key} is zero: {report}")
           PY

@@ -87,6 +87,9 @@ func _mount_external_map_packs() -> void:
 
 
 func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.json") -> bool:
+	# The lobby pauses gameplay on boot, but asynchronous tile loading must still
+	# finish while the lobby is visible. This node only streams world resources.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_world = world
 	_mount_external_map_packs()
 	if not FileAccess.file_exists(manifest_path):
@@ -283,7 +286,11 @@ func _activate_loaded_tile(tile_key: String, record: Dictionary, packed: PackedS
 	record["interior_anchors"] = await _load_interior_anchors(record, _current_player_position())
 	_loaded[tile_key] = record
 	_activating_tiles.erase(tile_key)
+	var active_report := get_runtime_map_diagnostics()
+	active_report["real_map_loaded"] = true
+	active_report["tile_active"] = true
 	print("REAL_MAP_TILE_ACTIVE: ", tile_key, " nodes=", instance.get_child_count())
+	print("REAL_MAP_RUNTIME:" + JSON.stringify(active_report))
 
 
 func get_map_display_name() -> String:

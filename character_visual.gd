@@ -32,9 +32,13 @@ var _authored_current_animation := ""
 var _authored_animation_lookup: Dictionary = {}
 var _authored_weapon_attachment: BoneAttachment3D
 var _authored_hero_ready := false
+var _authored_hero_load_pending := false
 
 
 func _ready() -> void:
+    # The preview character and authored rig should keep animating while the lobby
+    # pauses the world; gameplay physics remains paused on the parent player.
+    process_mode = Node.PROCESS_MODE_ALWAYS
     # Keep the tested procedural model as a reliable fallback while allowing CI
     # builds to ship a real rigged/textured hero when the pinned CC0 source merges.
     scale = Vector3(0.90, 0.90, 0.90)
@@ -77,9 +81,38 @@ func _try_load_authored_hero() -> void:
     if not ResourceLoader.exists(AUTHORED_HERO_PATH):
         push_warning("AUTHORED_HERO_FALLBACK: licensed rigged character is not packaged; keeping procedural hero.")
         return
-    var packed := load(AUTHORED_HERO_PATH) as PackedScene
+    var request_error := ResourceLoader.load_threaded_request(AUTHORED_HERO_PATH, "PackedScene")
+    if request_error != OK and request_error != ERR_BUSY:
+        push_warning("AUTHORED_HERO_FALLBACK: threaded hero request failed: " + str(request_error))
+        return
+    _authored_hero_load_pending = true
+    print("AUTHORED_HERO_LOAD_QUEUED • background rig/animation load started")
+
+
+func _poll_authored_hero_load() -> void:
+    if not _authored_hero_load_pending:
+        return
+    var progress: Array = []
+    var status := ResourceLoader.load_threaded_get_status(AUTHORED_HERO_PATH, progress)
+    if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+        return
+    _authored_hero_load_pending = false
+    if status != ResourceLoader.THREAD_LOAD_LOADED:
+        push_warning("AUTHORED_HERO_FALLBACK: threaded hero load failed with status " + str(status))
+        return
+    var packed := ResourceLoader.load_threaded_get(AUTHORED_HERO_PATH) as PackedScene
     if packed == null:
-        push_warning("AUTHORED_HERO_FALLBACK: merged GLB did not import as a PackedScene.")
+        push_warning("AUTHORED_HERO_FALLBACK: loaded hero resource was not a PackedScene.")
+        return
+    call_deferred("_build_authored_hero", packed)
+
+
+func _build_authored_hero(packed: PackedScene) -> void:
+    if packed == null:
+        push_warning("AUTHORED_HERO_FALLBACK: no packed hero scene was provided.")
+        return
+    await get_tree().process_frame
+    if not is_inside_tree():
         return
     var instance := packed.instantiate()
     if not (instance is Node3D):
@@ -637,6 +670,7 @@ func _add_clothing_and_face_detail() -> void:
         _box(self, "ShoulderStrap", Vector3(0.18, 1.31, 0.13), Vector3(0.07, 0.40, 0.06), Color("#302c29"))
 
 func _process(delta: float) -> void:
+    _poll_authored_hero_load()
     var actor := get_parent()
     if not is_instance_valid(actor) or not actor is CharacterBody3D:
         return
