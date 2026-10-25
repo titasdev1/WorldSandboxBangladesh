@@ -33,6 +33,10 @@ var _road_routes_by_tile: Dictionary = {}
 var _vehicle_route_records_by_tile: Dictionary = {}
 var _road_labels_by_tile: Dictionary = {}
 var _navigation_index: Dictionary = {}
+var _navigation_index_loading := false
+var _navigation_index_ready := false
+var _navigation_rebuild_pending := false
+var _navigation_index_started_usec := 0
 var _navigation_graph: Dictionary = {}
 var _navigation_node_positions: Dictionary = {}
 var _navigation_display_routes: Array = []
@@ -163,9 +167,10 @@ func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.j
 		return false
 	_records = valid_records
 	_failed_tile_load_paths.clear()
-	_load_navigation_index()
 	_ready_for_streaming = true
-	print("REAL_MAP_STREAMER_READY: ", _records.size(), " tile records; nearest tile will load asynchronously.")
+	# Defer expensive route-index work until the scene can begin rendering.
+	call_deferred("_load_navigation_index")
+	print("REAL_MAP_STREAMER_READY: ", _records.size(), " tile records; route-index setup is deferred and nearest tile will load asynchronously.")
 	# configure() runs inside World._ready(). Do not block it with GLB parsing,
 	# scene instantiation, collision creation, or interior-marker creation.
 	call_deferred("_start_initial_tile_stream")
@@ -394,6 +399,9 @@ func get_runtime_map_diagnostics() -> Dictionary:
 		"failed_tile_loads": _failed_tile_load_paths.size(),
 		"navigation_roads": road_records.size() if road_records is Array else 0,
 		"navigation_places": place_records.size() if place_records is Array else 0,
+		"navigation_index_loading": _navigation_index_loading,
+		"navigation_index_ready": _navigation_index_ready,
+		"navigation_nodes": _navigation_node_positions.size(),
 		"indexed_display_routes": _navigation_display_routes.size(),
 		"loaded_display_routes": get_road_routes().size(),
 		"origin_lat_lon": [_manifest_origin_lat, _manifest_origin_lon],
@@ -462,6 +470,15 @@ func _road_allowed_for_current_mode(road: Dictionary) -> bool:
 
 
 func _load_navigation_index() -> void:
+	if _navigation_index_loading:
+		_navigation_rebuild_pending = true
+		return
+	_navigation_index_loading = true
+	_navigation_index_ready = false
+	_navigation_rebuild_pending = false
+	_navigation_index_started_usec = Time.get_ticks_usec()
+	# Yield once before parsing so the engine gets a frame boundary for startup.
+	await get_tree().process_frame
 	_navigation_index.clear()
 	_navigation_graph.clear()
 	_navigation_node_positions.clear()
@@ -471,17 +488,24 @@ func _load_navigation_index() -> void:
 	_minimap_route_cache_radius_bucket = -1
 	var index_path := MAP_ROOT + "/real_world_navigation_index.json"
 	if not FileAccess.file_exists(index_path):
+		_navigation_index_loading = false
 		push_warning("Map has no named-place/routing index; coordinate teleport remains available.")
 		return
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(index_path))
 	if not (parsed is Dictionary):
+		_navigation_index_loading = false
 		push_warning("Named-place/routing index is invalid JSON.")
 		return
 	_navigation_index = parsed
 	var roads: Variant = _navigation_index.get("roads", [])
 	if not (roads is Array):
+		_navigation_index_loading = false
 		return
-	for road in roads:
+	for road_index in range(roads.size()):
+		# Build a small group of road segments per frame instead of one long startup pass.
+		if road_index % 12 == 0:
+			await get_tree().process_frame
+		var road: Variant = roads[road_index]
 		if not (road is Dictionary):
 			continue
 		if not _road_allowed_for_current_mode(road):
@@ -536,6 +560,19 @@ func _load_navigation_index() -> void:
 					_navigation_graph[a_key].append({"to": b_key, "distance": segment_distance, "road_name": road_name})
 				if add_reverse:
 					_navigation_graph[b_key].append({"to": a_key, "distance": segment_distance, "road_name": road_name})
+	_navigation_index_loading = false
+	_navigation_index_ready = true
+	print("NAVIGATION_INDEX_READY: roads=%d nodes=%d routes=%d elapsed_ms=%d" % [
+		roads.size(), _navigation_node_positions.size(), _navigation_display_routes.size(),
+		int((Time.get_ticks_usec() - _navigation_index_started_usec) / 1000)
+	])
+	if _navigation_rebuild_pending:
+		_navigation_rebuild_pending = false
+		call_deferred("_load_navigation_index")
+
+
+func is_navigation_index_ready() -> bool:
+	return _navigation_index_ready and not _navigation_index_loading
 
 
 func _road_display_name(road: Dictionary) -> String:
