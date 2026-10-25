@@ -1212,10 +1212,13 @@ class AsyncTileBootstrapSafetyTests(unittest.TestCase):
     def test_map_configuration_defers_first_tile_loading(self):
         loader = (self.ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
         configure_start = loader.index("func configure(")
-        process_start = loader.index("\nfunc _process(", configure_start)
-        configure_code = loader[configure_start:process_start]
+        start_method = loader.index("\nfunc start_map_streaming(", configure_start)
+        configure_code = loader[configure_start:start_method]
         self.assertNotIn("_stream_tiles(Vector3.ZERO)", configure_code)
-        self.assertIn('call_deferred("_start_initial_tile_stream")', configure_code)
+        self.assertNotIn('call_deferred("_start_initial_tile_stream")', configure_code)
+        self.assertIn('OS.get_environment("WSB_AUTOSTART_MAP_FOR_SMOKE") == "1"', configure_code)
+        self.assertIn("func start_map_streaming() -> void:", loader)
+        self.assertIn('"streaming_started": _map_streaming_started', loader)
 
     def test_tile_scene_uses_threaded_resource_loading_and_staged_activation(self):
         loader = (self.ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
@@ -1245,6 +1248,8 @@ class PausedStartupStreamingTests(unittest.TestCase):
         self.assertIn('ResourceLoader.load_threaded_request(AUTHORED_HERO_PATH, "PackedScene")', visual)
         self.assertIn("ResourceLoader.load_threaded_get_status(AUTHORED_HERO_PATH, progress)", visual)
         self.assertIn("AUTHORED_HERO_LOAD_QUEUED", visual)
+        self.assertIn('diagnostics.get("streaming_started", false)', visual)
+        self.assertNotIn("waited_frames < 360", visual)
         self.assertIn("var _procedural_root", visual)
         self.assertNotIn("var packed := load(AUTHORED_HERO_PATH) as PackedScene", visual)
 
@@ -1252,3 +1257,4 @@ class PausedStartupStreamingTests(unittest.TestCase):
         workflow = (self.ROOT / ".github" / "workflows" / "android.yml").read_text(encoding="utf-8")
         self.assertIn('("ready", "real_map_loaded", "tile_active")', workflow)
         self.assertIn('"loaded_display_routes"', workflow)
+        self.assertIn('WSB_AUTOSTART_MAP_FOR_SMOKE=1 timeout 30s "$GODOT"', workflow)

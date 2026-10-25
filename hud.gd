@@ -14,6 +14,8 @@ var settings_config := ConfigFile.new()
 var _world_quality_applied := false
 var lobby_overlay: ColorRect
 var lobby_loading_label: Label
+var lobby_loading_progress: ProgressBar
+var _map_entry_in_progress := false
 var selected_mode := "deshi_story"
 var mode_buttons: Array[Button] = []
 var district_map: Control
@@ -37,6 +39,7 @@ var shop_inventory_label: Label
 var shop_status_label: Label
 
 func _ready():
+ process_mode = Node.PROCESS_MODE_ALWAYS
  w = get_parent()
  var title = Label.new()
  title.text = "WORLD SANDBOX: BANGLADESH"
@@ -546,16 +549,31 @@ func _process(_delta):
    var startup_loader: Variant = w.get("real_dhaka_loader")
    if is_instance_valid(startup_loader) and startup_loader.has_method("get_runtime_map_diagnostics"):
     var startup_diagnostics: Dictionary = startup_loader.call("get_runtime_map_diagnostics")
-    if bool(startup_diagnostics.get("navigation_index_ready", false)):
+    var streaming_started := bool(startup_diagnostics.get("streaming_started", false))
+    var loaded_count := int(startup_diagnostics.get("loaded_tiles", 0))
+    var pending_count := int(startup_diagnostics.get("pending_tile_loads", 0))
+    var activating_count := int(startup_diagnostics.get("activating_tiles", 0))
+    if not streaming_started:
+     lobby_loading_label.text = "SHARIATPUR MAP VERIFIED • TAP ENTER TO LOAD THE NEAREST AREA"
+     lobby_loading_progress.value = 0
+    elif bool(startup_diagnostics.get("navigation_index_ready", false)):
      lobby_loading_label.text = "SHARIATPUR READY • NEARBY TILE AND ROAD INDEX LOADED"
-    elif int(startup_diagnostics.get("loaded_tiles", 0)) > 0:
+     lobby_loading_progress.value = 100
+    elif loaded_count > 0:
      lobby_loading_label.text = "PREPARING SHARIATPUR • FINISHING ROADS AND INTERACTIONS"
-    else:
+     lobby_loading_progress.value = 65
+    elif pending_count > 0 or activating_count > 0:
      lobby_loading_label.text = "LOADING SHARIATPUR • STREAMING THE NEAREST MAP AREA"
+     lobby_loading_progress.value = 28
+    else:
+     lobby_loading_label.text = "STARTING SHARIATPUR • PREPARING THE NEAREST AREA"
+     lobby_loading_progress.value = 8
    else:
     lobby_loading_label.text = "CHECKING INSTALLED MAP..."
+    lobby_loading_progress.value = 0
   else:
    lobby_loading_label.text = "LOCAL STARTER CITY READY"
+   lobby_loading_progress.value = 0
  # HUD child _ready runs before the world creates its lights/environment.
  # Apply the saved preset once those world nodes actually exist.
  if not _world_quality_applied and w.get_node_or_null("Sun"):
@@ -705,6 +723,15 @@ func _build_lobby_ui() -> void:
  lobby_loading_label.add_theme_color_override("font_color", Color("#50d7e9"))
  lobby_loading_label.add_theme_font_size_override("font_size", 13)
  column.add_child(lobby_loading_label)
+ lobby_loading_progress = ProgressBar.new()
+ lobby_loading_progress.name = "StartupMapProgress"
+ lobby_loading_progress.custom_minimum_size = Vector2(0, 12)
+ lobby_loading_progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ lobby_loading_progress.min_value = 0
+ lobby_loading_progress.max_value = 100
+ lobby_loading_progress.value = 0
+ lobby_loading_progress.show_percentage = true
+ column.add_child(lobby_loading_progress)
 
  var cards := GridContainer.new()
  cards.columns = 3
@@ -1086,6 +1113,63 @@ func _select_lobby_mode(mode_id: String, selected_button: Button) -> void:
   button.button_pressed = button == selected_button
 
 func _enter_selected_mode() -> void:
+ if _map_entry_in_progress:
+  return
+ if is_instance_valid(w) and bool(w.get("real_dhaka_loaded")):
+  var loader: Node = w.get("real_dhaka_loader") as Node
+  if is_instance_valid(loader) and loader.has_method("start_map_streaming"):
+   _map_entry_in_progress = true
+   if is_instance_valid(lobby_overlay):
+    lobby_overlay.visible = true
+   if is_instance_valid(lobby_loading_label):
+    lobby_loading_label.text = "STARTING SHARIATPUR • PREPARING THE NEAREST AREA"
+   if is_instance_valid(lobby_loading_progress):
+    lobby_loading_progress.value = 8
+   get_tree().paused = true
+   loader.call("start_map_streaming")
+   var started_ms := Time.get_ticks_msec()
+   while Time.get_ticks_msec() - started_ms < 90000:
+    await get_tree().process_frame
+    if not is_instance_valid(loader):
+     break
+    var diagnostics: Dictionary = {}
+    if loader.has_method("get_runtime_map_diagnostics"):
+     diagnostics = loader.call("get_runtime_map_diagnostics")
+    var loaded_count := int(diagnostics.get("loaded_tiles", 0))
+    var pending_count := int(diagnostics.get("pending_tile_loads", 0))
+    var activating_count := int(diagnostics.get("activating_tiles", 0))
+    var failed_count := int(diagnostics.get("failed_tile_loads", 0))
+    if loaded_count > 0 and bool(diagnostics.get("navigation_index_ready", false)):
+     if is_instance_valid(lobby_loading_label):
+      lobby_loading_label.text = "SHARIATPUR READY • ENTERING THE WORLD"
+     if is_instance_valid(lobby_loading_progress):
+      lobby_loading_progress.value = 100
+     await get_tree().process_frame
+     _map_entry_in_progress = false
+     _complete_enter_selected_mode()
+     return
+    if failed_count > 0 and loaded_count == 0 and pending_count == 0 and activating_count == 0:
+     if is_instance_valid(lobby_loading_label):
+      lobby_loading_label.text = "SHARIATPUR TILE FAILED TO LOAD • TAP ENTER TO RETRY"
+     if is_instance_valid(lobby_loading_progress):
+      lobby_loading_progress.value = 0
+     _map_entry_in_progress = false
+     return
+    if is_instance_valid(lobby_loading_progress):
+     if loaded_count > 0:
+      lobby_loading_progress.value = 65
+     elif pending_count > 0 or activating_count > 0:
+      lobby_loading_progress.value = 28
+     else:
+      lobby_loading_progress.value = 8
+   _map_entry_in_progress = false
+   if is_instance_valid(lobby_loading_label):
+    lobby_loading_label.text = "MAP STILL LOADING • TAP ENTER TO CHECK AGAIN"
+   return
+ _complete_enter_selected_mode()
+
+
+func _complete_enter_selected_mode() -> void:
  get_tree().paused = false
  _release_gameplay_inputs()
  if w:

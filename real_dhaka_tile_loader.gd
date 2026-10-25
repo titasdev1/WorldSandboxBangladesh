@@ -67,6 +67,7 @@ var _manifest_origin_lon := GAME_ORIGIN_LON
 var _stream_clock := 0.0
 var _last_anchor_refresh_position := Vector3(1.0e20, 0.0, 1.0e20)
 var _ready_for_streaming := false
+var _map_streaming_started := false
 var _map_display_name := "Greater Dhaka"
 var _load_radius_m := DEFAULT_LOAD_RADIUS_M
 var _unload_radius_m := DEFAULT_UNLOAD_RADIUS_M
@@ -171,16 +172,29 @@ func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.j
 	_records = valid_records
 	_failed_tile_load_paths.clear()
 	_ready_for_streaming = true
-	# Start route-index work only after the first map tile is active, so the
-	# initial GLB import and whole-map graph construction do not peak together.
-	print("REAL_MAP_STREAMER_READY: ", _records.size(), " tile records; first map tile will load before route-index setup.")
-	# configure() runs inside World._ready(). Do not block it with GLB parsing,
-	# scene instantiation, collision creation, or interior-marker creation.
-	call_deferred("_start_initial_tile_stream")
+	# Render the lightweight lobby before loading the first high-density GLB.
+	# Start map streaming when the player enters the world. CI can explicitly
+	# exercise real-map startup with WSB_AUTOSTART_MAP_FOR_SMOKE=1.
+	print("REAL_MAP_STREAMER_READY: ", _records.size(), " tile records; waiting for explicit map entry.")
+	if OS.get_environment("WSB_AUTOSTART_MAP_FOR_SMOKE") == "1":
+		call_deferred("start_map_streaming")
 	return true
 
+
+func start_map_streaming() -> void:
+	if not _ready_for_streaming or not is_instance_valid(_world):
+		return
+	if _map_streaming_started:
+		if _loaded.is_empty() and _pending_tile_loads.is_empty() and _activating_tiles.is_empty():
+			_failed_tile_load_paths.clear()
+			_stream_tiles(_current_player_position())
+		return
+	_map_streaming_started = true
+	print("REAL_MAP_STREAMING_START_REQUESTED: map=%s tiles=%d" % [_map_display_name, _records.size()])
+	call_deferred("_start_initial_tile_stream")
+
 func _process(delta: float) -> void:
-	if not _ready_for_streaming or _world == null:
+	if not _ready_for_streaming or not _map_streaming_started or _world == null:
 		return
 	_poll_pending_tile_loads()
 	_stream_clock += delta
@@ -210,7 +224,7 @@ func _current_player_position() -> Vector3:
 
 
 func _start_initial_tile_stream() -> void:
-	if not _ready_for_streaming or not is_instance_valid(_world):
+	if not _ready_for_streaming or not _map_streaming_started or not is_instance_valid(_world):
 		return
 	_stream_tiles(_current_player_position())
 
@@ -399,6 +413,7 @@ func get_runtime_map_diagnostics() -> Dictionary:
 	return {
 		"map_name": _map_display_name,
 		"ready": _ready_for_streaming,
+		"streaming_started": _map_streaming_started,
 		"tile_records": _records.size(),
 		"loaded_tiles": _loaded.size(),
 		"pending_tile_loads": _pending_tile_loads.size(),

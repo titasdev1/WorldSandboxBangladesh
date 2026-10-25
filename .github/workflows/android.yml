@@ -397,7 +397,7 @@ jobs:
             echo "Known Godot 4.4.1 headless GLTF preview warning observed; script checks passed."
           fi
           set +e
-          timeout 30s "$GODOT" --headless --path . --quit-after 600 > "$GODOT_DIR/startup.log" 2>&1
+          WSB_AUTOSTART_MAP_FOR_SMOKE=1 timeout 30s "$GODOT" --headless --path . --quit-after 600 > "$GODOT_DIR/startup.log" 2>&1
           START_STATUS=$?
           cat "$GODOT_DIR/startup.log"
           set -e
