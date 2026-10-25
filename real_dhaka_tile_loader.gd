@@ -168,9 +168,9 @@ func configure(world: Node3D, manifest_path := MAP_ROOT + "/map_tiles_manifest.j
 	_records = valid_records
 	_failed_tile_load_paths.clear()
 	_ready_for_streaming = true
-	# Defer expensive route-index work until the scene can begin rendering.
-	call_deferred("_load_navigation_index")
-	print("REAL_MAP_STREAMER_READY: ", _records.size(), " tile records; route-index setup is deferred and nearest tile will load asynchronously.")
+	# Start route-index work only after the first map tile is active, so the
+	# initial GLB import and whole-map graph construction do not peak together.
+	print("REAL_MAP_STREAMER_READY: ", _records.size(), " tile records; first map tile will load before route-index setup.")
 	# configure() runs inside World._ready(). Do not block it with GLB parsing,
 	# scene instantiation, collision creation, or interior-marker creation.
 	call_deferred("_start_initial_tile_stream")
@@ -291,6 +291,10 @@ func _activate_loaded_tile(tile_key: String, record: Dictionary, packed: PackedS
 	record["interior_anchors"] = await _load_interior_anchors(record, _current_player_position())
 	_loaded[tile_key] = record
 	_activating_tiles.erase(tile_key)
+	# Begin global road-graph work only after the first tile, its collision,
+	# routes, and nearby interaction anchors are ready.
+	if not _navigation_index_ready and not _navigation_index_loading:
+		call_deferred("_load_navigation_index")
 	var active_report := get_runtime_map_diagnostics()
 	active_report["real_map_loaded"] = true
 	active_report["tile_active"] = true
@@ -566,6 +570,10 @@ func _load_navigation_index() -> void:
 		roads.size(), _navigation_node_positions.size(), _navigation_display_routes.size(),
 		int((Time.get_ticks_usec() - _navigation_index_started_usec) / 1000)
 	])
+	var runtime_report := get_runtime_map_diagnostics()
+	runtime_report["real_map_loaded"] = true
+	runtime_report["tile_active"] = not _loaded.is_empty()
+	print("REAL_MAP_RUNTIME:" + JSON.stringify(runtime_report))
 	if _navigation_rebuild_pending:
 		_navigation_rebuild_pending = false
 		call_deferred("_load_navigation_index")
@@ -1063,6 +1071,10 @@ func _stream_tiles(player_position: Vector3) -> void:
 			_road_routes_by_tile.erase(key)
 			_vehicle_route_records_by_tile.erase(key)
 			_road_labels_by_tile.erase(key)
+	# While the initial graph is being built, keep the just-loaded tile stable
+	# rather than importing a second large GLB at the same time.
+	if _navigation_index_loading and not _navigation_index_ready:
+		return
 	# Do not overlap a tile's import/activation with another tile. Once a request
 	# finishes, each expensive activation phase yields before the next phase.
 	if not _pending_tile_loads.is_empty() or not _activating_tiles.is_empty():
