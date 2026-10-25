@@ -284,7 +284,7 @@ jobs:
             fi
             MAP_SOURCE_BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
                         # Coverage-only KartaView audit does not alter baked geometry; exclude that file from bake freshness.
-            LATEST_MAP_CODE_SHA="$(git log -1 --format='%H' "origin/${MAP_SOURCE_BRANCH}" -- tools/map_pipeline ':(exclude)tools/map_pipeline/audit_kartaview_coverage.py')"
+            LATEST_MAP_CODE_SHA="$(git log -1 --format='%H' "origin/${MAP_SOURCE_BRANCH}" -- tools/map_pipeline ':(exclude)tools/map_pipeline/audit_kartaview_coverage.py' ':(exclude)tools/map_pipeline/build_real_world_navigation_index.py')"
             if [[ -z "$LATEST_MAP_CODE_SHA" ]] || ! git merge-base --is-ancestor "$LATEST_MAP_CODE_SHA" "$PIPELINE_SHA"; then
               echo "Stale Shariatpur map artifact: package pipeline $PIPELINE_SHA does not contain latest map-code revision ${LATEST_MAP_CODE_SHA:-missing}. Refusing to publish an APK that does not contain the latest map build." >&2
               exit 1
@@ -311,8 +311,8 @@ jobs:
           if find assets/world/dhaka_tiles -type f -name '*.geojson' -print -quit | grep -q .; then
             python3 tools/map_pipeline/build_real_world_navigation_index.py \
               --source assets/world/dhaka_tiles \
-              --out assets/world/dhaka_tiles/real_world_navigation_index.json
-            --runtime
+              --out assets/world/dhaka_tiles/real_world_navigation_index.json \
+              --runtime
             python3 - <<'PY'
           import json
           from pathlib import Path
@@ -324,6 +324,9 @@ jobs:
               "named_places": counts.get("named_places", 0),
               "buildings_with_source_floor_count": counts.get("buildings_with_source_floor_count", 0),
               "independently_verified_floor_counts": counts.get("buildings_with_independently_verified_floor_count", 0),
+              "total_mapped_buildings": counts.get("buildings", 0),
+              "searchable_buildings": counts.get("searchable_buildings", 0),
+              "runtime_index_bytes": Path("assets/world/dhaka_tiles/real_world_navigation_index.json").stat().st_size,
           }, ensure_ascii=False))
           PY
           else
