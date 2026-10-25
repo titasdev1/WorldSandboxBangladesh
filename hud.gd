@@ -13,6 +13,7 @@ var sensitivity_value_label: Label
 var settings_config := ConfigFile.new()
 var _world_quality_applied := false
 var lobby_overlay: ColorRect
+var lobby_loading_label: Label
 var selected_mode := "deshi_story"
 var mode_buttons: Array[Button] = []
 var district_map: Control
@@ -539,6 +540,21 @@ func _build_driving_status() -> void:
 func _process(_delta):
  if not w:
   return
+ if is_instance_valid(lobby_loading_label):
+  if bool(w.get("real_dhaka_loaded")):
+   var startup_loader: Variant = w.get("real_dhaka_loader")
+   if is_instance_valid(startup_loader) and startup_loader.has_method("get_runtime_map_diagnostics"):
+    var startup_diagnostics: Dictionary = startup_loader.call("get_runtime_map_diagnostics")
+    if bool(startup_diagnostics.get("navigation_index_ready", false)):
+     lobby_loading_label.text = "SHARIATPUR READY • NEARBY TILE AND ROAD INDEX LOADED"
+    elif int(startup_diagnostics.get("loaded_tiles", 0)) > 0:
+     lobby_loading_label.text = "PREPARING SHARIATPUR • FINISHING ROADS AND INTERACTIONS"
+    else:
+     lobby_loading_label.text = "LOADING SHARIATPUR • STREAMING THE NEAREST MAP AREA"
+   else:
+    lobby_loading_label.text = "CHECKING INSTALLED MAP..."
+  else:
+   lobby_loading_label.text = "LOCAL STARTER CITY READY"
  # HUD child _ready runs before the world creates its lights/environment.
  # Apply the saved preset once those world nodes actually exist.
  if not _world_quality_applied and w.get_node_or_null("Sun"):
@@ -681,6 +697,13 @@ func _build_lobby_ui() -> void:
  subheading.add_theme_color_override("font_color", Color("#b6c8d9"))
  subheading.add_theme_font_size_override("font_size", 16)
  column.add_child(subheading)
+
+ lobby_loading_label = Label.new()
+ lobby_loading_label.name = "StartupMapStatus"
+ lobby_loading_label.text = "INITIALIZING LOCAL WORLD..."
+ lobby_loading_label.add_theme_color_override("font_color", Color("#50d7e9"))
+ lobby_loading_label.add_theme_font_size_override("font_size", 13)
+ column.add_child(lobby_loading_label)
 
  var cards := GridContainer.new()
  cards.columns = 3
