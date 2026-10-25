@@ -37,6 +37,9 @@ var _navigation_index_loading := false
 var _navigation_index_ready := false
 var _navigation_rebuild_pending := false
 var _navigation_index_started_usec := 0
+var _navigation_graph_ready := false
+var _navigation_graph_building := false
+var _navigation_graph_generation := 0
 var _navigation_graph: Dictionary = {}
 var _navigation_node_positions: Dictionary = {}
 var _navigation_display_routes: Array = []
@@ -405,6 +408,8 @@ func get_runtime_map_diagnostics() -> Dictionary:
 		"navigation_places": place_records.size() if place_records is Array else 0,
 		"navigation_index_loading": _navigation_index_loading,
 		"navigation_index_ready": _navigation_index_ready,
+		"navigation_graph_ready": _navigation_graph_ready,
+		"navigation_graph_building": _navigation_graph_building,
 		"navigation_nodes": _navigation_node_positions.size(),
 		"indexed_display_routes": _navigation_display_routes.size(),
 		"loaded_display_routes": get_road_routes().size(),
@@ -437,6 +442,10 @@ func set_navigation_mode(mode: String) -> void:
 	if normalized == _navigation_mode:
 		return
 	_navigation_mode = normalized
+	_navigation_graph_generation += 1
+	_navigation_graph_ready = false
+	_navigation_graph.clear()
+	_navigation_node_positions.clear()
 	_navigation_route.clear()
 	_navigation_steps.clear()
 	if not _navigation_index.is_empty():
@@ -481,15 +490,16 @@ func _load_navigation_index() -> void:
 	_navigation_index_ready = false
 	_navigation_rebuild_pending = false
 	_navigation_index_started_usec = Time.get_ticks_usec()
-	# Yield once before parsing so the engine gets a frame boundary for startup.
-	await get_tree().process_frame
-	_navigation_index.clear()
+	# Invalidate any graph build if walking/driving mode changes while it is made.
+	_navigation_graph_generation += 1
+	_navigation_graph_ready = false
 	_navigation_graph.clear()
 	_navigation_node_positions.clear()
 	_navigation_display_routes.clear()
 	_minimap_route_cache.clear()
 	_minimap_route_cache_bucket = Vector2i(2147483647, 2147483647)
 	_minimap_route_cache_radius_bucket = -1
+	await get_tree().process_frame
 	var index_path := MAP_ROOT + "/real_world_navigation_index.json"
 	if not FileAccess.file_exists(index_path):
 		_navigation_index_loading = false
@@ -505,16 +515,15 @@ func _load_navigation_index() -> void:
 	if not (roads is Array):
 		_navigation_index_loading = false
 		return
+
+	# Startup prepares name-search data and minimap road strokes only. The full
+	# road graph is deferred until a player explicitly requests turn-by-turn routing.
 	for road_index in range(roads.size()):
-		# Build a small group of road segments per frame instead of one long startup pass.
-		if road_index % 12 == 0:
+		if road_index % 24 == 0:
 			await get_tree().process_frame
 		var road: Variant = roads[road_index]
-		if not (road is Dictionary):
+		if not (road is Dictionary) or not _road_allowed_for_current_mode(road):
 			continue
-		if not _road_allowed_for_current_mode(road):
-			continue
-		var road_name := _road_display_name(road)
 		var paths: Variant = road.get("geometry_paths", [])
 		if not (paths is Array):
 			continue
@@ -531,6 +540,66 @@ func _load_navigation_index() -> void:
 					display_route.append(display_point)
 			if display_route.size() >= 2:
 				_navigation_display_routes.append(display_route)
+
+	_navigation_index_loading = false
+	_navigation_index_ready = true
+	print("NAVIGATION_DISPLAY_INDEX_READY: roads=%d routes=%d elapsed_ms=%d; graph deferred" % [
+		roads.size(), _navigation_display_routes.size(),
+		int((Time.get_ticks_usec() - _navigation_index_started_usec) / 1000)
+	])
+	var runtime_report := get_runtime_map_diagnostics()
+	runtime_report["real_map_loaded"] = true
+	runtime_report["tile_active"] = not _loaded.is_empty()
+	print("REAL_MAP_RUNTIME:" + JSON.stringify(runtime_report))
+	if _navigation_rebuild_pending:
+		_navigation_rebuild_pending = false
+		call_deferred("_load_navigation_index")
+
+
+func _ensure_navigation_graph() -> void:
+	while _navigation_index_loading:
+		await get_tree().process_frame
+	if not _navigation_index_ready:
+		await _load_navigation_index()
+		while _navigation_index_loading:
+			await get_tree().process_frame
+	if _navigation_graph_ready:
+		return
+	if _navigation_graph_building:
+		while _navigation_graph_building:
+			await get_tree().process_frame
+		if _navigation_graph_ready:
+			return
+
+	_navigation_graph_building = true
+	var build_generation := _navigation_graph_generation
+	_navigation_graph.clear()
+	_navigation_node_positions.clear()
+	var roads: Variant = _navigation_index.get("roads", [])
+	if not (roads is Array):
+		_navigation_graph_building = false
+		_navigation_graph_ready = false
+		return
+	var graph_started_usec := Time.get_ticks_usec()
+	for road_index in range(roads.size()):
+		if road_index % 8 == 0:
+			await get_tree().process_frame
+			if build_generation != _navigation_graph_generation:
+				_navigation_graph.clear()
+				_navigation_node_positions.clear()
+				_navigation_graph_building = false
+				_navigation_graph_ready = false
+				return
+		var road: Variant = roads[road_index]
+		if not (road is Dictionary) or not _road_allowed_for_current_mode(road):
+			continue
+		var road_name := _road_display_name(road)
+		var paths: Variant = road.get("geometry_paths", [])
+		if not (paths is Array):
+			continue
+		for path in paths:
+			if not (path is Array) or path.size() < 2:
+				continue
 			for i in range(1, path.size()):
 				var a: Variant = path[i - 1]
 				var b: Variant = path[i]
@@ -564,23 +633,20 @@ func _load_navigation_index() -> void:
 					_navigation_graph[a_key].append({"to": b_key, "distance": segment_distance, "road_name": road_name})
 				if add_reverse:
 					_navigation_graph[b_key].append({"to": a_key, "distance": segment_distance, "road_name": road_name})
-	_navigation_index_loading = false
-	_navigation_index_ready = true
-	print("NAVIGATION_INDEX_READY: roads=%d nodes=%d routes=%d elapsed_ms=%d" % [
-		roads.size(), _navigation_node_positions.size(), _navigation_display_routes.size(),
-		int((Time.get_ticks_usec() - _navigation_index_started_usec) / 1000)
+	_navigation_graph_building = false
+	_navigation_graph_ready = not _navigation_graph.is_empty() and not _navigation_node_positions.is_empty()
+	print("NAVIGATION_GRAPH_READY: nodes=%d roads=%d elapsed_ms=%d" % [
+		_navigation_node_positions.size(), roads.size(),
+		int((Time.get_ticks_usec() - graph_started_usec) / 1000)
 	])
-	var runtime_report := get_runtime_map_diagnostics()
-	runtime_report["real_map_loaded"] = true
-	runtime_report["tile_active"] = not _loaded.is_empty()
-	print("REAL_MAP_RUNTIME:" + JSON.stringify(runtime_report))
-	if _navigation_rebuild_pending:
-		_navigation_rebuild_pending = false
-		call_deferred("_load_navigation_index")
 
 
 func is_navigation_index_ready() -> bool:
 	return _navigation_index_ready and not _navigation_index_loading
+
+
+func is_navigation_graph_ready() -> bool:
+	return _navigation_graph_ready and not _navigation_graph_building
 
 
 func _road_display_name(road: Dictionary) -> String:
@@ -659,6 +725,30 @@ func resolve_named_place(query: String) -> Dictionary:
 
 func get_nearby_road_points(world_position: Vector3, min_distance_m := 45.0, max_distance_m := 900.0) -> Array[Vector3]:
 	var candidates: Array[Vector3] = []
+	# Mission and spawn placement can use the currently loaded tile's local roads.
+	# They must not force the full district graph to build during cold boot.
+	if _navigation_node_positions.is_empty():
+		for route in get_road_routes():
+			if not (route is Array):
+				continue
+			for point_value in route:
+				if not (point_value is Vector3):
+					continue
+				var point: Vector3 = point_value
+				var distance := Vector2(point.x - world_position.x, point.z - world_position.z).length()
+				if distance < min_distance_m or distance > max_distance_m:
+					continue
+				var separated := true
+				for existing in candidates:
+					if Vector2(existing.x - point.x, existing.z - point.z).length() < 18.0:
+						separated = false
+						break
+				if separated:
+					candidates.append(point)
+				if candidates.size() >= 350:
+					return candidates
+		return candidates
+
 	var node_ids: Array = _navigation_node_positions.keys()
 	node_ids.shuffle()
 	for node_id in node_ids:
@@ -696,7 +786,7 @@ func navigate_to_named_place(query: String, start_player: Node3D) -> Dictionary:
 		return resolved
 	var place: Dictionary = resolved["place"]
 	var destination := _geo_to_world(float(place["latitude"]), float(place["longitude"]))
-	var result := navigate_to_world_position(destination, start_player)
+	var result: Dictionary = await navigate_to_world_position(destination, start_player)
 	if not bool(result.get("ok", false)):
 		return result
 	result["message"] = "Route to %s: %.0f m, %d instructions. Destination point is approximate; follow the mapped road." % [str(place["name"]), float(result.get("distance_m", 0.0)), _navigation_steps.size()]
@@ -709,8 +799,11 @@ func navigate_to_world_position(destination_position: Vector3, start_player: Nod
 		clear_navigation_route()
 	if not _ready_for_streaming or not is_instance_valid(start_player):
 		return {"ok": false, "message": "Real-world map is not loaded."}
-	if _navigation_graph.is_empty():
-		return {"ok": false, "message": "Offline road graph is missing. Rebuild the map package with the navigation index."}
+	if not _navigation_graph_ready:
+		print("NAVIGATION_GRAPH_LOAD_REQUESTED: building full district road graph on demand")
+		await _ensure_navigation_graph()
+	if not _navigation_graph_ready:
+		return {"ok": false, "message": "Offline road routing could not be initialized. Named-place search and map view remain available."}
 	var start_node := _nearest_navigation_node(start_player.global_position)
 	var destination_node := _nearest_navigation_node(destination_position)
 	if start_node.is_empty() or destination_node.is_empty():
@@ -764,7 +857,7 @@ func _refresh_navigation_if_needed(player: Node3D, player_position: Vector3) -> 
 	# Recompute from the player's current road area. Preserve the last valid
 	# route if the graph temporarily cannot produce a replacement.
 	var destination := _navigation_target_position
-	var result := navigate_to_world_position(destination, player, true)
+	var result: Dictionary = await navigate_to_world_position(destination, player, true)
 	if not bool(result.get("ok", false)):
 		# Cool down failed re-route attempts; leave the last valid route visible.
 		_navigation_recalc_clock = 0.0

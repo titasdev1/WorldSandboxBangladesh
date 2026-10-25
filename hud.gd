@@ -310,7 +310,8 @@ func _navigate_to_named_place() -> void:
  if not is_instance_valid(loader) or not is_instance_valid(player) or not loader.has_method("navigate_to_named_place"):
   teleport_status.text = "Turn-by-turn navigation is unavailable in this build."
   return
- var result: Dictionary = loader.navigate_to_named_place(teleport_place_input.text, player)
+ teleport_status.text = "Preparing offline road routing for the first route…"
+ var result: Dictionary = await loader.navigate_to_named_place(teleport_place_input.text, player)
  if not bool(result.get("ok", false)):
   teleport_status.text = str(result.get("message", "No route available."))
   return

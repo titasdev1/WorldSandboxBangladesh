@@ -206,6 +206,15 @@ for marker in ("Vector3(42, 0, 42)", "Vector3(30, 0, -30)"):
 hud_text = (ROOT / "hud.gd").read_text(encoding="utf-8")
 # Mobile aspect expansion must preserve circular controls and keep touch targets reachable.
 project_text = (ROOT / "project.godot").read_text(encoding="utf-8")
+if 'renderer/rendering_method.mobile="mobile"' not in project_text:
+    raise SystemExit("PRODUCTION GATE FAILED: Android is pinned to OpenGL Compatibility instead of the mobile renderer.")
+map_loader_text = (ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8")
+if "func _ensure_navigation_graph() -> void:" not in map_loader_text or "await _ensure_navigation_graph()" not in map_loader_text:
+    raise SystemExit("PRODUCTION GATE FAILED: full road graph is not deferred until navigation is requested.")
+index_start = map_loader_text.find("func _load_navigation_index() -> void:")
+index_end = map_loader_text.find("func _ensure_navigation_graph() -> void:", index_start)
+if index_start < 0 or index_end < 0 or "_navigation_graph[a_key].append" in map_loader_text[index_start:index_end]:
+    raise SystemExit("PRODUCTION GATE FAILED: startup index loader still allocates the district-wide graph.")
 if 'window/stretch/aspect="expand"' not in project_text:
     raise SystemExit("PRODUCTION GATE FAILED: mobile canvas does not expand its logical viewport to screen aspect")
 if "func _relayout_mobile_controls() -> void:" not in hud_text or "get_viewport().size_changed.connect(_relayout_mobile_controls)" not in hud_text:

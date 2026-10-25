@@ -80,14 +80,42 @@ func _find_authored_animation(candidates: Array[String]) -> String:
 
 func _try_load_authored_hero() -> void:
     if not ResourceLoader.exists(AUTHORED_HERO_PATH):
-        push_warning("AUTHORED_HERO_FALLBACK: licensed rigged character is not packaged; keeping procedural hero.")
+        push_warning("AUTHORED_HERO_FALLBACK: rigged hero is not packaged; keeping procedural hero.")
+        return
+    # Keep the procedural model visible while the first district GLB streams.
+    # Importing the large rig at the same moment may increase the startup memory/driver peak.
+    call_deferred("_begin_staged_authored_hero_load")
+
+
+func _begin_staged_authored_hero_load() -> void:
+    if not is_player_character or not is_inside_tree():
+        return
+    var player_node := get_parent()
+    var world_node: Node = player_node.get_parent() if is_instance_valid(player_node) else null
+    var map_loader: Node = world_node.get("real_dhaka_loader") as Node if is_instance_valid(world_node) else null
+    if is_instance_valid(world_node) and bool(world_node.get("real_dhaka_loaded")) and is_instance_valid(map_loader):
+        var waited_frames := 0
+        while waited_frames < 360 and is_inside_tree():
+            var diagnostics: Dictionary = {}
+            if map_loader.has_method("get_runtime_map_diagnostics"):
+                diagnostics = map_loader.call("get_runtime_map_diagnostics")
+            if int(diagnostics.get("loaded_tiles", 0)) > 0 and bool(diagnostics.get("navigation_index_ready", false)):
+                break
+            await get_tree().process_frame
+            waited_frames += 1
+        if waited_frames >= 360:
+            push_warning("AUTHORED_HERO_STAGED_TIMEOUT: continuing with asynchronous rig load; procedural hero stays visible until ready.")
+    else:
+        await get_tree().process_frame
+        await get_tree().process_frame
+    if not is_inside_tree():
         return
     var request_error := ResourceLoader.load_threaded_request(AUTHORED_HERO_PATH, "PackedScene")
     if request_error != OK and request_error != ERR_BUSY:
         push_warning("AUTHORED_HERO_FALLBACK: threaded hero request failed: " + str(request_error))
         return
     _authored_hero_load_pending = true
-    print("AUTHORED_HERO_LOAD_QUEUED • background rig/animation load started")
+    print("AUTHORED_HERO_LOAD_QUEUED • staged background rig/animation load started")
 
 
 func _poll_authored_hero_load() -> void:

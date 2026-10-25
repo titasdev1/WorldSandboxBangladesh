@@ -260,7 +260,7 @@ func _update_mission_navigation() -> void:
     if not is_instance_valid(player) or not is_instance_valid(active_target) or not loader.has_method("navigate_to_world_position"):
         _clear_mission_navigation()
         return
-    var result: Dictionary = loader.call("navigate_to_world_position", active_target.global_position, player)
+    var result: Dictionary = await loader.call("navigate_to_world_position", active_target.global_position, player)
     if not bool(result.get("ok", false)):
         _clear_mission_navigation()
 

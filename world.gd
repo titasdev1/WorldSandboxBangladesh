@@ -876,7 +876,11 @@ func refresh_active_world_navigation() -> void:
         if real_dhaka_loader.has_method("clear_navigation_route"):
             real_dhaka_loader.clear_navigation_route()
         return
-    var result: Dictionary = real_dhaka_loader.call("navigate_to_world_position", mission_target, player)
+    # Do not allocate the full district routing graph on cold boot. The explicit
+    # Navigate action or accepted mission prepares it on demand.
+    if real_dhaka_loader.has_method("is_navigation_graph_ready") and not real_dhaka_loader.is_navigation_graph_ready():
+        return
+    var result: Dictionary = await real_dhaka_loader.navigate_to_world_position(mission_target, player)
     if not bool(result.get("ok", false)) and real_dhaka_loader.has_method("clear_navigation_route"):
         real_dhaka_loader.clear_navigation_route()
 
