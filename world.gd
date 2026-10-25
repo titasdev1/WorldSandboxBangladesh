@@ -120,6 +120,8 @@ func _notification(what: int) -> void:
 func refresh_mission_targets_after_load() -> void:
  if not real_dhaka_loaded or not is_instance_valid(real_dhaka_loader) or not is_instance_valid(player):
   return
+ if real_dhaka_loader.has_method("is_navigation_index_ready") and not real_dhaka_loader.is_navigation_index_ready():
+  return
  var candidates: Array[Vector3] = []
  for route in real_dhaka_loader.get_road_routes():
   if not route is Array:
@@ -793,6 +795,9 @@ var real_map_spawn_positioned := false
 
 func _configure_real_missions() -> void:
     if not real_dhaka_loaded or not is_instance_valid(real_dhaka_loader) or not is_instance_valid(player):
+        return
+    # Do not select objectives from a partially constructed road graph during startup.
+    if real_dhaka_loader.has_method("is_navigation_index_ready") and not real_dhaka_loader.is_navigation_index_ready():
         return
     # Position the player beside a mapped street at most once. A later retry
     # must never move the player out from under an active side mission.
