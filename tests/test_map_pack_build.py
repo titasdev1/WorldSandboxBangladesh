@@ -77,7 +77,7 @@ class MapPackBuildTests(unittest.TestCase):
         text = self.preset.read_text(encoding="utf-8")
         preset0 = text.split("[preset.1]", 1)[0]
         self.assertIn('include_filter="assets/world/external_map_pack_required.flag"', preset0)
-        self.assertIn('exclude_filter="assets/world/dhaka_tiles/**,.godot/imported/Dhaka_Explorable_Map.glb-*"', preset0)
+        self.assertIn('exclude_filter="assets/world/dhaka_tiles/**,.godot/imported/Dhaka_Explorable_Map.glb-*,build/**"', preset0)
         options = preset0.split("[preset.0.options]", 1)[1]
         self.assertIn("permissions/internet=true", options)
         preset1 = text.split("[preset.1]", 1)[1]
