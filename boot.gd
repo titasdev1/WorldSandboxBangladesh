@@ -371,4 +371,4 @@ func _autostart_world_for_smoke() -> void:
 	var error := get_tree().change_scene_to_file("res://Main.tscn")
 	if error != OK:
 		push_error("BOOT SMOKE FAILED: could not open Main.tscn, error %d" % error)
-		quit(error)
+		get_tree().quit(error)
