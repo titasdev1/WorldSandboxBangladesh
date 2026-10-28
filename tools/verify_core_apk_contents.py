@@ -43,14 +43,23 @@ def main() -> int:
             if map_entries:
                 raise SystemExit(f"CORE APK GATE FAILED: {len(map_entries)} bundled district-map entries remain; sample: {map_entries[:5]}")
             imported_map_entries = sorted(name for name in names if name.startswith(IMPORTED_MAP_PREFIX))
+            duplicate_map_entries = sorted(
+                name for name in names
+                if "Dhaka_Explorable_Map.glb" in name or "/selected-map/" in name.lower()
+                or name.endswith("map_tiles_manifest.json")
+                or name.endswith("real_world_navigation_index.json")
+            )
             if imported_map_entries:
                 raise SystemExit(f"CORE APK GATE FAILED: {len(imported_map_entries)} imported GLB map resources remain; sample: {imported_map_entries[:5]}")
+            if duplicate_map_entries:
+                raise SystemExit(f"CORE APK GATE FAILED: map-pack sources or duplicate staging copies remain in the core APK; sample: {duplicate_map_entries[:5]}")
             if any(name.endswith(".geojson") for name in names):
                 raise SystemExit("CORE APK GATE FAILED: raw map GeoJSON remains embedded in the core APK.")
             print("Core APK modularity: PASS")
             print(f"APK: {apk_path.name} ({size:,} bytes)")
             print(f"District-map resources bundled in core APK: {len(map_entries)}")
             print(f"Imported district GLB scenes bundled in core APK: {len(imported_map_entries)}")
+            print(f"Duplicate map staging resources in core APK: {len(duplicate_map_entries)}")
             print(f"Core/hero manifests present: {len(REQUIRED_CORE_ASSETS)}/{len(REQUIRED_CORE_ASSETS)}")
             print("Map detail is kept in a separately verified PCK; this gate does not claim phone-device launch is proven.")
     except (OSError, zipfile.BadZipFile) as exc:
