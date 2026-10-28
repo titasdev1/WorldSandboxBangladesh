@@ -1,6 +1,6 @@
 [application]
 config/name="World Sandbox: Bangladesh"
-run/main_scene="res://Main.tscn"
+run/main_scene="res://Boot.tscn"
 config/features=PackedStringArray("4.4", "Mobile")
 config/icon="res://icon.svg"
 
