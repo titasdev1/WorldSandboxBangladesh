@@ -31,7 +31,10 @@ on:
       - "tools/report_build_assets.py"
       - "tools/map_pipeline/build_real_world_navigation_index.py"
       - "tools/verify_apk_contents.py"
+      - "tools/map_pack_build.py"
+      - "tools/verify_core_apk_contents.py"
       - "tools/production_gate.py"
+      - "tests/test_map_pack_build.py"
       - "tools/map_pipeline/shariatpur_facade_images.json"
       - "development_state.json"
       - ".github/workflows/android.yml"
@@ -51,7 +54,10 @@ on:
       - "tools/report_build_assets.py"
       - "tools/map_pipeline/build_real_world_navigation_index.py"
       - "tools/verify_apk_contents.py"
+      - "tools/map_pack_build.py"
+      - "tools/verify_core_apk_contents.py"
       - "tools/production_gate.py"
+      - "tests/test_map_pack_build.py"
       - "tools/map_pipeline/shariatpur_facade_images.json"
       - "development_state.json"
 
@@ -81,11 +87,15 @@ jobs:
 
       - name: Validate asset pipeline Python syntax
         shell: bash
-        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py
+        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py tools/map_pack_build.py tools/verify_core_apk_contents.py
 
       - name: Run navigation-index unit tests
         shell: bash
         run: python3 -m unittest discover -s tests -p "test_real_world_navigation_index.py"
+
+      - name: Run separate map-pack build tests
+        shell: bash
+        run: python3 -m unittest discover -s tests -p "test_map_pack_build.py"
 
       # Release/push builds retain Greater Dhaka by default. PR validation uses the
       # latest assembled Shariatpur review package so map/game changes are tested
@@ -333,6 +343,10 @@ jobs:
             echo "::warning::Selected map package has no source GeoJSON; named search and offline routing will be unavailable."
           fi
 
+      - name: Configure separate full-resolution map-pack export
+        shell: bash
+        run: python3 tools/map_pack_build.py --configure-pack-preset
+
       - name: Restore cached Quaternius CC0 hero and animation libraries
         uses: actions/cache@v4
         with:
@@ -554,7 +568,80 @@ jobs:
           export_debug: true
           verbose: true
 
-      - name: Verify exported APK integrity and record checksum
+      - name: Verify selected map and core art are embedded in the exported APK
+        shell: bash
+        env:
+          MAP_PACKAGE: ${{ (inputs.map_package == 'shariatpur_review' || github.event_name == 'pull_request' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && 'shariatpur_review' || 'greater_dhaka' }}
+        run: |
+          set -euo pipefail
+          python3 tools/verify_apk_contents.py --apk build/Android/world_sandbox_bangladesh.apk --map-package "$MAP_PACKAGE" | tee build/apk-content-verification.txt
+          cat build/apk-content-verification.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Export and verify separate full-resolution map pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot-validation/Godot_v4.4.1-stable_linux.x86_64"
+          test -x "$GODOT"
+          if [ "$WSB_MAP_PACKAGE" = "shariatpur_review" ]; then
+            MAP_SLUG="Shariatpur"
+            RELEASE_TAG="shariatpur-review-candidate"
+          else
+            MAP_SLUG="Greater-Dhaka"
+            RELEASE_TAG="android-dev"
+          fi
+          mkdir -p build/MapPacks build/map-pack-verifier
+          PACK="build/MapPacks/Project-A-Square-$MAP_SLUG-Map.pck"
+          META="build/MapPacks/Project-A-Square-$MAP_SLUG-Map.json"
+          "$GODOT" --headless --path . --export-pack "Project A-Square Map Pack" "$PACK"
+          test -s "$PACK"
+          python3 tools/map_pack_build.py --write-metadata --pack "$PACK" --out "$META" --release-tag "$RELEASE_TAG"
+          # Use a clean verifier project so a missing PCK entry cannot be hidden by
+          # the full map files that are present in the CI source checkout.
+          printf '[application]\nconfig/name="Project A-Square Map Pack Verifier"\n' > build/map-pack-verifier/project.godot
+          export WSB_MAP_PACK_PATH="$(realpath "$PACK")"
+          set +e
+          "$GODOT" --headless --path build/map-pack-verifier --script "$GITHUB_WORKSPACE/tools/verify_map_pack.gd" > build/map-pack-verification.txt 2>&1
+          PACK_VERIFY_STATUS=$?
+          set -e
+          cat build/map-pack-verification.txt
+          if [ "$PACK_VERIFY_STATUS" -ne 0 ] || ! grep -Fq "MAP_PACK_GATE:PASS" build/map-pack-verification.txt; then
+            echo "Separate map-pack validation failed."
+            exit 1
+          fi
+          echo "WSB_MAP_PACK_FILE=$PACK" >> "$GITHUB_ENV"
+          echo "WSB_MAP_PACK_METADATA_FILE=$META" >> "$GITHUB_ENV"
+          echo "WSB_MAP_PACK_SLUG=$MAP_SLUG" >> "$GITHUB_ENV"
+          echo "Validated separate pack: $PACK ($(stat -c '%s' "$PACK") bytes)"
+
+      - name: Prepare compact core APK export
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/map_pack_build.py --prepare-core-export
+          # Discard the large, already-inspected validation APK before exporting
+          # the installable core build. This frees runner disk and avoids signing
+          # or accidentally releasing the validation-only file.
+          rm -rf build/Android
+
+      - name: Export modular core Android APK
+        uses: firebelley/godot-export@v8.0.0
+        with:
+          godot_executable_download_url: https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
+          godot_export_templates_download_url: https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz
+          relative_project_path: ./
+          relative_export_path: build
+          presets_to_export: Android
+          export_debug: true
+          verbose: true
+
+      - name: Verify core APK excludes the bundled district map
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/verify_core_apk_contents.py --apk build/Android/world_sandbox_bangladesh.apk | tee build/core-apk-content-verification.txt
+
+      - name: Verify final modular APK integrity and record checksum
         shell: bash
         run: |
           set -euo pipefail
@@ -583,15 +670,6 @@ jobs:
             printf -- '- ZIP structure test: PASS\n'
             printf -- '- Android signature verification: PASS\n'
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Verify selected map and core art are embedded in the exported APK
-        shell: bash
-        env:
-          MAP_PACKAGE: ${{ (inputs.map_package == 'shariatpur_review' || github.event_name == 'pull_request' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && 'shariatpur_review' || 'greater_dhaka' }}
-        run: |
-          set -euo pipefail
-          python3 tools/verify_apk_contents.py --apk build/Android/world_sandbox_bangladesh.apk --map-package "$MAP_PACKAGE" | tee build/apk-content-verification.txt
-          cat build/apk-content-verification.txt >> "$GITHUB_STEP_SUMMARY"
 
       - name: Report exact APK and included asset sizes
         shell: bash
@@ -632,7 +710,10 @@ jobs:
           prerelease: true
           make_latest: false
           overwrite_files: true
-          files: build/Android/world_sandbox_bangladesh.apk
+          files: |
+            build/Android/world_sandbox_bangladesh.apk
+            build/MapPacks/*.pck
+            build/MapPacks/*.json
 
       - name: Publish direct Shariatpur review APK (separate from canonical release)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[shariatpur-review-apk]')
@@ -697,5 +778,8 @@ jobs:
             build/apk-zip-test.txt
             build/apk-signature-verification.txt
             build/apk-content-verification.txt
+            build/core-apk-content-verification.txt
+            build/map-pack-verification.txt
+            build/MapPacks/*.json
             build/asset_build_report.json
           if-no-files-found: error
