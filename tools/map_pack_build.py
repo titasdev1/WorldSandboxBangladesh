@@ -130,7 +130,7 @@ def prepare_core_export() -> None:
     before, block, after = _section(text, "preset.0")
     if not block:
         raise SystemExit("CORE APK PREPARATION FAILED: preset.0 is missing")
-    block = _set_key(block, "include_filter", '""')
+    block = _set_key(block, "include_filter", '"assets/world/external_map_pack_required.flag"')
     block = _set_key(
         block,
         "exclude_filter",
@@ -154,7 +154,7 @@ def prepare_core_export() -> None:
     _, block_check, _ = _section(check, "preset.0")
     if 'exclude_filter="assets/world/dhaka_tiles/**,.godot/imported/Dhaka_Explorable_Map.glb-*"' not in block_check:
         raise SystemExit("CORE APK PREPARATION FAILED: map exclusion filter was not written")
-    if 'include_filter=""' not in block_check:
+    if 'include_filter="assets/world/external_map_pack_required.flag"' not in block_check:
         raise SystemExit("CORE APK PREPARATION FAILED: map-only raw-file inclusion was not cleared")
     print("Core export preset now excludes district map sources and imported map scenes; map PCK keeps original resolution.")
     
