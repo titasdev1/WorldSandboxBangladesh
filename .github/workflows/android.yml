@@ -729,7 +729,10 @@ jobs:
           prerelease: true
           make_latest: false
           overwrite_files: true
-          files: build/Android/world_sandbox_bangladesh.apk
+          files: |
+            build/Android/world_sandbox_bangladesh.apk
+            build/MapPacks/*.pck
+            build/MapPacks/*.json
 
       # Manual Shariatpur review builds need a directly installable APK too.
       # GitHub Actions artifacts are ZIP containers; this release asset is the APK itself.
@@ -749,7 +752,10 @@ jobs:
           prerelease: true
           make_latest: false
           overwrite_files: true
-          files: build/Android/world_sandbox_bangladesh.apk
+          files: |
+            build/Android/world_sandbox_bangladesh.apk
+            build/MapPacks/*.pck
+            build/MapPacks/*.json
 
       # The pull-request artifact is a ZIP; publish the verified APK file itself as a replaceable preview asset.
       - name: Publish direct Shariatpur pull-request APK preview
@@ -767,7 +773,10 @@ jobs:
           prerelease: true
           make_latest: false
           overwrite_files: true
-          files: build/Android/world_sandbox_bangladesh.apk
+          files: |
+            build/Android/world_sandbox_bangladesh.apk
+            build/MapPacks/*.pck
+            build/MapPacks/*.json
 
       - name: Upload small verification reports separately
         uses: actions/upload-artifact@v4
