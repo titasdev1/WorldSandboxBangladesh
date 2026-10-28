@@ -18,6 +18,8 @@ on:
       - "district_map_display.gd"
       - "real_dhaka_tile_loader.gd"
       - "Main.tscn"
+      - "Boot.tscn"
+      - "boot.gd"
       - "project.godot"
       - "tests/test_dhaka_map_pipeline.py"
       - ".github/workflows/validate-godot.yml"
@@ -37,6 +39,8 @@ on:
       - "district_map_display.gd"
       - "real_dhaka_tile_loader.gd"
       - "Main.tscn"
+      - "Boot.tscn"
+      - "boot.gd"
       - "project.godot"
       - "tests/test_dhaka_map_pipeline.py"
       - ".github/workflows/validate-godot.yml"
@@ -103,7 +107,7 @@ jobs:
           set -euo pipefail
           GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
           set +e
-          timeout 30s "$GODOT" --headless --path . --quit-after 600 > "$RUNNER_TEMP/godot/startup.log" 2>&1
+          WSB_AUTOSTART_MAP_FOR_SMOKE=1 timeout 30s "$GODOT" --headless --path . --quit-after 600 > "$RUNNER_TEMP/godot/startup.log" 2>&1
           result=$?
           set -e
           cat "$RUNNER_TEMP/godot/startup.log"
