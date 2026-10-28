@@ -18,6 +18,11 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 REQUIRED = [
     "project.godot",
     "Main.tscn",
+    "Boot.tscn",
+    "boot.gd",
+    "tools/map_pack_build.py",
+    "tools/verify_core_apk_contents.py",
+    "tools/verify_map_pack.gd",
     "world.gd",
     "real_dhaka_tile_loader.gd",
     "player.gd",
@@ -46,6 +51,10 @@ REQUIRED = [
 for rel in REQUIRED:
     if not (ROOT / rel).is_file():
         raise SystemExit(f"PRODUCTION GATE FAILED: missing {rel}")
+
+project_text = (ROOT / "project.godot").read_text(encoding="utf-8")
+if 'run/main_scene="res://Boot.tscn"' not in project_text:
+    raise SystemExit("PRODUCTION GATE FAILED: Android app must start in the lightweight Boot scene, not instantiate the whole world at cold launch.")
 
 state_path = ROOT / "development_state.json"
 try:
