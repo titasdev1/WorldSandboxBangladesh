@@ -26,7 +26,7 @@ func _ready() -> void:
 	http.name = "MapPackDownloadRequest"
 	http.use_threads = true
 	http.timeout = 0.0
-	http.body_size_limit = 0
+	http.body_size_limit = -1
 	http.max_redirects = 8
 	http.accept_gzip = false
 	http.request_completed.connect(_on_http_request_completed)
@@ -183,9 +183,6 @@ func _is_local_pack_ready() -> bool:
 	if not (data is Dictionary):
 		return false
 	if str(data.get("asset_filename", "")) != MAP_PACK_FILENAME:
-		return false
-	var actual_size := FileAccess.get_file_as_string(LOCAL_METADATA_PATH).length()
-	if actual_size <= 0:
 		return false
 	var file := FileAccess.open(FINAL_PATH, FileAccess.READ)
 	if file == null:
