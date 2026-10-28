@@ -619,9 +619,12 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/map_pack_build.py --prepare-core-export
-          # Discard the large, already-inspected validation APK before exporting
-          # the installable core build. This frees runner disk and avoids signing
-          # or accidentally releasing the validation-only file.
+          # Keep the already-verified PCK and bulky source tree outside the project
+          # during the final export. This prevents Godot's all-resources preset from
+          # silently embedding a second copy from build/selected-map or the source map.
+          mv assets/world/dhaka_tiles "$RUNNER_TEMP/verified-map-source"
+          mv build/selected-map "$RUNNER_TEMP/selected-map-source"
+          mv build/MapPacks "$RUNNER_TEMP/verified-map-packs"
           rm -rf build/Android
 
       - name: Export modular core Android APK
@@ -640,6 +643,15 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/verify_core_apk_contents.py --apk build/Android/world_sandbox_bangladesh.apk | tee build/core-apk-content-verification.txt
+
+      - name: Restore map pack files for release upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/MapPacks
+          cp -a "$RUNNER_TEMP/verified-map-packs/." build/MapPacks/
+          test -s "$WSB_MAP_PACK_FILE"
+          test -s "$WSB_MAP_PACK_METADATA_FILE"
 
       - name: Verify final modular APK integrity and record checksum
         shell: bash
