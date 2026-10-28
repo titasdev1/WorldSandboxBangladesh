@@ -1255,6 +1255,10 @@ class PausedStartupStreamingTests(unittest.TestCase):
 
     def test_android_map_gate_requires_a_fully_activated_tile(self):
         workflow = (self.ROOT / ".github" / "workflows" / "android.yml").read_text(encoding="utf-8")
-        self.assertIn('("ready", "real_map_loaded", "tile_active")', workflow)
+        # Tile activation is an event in the full smoke trace, not necessarily
+        # a field repeated in the final diagnostic snapshot.
+        self.assertIn('tile_activation_seen = any(item.get("tile_active") is True for item in reports)', workflow)
+        self.assertIn('for key in ("ready", "real_map_loaded"):', workflow)
+        self.assertIn('if not tile_activation_seen:', workflow)
         self.assertIn('"loaded_display_routes"', workflow)
         self.assertIn('WSB_AUTOSTART_MAP_FOR_SMOKE=1 timeout 30s "$GODOT"', workflow)
