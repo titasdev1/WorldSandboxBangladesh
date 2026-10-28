@@ -255,7 +255,14 @@ func _on_http_request_completed(result: int, response_code: int, _headers: Packe
 		if str(downloaded_metadata.get("asset_url", "")) != ALLOWED_ASSET_URL or str(downloaded_metadata.get("release_tag", "")) != "shariatpur-review-candidate":
 			_fail_download("The map-pack download address failed its safety check.")
 			return
-		if expected_size <= 0 or expected_size > 8_000_000_000 or expected_sha256.length() != 64 or not expected_sha256.is_valid_hex_number():
+		var sha_is_hex := expected_sha256.length() == 64
+	for index in range(expected_sha256.length()):
+		if "0123456789abcdef".find(expected_sha256.substr(index, 1)) < 0:
+			sha_is_hex = false
+			break
+		if not sha_is_hex:
+			break
+		if expected_size <= 0 or expected_size > 8_000_000_000 or not sha_is_hex:
 			_fail_download("The map-pack size or checksum was invalid.")
 			return
 		_begin_pck_request()
