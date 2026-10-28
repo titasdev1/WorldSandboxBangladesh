@@ -134,7 +134,7 @@ def prepare_core_export() -> None:
     block = _set_key(
         block,
         "exclude_filter",
-        '"assets/world/dhaka_tiles/**,.godot/imported/Dhaka_Explorable_Map.glb-*"',
+        '"assets/world/dhaka_tiles/**,.godot/imported/Dhaka_Explorable_Map.glb-*,build/**"',
     )
     # Ensure network permission is included for the in-game signed map download.
     options_before, options, options_after = _section(text, "preset.0.options")
@@ -152,7 +152,7 @@ def prepare_core_export() -> None:
     # Verify the actual values written before attempting the second export.
     check = PRESET_PATH.read_text(encoding="utf-8")
     _, block_check, _ = _section(check, "preset.0")
-    if 'exclude_filter="assets/world/dhaka_tiles/**,.godot/imported/Dhaka_Explorable_Map.glb-*"' not in block_check:
+    if 'exclude_filter="assets/world/dhaka_tiles/**,.godot/imported/Dhaka_Explorable_Map.glb-*,build/**"' not in block_check:
         raise SystemExit("CORE APK PREPARATION FAILED: map exclusion filter was not written")
     if 'include_filter="assets/world/external_map_pack_required.flag"' not in block_check:
         raise SystemExit("CORE APK PREPARATION FAILED: map-only raw-file inclusion was not cleared")
