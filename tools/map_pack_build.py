@@ -55,8 +55,17 @@ def _set_key(block: str, key: str, value: str) -> str:
     return block.rstrip() + f"\n{key}={value}\n"
 
 
+def _map_slug(manifest: dict[str, Any]) -> str:
+    boundary = manifest.get("administrative_boundary", {})
+    name = str(boundary.get("name", "")) if isinstance(boundary, dict) else ""
+    if str(manifest.get("build_stage", "")).lower() == "shariatpur_review" or "shariatpur" in name.lower():
+        return "Shariatpur"
+    return "Greater-Dhaka"
+
+
 def configure_pack_preset() -> None:
     manifest = _manifest()
+    slug = _map_slug(manifest)
     project_paths: list[str] = []
     for tile in manifest["tiles"]:
         if not isinstance(tile, dict):
@@ -101,7 +110,7 @@ def configure_pack_preset() -> None:
         f'export_files={export_files}\n'
         f'include_filter={json.dumps(include_filter)}\n'
         'exclude_filter=""\n'
-        'export_path="./build/MapPacks/Project-A-Square-Map.pck"\n'
+        f'export_path="./build/MapPacks/Project-A-Square-{slug}-Map.pck"\n'
         'encryption_include_filters=""\n'
         'encryption_exclude_filters=""\n'
         'encrypt_pck=false\n'
@@ -164,6 +173,13 @@ def write_metadata(pack_path: Path, output_path: Path, release_tag: str) -> None
         pack_id = "bangladesh.greater-dhaka"
     filename = f"{MAP_PACK_BASE}-{slug}-Map.pck"
     url = f"https://github.com/titasdev1/WorldSandboxBangladesh/releases/download/{release_tag}/{filename}"
+    digest = hashlib.sha256()
+    with pack_path.open("rb") as stream:
+        while True:
+            chunk = stream.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
     metadata = {
         "schema_version": 1,
         "map_pack_id": pack_id,
@@ -172,7 +188,7 @@ def write_metadata(pack_path: Path, output_path: Path, release_tag: str) -> None
         "asset_url": url,
         "release_tag": release_tag,
         "size_bytes": pack_path.stat().st_size,
-        "sha256": hashlib.sha256(pack_path.read_bytes()).hexdigest(),
+        "sha256": digest.hexdigest(),
         "tile_count": len(manifest["tiles"]),
         "build_stage": manifest.get("build_stage", ""),
         "game_origin_lat_lon": manifest.get("game_origin_lat_lon", []),
