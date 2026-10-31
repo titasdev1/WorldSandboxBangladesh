@@ -159,10 +159,22 @@ def prepare_core_export() -> None:
     print("Core export preset now excludes district map sources and imported map scenes; map PCK keeps original resolution.")
     
 
-def write_metadata(pack_path: Path, output_path: Path, release_tag: str) -> None:
+def write_metadata(
+    pack_path: Path,
+    output_path: Path,
+    release_tag: str,
+    max_part_bytes: int = 1_800_000_000,
+) -> None:
+    """Split a complete PCK into GitHub-release-safe pieces and describe them.
+
+    The final runtime file is still one byte-identical PCK. The game downloads
+    each bounded part, verifies it, then reassembles it in private app storage.
+    """
     manifest = _manifest()
     if not pack_path.is_file() or pack_path.stat().st_size <= 0:
         raise SystemExit(f"MAP PACK METADATA FAILED: map pack missing or empty: {pack_path}")
+    if max_part_bytes <= 0 or max_part_bytes >= 2 * 1024 * 1024 * 1024:
+        raise SystemExit("MAP PACK METADATA FAILED: each release part must be smaller than GitHub's 2 GiB asset limit.")
     boundary = manifest.get("administrative_boundary", {})
     map_name = str(boundary.get("name", "")) if isinstance(boundary, dict) else ""
     if str(manifest.get("build_stage", "")).lower() == "shariatpur_review" or "shariatpur" in map_name.lower():
@@ -171,33 +183,70 @@ def write_metadata(pack_path: Path, output_path: Path, release_tag: str) -> None
     else:
         slug = "Greater-Dhaka"
         pack_id = "bangladesh.greater-dhaka"
+
     filename = f"{MAP_PACK_BASE}-{slug}-Map.pck"
-    url = f"https://github.com/titasdev1/WorldSandboxBangladesh/releases/download/{release_tag}/{filename}"
-    digest = hashlib.sha256()
-    with pack_path.open("rb") as stream:
+    base_url = f"https://github.com/titasdev1/WorldSandboxBangladesh/releases/download/{release_tag}/{filename}"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    # Remove stale split parts before producing the current pack manifest.
+    for stale in output_path.parent.glob(filename + ".part*"):
+        stale.unlink()
+
+    parts: list[dict[str, Any]] = []
+    full_digest = hashlib.sha256()
+    full_size = 0
+    part_index = 1
+    with pack_path.open("rb") as source:
         while True:
-            chunk = stream.read(1024 * 1024)
-            if not chunk:
+            part_name = f"{filename}.part{part_index:03d}"
+            part_path = output_path.parent / part_name
+            part_digest = hashlib.sha256()
+            part_size = 0
+            with part_path.open("wb") as target:
+                while part_size < max_part_bytes:
+                    chunk = source.read(min(4 * 1024 * 1024, max_part_bytes - part_size))
+                    if not chunk:
+                        break
+                    target.write(chunk)
+                    part_digest.update(chunk)
+                    full_digest.update(chunk)
+                    part_size += len(chunk)
+                    full_size += len(chunk)
+            if part_size == 0:
+                part_path.unlink(missing_ok=True)
                 break
-            digest.update(chunk)
+            parts.append({
+                "index": part_index,
+                "asset_filename": part_name,
+                "asset_url": base_url + f".part{part_index:03d}",
+                "size_bytes": part_size,
+                "sha256": part_digest.hexdigest(),
+            })
+            print(f"Map PCK part {part_index}: {part_name} ({part_size:,} bytes, SHA-256 {part_digest.hexdigest()})")
+            part_index += 1
+
+    original_size = pack_path.stat().st_size
+    if full_size != original_size or not parts:
+        raise SystemExit(f"MAP PACK METADATA FAILED: split size {full_size:,} does not match source PCK size {original_size:,}.")
+    # Never attach the >2 GiB single-file PCK to GitHub Releases. Only these
+    # individual pieces are release assets; the game reconstructs the exact PCK.
     metadata = {
-        "schema_version": 1,
+        "schema_version": 2,
         "map_pack_id": pack_id,
         "display_name": slug.replace("-", " "),
         "asset_filename": filename,
-        "asset_url": url,
         "release_tag": release_tag,
-        "size_bytes": pack_path.stat().st_size,
-        "sha256": digest.hexdigest(),
+        "size_bytes": full_size,
+        "sha256": full_digest.hexdigest(),
+        "part_count": len(parts),
+        "parts": parts,
         "tile_count": len(manifest["tiles"]),
         "build_stage": manifest.get("build_stage", ""),
         "game_origin_lat_lon": manifest.get("game_origin_lat_lon", []),
-        "map_detail_policy": "full-resolution exported resources; no deliberate texture downscaling in pack split",
-        "runtime_note": "Downloaded packs are stored in private app storage and mounted on the next launch.",
+        "map_detail_policy": "full-resolution exported resources; original PCK bytes are reassembled without recompression or downscaling",
+        "runtime_note": "The game downloads SHA-256-verified parts into private app storage and reassembles one byte-identical PCK before mounting it on the next launch.",
     }
-    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"Wrote map pack metadata: {output_path} ({metadata['size_bytes']:,} bytes, SHA-256 {metadata['sha256']})")
+    print(f"Wrote map pack metadata: {output_path} ({full_size:,} bytes in {len(parts)} GitHub-safe parts, SHA-256 {metadata['sha256']})")
 
 
 def main() -> int:
@@ -208,6 +257,7 @@ def main() -> int:
     parser.add_argument("--pack", type=Path)
     parser.add_argument("--out", type=Path)
     parser.add_argument("--release-tag", default="shariatpur-review-candidate")
+    parser.add_argument("--max-part-bytes", type=int, default=1_800_000_000)
     args = parser.parse_args()
     if args.configure_pack_preset:
         configure_pack_preset()
@@ -216,7 +266,7 @@ def main() -> int:
     if args.write_metadata:
         if args.pack is None or args.out is None:
             parser.error("--write-metadata requires --pack and --out")
-        write_metadata(args.pack, args.out, args.release_tag)
+        write_metadata(args.pack, args.out, args.release_tag, args.max_part_bytes)
     if not (args.configure_pack_preset or args.prepare_core_export or args.write_metadata):
         parser.error("choose an operation")
     return 0
