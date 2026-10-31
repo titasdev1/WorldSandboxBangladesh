@@ -125,8 +125,10 @@ func _draw() -> void:
      var b3: Vector3 = route[i]
      var a := _world_to_panel(Vector2(a3.x, a3.z), center, pixels_per_m)
      var b := _world_to_panel(Vector2(b3.x, b3.z), center, pixels_per_m)
-     draw_line(a, b, Color("#65727a"), 4.5 if expanded else 2.5, true)
-     draw_line(a, b, Color("#c6b98d", 0.8), 1.0, true)
+     # Clip each road segment to the actual map viewport. The raw OSM route
+     # coordinates can extend kilometres outside this moving minimap.
+     _draw_clipped_line(a, b, map_rect, Color("#65727a"), 4.5 if expanded else 2.5)
+     _draw_clipped_line(a, b, map_rect, Color("#c6b98d", 0.8), 1.0)
    if expanded and loader.has_method("get_road_labels"):
     for road_label in loader.get_road_labels():
      var label_points: Array = road_label.get("points", [])
@@ -144,7 +146,7 @@ func _draw() -> void:
      var route_b: Vector3 = nav_route[i]
      var panel_a := _world_to_panel(Vector2(route_a.x, route_a.z), center, pixels_per_m)
      var panel_b := _world_to_panel(Vector2(route_b.x, route_b.z), center, pixels_per_m)
-     draw_line(panel_a, panel_b, Color("#ffcf5c"), 4.0 if expanded else 2.5, true)
+     _draw_clipped_line(panel_a, panel_b, map_rect, Color("#ffcf5c"), 4.0 if expanded else 2.5)
 
  else:
   for i in range(-3,4):
@@ -206,6 +208,43 @@ func set_navigation_target(place: Dictionary) -> void:
  _target_position = loader.lat_lon_to_world(float(place["latitude"]), float(place["longitude"]))
  _has_target = true
  queue_redraw()
+
+
+func _draw_clipped_line(a: Vector2, b: Vector2, bounds: Rect2, line_color: Color, line_width: float) -> void:
+ var clipped := _clip_segment_to_rect(a, b, bounds)
+ if clipped.size() == 2:
+  draw_line(clipped[0], clipped[1], line_color, line_width, true)
+
+
+func _clip_segment_to_rect(a: Vector2, b: Vector2, bounds: Rect2) -> Array[Vector2]:
+ # Liang-Barsky line clipping: retain only the piece inside the square map frame.
+ var delta := b - a
+ var t_min := 0.0
+ var t_max := 1.0
+ var p := [-delta.x, delta.x, -delta.y, delta.y]
+ var q := [
+  a.x - bounds.position.x,
+  bounds.end.x - a.x,
+  a.y - bounds.position.y,
+  bounds.end.y - a.y,
+ ]
+ for index in range(4):
+  if is_zero_approx(float(p[index])):
+   if float(q[index]) < 0.0:
+    return []
+   continue
+  var ratio := float(q[index]) / float(p[index])
+  if float(p[index]) < 0.0:
+   if ratio > t_max:
+    return []
+   t_min = maxf(t_min, ratio)
+  else:
+   if ratio < t_min:
+    return []
+   t_max = minf(t_max, ratio)
+  if t_min > t_max:
+   return []
+ return [a + delta * t_min, a + delta * t_max]
 
 
 func _world_to_panel(point: Vector2, center: Vector2, scale_value: float) -> Vector2:
