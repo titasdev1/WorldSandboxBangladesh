@@ -658,8 +658,21 @@ jobs:
           set -euo pipefail
           mkdir -p build/MapPacks
           cp -a "$RUNNER_TEMP/verified-map-packs/." build/MapPacks/
-          test -s "$WSB_MAP_PACK_FILE"
           test -s "$WSB_MAP_PACK_METADATA_FILE"
+          python3 - "$WSB_MAP_PACK_METADATA_FILE" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          metadata = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          parts = metadata.get("parts", [])
+          if not parts:
+              raise SystemExit("MAP PART RESTORE FAILED: metadata contains no release parts.")
+          for part in parts:
+              path = Path("build/MapPacks") / str(part.get("asset_filename", ""))
+              if not path.is_file() or path.stat().st_size != int(part.get("size_bytes", -1)):
+                  raise SystemExit(f"MAP PART RESTORE FAILED: missing or wrong-sized part: {path}")
+          print(f"Restored and checked {len(parts)} split map-pack assets.")
+          PY
 
       - name: Verify final modular APK integrity and record checksum
         shell: bash
