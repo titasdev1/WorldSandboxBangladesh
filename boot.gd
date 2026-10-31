@@ -396,7 +396,7 @@ func _verify_and_append_part() -> bool:
 			output.close()
 			return false
 		context.update(chunk)
-		if output.store_buffer(chunk) != OK:
+		if not output.store_buffer(chunk):
 			source.close()
 			output.close()
 			return false
