@@ -728,6 +728,13 @@ if "func toggle_camera_view_mode()" not in player_text or 'camera_view_mode == "
     raise SystemExit("PRODUCTION GATE FAILED: first-person/third-person camera modes are not implemented")
 if "CameraViewToggle" not in hud_text or "_toggle_camera_view" not in hud_text:
     raise SystemExit("PRODUCTION GATE FAILED: first-person/third-person toggle is not exposed in the touch HUD")
+vehicle_camera_text = (ROOT / "vehicle.gd").read_text(encoding="utf-8")
+if "vehicle_first_person_camera" not in vehicle_camera_text or "toggle_vehicle_camera_mode" not in vehicle_camera_text:
+    raise SystemExit("PRODUCTION GATE FAILED: drivable vehicle FPP/TPP cameras are not wired.")
+if "try_vehicle_interaction" not in player_text or player_text.find("try_vehicle_interaction") > player_text.find("try_interior_interaction"):
+    raise SystemExit("PRODUCTION GATE FAILED: vehicle entry must take priority over a nearby building interaction.")
+if "try_open_interior_door" not in player_text or "DoorHinge" not in (ROOT / "real_dhaka_tile_loader.gd").read_text(encoding="utf-8"):
+    raise SystemExit("PRODUCTION GATE FAILED: mapped building entry lacks a visible open-door interaction.")
 if 'add_touch_button("AIM"' not in hud_text or 'Input.is_action_pressed("aim")' not in player_text:
     raise SystemExit("PRODUCTION GATE FAILED: hold-to-aim zoom is not integrated into the player and touch HUD")
 if "CombatCrosshair" not in hud_text:
