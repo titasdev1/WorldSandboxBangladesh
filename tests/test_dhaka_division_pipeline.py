@@ -181,7 +181,7 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         world = (self.ROOT / "world.gd").read_text(encoding="utf-8")
         respawn_start = world.index("func respawn_player():")
         helper_start = world.index("func _nearest_mapped_respawn_position(", respawn_start)
-        interaction_start = world.index("func try_vehicle_interaction():", helper_start)
+        interaction_start = world.index("func try_vehicle_interaction", helper_start)
         respawn_code = world[respawn_start:interaction_start]
         self.assertIn("player.global_position = _nearest_mapped_respawn_position(player.global_position)", respawn_code)
         self.assertIn('real_dhaka_loader.call("get_nearby_road_points"', respawn_code)
@@ -222,7 +222,10 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         starter_reward = code.index("Vector3(30, 0, -30)")
         self.assertLess(map_guard, starter_bargain)
         self.assertLess(map_guard, starter_reward)
-        self.assertIn("else:\n  world.try_vehicle_interaction()", code)
+        # Vehicle boarding now runs before building/vendor interaction, so a
+        # nearby entry anchor cannot steal the Interact action from a parked car.
+        self.assertLess(code.index("try_vehicle_interaction"), map_guard)
+        self.assertLess(code.index("try_open_interior_door"), code.index("try_interior_interaction"))
 
     def test_real_world_map_suppresses_fictional_factory_overlays(self):
         factories = [
