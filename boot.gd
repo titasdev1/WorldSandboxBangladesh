@@ -2,11 +2,12 @@ extends Control
 
 const MAP_PACK_DIR := "user://map_packs"
 const MAP_PACK_FILENAME := "Project-A-Square-Shariatpur-Map.pck"
-const PART_PATH := MAP_PACK_DIR + "/" + MAP_PACK_FILENAME + ".part"
+const PART_PATH := MAP_PACK_DIR + "/download.part"
+const MERGED_PART_PATH := MAP_PACK_DIR + "/Shariatpur-Map.assembling"
 const FINAL_PATH := MAP_PACK_DIR + "/" + MAP_PACK_FILENAME
 const LOCAL_METADATA_PATH := MAP_PACK_DIR + "/installed_map_pack.json"
 const REMOTE_METADATA_URL := "https://github.com/titasdev1/WorldSandboxBangladesh/releases/download/shariatpur-review-candidate/Project-A-Square-Shariatpur-Map.json"
-const ALLOWED_ASSET_URL := "https://github.com/titasdev1/WorldSandboxBangladesh/releases/download/shariatpur-review-candidate/" + MAP_PACK_FILENAME
+const ALLOWED_ASSET_BASE_URL := "https://github.com/titasdev1/WorldSandboxBangladesh/releases/download/shariatpur-review-candidate/" + MAP_PACK_FILENAME
 
 var status_label: Label
 var detail_label: Label
@@ -19,6 +20,11 @@ var download_active := false
 var downloaded_metadata: Dictionary = {}
 var expected_size := 0
 var expected_sha256 := ""
+var pack_parts: Array = []
+var current_part_index := 0
+var expected_part_size := 0
+var expected_part_sha256 := ""
+var completed_bytes := 0
 
 func _ready() -> void:
 	_build_screen()
@@ -166,15 +172,21 @@ func _panel_style(fill: Color, border: Color, border_width: int, radius: int) ->
 	return style
 
 func _process(_delta: float) -> void:
-	if not download_active or request_phase != "pck" or not is_instance_valid(http):
+	if not download_active or request_phase != "part" or not is_instance_valid(http):
 		return
 	var downloaded := http.get_downloaded_bytes()
-	var total := http.get_body_size()
+	var total := int(pack_parts[current_part_index].get("size_bytes", 0)) if current_part_index < pack_parts.size() else 0
 	if total > 0:
-		progress_bar.value = minf(89.0, 5.0 + 84.0 * float(downloaded) / float(total))
-		status_label.text = "DOWNLOADING SHARIATPUR • %.1f / %.1f MB" % [float(downloaded) / 1048576.0, float(total) / 1048576.0]
+		var overall := float(completed_bytes + downloaded) / float(maxi(1, expected_size))
+		progress_bar.value = minf(88.0, 5.0 + 83.0 * overall)
+		status_label.text = "DOWNLOADING SHARIATPUR • PART %d/%d" % [current_part_index + 1, pack_parts.size()]
+		detail_label.text = "%.1f / %.1f MB in this part • %.1f%% of district pack" % [
+			float(downloaded) / 1048576.0,
+			float(total) / 1048576.0,
+			overall * 100.0
+		]
 	else:
-		status_label.text = "DOWNLOADING SHARIATPUR • %.1f MB RECEIVED" % (float(downloaded) / 1048576.0)
+		status_label.text = "DOWNLOADING SHARIATPUR • PART %d/%d" % [current_part_index + 1, pack_parts.size()]
 
 func _is_local_pack_ready() -> bool:
 	if not FileAccess.file_exists(FINAL_PATH) or not FileAccess.file_exists(LOCAL_METADATA_PATH):
@@ -222,6 +234,11 @@ func _begin_metadata_request() -> void:
 	if make_error != OK and not DirAccess.dir_exists_absolute(absolute_directory):
 		_fail_download("Cannot create the private map-pack folder. Check free storage and retry.")
 		return
+	_remove_private_file(PART_PATH)
+	_remove_private_file(MERGED_PART_PATH)
+	pack_parts.clear()
+	current_part_index = 0
+	completed_bytes = 0
 	request_phase = "metadata"
 	download_active = true
 	download_button.disabled = true
@@ -246,61 +263,160 @@ func _on_http_request_completed(result: int, response_code: int, _headers: Packe
 		downloaded_metadata = parsed
 		expected_size = int(downloaded_metadata.get("size_bytes", 0))
 		expected_sha256 = str(downloaded_metadata.get("sha256", "")).to_lower()
-		if int(downloaded_metadata.get("schema_version", 0)) != 1 or str(downloaded_metadata.get("asset_filename", "")) != MAP_PACK_FILENAME:
-			_fail_download("The downloaded map-pack information did not match the expected district pack.")
+		if int(downloaded_metadata.get("schema_version", 0)) != 2 or str(downloaded_metadata.get("asset_filename", "")) != MAP_PACK_FILENAME:
+			_fail_download("The downloaded map-pack information did not match the expected split district pack.")
 			return
-		if str(downloaded_metadata.get("asset_url", "")) != ALLOWED_ASSET_URL or str(downloaded_metadata.get("release_tag", "")) != "shariatpur-review-candidate":
-			_fail_download("The map-pack download address failed its safety check.")
+		if str(downloaded_metadata.get("release_tag", "")) != "shariatpur-review-candidate":
+			_fail_download("The map-pack release identity failed its safety check.")
 			return
-		var sha_is_hex := expected_sha256.length() == 64
-		for index in range(expected_sha256.length()):
-			if "0123456789abcdef".find(expected_sha256.substr(index, 1)) < 0:
-				sha_is_hex = false
-				break
-		if expected_size <= 0 or expected_size > 8_000_000_000 or not sha_is_hex:
-			_fail_download("The map-pack size or checksum was invalid.")
+		if not _is_sha256_hex(expected_sha256) or expected_size <= 0 or expected_size > 8_000_000_000:
+			_fail_download("The complete map-pack size or checksum was invalid.")
 			return
-		_begin_pck_request()
+
+		var parts_value: Variant = downloaded_metadata.get("parts", [])
+		if not (parts_value is Array) or parts_value.is_empty() or parts_value.size() > 32:
+			_fail_download("The release does not contain a valid list of map-pack parts.")
+			return
+		var summed_size := 0
+		for index in range(parts_value.size()):
+			var part: Variant = parts_value[index]
+			if not (part is Dictionary):
+				_fail_download("A map-pack part record is malformed.")
+				return
+			var expected_filename := MAP_PACK_FILENAME + ".part%03d" % (index + 1)
+			var expected_url := ALLOWED_ASSET_BASE_URL + ".part%03d" % (index + 1)
+			var part_size := int(part.get("size_bytes", 0))
+			var part_sha := str(part.get("sha256", "")).to_lower()
+			if str(part.get("asset_filename", "")) != expected_filename or str(part.get("asset_url", "")) != expected_url:
+				_fail_download("A map-pack part filename or download address failed validation.")
+				return
+			if part_size <= 0 or part_size >= 2_000_000_000 or not _is_sha256_hex(part_sha):
+				_fail_download("A map-pack part exceeds the safe file size or has an invalid checksum.")
+				return
+			summed_size += part_size
+			pack_parts.append(part)
+		if summed_size != expected_size or int(downloaded_metadata.get("part_count", 0)) != pack_parts.size():
+			_fail_download("The map-pack part sizes do not add up to the declared complete file.")
+			return
+		current_part_index = 0
+		completed_bytes = 0
+		_begin_next_pack_part()
 		return
-	if request_phase == "pck":
+
+	if request_phase == "part":
 		if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
-			_fail_download("The map pack did not finish downloading (HTTP %d, result %d)." % [response_code, result])
+			_fail_download("Map-pack part %d did not finish downloading (HTTP %d, result %d)." % [current_part_index + 1, response_code, result])
+			return
+		status_label.text = "VERIFYING PART %d/%d • SHA-256" % [current_part_index + 1, pack_parts.size()]
+		progress_bar.value = minf(94.0, 88.0 + 4.0 * float(current_part_index + 1) / float(pack_parts.size()))
+		var appended := await _verify_and_append_part()
+		if not appended:
+			_fail_download("Part %d failed its checksum or could not be appended. The incomplete pack was discarded." % (current_part_index + 1))
+			return
+		completed_bytes += expected_part_size
+		current_part_index += 1
+		if current_part_index < pack_parts.size():
+			_begin_next_pack_part()
 			return
 		request_phase = "verify"
-		status_label.text = "VERIFYING MAP FILE • SHA-256"
-		detail_label.text = "Checking the whole downloaded file on disk before it is activated."
-		progress_bar.value = 90
+		status_label.text = "VERIFYING COMPLETE MAP • SHA-256"
+		detail_label.text = "All parts are assembled. Checking the exact full-resolution PCK before activation."
+		progress_bar.value = 95
 		var verified := await _verify_and_install_pack()
 		if not verified:
-			_fail_download("Map verification failed. The incomplete file was discarded; retry the download.")
+			_fail_download("The assembled map pack failed its complete-file checksum. The incomplete file was discarded.")
 			return
 		download_active = false
 		request_phase = ""
 		download_button.visible = false
 		enter_button.disabled = false
 		status_label.text = "MAP DOWNLOADED AND VERIFIED"
-		detail_label.text = "Tap ENTER WORLD to mount Shariatpur and start the game."
+		detail_label.text = "All map parts were reassembled into one PCK in private app storage. Tap ENTER WORLD to mount Shariatpur."
 		progress_bar.value = 100
 		enter_button.text = "ENTER WORLD  →"
+
+
+func _is_sha256_hex(value: String) -> bool:
+	if value.length() != 64:
+		return false
+	for index in range(value.length()):
+		if "0123456789abcdef".find(value.substr(index, 1)) < 0:
+			return false
+	return true
+
+
+func _remove_private_file(path: String) -> void:
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+
+func _begin_next_pack_part() -> void:
+	if current_part_index < 0 or current_part_index >= pack_parts.size():
+		_fail_download("The map-pack part sequence ended unexpectedly.")
 		return
-
-func _begin_pck_request() -> void:
-	var part_absolute := ProjectSettings.globalize_path(PART_PATH)
-	if FileAccess.file_exists(PART_PATH):
-		DirAccess.remove_absolute(part_absolute)
-	http.download_file = part_absolute
-	request_phase = "pck"
-	progress_bar.value = 5
-	status_label.text = "STARTING MAP DOWNLOAD..."
-	detail_label.text = "Keep the app open while the map pack downloads. The file is written directly to app storage."
-	var error := http.request(ALLOWED_ASSET_URL)
+	var part: Dictionary = pack_parts[current_part_index]
+	expected_part_size = int(part.get("size_bytes", 0))
+	expected_part_sha256 = str(part.get("sha256", "")).to_lower()
+	_remove_private_file(PART_PATH)
+	http.download_file = ProjectSettings.globalize_path(PART_PATH)
+	request_phase = "part"
+	status_label.text = "STARTING MAP DOWNLOAD • PART %d/%d" % [current_part_index + 1, pack_parts.size()]
+	detail_label.text = "Each part is verified as it downloads, then appended to the original full-resolution map pack."
+	var error := http.request(str(part.get("asset_url", "")))
 	if error != OK:
-		_fail_download("Could not start the map download (error %d)." % error)
+		_fail_download("Could not start map-pack part %d (error %d)." % [current_part_index + 1, error])
 
-func _verify_and_install_pack() -> bool:
+
+func _verify_and_append_part() -> bool:
 	if not FileAccess.file_exists(PART_PATH):
 		return false
-	var file := FileAccess.open(PART_PATH, FileAccess.READ)
+	var source := FileAccess.open(PART_PATH, FileAccess.READ)
+	if source == null:
+		return false
+	var source_length := source.get_length()
+	if source_length != expected_part_size:
+		source.close()
+		return false
+	var output_mode := FileAccess.WRITE if current_part_index == 0 else FileAccess.READ_WRITE
+	var output := FileAccess.open(MERGED_PART_PATH, output_mode)
+	if output == null:
+		source.close()
+		return false
+	if current_part_index > 0:
+		output.seek(output.get_length())
+	var context := HashingContext.new()
+	if context.start(HashingContext.HASH_SHA256) != OK:
+		source.close()
+		output.close()
+		return false
+	while source.get_position() < source_length:
+		var chunk := source.get_buffer(mini(1024 * 1024, source_length - source.get_position()))
+		if chunk.is_empty():
+			source.close()
+			output.close()
+			return false
+		context.update(chunk)
+		if output.store_buffer(chunk) != OK:
+			source.close()
+			output.close()
+			return false
+		if source.get_position() % (8 * 1024 * 1024) < 1024 * 1024:
+			await get_tree().process_frame
+	source.close()
+	output.flush()
+	output.close()
+	var actual_sha := context.finish().hex_encode().to_lower()
+	_remove_private_file(PART_PATH)
+	if actual_sha != expected_part_sha256:
+		_remove_private_file(MERGED_PART_PATH)
+		return false
+	return true
+
+
+func _verify_and_install_pack() -> bool:
+	if not FileAccess.file_exists(MERGED_PART_PATH):
+		return false
+	var file := FileAccess.open(MERGED_PART_PATH, FileAccess.READ)
 	if file == null:
 		return false
 	var length := file.get_length()
@@ -317,15 +433,17 @@ func _verify_and_install_pack() -> bool:
 			file.close()
 			return false
 		context.update(chunk)
-		progress_bar.value = minf(99.0, 90.0 + 9.0 * float(file.get_position()) / float(maxi(1, length)))
+		var verify_fraction := float(file.get_position()) / float(maxi(1, length))
+		progress_bar.value = minf(99.0, 95.0 + verify_fraction * 4.0)
 		await get_tree().process_frame
 	file.close()
 	if context.finish().hex_encode().to_lower() != expected_sha256:
 		return false
-	var final_absolute := ProjectSettings.globalize_path(FINAL_PATH)
-	if FileAccess.file_exists(FINAL_PATH):
-		DirAccess.remove_absolute(final_absolute)
-	var rename_error := DirAccess.rename_absolute(ProjectSettings.globalize_path(PART_PATH), final_absolute)
+	_remove_private_file(FINAL_PATH)
+	var rename_error := DirAccess.rename_absolute(
+		ProjectSettings.globalize_path(MERGED_PART_PATH),
+		ProjectSettings.globalize_path(FINAL_PATH)
+	)
 	if rename_error != OK:
 		return false
 	var metadata_file := FileAccess.open(LOCAL_METADATA_PATH, FileAccess.WRITE)
@@ -335,14 +453,14 @@ func _verify_and_install_pack() -> bool:
 	metadata_file.close()
 	return true
 
+
 func _fail_download(message: String) -> void:
 	download_active = false
 	request_phase = ""
 	if is_instance_valid(http):
 		http.download_file = ""
-	var part_absolute := ProjectSettings.globalize_path(PART_PATH)
-	if FileAccess.file_exists(PART_PATH):
-		DirAccess.remove_absolute(part_absolute)
+	_remove_private_file(PART_PATH)
+	_remove_private_file(MERGED_PART_PATH)
 	status_label.text = "MAP DOWNLOAD FAILED"
 	detail_label.text = message
 	progress_bar.value = 0
@@ -350,6 +468,8 @@ func _fail_download(message: String) -> void:
 	download_button.visible = true
 	enter_button.disabled = not _is_local_pack_ready()
 	download_button.text = "RETRY MAP DOWNLOAD"
+
+
 
 func _enter_world() -> void:
 	if download_active:
