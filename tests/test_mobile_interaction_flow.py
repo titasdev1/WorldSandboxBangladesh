@@ -82,7 +82,7 @@ class MobileInteractionFlowTests(unittest.TestCase):
         self.assertIn("_draw_clipped_line(panel_a, panel_b, map_rect", self.map_view)
 
     def test_large_map_pack_is_chunked_verified_and_reassembled_before_mount(self):
-        self.assertIn('schema_version") != 2', self.boot)
+        self.assertIn('get("schema_version", 0)) != 2', self.boot)
         self.assertIn('downloaded_metadata.get("parts", [])', self.boot)
         self.assertIn("ALLOWED_ASSET_BASE_URL + \".part%03d\"", self.boot)
         self.assertIn("func _verify_and_append_part() -> bool:", self.boot)
