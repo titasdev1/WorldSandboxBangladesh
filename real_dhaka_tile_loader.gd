@@ -1298,6 +1298,7 @@ func _load_interior_anchors(record: Dictionary, player_position: Vector3) -> Arr
 		var outward: Vector3 = placement["direction"]
 		anchor.rotation.y = atan2(outward.x, outward.z)
 		_world.add_child(anchor)
+		_add_entry_door(anchor, seed)
 		_add_mapped_exterior_sign(anchor, seed)
 		anchors.append(anchor)
 		if anchors.size() % 16 == 0:
@@ -1305,6 +1306,47 @@ func _load_interior_anchors(record: Dictionary, player_position: Vector3) -> Arr
 	record["interior_anchor_center"] = player_position
 	return anchors
 
+
+
+func _add_entry_door(anchor: Node3D, seed: Dictionary) -> void:
+	# Real facade doorway positions come from the building-specific seed.
+	# The leaf is an authored game door at that mapped entrance, not a claim
+	# that the private building interior was photogrammetrically reconstructed.
+	var hinge := Node3D.new()
+	hinge.name = "DoorHinge"
+	hinge.position = Vector3(-0.48, 0.0, -1.25)
+	anchor.add_child(hinge)
+	var door_body := StaticBody3D.new()
+	door_body.name = "DoorLeaf"
+	door_body.position = Vector3(0.48, 1.0, 0.0)
+	hinge.add_child(door_body)
+	var door_mesh := MeshInstance3D.new()
+	door_mesh.name = "DoorWood"
+	var panel := BoxMesh.new()
+	panel.size = Vector3(0.96, 2.0, 0.10)
+	door_mesh.mesh = panel
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color("#735139") if str(seed.get("category", "")).to_lower().contains("house") else Color("#866044")
+	material.roughness = 0.72
+	door_mesh.material_override = material
+	door_body.add_child(door_mesh)
+	var collision := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = panel.size
+	collision.shape = shape
+	door_body.add_child(collision)
+	var handle := MeshInstance3D.new()
+	handle.name = "DoorHandle"
+	var handle_mesh := SphereMesh.new()
+	handle_mesh.radius = 0.055
+	handle_mesh.height = 0.11
+	handle.mesh = handle_mesh
+	handle.position = Vector3(0.34, 0.0, -0.075)
+	var handle_material := StandardMaterial3D.new()
+	handle_material.albedo_color = Color("#c7a35c")
+	handle_material.metallic = 0.7
+	handle.material_override = handle_material
+	door_body.add_child(handle)
 
 
 func _add_mapped_exterior_sign(anchor: Node3D, seed: Dictionary) -> void:
