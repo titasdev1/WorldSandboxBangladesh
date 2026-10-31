@@ -301,7 +301,7 @@ if "if real_dhaka_loaded and is_instance_valid(real_dhaka_loader):" not in world
     raise SystemExit("PRODUCTION GATE FAILED: initial player spawn can bypass real-world road placement")
 
 respawn_start = world_text.find("func respawn_player():")
-respawn_end = world_text.find("func try_vehicle_interaction():", respawn_start)
+respawn_end = world_text.find("func try_vehicle_interaction", respawn_start)
 if respawn_start < 0 or respawn_end < 0:
     raise SystemExit("PRODUCTION GATE FAILED: canonical player respawn system is missing")
 respawn_text = world_text[respawn_start:respawn_end]
