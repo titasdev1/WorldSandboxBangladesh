@@ -84,21 +84,49 @@ class MapPackBuildTests(unittest.TestCase):
         self.assertIn('include_filter=', preset1)
         self.assertIn('exclude_filter=""', preset1)
 
-    def test_metadata_contains_actual_pack_size_checksum_and_download_name(self):
+    def test_metadata_splits_large_pack_under_release_limit_and_preserves_exact_bytes(self):
         pack = self.root / "Project-A-Square-Shariatpur-Map.pck"
-        payload = b"full resolution PCK fixture"
+        payload = bytes(range(251)) * 3
         pack.write_bytes(payload)
         output = self.root / "Project-A-Square-Shariatpur-Map.json"
-        map_pack_build.write_metadata(pack, output, "shariatpur-review-candidate")
+        map_pack_build.write_metadata(
+            pack,
+            output,
+            "shariatpur-review-candidate",
+            max_part_bytes=200,
+        )
         metadata = json.loads(output.read_text(encoding="utf-8"))
         self.assertEqual(metadata["asset_filename"], pack.name)
         self.assertEqual(metadata["size_bytes"], len(payload))
         self.assertEqual(metadata["sha256"], hashlib.sha256(payload).hexdigest())
         self.assertEqual(metadata["tile_count"], 60)
-        self.assertEqual(
-            metadata["asset_url"],
-            "https://github.com/titasdev1/WorldSandboxBangladesh/releases/download/shariatpur-review-candidate/Project-A-Square-Shariatpur-Map.pck",
-        )
+        self.assertEqual(metadata["part_count"], 4)
+        reconstructed = bytearray()
+        for index, part in enumerate(metadata["parts"], start=1):
+            self.assertEqual(part["asset_filename"], f"{pack.name}.part{index:03d}")
+            self.assertLess(part["size_bytes"], 2 * 1024 * 1024 * 1024)
+            self.assertEqual(
+                part["asset_url"],
+                "https://github.com/titasdev1/WorldSandboxBangladesh/releases/download/"
+                f"shariatpur-review-candidate/{pack.name}.part{index:03d}",
+            )
+            part_bytes = (self.root / part["asset_filename"]).read_bytes()
+            self.assertEqual(len(part_bytes), part["size_bytes"])
+            self.assertEqual(part["sha256"], hashlib.sha256(part_bytes).hexdigest())
+            reconstructed.extend(part_bytes)
+        self.assertEqual(bytes(reconstructed), payload)
+
+    def test_metadata_rejects_a_part_limit_that_github_cannot_accept(self):
+        pack = self.root / "Project-A-Square-Shariatpur-Map.pck"
+        pack.write_bytes(b"fixture")
+        output = self.root / "Project-A-Square-Shariatpur-Map.json"
+        with self.assertRaises(SystemExit):
+            map_pack_build.write_metadata(
+                pack,
+                output,
+                "shariatpur-review-candidate",
+                max_part_bytes=2 * 1024 * 1024 * 1024,
+            )
 
 
 if __name__ == "__main__":
