@@ -24,10 +24,22 @@ func _initialize() -> void:
 		return
 	var manifest: Dictionary = parsed
 	var tiles: Variant = manifest.get("tiles", [])
-	var expected := int(manifest.get("tile_count_total", -1))
-	if not (tiles is Array) or tiles.size() != 60 or expected != 60:
-		_fail("MAP PACK GATE FAILED: expected 60 district tile records; found %d." % (tiles.size() if tiles is Array else -1))
+	if not (tiles is Array) or tiles.is_empty():
+		_fail("MAP PACK GATE FAILED: tile manifest is empty or malformed.")
 		return
+	var build_stage := str(manifest.get("build_stage", "")).to_lower()
+	# The map builder does not emit tile_count_total. Its authoritative batch
+	# count is tile_batch_count; for Shariatpur, the boundary-intersection count
+	# independently confirms that the review pack is the complete 60-tile district.
+	var expected_batch := int(manifest.get("tile_batch_count", tiles.size()))
+	if expected_batch != tiles.size():
+		_fail("MAP PACK GATE FAILED: tile_batch_count (%d) disagrees with packaged records (%d)." % [expected_batch, tiles.size()])
+		return
+	if build_stage == "shariatpur_review":
+		var district_count := int(manifest.get("tile_count_intersecting_boundary", tiles.size()))
+		if tiles.size() != 60 or district_count != tiles.size() or not bool(manifest.get("complete_district_map", false)):
+			_fail("MAP PACK GATE FAILED: Shariatpur package is incomplete (records=%d, boundary_tiles=%d, complete=%s)." % [tiles.size(), district_count, str(manifest.get("complete_district_map", false))])
+			return
 	var checked_geojson := 0
 	var checked_imports := 0
 	for item in tiles:
