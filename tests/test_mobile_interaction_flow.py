@@ -72,7 +72,7 @@ class MobileInteractionFlowTests(unittest.TestCase):
         toggle = function_block(self.hud, "_toggle_camera_view")
         prompt = function_block(self.hud, "_update_interaction_prompt")
         self.assertIn("toggle_vehicle_camera_mode", toggle)
-        self.assertLess(prompt.index("occupied_vehicle"), prompt.index("nearby_vehicle"))
+        self.assertLess(prompt.index("occupied_vehicle"), prompt.index("nearest_vehicle"))
         self.assertLess(prompt.index("nearby_vehicle"), prompt.index("get_interior_interaction_label"))
 
     def test_minimap_clips_world_roads_and_navigation_to_map_viewport(self):
