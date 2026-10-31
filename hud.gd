@@ -446,7 +446,15 @@ func _build_settings_ui() -> void:
 func _toggle_camera_view() -> void:
  if not is_instance_valid(w) or not is_instance_valid(w.player):
   return
- var mode: String = w.player.toggle_camera_view_mode()
+ var occupied_vehicle: Node3D = w.get("occupied_vehicle") as Node3D
+ var mode := ""
+ if is_instance_valid(occupied_vehicle) and occupied_vehicle.has_method("toggle_vehicle_camera_mode"):
+  mode = str(occupied_vehicle.call("toggle_vehicle_camera_mode"))
+  var vehicle_button := get_node_or_null("CameraViewToggle") as Button
+  if vehicle_button:
+   vehicle_button.text = "VEHICLE: FPP" if mode == "first_person" else "VEHICLE: TPP"
+  return
+ mode = w.player.toggle_camera_view_mode()
  var button := get_node_or_null("CameraViewToggle") as Button
  if button:
   button.text = "VIEW: FPP" if mode == "first_person" else "VIEW: TPP"
@@ -1063,37 +1071,38 @@ func _replay_combat_round() -> void:
   replay_round_button.visible = false
 
 func _update_interaction_prompt() -> void:
- if not w or not w.player or not interaction_button or not driving_status:
+ if not is_instance_valid(w) or not is_instance_valid(w.player) or not is_instance_valid(interaction_button) or not is_instance_valid(driving_status):
   return
+ var occupied_vehicle: Node3D = w.get("occupied_vehicle") as Node3D
+ if is_instance_valid(occupied_vehicle):
+  interaction_button.text = "EXIT VEHICLE"
+  var speed_mps := absf(float(occupied_vehicle.get("speed")))
+  driving_status.text = "DRIVING  %03d km/h\\nJOYSTICK: STEER / ACCELERATE" % int(speed_mps * 3.6)
+  driving_status.visible = true
+  return
+
+ var nearest_vehicle: Node3D = null
+ var nearest_distance := 4.0
+ for node in w.get_children():
+  if node is CharacterBody3D and node.has_method("enter_player") and not bool(node.get("occupied")) and not bool(node.get("is_police")):
+   var distance: float = w.player.global_position.distance_to(node.global_position)
+   if distance < nearest_distance:
+    nearest_distance = distance
+    nearest_vehicle = node as Node3D
+ if is_instance_valid(nearest_vehicle):
+  interaction_button.text = "DRIVE"
+  driving_status.visible = false
+  return
+
  if w.has_method("get_interior_interaction_label"):
   var interior_label: String = w.get_interior_interaction_label(w.player.global_position)
   if not interior_label.is_empty():
    interaction_button.text = interior_label
    driving_status.visible = false
    return
- var occupied_vehicle: Node3D = null
- var nearby_vehicle: Node3D = null
- var nearest_distance := 4.0
- for node in w.get_children():
-  if node is CharacterBody3D and node.has_method("enter_player"):
-   if bool(node.get("occupied")):
-    occupied_vehicle = node
-   elif not bool(node.get("is_police")):
-    var distance: float = w.player.global_position.distance_to(node.global_position)
-    if distance < nearest_distance:
-     nearest_distance = distance
-     nearby_vehicle = node
- if is_instance_valid(occupied_vehicle):
-  interaction_button.text = "EXIT VEHICLE"
-  var speed_mps := absf(float(occupied_vehicle.get("speed")))
-  driving_status.text = "DRIVING  %03d km/h\nJOYSTICK: STEER / ACCELERATE" % int(speed_mps * 3.6)
-  driving_status.visible = true
- elif is_instance_valid(nearby_vehicle):
-  interaction_button.text = "DRIVE"
-  driving_status.visible = false
- else:
-  interaction_button.text = "INTERACT"
-  driving_status.visible = false
+ interaction_button.text = "INTERACT"
+ driving_status.visible = false
+
 
 func _lobby_style(fill: Color, border_color: Color, border_width: int, corner_radius: int) -> StyleBoxFlat:
  var style := StyleBoxFlat.new()
