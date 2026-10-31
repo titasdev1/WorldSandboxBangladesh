@@ -203,9 +203,15 @@ func _set_crouched(should_crouch: bool) -> void:
 func interact():
  if not world:
   return
- if world.has_method("try_interior_interaction") and world.try_interior_interaction(global_position):
+ # A vehicle within reach owns the Interact button before nearby buildings.
+ # This prevents a building-anchor overlap from making parked cars undrivable.
+ if world.has_method("try_vehicle_interaction") and world.try_vehicle_interaction():
   return
  if world.has_method("try_street_vendor") and world.try_street_vendor(global_position):
+  return
+ if world.has_method("try_open_interior_door") and world.try_open_interior_door(global_position):
+  return
+ if world.has_method("try_interior_interaction") and world.try_interior_interaction(global_position):
   return
  # These starter-city coordinates only belong to the fictional fallback map.
  # Never award/charge money at arbitrary real-world coordinates in Shariatpur.
@@ -216,9 +222,9 @@ func interact():
   elif position.distance_to(Vector3(30, 0, -30)) < 18:
    world.cash += 100
   else:
-   world.try_vehicle_interaction()
+   return
  else:
-  world.try_vehicle_interaction()
+  return
 
 func take_damage(amount: int):
  health = max(0, health - amount)
