@@ -749,19 +749,20 @@ func _nearest_mapped_respawn_position(from_position: Vector3) -> Vector3:
  # Do not teleport into the fictional starter-city origin if no map route exists.
  return Vector3(from_position.x, 0.4, from_position.z)
 
-func try_vehicle_interaction():
- if not player:
-  return
- var nearest = null
- var best = 4.0
+func try_vehicle_interaction() -> bool:
+ if not is_instance_valid(player):
+  return false
+ var nearest: Node3D = null
+ var best_distance := 4.0
  for node in get_children():
-  if node is CharacterBody3D and node.has_method("enter_player") and not node.occupied:
-   var d = player.global_position.distance_to(node.global_position)
-   if d < best:
-    best = d
-    nearest = node
- if nearest:
-  nearest.enter_player(player)
+  if node is CharacterBody3D and node.has_method("enter_player") and not bool(node.get("occupied")):
+   var distance := player.global_position.distance_to(node.global_position)
+   if distance < best_distance:
+    best_distance = distance
+    nearest = node as Node3D
+ if not is_instance_valid(nearest):
+  return false
+ return bool(nearest.call("enter_player", player))
 
 func refuel_nearest_vehicle(from_position: Vector3, amount: float) -> bool:
  var nearest: Node3D = null
@@ -913,21 +914,29 @@ func notify_gameplay_event(event_name: String, value := 1):
 
 
 
-func get_interior_interaction_label(at: Vector3) -> String:
- if interior_factory and interior_factory.has_method("is_inside") and interior_factory.is_inside():
-  return interior_factory.get_interaction_label(at)
+func _nearest_real_building_entry(at: Vector3, max_distance := 3.5) -> Node3D:
  var nearest: Node3D = null
- var nearest_distance := 3.5
+ var nearest_distance := max_distance
  for node in get_tree().get_nodes_in_group("real_building_entry"):
   if not node is Node3D:
    continue
-  var distance: float = at.distance_to((node as Node3D).global_position)
+  var distance := at.distance_to((node as Node3D).global_position)
   if distance < nearest_distance:
    nearest_distance = distance
    nearest = node as Node3D
- if not is_instance_valid(nearest):
+ return nearest
+
+
+func get_interior_interaction_label(at: Vector3) -> String:
+ if is_instance_valid(interior_factory) and interior_factory.has_method("is_inside") and interior_factory.is_inside():
+  return interior_factory.get_interaction_label(at)
+ var entry := _nearest_real_building_entry(at)
+ if not is_instance_valid(entry):
   return ""
- var seed: Dictionary = nearest.get_meta("interior_seed", {})
+ var door := entry.get_node_or_null("DoorHinge") as Node3D
+ if is_instance_valid(door) and not bool(entry.get_meta("door_open", false)):
+  return "OPEN DOOR"
+ var seed: Dictionary = entry.get_meta("interior_seed", {})
  var category := str(seed.get("category", "")).to_lower()
  if category.contains("shop") or category.contains("retail") or category.contains("convenience"):
   return "ENTER SHOP"
@@ -935,27 +944,39 @@ func get_interior_interaction_label(at: Vector3) -> String:
   return "ENTER HOME"
  return "ENTER BUILDING"
 
+
+func try_open_interior_door(at: Vector3) -> bool:
+ if is_instance_valid(interior_factory) and interior_factory.has_method("is_inside") and interior_factory.is_inside():
+  return false
+ var entry := _nearest_real_building_entry(at)
+ if not is_instance_valid(entry):
+  return false
+ var hinge := entry.get_node_or_null("DoorHinge") as Node3D
+ if not is_instance_valid(hinge) or bool(entry.get_meta("door_open", false)):
+  return false
+ entry.set_meta("door_open", true)
+ var tween := create_tween()
+ tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+ tween.tween_property(hinge, "rotation:y", deg_to_rad(-100.0), 0.34)
+ event_text = "DOOR OPENED • ENTER THE BUILDING"
+ event_time_left = 3.0
+ return true
+
+
 func try_interior_interaction(at: Vector3) -> bool:
- if not interior_factory:
+ if not is_instance_valid(interior_factory):
   return false
  if interior_factory.has_method("is_inside") and interior_factory.is_inside():
   return interior_factory.try_interact(at)
- var nearest: Node3D = null
- var nearest_distance := 3.5
- for node in get_tree().get_nodes_in_group("real_building_entry"):
-  if not node is Node3D:
-   continue
-  var distance: float = at.distance_to((node as Node3D).global_position)
-  if distance < nearest_distance:
-   nearest_distance = distance
-   nearest = node as Node3D
- if not is_instance_valid(nearest):
+ var entry := _nearest_real_building_entry(at)
+ if not is_instance_valid(entry) or not bool(entry.get_meta("door_open", false)):
   return false
- var seed: Dictionary = nearest.get_meta("interior_seed", {})
- var direction: Vector3 = nearest.get_meta("exit_direction", Vector3(0, 0, 1))
- var tile_id := str(nearest.get_meta("tile_id", ""))
- interior_factory.open_interior(seed, nearest.global_position, direction, tile_id)
+ var seed: Dictionary = entry.get_meta("interior_seed", {})
+ var direction: Vector3 = entry.get_meta("exit_direction", Vector3(0, 0, 1))
+ var tile_id := str(entry.get_meta("tile_id", ""))
+ interior_factory.open_interior(seed, entry.global_position, direction, tile_id, entry)
  return true
+
 
 func open_generated_interior(seed: Dictionary, exterior_position: Vector3, exit_direction: Vector3, tile_id: String) -> void:
  if interior_factory:
