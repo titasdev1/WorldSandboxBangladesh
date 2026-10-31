@@ -35,6 +35,7 @@ on:
       - "tools/verify_core_apk_contents.py"
       - "tools/production_gate.py"
       - "tests/test_map_pack_build.py"
+      - "tests/test_mobile_interaction_flow.py"
       - "tools/map_pipeline/shariatpur_facade_images.json"
       - "development_state.json"
       - ".github/workflows/android.yml"
@@ -58,6 +59,7 @@ on:
       - "tools/verify_core_apk_contents.py"
       - "tools/production_gate.py"
       - "tests/test_map_pack_build.py"
+      - "tests/test_mobile_interaction_flow.py"
       - "tools/map_pipeline/shariatpur_facade_images.json"
       - "development_state.json"
 
@@ -96,6 +98,10 @@ jobs:
       - name: Run separate map-pack build tests
         shell: bash
         run: python3 -m unittest discover -s tests -p "test_map_pack_build.py"
+
+      - name: Run mobile interaction regression tests
+        shell: bash
+        run: python3 -m unittest discover -s tests -p "test_mobile_interaction_flow.py"
 
       # Release/push builds retain Greater Dhaka by default. PR validation uses the
       # latest assembled Shariatpur review package so map/game changes are tested
