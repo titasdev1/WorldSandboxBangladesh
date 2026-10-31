@@ -618,7 +618,9 @@ jobs:
           echo "WSB_MAP_PACK_FILE=$PACK" >> "$GITHUB_ENV"
           echo "WSB_MAP_PACK_METADATA_FILE=$META" >> "$GITHUB_ENV"
           echo "WSB_MAP_PACK_SLUG=$MAP_SLUG" >> "$GITHUB_ENV"
-          echo "Validated separate pack: $PACK ($(stat -c '%s' "$PACK") bytes)"
+          echo "Validated full-resolution pack: $PACK ($(stat -c '%s' "$PACK") bytes)"
+          echo "Verified release-safe parts: $(find build/MapPacks -maxdepth 1 -type f -name '*.pck.part*' | wc -l)"
+          rm -f "$PACK"
 
       - name: Prepare compact core APK export
         shell: bash
@@ -730,7 +732,7 @@ jobs:
           overwrite_files: true
           files: |
             build/Android/world_sandbox_bangladesh.apk
-            build/MapPacks/*.pck
+            build/MapPacks/*.pck.part*
             build/MapPacks/*.json
 
       - name: Publish direct Shariatpur review APK (separate from canonical release)
@@ -749,7 +751,7 @@ jobs:
           overwrite_files: true
           files: |
             build/Android/world_sandbox_bangladesh.apk
-            build/MapPacks/*.pck
+            build/MapPacks/*.pck.part*
             build/MapPacks/*.json
 
       # Manual Shariatpur review builds need a directly installable APK too.
@@ -772,7 +774,7 @@ jobs:
           overwrite_files: true
           files: |
             build/Android/world_sandbox_bangladesh.apk
-            build/MapPacks/*.pck
+            build/MapPacks/*.pck.part*
             build/MapPacks/*.json
 
       # The pull-request artifact is a ZIP; publish the verified APK file itself as a replaceable preview asset.
@@ -793,7 +795,7 @@ jobs:
           overwrite_files: true
           files: |
             build/Android/world_sandbox_bangladesh.apk
-            build/MapPacks/*.pck
+            build/MapPacks/*.pck.part*
             build/MapPacks/*.json
 
       - name: Upload small verification reports separately
