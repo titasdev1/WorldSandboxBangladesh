@@ -21,7 +21,7 @@ from typing import Any
 import osmium
 import trimesh
 from shapely.geometry import GeometryCollection, LineString, MultiLineString, MultiPolygon, Point, Polygon, box, shape
-from shapely.ops import transform
+from shapely.ops import nearest_points, transform
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -29,12 +29,16 @@ if str(ROOT) not in sys.path:
 
 from tools.map_pipeline.build_dhaka_map import build_map, local_xy, extruded_polygon, color_mesh
 from tools.map_pipeline.tile_grid import tile_bounds
+from tools.map_pipeline.overture_buildings import (
+    OVERTURE_ATTRIBUTION, OVERTURE_SOURCE_DATASET, download_overture_buildings,
+    load_overture_buildings, read_overture_provenance, deduplicate_overture_overlaps,
+)
 
 PBF_URL = "https://download.geofabrik.de/asia/bangladesh-latest.osm.pbf"
 BOUNDARY_API = "https://www.geoboundaries.org/api/current/gbOpen/BGD/ADM1/"
 DISTRICT_BOUNDARY_API = "https://www.geoboundaries.org/api/current/gbOpen/BGD/ADM2/"
 INTERESTING_KEYS = {
-    "building", "highway", "shop", "amenity", "tourism", "historic",
+    "building", "building:part", "entrance", "door", "highway", "shop", "amenity", "tourism", "historic",
     "leisure", "office", "healthcare", "public_transport", "landuse",
     "natural", "waterway", "railway", "man_made", "power",
 }
@@ -67,6 +71,49 @@ def boundary_attribution_for_stage(stage: str) -> str:
         f"(https://www.geoboundaries.org), gbOpen BGD {boundary_type}. "
         "See manifest for the returned dataset license."
     )
+
+
+def validate_shariatpur_release_approval(path: pathlib.Path | None = None) -> dict[str, Any]:
+    """Require documented Shariatpur release evidence before building other districts.
+
+    A successful tile export is not enough: this project requires every Shariatpur
+    tile, building-floor record, facade review, navigation test, and Android-device
+    check to pass before the map footprint may expand.
+    """
+    approval_path = path or (ROOT / "tools/map_pipeline/shariatpur_release_approval.json")
+    if not approval_path.is_file():
+        raise RuntimeError(
+            "Shariatpur release gate BLOCKED: approval evidence file is missing. "
+            "Finish and independently review Shariatpur before selecting full_division."
+        )
+    try:
+        approval = json.loads(approval_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Shariatpur release gate BLOCKED: invalid approval JSON: {exc}") from exc
+    required_checks = (
+        "all_tiles_have_renderable_osm_features",
+        "all_building_floor_counts_independently_verified",
+        "licensed_facade_imagery_visual_review_complete",
+        "named_place_search_and_turn_navigation_qa_passed",
+        "physical_android_integration_and_performance_passed",
+    )
+    checks = approval.get("checks", {}) if isinstance(approval, dict) else {}
+    missing = [name for name in required_checks if checks.get(name) is not True]
+    if approval.get("status") != "APPROVED" or missing:
+        details = ", ".join(missing) if missing else "status is not APPROVED"
+        raise RuntimeError(
+            "Shariatpur release gate BLOCKED; no later tiles will be built. "
+            f"Outstanding acceptance checks: {details}."
+        )
+    reviewed_at = str(approval.get("reviewed_at", "")).strip()
+    reviewer = str(approval.get("reviewer", "")).strip()
+    evidence = str(approval.get("review_evidence_url", "")).strip()
+    if not reviewed_at or not reviewer or not evidence.startswith("https://"):
+        raise RuntimeError(
+            "Shariatpur release gate BLOCKED: approval needs reviewed_at, reviewer, "
+            "and an HTTPS review_evidence_url."
+        )
+    return approval
 
 
 def download(url: str, path: pathlib.Path, min_bytes: int = 1000) -> None:
@@ -317,7 +364,10 @@ def _parts(geom: Any, expected: str) -> list[Any]:
 def _to_element(original: dict[str, Any], geom: Any, part_no: int) -> dict[str, Any]:
     item = {"type": original["type"], "id": int(original["id"]) * 1000 + part_no,
             "tags": dict(original.get("tags", {}))}
-    item["tags"]["source_osm_id"] = str(original["id"])
+    if item["tags"].get("source_dataset") == OVERTURE_SOURCE_DATASET:
+        item["tags"]["source_overture_id"] = str(item["tags"].get("overture_id", original["id"]))
+    else:
+        item["tags"]["source_osm_id"] = str(original["id"])
     if original["type"] == "node":
         item["lat"], item["lon"] = float(geom.y), float(geom.x)
     else:
@@ -354,6 +404,289 @@ def _clip_elements(elements: list[dict[str, Any]], clip_shape: Any) -> list[dict
             if expected == "line" and part.length < 1e-7:
                 continue
             result.append(_to_element(element, part, i))
+    return result
+
+
+
+MANASHA_TARGET_LAT_LON = (23.2004, 90.3484)
+MANASHA_PHOTO_MATCH_RADIUS_M = 45.0
+MANASHA_APPROXIMATE_FOOTPRINT_SOURCE = "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED"
+
+
+def add_curated_manasha_footprint(elements: list[dict[str, Any]], clip_shape: Any) -> list[dict[str, Any]]:
+    """Add a disclosed landmark placeholder only when its compatible mapped footprint is missing.
+
+    The published coordinate locates the landmark but does not survey its wall outline.
+    This fallback is deliberately marked approximate and pending local review.
+    """
+    target_lat, target_lon = MANASHA_TARGET_LAT_LON
+    target = Point(target_lon, target_lat)
+    if clip_shape is None or clip_shape.is_empty or not clip_shape.covers(target):
+        return elements
+
+    aliases = {
+        "manasha temple, shariatpur", "manasha temple", "manasa temple, shariatpur",
+        "মনসা মন্দির, শরীয়তপুর", "মনসা মন্দির", "ধানুকার মানসা মন্দির",
+        "dhanuka manasha bari", "dhanuka manasa bari", "dhanuka mansa bari",
+        "dhanuka manasa temple", "dhanuka manasha temple", "ধানুকা মনসাবাড়ি",
+        "ধানুকা মনসাবাড়ি", "ধানুকা মনসা বাড়ি", "ধানুকা মনসা বাড়ি",
+        "ধানুকা মনসা মন্দির", "ধানুকা মনসামন্দির", "মনসাবাড়ি", "মনসাবাড়ি",
+        "মনসা বাড়ি", "মনসা বাড়ি", "ধানুকা মনসা বাড়ি, শরীয়তপুর", "ধানুকার মনসা মন্দির",
+    }
+    compatible_groups = (
+        {"amenity": "place_of_worship"}, {"building": "temple"}, {"historic": "temple"},
+        {"historic": "monument", "religion": "hindu"}, {"religion": "hindu"},
+    )
+
+    def distance_to_target_metres(geometry: Any) -> float:
+        nearest = nearest_points(geometry, target)[0]
+        east = (float(nearest.x) - target_lon) * 111320.0 * math.cos(math.radians(target_lat))
+        north = (float(nearest.y) - target_lat) * 110574.0
+        return math.hypot(east, north)
+
+    for element in elements:
+        if element.get("type") not in {"way", "relation"}:
+            continue
+        tags = element.get("tags", {})
+        if not tags:
+            continue
+        normalized_names = {
+            " ".join(str(tags.get(key, "")).split()).casefold()
+            for key in ("name", "name:bn", "name:en", "official_name")
+        }
+        is_named_target = bool(normalized_names.intersection(aliases))
+        is_compatible = any(
+            all(str(tags.get(key, "")).strip().casefold() == expected for key, expected in group.items())
+            for group in compatible_groups
+        )
+        if not (is_named_target or is_compatible):
+            continue
+        try:
+            geometry = _source_geometry(element)
+        except (KeyError, TypeError, ValueError):
+            continue
+        if geometry.is_empty or not isinstance(geometry, (Polygon, MultiPolygon)):
+            continue
+        if distance_to_target_metres(geometry) <= MANASHA_PHOTO_MATCH_RADIUS_M:
+            # A site/religion boundary can enclose the landmark without representing
+            # any physical facade. Only an eligible building outline may suppress
+            # the transparent approximate footprint fallback; otherwise there is
+            # nothing for build_map() to attach the licensed photo panel to.
+            has_physical_building = str(tags.get("building", "")).strip().lower() not in {"", "no", "false", "0"}
+            if has_physical_building:
+                return elements
+
+    # Eight by six metres is a temporary authored placeholder, not a surveyed outline.
+    half_width_m, half_depth_m = 4.0, 3.0
+    half_lon = half_width_m / (111320.0 * math.cos(math.radians(target_lat)))
+    half_lat = half_depth_m / 110574.0
+    footprint = box(
+        target_lon - half_lon, target_lat - half_lat,
+        target_lon + half_lon, target_lat + half_lat,
+    ).intersection(clip_shape)
+    if not isinstance(footprint, Polygon) or footprint.is_empty or footprint.area < 1e-10:
+        return elements
+    ring = [{"lat": float(lat), "lon": float(lon)} for lon, lat in footprint.exterior.coords]
+    feature = {
+        "type": "way",
+        "id": -62000085,
+        "tags": {
+            "building": "temple",
+            "building:levels": "1",
+            "building:levels:estimate": "1",
+            "building:levels:source": "CURATED_APPROXIMATE_NOT_SURVEYED",
+            "height": "4.5 m",
+            "height:source": "CURATED_APPROXIMATE_NOT_SURVEYED",
+            "historic": "temple",
+            "amenity": "place_of_worship",
+            "religion": "hindu",
+            "name": "Manasha Temple, Shariatpur",
+            "name:en": "Manasha Temple, Shariatpur",
+            "name:bn": "মনসা মন্দির, শরীয়তপুর",
+            "official_name": "Dhanuka Manasha Bari",
+            "source:geometry": MANASHA_APPROXIMATE_FOOTPRINT_SOURCE,
+            "source:geometry:url": "https://commons.wikimedia.org/wiki/Category:Manasha_Temple,_Shariatpur",
+            "source:location": "Published place coordinate; approximate footprint dimensions have not been surveyed.",
+            "source:location:url": "https://ghurifiri.bd/places/dhanuka-manasha-bari-shariatpur",
+        },
+        "geometry": ring,
+    }
+    return [*elements, feature]
+
+
+CURATED_HERITAGE_FOOTPRINT_SOURCE = "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED"
+
+
+def _normalised_place_names(tags: dict[str, Any]) -> set[str]:
+    return {
+        " ".join(str(tags.get(key, "")).split()).casefold()
+        for key in ("name", "name:bn", "name:en", "official_name")
+        if str(tags.get(key, "")).strip()
+    }
+
+
+def _curated_facade_catalog() -> list[dict[str, Any]]:
+    catalog_path = ROOT / "tools" / "map_pipeline" / "shariatpur_facade_images.json"
+    try:
+        payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    return [
+        item for item in payload.get("images", [])
+        if isinstance(item, dict)
+        and item.get("facade_eligible") is True
+        and str(item.get("view_type", "")).casefold() == "exterior"
+        and str(item.get("visual_qa", "")).casefold() == "passed"
+        and str(item.get("license", "")) in {"CC BY 4.0", "CC BY-SA 4.0"}
+    ]
+
+
+def curated_exterior_photo_ids_in_tile(tile_polygon: Any, stage: str) -> list[str]:
+    """List approved exterior photos whose verified/published anchors fall in this tile."""
+    if stage != "shariatpur_review" or tile_polygon is None or tile_polygon.is_empty:
+        return []
+    ids: list[str] = []
+    for photo in _curated_facade_catalog():
+        image_id = str(photo.get("id", "")).strip()
+        coords = photo.get("target_location_lat_lon")
+        if not image_id or not isinstance(coords, (list, tuple)) or len(coords) != 2:
+            continue
+        try:
+            target = Point(float(coords[1]), float(coords[0]))
+        except (TypeError, ValueError):
+            continue
+        if tile_polygon.covers(target):
+            ids.append(image_id)
+    return sorted(set(ids))
+
+
+def add_curated_heritage_photo_footprints(elements: list[dict[str, Any]], clip_shape: Any) -> list[dict[str, Any]]:
+    """Add clearly flagged host footprints only for reviewed, exact-site photo anchors.
+
+    The footprint is a temporary photo-panel host, not surveyed architecture. If a
+    compatible physical building already exists within the photograph's bounded
+    radius, the source footprint is kept and no overlapping placeholder is added.
+    """
+    if clip_shape is None or clip_shape.is_empty:
+        return elements
+    result = list(elements)
+    existing_ids = {
+        str(element.get("id", ""))
+        for element in result
+        if element.get("id") is not None
+    }
+    for photo in _curated_facade_catalog():
+        if not photo.get("curated_feature_id") or not photo.get("curated_name"):
+            continue
+        # Manasha has a separately reviewed and historically tested host-footprint
+        # fallback. Do not produce a second overlapping placeholder for it.
+        if photo.get("id") == "manasha_temple_back_view_01":
+            continue
+        coords = photo.get("target_location_lat_lon")
+        if not isinstance(coords, (list, tuple)) or len(coords) != 2:
+            continue
+        try:
+            target_lat, target_lon = float(coords[0]), float(coords[1])
+            target = Point(target_lon, target_lat)
+            radius_m = float(photo.get("target_match_radius_metres", 0.0))
+            feature_id = int(photo["curated_feature_id"])
+            dimensions = photo.get("curated_footprint_dimensions_metres", [8.0, 6.0])
+            width_m, depth_m = float(dimensions[0]), float(dimensions[1])
+            height_m = float(photo.get("curated_height_metres", 4.5))
+        except (TypeError, ValueError, KeyError, IndexError):
+            continue
+        if not math.isfinite(radius_m) or radius_m <= 0.0:
+            continue
+        if not clip_shape.covers(target):
+            continue
+        if str(feature_id) in existing_ids:
+            continue
+
+        aliases = {
+            " ".join(str(alias).split()).casefold()
+            for alias in photo.get("match_names", [])
+            if str(alias).strip()
+        }
+        target_tag_groups = photo.get("target_tag_groups", [])
+        compatible_existing_building = False
+        for element in result:
+            if element.get("type") not in {"way", "relation"}:
+                continue
+            tags = element.get("tags", {})
+            if not isinstance(tags, dict):
+                continue
+            names = _normalised_place_names(tags)
+            name_match = bool(names.intersection(aliases))
+            tag_match = any(
+                isinstance(group, dict) and bool(group) and all(
+                    str(tags.get(str(key), "")).strip().casefold() == str(value).strip().casefold()
+                    for key, value in group.items()
+                )
+                for group in target_tag_groups
+            )
+            if not (name_match or tag_match):
+                continue
+            try:
+                geometry = _source_geometry(element)
+            except (KeyError, TypeError, ValueError):
+                continue
+            if geometry.is_empty or not isinstance(geometry, (Polygon, MultiPolygon)):
+                continue
+            nearest = nearest_points(geometry, target)[0]
+            east = (float(nearest.x) - target_lon) * 111320.0 * math.cos(math.radians(target_lat))
+            north = (float(nearest.y) - target_lat) * 110574.0
+            if math.hypot(east, north) > radius_m:
+                continue
+            building_value = str(tags.get("building", "")).strip().lower()
+            is_physical_building = building_value not in {"", "no", "false", "0"}
+            if is_physical_building:
+                compatible_existing_building = True
+                break
+        if compatible_existing_building:
+            continue
+
+        # Dimensions and height are intentionally small, approximate photo-panel
+        # hosts. Never treat them as actual footprint, floor-count or height evidence.
+        if not (4.0 <= width_m <= 30.0 and 4.0 <= depth_m <= 30.0 and 3.0 <= height_m <= 12.0):
+            continue
+        half_lon = (width_m * 0.5) / (111320.0 * math.cos(math.radians(target_lat)))
+        half_lat = (depth_m * 0.5) / 110574.0
+        footprint = box(
+            target_lon - half_lon, target_lat - half_lat,
+            target_lon + half_lon, target_lat + half_lat,
+        ).intersection(clip_shape)
+        if not isinstance(footprint, Polygon) or footprint.is_empty or footprint.area < 1e-10:
+            continue
+        ring = [{"lat": float(lat), "lon": float(lon)} for lon, lat in footprint.exterior.coords]
+        tags = dict(photo.get("curated_building_tags", {}))
+        aliases_list = photo.get("match_names", [])
+        primary_name = str(aliases_list[0] if aliases_list else photo["curated_name"])
+        location_url = str(photo.get("target_location_source", photo.get("source_page", "")))
+        tags.update({
+            "name": primary_name,
+            "name:en": primary_name,
+            "official_name": str(photo.get("subject", photo["curated_name"])),
+            "building:levels": "1",
+            "building:levels:estimate": "1",
+            "building:levels:source": "CURATED_APPROXIMATE_NOT_SURVEYED",
+            "height": f"{height_m:g} m",
+            "height:source": "CURATED_APPROXIMATE_NOT_SURVEYED",
+            "source:geometry": CURATED_HERITAGE_FOOTPRINT_SOURCE,
+            "source:geometry:url": str(photo.get("source_page", "")),
+            "source:geometry:note": str(photo.get("curated_footprint_dimensions_note", "Approximate photo-panel host; not surveyed.")),
+            "source:location": "Published photo/object location; host footprint and height are approximate and unsurveyed.",
+            "source:location:url": location_url,
+            "source:location:precision": str(photo.get("target_location_precision", "Published point; not a surveyed building footprint.")),
+            "facade:photo_source_id": str(photo.get("id", "")),
+            "facade:photo_license": str(photo.get("license", "")),
+        })
+        result.append({
+            "type": "way",
+            "id": feature_id,
+            "tags": tags,
+            "geometry": ring,
+        })
+        existing_ids.add(str(feature_id))
     return result
 
 
@@ -408,10 +741,17 @@ def main() -> int:
                         help="Zero-based offset in the Shariatpur-first, full-division tile order")
     parser.add_argument("--max-tiles", type=int, default=2,
                         help="Maximum tiles in this bounded batch; use 2 to keep each run below six hours")
+    parser.add_argument("--overture-buildings", type=pathlib.Path, default=pathlib.Path("build/overture/buildings.geojson"),
+                        help="Cached, bounded Overture building-theme GeoJSON for this tile batch")
     parser.add_argument("--stage", choices=("shariatpur_review", "full_division"),
                         default="shariatpur_review",
                         help="Stop after Shariatpur for quality review unless full_division is explicitly selected")
     args = parser.parse_args()
+    if args.stage == "full_division":
+        approval = validate_shariatpur_release_approval()
+        print("Shariatpur release gate APPROVED by %s on %s; evidence: %s" % (
+            approval["reviewer"], approval["reviewed_at"], approval["review_evidence_url"]
+        ), flush=True)
     if not 0.01 <= args.tile_degrees <= 0.08:
         parser.error("--tile-degrees must be between 0.01 and 0.08 degrees")
     if args.tile_offset < 0:
@@ -518,6 +858,15 @@ def main() -> int:
                           max(t[2] for t in tiles), max(t[3] for t in tiles))
     else:
         extract_bounds = bounds
+
+    # Cache Overture extracts by source commit, stage, tile size and tile offset.
+    if not args.overture_buildings.is_file():
+        overture_provenance = download_overture_buildings(extract_bounds, args.overture_buildings)
+    else:
+        overture_provenance = read_overture_provenance(args.overture_buildings)
+    overture_elements = load_overture_buildings(args.overture_buildings, extract_bounds)
+    print(f"Loaded {len(overture_elements):,} supplemental Overture building footprints from {args.overture_buildings}.", flush=True)
+
     if args.pbf.name == "dhaka-division-envelope.osm.pbf":
         if not args.pbf.is_file() or args.pbf.stat().st_size < 10_000_000:
             raise RuntimeError(
@@ -541,7 +890,8 @@ def main() -> int:
         row = max(0, int(math.floor((s - min_lat) / args.tile_degrees)))
         tile_index_by_grid[(row, col)] = i
     candidates: list[list[dict[str, Any]]] = [[] for _ in tiles]
-    for el in handler.elements:
+    all_source_elements = list(handler.elements) + list(overture_elements)
+    for el in all_source_elements:
         if el["type"] == "node":
             x0 = x1 = float(el["lon"])
             y0 = y1 = float(el["lat"])
@@ -566,13 +916,62 @@ def main() -> int:
         tile_dir = args.out / tile_id
         tile_polygon = box(w, s, e, n)
         boundary_tile = build_boundary.intersection(tile_polygon)
+        manasha_target_point = Point(MANASHA_TARGET_LAT_LON[1], MANASHA_TARGET_LAT_LON[0])
+        is_manasha_target_tile = args.stage == "shariatpur_review" and tile_polygon.covers(manasha_target_point)
+        if is_manasha_target_tile and not boundary_tile.covers(manasha_target_point):
+            raise RuntimeError(
+                "Approved Manasha exterior photo anchor falls outside Shariatpur District clipping boundary; "
+                "correct the verified point/boundary before packaging."
+            )
         clipped = _clip_elements(candidates[index - 1], boundary_tile)
+        clipped, overture_duplicate_count = deduplicate_overture_overlaps(clipped)
+        overture_count = sum(
+            1 for element in clipped
+            if element.get("tags", {}).get("source_dataset") == OVERTURE_SOURCE_DATASET
+            and element.get("tags", {}).get("building")
+        )
+        clipped = add_curated_manasha_footprint(clipped, boundary_tile)
+        clipped = add_curated_heritage_photo_footprints(clipped, boundary_tile)
+        curated_photo_target_ids = curated_exterior_photo_ids_in_tile(tile_polygon, args.stage)
+        for target_photo_id in curated_photo_target_ids:
+            target_metadata = next(
+                photo for photo in _curated_facade_catalog()
+                if str(photo.get("id", "")) == target_photo_id
+            )
+            target_coords = target_metadata.get("target_location_lat_lon", [])
+            target_point = Point(float(target_coords[1]), float(target_coords[0]))
+            if not boundary_tile.covers(target_point):
+                raise RuntimeError(
+                    f"Approved exterior-photo anchor {target_photo_id} falls outside the "
+                    "Shariatpur clipping boundary; correct its source point before baking."
+                )
         tile_dir.mkdir(parents=True, exist_ok=True)
-        print(f"[{index}/{len(tiles)}] {tile_id}: {len(clipped):,} clipped features", flush=True)
+        print(f"[{index}/{len(tiles)}] {tile_id}: {len(clipped):,} clipped source + curated features", flush=True)
         # Always bake a ground mesh for every tile. A tile with no mapped OSM
         # features must not become a hole in the explorable world.
         manifest = build_map(clipped, tile_dir, bbox)
         counts = manifest.get("feature_counts", {})
+        embedded_photo_ids = {
+            str(item.get("image_id", "")).strip()
+            for item in manifest.get("licensed_facade_photo_matches", [])
+            if str(item.get("image_id", "")).strip()
+        }
+        missing_curated_photo_ids = sorted(set(curated_photo_target_ids) - embedded_photo_ids)
+        if missing_curated_photo_ids:
+            raise RuntimeError(
+                "Shariatpur target tile lacks actual GLB-embedded licensed exterior photo panels for "
+                f"{missing_curated_photo_ids}; downloaded images and catalogue eligibility do not count as embedding."
+            )
+        if is_manasha_target_tile and int(counts.get("licensed_facade_photo_panels", 0)) < 1:
+            raise RuntimeError(
+                "Manasha target tile is missing its licensed exterior photo panel; image download, building match, "
+                "texture bake and manifest accounting must all succeed before packaging."
+            )
+        if int(counts.get("curated_approximate_landmark_footprints", 0)) > 0:
+            if int(counts.get("licensed_facade_photo_panels", 0)) < 1:
+                raise RuntimeError(
+                    "Curated Manasha landmark exists in this tile but the licensed exterior photo panel was not embedded."
+                )
         glb_path = tile_dir / "Dhaka_Explorable_Map.glb"
         _replace_ground_with_boundary(glb_path, boundary_tile, bbox)
         tile_records.append({
@@ -583,12 +982,27 @@ def main() -> int:
             "geojson": f"{tile_id}/Dhaka_OSM_Source.geojson",
             "interior_seeds": f"{tile_id}/AI_Interior_Seeds.json",
             "feature_counts": counts, "status": tile_status_from_counts(counts),
+            "overture_building_footprints_added": overture_count,
+            "overture_duplicate_footprints_suppressed": overture_duplicate_count,
+            "curated_landmark_geometry_confidence": (
+                "CURATED_APPROXIMATE_FOOTPRINT_NOT_SURVEYED"
+                if int(counts.get("curated_approximate_landmark_footprints", 0)) > 0
+                else "SOURCE_DERIVED_FEATURES_ONLY"
+            ),
         })
     valid = sum("glb" in t for t in tile_records)
     output_manifest = {
         "product": "Project A-Square — " + build_boundary_name + " boundary-clipped 3D map tile batch",
-        "source": "Geofabrik Bangladesh OpenStreetMap PBF",
+        "source": "Geofabrik Bangladesh OpenStreetMap PBF + Overture Maps Buildings theme, with the curated landmark fallback reserved for unmatched Manasha Temple footprint",
         "source_url": PBF_URL,
+        "overture_source": {
+            **overture_provenance,
+            "building_features_loaded_for_batch": len(overture_elements),
+            "building_footprints_added_after_deduplication": sum(int(record.get("overture_building_footprints_added", 0)) for record in tile_records),
+            "duplicate_footprints_suppressed": sum(int(record.get("overture_duplicate_footprints_suppressed", 0)) for record in tile_records),
+            "attribute_note": OVERTURE_ATTRIBUTION,
+        },
+        "curated_landmark_fallback_note": "The Manasha Temple fallback is an approximate, unsurveyed footprint positioned using a published place coordinate. It is pending local outline/placement review and is not an OSM building survey.",
         "attribution": OSM_ATTRIBUTION,
         "license": "OSM data: ODbL 1.0. Administrative boundary license is recorded from geoBoundaries API metadata in administrative_boundary.metadata.boundary_license.",
         "administrative_boundary": {"name": build_boundary_name,
@@ -618,10 +1032,13 @@ def main() -> int:
                                 "note": "All Shariatpur-intersecting tiles are emitted first; later offsets continue through every remaining Dhaka Division tile."},
         "tile_count_with_geometry": valid,
         "source_elements_in_boundary_envelope": len(handler.elements),
+        "overture_building_features_loaded_for_batch": len(overture_elements),
+        "overture_building_footprints_added": sum(int(record.get("overture_building_footprints_added", 0)) for record in tile_records),
+        "overture_duplicate_footprints_suppressed": sum(int(record.get("overture_duplicate_footprints_suppressed", 0)) for record in tile_records),
         "missing_way_locations": handler.bad_locations,
         "generated_utc": datetime.now(timezone.utc).isoformat(),
         "coordinate_note": "Each GLB has its own geographic origin; use manifest origins for streaming. Tiles and ground are clipped to the selected administrative boundary.",
-        "completeness_note": "This artifact is one bounded batch from the complete Dhaka Division tile order. Collect all batch offsets to cover the full division. OSM mapped features only; not proof every real-world feature is mapped. Facades, heights, interiors, and imagery remain incomplete unless source data provides them.",
+        "completeness_note": "This is one bounded batch. OSM is supplemented by deduplicated Overture building footprints where available; this improves coverage but does not guarantee every real-world structure. Facades, heights, interiors and imagery remain incomplete unless source data provides them.",
         "tiles": tile_records,
     }
     (args.out / "map_tiles_manifest.json").write_text(json.dumps(output_manifest, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -630,6 +1047,7 @@ def main() -> int:
     (args.out / "ATTRIBUTION.txt").write_text(
         OSM_ATTRIBUTION + "\n" + boundary_attribution + "\n"
         + "OSM data license: ODbL 1.0.\n"
+        + OVERTURE_ATTRIBUTION + "\n"
         + f"Clipping boundary: {build_boundary_name} (geoBoundaries gbOpen BGD {boundary_type}).\n"
         + f"Clipping boundary ID: {build_boundary_properties.get('boundary_id', 'unspecified')}.\n"
         + f"Clipping boundary license: {boundary_license_text}. "

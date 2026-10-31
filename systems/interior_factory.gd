@@ -15,6 +15,7 @@ var exit_direction := Vector3(0, 0, 1)
 var exit_world_position := Vector3.ZERO
 var dialogue_index := 0
 var fan_pivot: Node3D
+var active_entry_anchor: Node3D
 
 func configure(target: Node3D) -> void:
     world = target
@@ -32,22 +33,34 @@ func _player() -> CharacterBody3D:
 func is_inside() -> bool:
     return is_instance_valid(active_root)
 
-func open_interior(seed: Dictionary, exterior_position: Vector3, direction: Vector3, tile_id: String) -> void:
+func open_interior(seed: Dictionary, exterior_position: Vector3, direction: Vector3, tile_id: String, entry_anchor: Node3D = null) -> void:
     if is_inside() or not is_instance_valid(world) or not is_instance_valid(_player()):
         return
     active_seed = seed.duplicate(true)
     active_tile_id = tile_id
+    active_entry_anchor = entry_anchor
     exit_direction = direction.normalized() if direction.length_squared() > 0.01 else Vector3(0, 0, 1)
     exterior_return_position = exterior_position + exit_direction * 4.0 + Vector3(0, 0.25, 0)
     # Keep X/Z aligned to the real exterior tile so the map streamer retains
     # the correct tile while the interior is instantiated below the terrain.
-    var interior_origin := Vector3(exterior_position.x, -300.0, exterior_position.z)
+    # Align the generated room's front doorway with the mapped exterior doorway.
+    # The interior occupies the same tile X/Z coordinates but is lowered below terrain.
+    var room_dimensions := _infer_room_dimensions()
+    var room_scale := _infer_interior_scale()
+    var horizontal_exit_direction := Vector3(exit_direction.x, 0.0, exit_direction.z).normalized()
+    if horizontal_exit_direction.length_squared() < 0.01:
+        horizontal_exit_direction = Vector3(0, 0, 1)
+    var interior_origin := Vector3(exterior_position.x, -300.0, exterior_position.z) - horizontal_exit_direction * (room_dimensions.y * room_scale.z * 0.5)
     active_root = Node3D.new()
     active_root.name = "GeneratedInterior_" + str(seed.get("osm_id", "place"))
     active_root.position = interior_origin
-    # A stable per-building rotation makes layouts reproducible but not identical.
+    # The generated entrance faces the actual baked exterior-door normal.
+    # OSM identity still varies the interior layout, furniture, lighting and detailing.
     var building_id: int = absi(int(seed.get("osm_id", 1)))
-    active_root.rotation.y = float(building_id % 4) * PI * 0.5
+    active_root.rotation.y = atan2(horizontal_exit_direction.x, horizontal_exit_direction.z)
+    # Fit the generated shell/furniture to this building's measured OSM footprint
+    # and estimated storey height. The resident is counter-scaled in _add_resident.
+    active_root.scale = room_scale
     world.add_child(active_root)
     _build_room()
     var player := _player()
@@ -86,6 +99,7 @@ func _build_room() -> void:
 
     _solid_box(active_root, "InteriorFloor", Vector3(0, -0.15, 0), Vector3(room_width, 0.3, room_depth), floor_colour)
     _solid_box(active_root, "BackWall", Vector3(0, room_height * 0.5, -half_d), Vector3(room_width, room_height, 0.25), room_color)
+    _add_licensed_interior_photo_reference(room_height, half_d)
     _solid_box(active_root, "LeftWall", Vector3(-half_w, room_height * 0.5, 0), Vector3(0.25, room_height, room_depth), room_color)
     _solid_box(active_root, "RightWall", Vector3(half_w, room_height * 0.5, 0), Vector3(0.25, room_height, room_depth), room_color)
     # The entry is centered but its proportions and the room shell follow this building's footprint.
@@ -132,6 +146,136 @@ func _build_room() -> void:
     name_sign.modulate = Color("#f3e7d0")
     name_sign.position = Vector3(0, minf(room_height - 0.9, 3.2), -half_d + 0.22)
     active_root.add_child(name_sign)
+
+
+func _add_licensed_interior_photo_reference(room_height: float, half_depth: float) -> void:
+    # A catalog-approved interior photograph is shown only inside the exact
+    # mapped building whose OSM name matched it. It must never decorate an
+    # exterior wall or silently stand in for photogrammetry.
+    var photo_record: Variant = active_seed.get("interior_reference_photo", {})
+    if not (photo_record is Dictionary) or photo_record.is_empty():
+        return
+    if str(photo_record.get("use", "")) != "INTERIOR_REFERENCE_ONLY":
+        return
+    var relative_path := str(photo_record.get("asset_relative_path", "")).strip_edges()
+    if relative_path.is_empty() or relative_path.contains("..") or relative_path.begins_with("/"):
+        return
+    var texture_path := "res://assets/world/dhaka_tiles/%s/%s" % [active_tile_id, relative_path]
+    # Photo bytes use a non-resource .photo_bytes extension so the Android export
+    # preset can include them explicitly. ResourceLoader does not discover paths
+    # assembled dynamically from JSON; decode the packaged source bytes directly.
+    var photo_bytes := FileAccess.get_file_as_bytes(texture_path)
+    if photo_bytes.is_empty():
+        push_warning("Licensed interior reference photo bytes are missing or unreadable: " + texture_path)
+        return
+    var photo_image := Image.new()
+    var image_format := str(photo_record.get("image_format", "jpg")).to_lower()
+    var decode_error := ERR_UNAVAILABLE
+    match image_format:
+        "jpg", "jpeg":
+            decode_error = photo_image.load_jpg_from_buffer(photo_bytes)
+        "png":
+            decode_error = photo_image.load_png_from_buffer(photo_bytes)
+        "webp":
+            decode_error = photo_image.load_webp_from_buffer(photo_bytes)
+        _:
+            push_warning("Licensed interior reference photo format is not supported: " + image_format)
+            return
+    if decode_error != OK:
+        push_warning("Licensed interior reference photo could not be decoded: " + texture_path)
+        return
+    var photo_texture := ImageTexture.create_from_image(photo_image)
+    var license_name := str(photo_record.get("license", ""))
+    if license_name not in ["CC BY 4.0", "CC BY-SA 4.0"]:
+        push_warning("Interior reference photo has no approved license; skipping: " + texture_path)
+        return
+
+    # The selected photo is an interior view of the mapped Burirhat mosque.
+    # Frame it as a wall reference in the generated game interior, not as a
+    # claim that this is a complete or exact real-world room scan.
+    var panel_height := minf(2.4, room_height * 0.48)
+    var aspect := float(photo_texture.get_width()) / maxf(1.0, float(photo_texture.get_height()))
+    var panel_width := minf(panel_height * aspect, 4.2)
+    if panel_width < 0.8 or panel_height < 0.8:
+        return
+    var panel_position := Vector3(0.0, minf(room_height * 0.60, room_height - panel_height * 0.65), -half_depth + 0.145)
+    var frame := MeshInstance3D.new()
+    frame.name = "LicensedInteriorPhotoFrame"
+    var frame_mesh := BoxMesh.new()
+    frame_mesh.size = Vector3(panel_width + 0.22, panel_height + 0.22, 0.09)
+    frame.mesh = frame_mesh
+    frame.position = panel_position
+    frame.material_override = _material(Color("#57452f"))
+    active_root.add_child(frame)
+
+    var panel := MeshInstance3D.new()
+    panel.name = "LicensedInteriorPhotoReference"
+    var quad := QuadMesh.new()
+    quad.size = Vector2(panel_width, panel_height)
+    panel.mesh = quad
+    var photo_material := StandardMaterial3D.new()
+    photo_material.albedo_texture = photo_texture
+    photo_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    photo_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    photo_material.roughness = 1.0
+    panel.material_override = photo_material
+    panel.position = panel_position + Vector3(0.0, 0.0, 0.052)
+    panel.set_meta("image_id", str(photo_record.get("image_id", "")))
+    panel.set_meta("source_page", str(photo_record.get("source_page", "")))
+    panel.set_meta("author", str(photo_record.get("author", "")))
+    panel.set_meta("license", license_name)
+    panel.set_meta("attribution", str(photo_record.get("attribution", "")))
+    panel.set_meta("use", "INTERIOR_REFERENCE_ONLY")
+    active_root.add_child(panel)
+
+    var caption := Label3D.new()
+    caption.name = "InteriorPhotoReferenceCaption"
+    caption.text = "LICENSED INTERIOR REFERENCE • " + license_name
+    caption.font_size = 15
+    caption.pixel_size = 0.007
+    caption.modulate = Color("#fff1d3")
+    caption.position = panel_position - Vector3(0.0, panel_height * 0.5 + 0.22, -0.01)
+    active_root.add_child(caption)
+
+
+func _infer_interior_scale() -> Vector3:
+    # The shell and its authored furniture are generated in a comfortable 14–22 m
+    # template, then fitted to this actual footprint. This prevents a small real home
+    # from becoming a huge room. Height is scaled to one floor, not the whole block.
+    var footprint: Variant = active_seed.get("footprint_local_m", [])
+    if not (footprint is Array and footprint.size() >= 3):
+        return Vector3.ONE
+    var min_x := INF
+    var max_x := -INF
+    var min_z := INF
+    var max_z := -INF
+    for point in footprint:
+        if not (point is Array and point.size() >= 2):
+            return Vector3.ONE
+        min_x = minf(min_x, float(point[0]))
+        max_x = maxf(max_x, float(point[0]))
+        min_z = minf(min_z, float(point[1]))
+        max_z = maxf(max_z, float(point[1]))
+    if min_x == INF or max_x == -INF or min_z == INF or max_z == -INF:
+        return Vector3.ONE
+
+    var base_dimensions := _infer_room_dimensions()
+    var target_width := clampf((max_x - min_x) * 0.88, 4.5, 24.0)
+    var target_depth := clampf((max_z - min_z) * 0.88, 4.5, 24.0)
+
+    var tags: Dictionary = active_seed.get("building_tags", {})
+    var level_count := maxf(float(active_seed.get("floors_estimate", 1)), 1.0)
+    var raw_levels := String(tags.get("building:levels", "")).strip_edges()
+    if raw_levels.is_valid_float():
+        level_count = clampf(raw_levels.to_float(), 1.0, 70.0)
+    var total_height := float(active_seed.get("height_metres", 3.1 * level_count))
+    var floor_height := clampf(total_height / level_count, 2.6, 4.5)
+
+    return Vector3(
+        clampf(target_width / maxf(base_dimensions.x, 0.1), 0.25, 1.25),
+        clampf(floor_height / 4.7, 0.55, 1.0),
+        clampf(target_depth / maxf(base_dimensions.y, 0.1), 0.25, 1.25)
+    )
 
 
 func _infer_room_dimensions() -> Vector2:
@@ -305,6 +449,13 @@ func _add_resident(category: String) -> void:
     resident = CharacterBody3D.new()
     resident.set_script(load("res://systems/interior_resident.gd"))
     resident.name = "FictionalInteriorResident"
+    # Keep people human-sized even when a small house scales the room geometry down.
+    var room_scale: Vector3 = active_root.scale
+    resident.scale = Vector3(
+        1.0 / maxf(room_scale.x, 0.01),
+        1.0 / maxf(room_scale.y, 0.01),
+        1.0 / maxf(room_scale.z, 0.01)
+    )
     var shape := CollisionShape3D.new()
     var capsule := CapsuleShape3D.new()
     capsule.radius = 0.32
@@ -349,9 +500,25 @@ func _add_resident(category: String) -> void:
     resident.add_child(label)
 
 func _fictional_name() -> String:
-    var names := ["Rafiq Bhai", "Salma Khala", "Nusrat", "Jamal Uddin", "Mitu Apa", "Shuvo", "Farzana Begum", "Babul Mia", "Tania", "Kamal Chacha"]
-    var id: int = int(active_seed.get("osm_id", 0))
-    return names[abs(id) % names.size()]
+    # NPCs are fictional and must not repeat the same tiny ten-name pool in
+    # every nearby building. A deterministic, salted index keeps identity
+    # stable on reload while producing a much broader local cast.
+    var names := [
+        "Rafiq Bhai", "Salma Khala", "Nusrat", "Jamal Uddin", "Mitu Apa",
+        "Shuvo", "Farzana Begum", "Babul Mia", "Tania", "Kamal Chacha",
+        "Sajjad Hossain", "Nargis Begum", "Rakib", "Shirin Akter", "Masud Rana",
+        "Parvin Apa", "Hasan Ali", "Morshed", "Ruma Begum", "Jahid",
+        "Shahida Khala", "Imran", "Sumi", "Anwar Hossain", "Lima Akter",
+        "Bashar Mia", "Taslima", "Sabbir", "Monowara Begum", "Fahim",
+        "Rezaul Karim", "Ayesha", "Arif", "Nasima Khatun", "Mahfuz",
+        "Jannat", "Aminul Islam", "Rashed", "Shapla Begum", "Nayeem"
+    ]
+    var identity_key := "%s:%s:%s" % [
+        str(active_seed.get("osm_id", 0)),
+        str(active_seed.get("name", "")),
+        str(active_seed.get("category", ""))
+    ]
+    return names[absi(identity_key.hash()) % names.size()]
 
 func _display_name() -> String:
     var tags: Dictionary = active_seed.get("building_tags", {})
@@ -365,7 +532,8 @@ func _display_name() -> String:
 func get_interaction_label(player_position: Vector3) -> String:
     if not is_inside():
         return ""
-    if player_position.distance_to(exit_world_position) <= 3.0:
+    var room_interaction_scale := minf(active_root.scale.x, active_root.scale.z)
+    if player_position.distance_to(exit_world_position) <= clampf(3.0 * room_interaction_scale, 0.9, 3.0):
         return "EXIT BUILDING"
     if is_instance_valid(resident) and player_position.distance_to(resident.global_position) <= 3.6:
         return "TALK / INTERACT"
@@ -374,7 +542,8 @@ func get_interaction_label(player_position: Vector3) -> String:
 func try_interact(player_position: Vector3) -> bool:
     if not is_inside():
         return false
-    if player_position.distance_to(exit_world_position) <= 3.4:
+    var room_interaction_scale := minf(active_root.scale.x, active_root.scale.z)
+    if player_position.distance_to(exit_world_position) <= clampf(3.4 * room_interaction_scale, 1.0, 3.4):
         _close_interior()
         return true
     if is_instance_valid(resident) and player_position.distance_to(resident.global_position) <= 3.6:
@@ -415,6 +584,14 @@ func _close_interior() -> void:
     active_seed.clear()
     active_tile_id = ""
     fan_pivot = null
+    if is_instance_valid(active_entry_anchor):
+        active_entry_anchor.set_meta("door_open", false)
+        var door_hinge := active_entry_anchor.get_node_or_null("DoorHinge") as Node3D
+        if is_instance_valid(door_hinge):
+            var close_tween := world.create_tween()
+            close_tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+            close_tween.tween_property(door_hinge, "rotation:y", 0.0, 0.28)
+    active_entry_anchor = null
     var player := _player()
     if is_instance_valid(player):
         player.global_position = exterior_return_position

@@ -82,18 +82,12 @@ def map_kind(path) -> str | None:
     return None
 
 def resolution_score(path, surface: str) -> int:
-    """Prefer detail within the mobile bundle budget, with lower-res fallbacks.
-
-    Road maps may reach 4K; every other surface is capped at 2K. If the
-    preferred resolutions are unavailable, 1K and 512 maps remain eligible.
-    Oversized maps are ranked behind every permitted option and never bundled
-    when a permitted fallback exists.
-    """
+    """Rank only mobile-budget maps; never fall back to an oversized 8K texture."""
     joined = "/".join(path).lower()
-    max_rank = 1 if surface == "road" else 2  # 4K road; 2K for other surfaces
-    for rank, resolution in enumerate(("8k", "4k", "2k", "1k", "512")):
+    allowed = ("4k", "2k", "1k", "512") if surface == "road" else ("2k", "1k", "512")
+    for rank, resolution in enumerate(allowed):
         if resolution in joined:
-            return rank if rank >= max_rank else 10 + rank
+            return rank
     return 99
 
 def write_manifest(surfaces: dict, note: str = "") -> None:
@@ -127,7 +121,9 @@ def main() -> int:
                     suffix = pathlib.PurePosixPath(urllib.parse.urlparse(url).path).suffix.lower()
                     if suffix not in {".jpg", ".jpeg", ".png", ".webp"}:
                         continue
-                    candidates.setdefault(kind, []).append((resolution_score(path, surface), path, url, suffix))
+                    score = resolution_score(path, surface)
+                    if score < 99:
+                        candidates.setdefault(kind, []).append((score, path, url, suffix))
                 maps = {}
                 for kind, options in candidates.items():
                     options.sort(key=lambda row: (row[0], len(row[1])))

@@ -10,6 +10,11 @@ on:
         options:
           - greater_dhaka
           - shariatpur_review
+      map_sequence_id:
+        description: "Exact assembled Shariatpur map sequence to package (set by the map builder)"
+        required: false
+        type: string
+        default: ""
   pull_request:
     branches: [ main ]
     paths:
@@ -20,8 +25,18 @@ on:
       - "assets/**"
       - "external_content/**"
       - "tools/fetch_*.py"
+      - "tools/fetch_quaternius_character.py"
+      - "tools/merge_quaternius_character.mjs"
+      - "tools/verify_quaternius_character.py"
       - "tools/report_build_assets.py"
+      - "tools/map_pipeline/build_real_world_navigation_index.py"
+      - "tools/verify_apk_contents.py"
+      - "tools/map_pack_build.py"
+      - "tools/verify_core_apk_contents.py"
       - "tools/production_gate.py"
+      - "tests/test_map_pack_build.py"
+      - "tests/test_mobile_interaction_flow.py"
+      - "tools/map_pipeline/shariatpur_facade_images.json"
       - "development_state.json"
       - ".github/workflows/android.yml"
   push:
@@ -34,8 +49,18 @@ on:
       - "assets/**"
       - "external_content/**"
       - "tools/fetch_*.py"
+      - "tools/fetch_quaternius_character.py"
+      - "tools/merge_quaternius_character.mjs"
+      - "tools/verify_quaternius_character.py"
       - "tools/report_build_assets.py"
+      - "tools/map_pipeline/build_real_world_navigation_index.py"
+      - "tools/verify_apk_contents.py"
+      - "tools/map_pack_build.py"
+      - "tools/verify_core_apk_contents.py"
       - "tools/production_gate.py"
+      - "tests/test_map_pack_build.py"
+      - "tests/test_mobile_interaction_flow.py"
+      - "tools/map_pipeline/shariatpur_facade_images.json"
       - "development_state.json"
 
 permissions:
@@ -44,7 +69,9 @@ permissions:
 
 concurrency:
   group: canonical-android-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseded PR revisions are stale validation candidates, not separate releases.
+  # Keep main/manual builds intact while ensuring the latest PR revision gets the runner.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -53,6 +80,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Run production preflight gate
         shell: bash
@@ -60,13 +89,25 @@ jobs:
 
       - name: Validate asset pipeline Python syntax
         shell: bash
-        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/report_build_assets.py
+        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py tools/map_pack_build.py tools/verify_core_apk_contents.py
 
-      # The release default remains the pinned Greater Dhaka package. A manual
-      # review build can explicitly install the latest assembled Shariatpur-first
-      # district package without silently promoting it as a production map.
+      - name: Run navigation-index unit tests
+        shell: bash
+        run: python3 -m unittest discover -s tests -p "test_real_world_navigation_index.py"
+
+      - name: Run separate map-pack build tests
+        shell: bash
+        run: python3 -m unittest discover -s tests -p "test_map_pack_build.py"
+
+      - name: Run mobile interaction regression tests
+        shell: bash
+        run: python3 -m unittest discover -s tests -p "test_mobile_interaction_flow.py"
+
+      # Release/push builds retain Greater Dhaka by default. PR validation uses the
+      # latest assembled Shariatpur review package so map/game changes are tested
+      # together without promoting the review map as a production release.
       - name: Download pinned Greater Dhaka map package
-        if: ${{ !(inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) }}
+        if: ${{ !(inputs.map_package == 'shariatpur_review' || github.event_name == 'pull_request' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) }}
         uses: actions/download-artifact@v4
         with:
           name: Project-A-Square-Greater-Dhaka-3D-Tiles
@@ -76,34 +117,64 @@ jobs:
           path: build/selected-map
 
       - name: Download latest assembled Shariatpur review package
-        if: ${{ inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]')) }}
+        id: map-selection
+        if: ${{ inputs.map_package == 'shariatpur_review' || github.event_name == 'pull_request' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]')) }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          MAP_SEQUENCE_ID: ${{ inputs.map_sequence_id }}
         run: |
           set -euo pipefail
-          # Never pin a stale review artifact: find the newest non-expired, main-branch
-          # district package by creation time, then download that exact workflow run.
-          artifact_record="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
-            --jq '.artifacts[] | select(.expired == false) | select(.name | startswith("Project-A-Square-Shariatpur-Review-Map-")) | select(.workflow_run.head_branch == "main") | [.workflow_run.id, .name, .created_at] | @tsv' \
-            | sort -k3,3 | tail -n 1)"
+          # Prefer this exact development branch. Fall back to main only for CI
+          # validation; release steps below require a branch-matched map artifact.
+          map_source_branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-main}}"
+          export MAP_SOURCE_BRANCH="${map_source_branch}"
+          export MAP_SEQUENCE_ID="${MAP_SEQUENCE_ID:-}"
+          artifact_query='.artifacts[] | select(.expired == false) | select(.name | startswith("Project-A-Square-Shariatpur-Review-Map-"))'
+          if [[ -n "${MAP_SEQUENCE_ID}" ]]; then
+            # A map-triggered APK must consume the exact sequence it was built for.
+            # Never use a later/stale review ZIP just because its upload timestamp is newer.
+            export EXPECTED_MAP_ARTIFACT="Project-A-Square-Shariatpur-Review-Map-${MAP_SEQUENCE_ID}"
+            artifact_record="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
+              --jq "${artifact_query} | select(.name == env.EXPECTED_MAP_ARTIFACT) | select(.workflow_run.head_branch == env.MAP_SOURCE_BRANCH) | [.workflow_run.id, .name, .created_at] | @tsv" \
+              | sort -k3,3 | tail -n 1)"
+            if [[ -z "${artifact_record}" ]]; then
+              echo "No completed Shariatpur package found for required sequence ${MAP_SEQUENCE_ID} on branch ${MAP_SOURCE_BRANCH}; refusing to package a different map." >&2
+              exit 1
+            fi
+          else
+            # Manual/PR validation without a sequence ID may inspect the latest branch artifact.
+            artifact_record="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
+              --jq "${artifact_query} | select(.workflow_run.head_branch == env.MAP_SOURCE_BRANCH) | [.workflow_run.id, .name, .created_at] | @tsv" \
+              | sort -k3,3 | tail -n 1)"
+            if [[ -z "${artifact_record}" && "${map_source_branch}" != "main" ]]; then
+              echo "No complete Shariatpur artifact yet for ${map_source_branch}; using main only for non-release CI validation."
+              artifact_record="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
+                --jq "${artifact_query} | select(.workflow_run.head_branch == \"main\") | [.workflow_run.id, .name, .created_at] | @tsv" \
+                | sort -k3,3 | tail -n 1)"
+            fi
+          fi
           if [[ -z "${artifact_record}" ]]; then
-            echo "No assembled Shariatpur review package exists yet; finish the Shariatpur tile sequence first." >&2
+            echo "No assembled Shariatpur review package exists yet; finish the district tile sequence first." >&2
             exit 1
           fi
           read -r map_run_id map_artifact_name map_created_at <<< "${artifact_record}"
+          map_run_branch="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${map_run_id}" --jq '.head_branch')"
           run_conclusion="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${map_run_id}" --jq '.conclusion')"
           if [[ "${run_conclusion}" != "success" ]]; then
-            echo "Latest Shariatpur package came from a non-successful workflow run; refusing promotion." >&2
+            echo "Selected Shariatpur package came from a non-successful workflow run; refusing promotion." >&2
             exit 1
           fi
-          echo "Selected Shariatpur package: ${map_artifact_name} (run ${map_run_id}, created ${map_created_at})"
+          echo "Selected Shariatpur package: ${map_artifact_name} (branch ${map_run_branch}, run ${map_run_id}, created ${map_created_at})"
+          echo "source_branch=${map_run_branch}" >> "$GITHUB_OUTPUT"
+          echo "source_run_id=${map_run_id}" >> "$GITHUB_OUTPUT"
           gh run download "${map_run_id}" --repo "${GITHUB_REPOSITORY}" --name "${map_artifact_name}" --dir build/selected-map
 
       - name: Install and validate selected map package
         shell: bash
         env:
-          MAP_PACKAGE: ${{ (inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && 'shariatpur_review' || 'greater_dhaka' }}
+          GH_TOKEN: ${{ github.token }}
+          MAP_PACKAGE: ${{ (inputs.map_package == 'shariatpur_review' || github.event_name == 'pull_request' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && 'shariatpur_review' || 'greater_dhaka' }}
         run: |
           set -euo pipefail
           test -s build/selected-map/map_tiles_manifest.json
@@ -124,6 +195,29 @@ jobs:
               game_origin = manifest.get("game_origin_lat_lon")
               if not isinstance(game_origin, list) or len(game_origin) != 2:
                   raise SystemExit("Shariatpur package lacks game_origin_lat_lon; refusing stale/broken candidate APK")
+              # The merged manifest used the district bounding-box centre as
+              # world origin. For irregular Shariatpur bounds that may be outside
+              # the useful tile cluster, producing a huge APK with no visible town.
+              priority = manifest.get("tile_order_priority", {})
+              seed = priority.get("seed_lat_lon", []) if isinstance(priority, dict) else []
+              region = manifest.get("region_south_west_north_east", [])
+              if not (isinstance(seed, list) and len(seed) == 2 and
+                      isinstance(region, list) and len(region) == 4):
+                  raise SystemExit("Shariatpur package lacks its geographic priority seed or district bounds")
+              try:
+                  seed_lat, seed_lon = float(seed[0]), float(seed[1])
+                  south, west, north, east = (float(value) for value in region)
+              except (TypeError, ValueError):
+                  raise SystemExit("Shariatpur priority seed/bounds are not numeric")
+              if not (south <= seed_lat <= north and west <= seed_lon <= east):
+                  raise SystemExit("Shariatpur priority seed is outside the selected district bounds")
+              previous_origin = [float(game_origin[0]), float(game_origin[1])]
+              manifest["game_origin_lat_lon"] = [seed_lat, seed_lon]
+              (root / "map_tiles_manifest.json").write_text(
+                  json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
+              )
+              if any(abs(a - b) > 0.000001 for a, b in zip(previous_origin, manifest["game_origin_lat_lon"])):
+                  print(f"Corrected Shariatpur world origin from bounding-box centre {previous_origin} to priority seed {manifest['game_origin_lat_lon']}")
               pipeline_sha = str(manifest.get("pipeline_commit_sha", "")).strip()
               if not pipeline_sha:
                   raise SystemExit("Shariatpur package lacks pipeline_commit_sha; rebuild with the provenance gate")
@@ -140,13 +234,79 @@ jobs:
                   raise SystemExit("Shariatpur package predates mapped-landuse vegetation generation; rebuild the district sequence")
               if report.get("status") != "REVIEW_REQUIRED":
                   raise SystemExit("Unexpected Shariatpur quality status; inspect before packaging")
-              print("MAP QA MODE: Shariatpur district package is complete, but its visual/device review gate remains open.")
+
+              # Downloaded photo bytes are not proof that a façade texture was baked.
+              # Require the completed district package to contain a real exact-name
+              # building match and a nonzero embedded-panel count before producing an APK.
+              report_checks = report.get("checks", {})
+              manifest_panel_count = int(manifest.get(
+                  "licensed_facade_photo_panels_embedded",
+                  manifest.get("feature_counts_across_tiles", {}).get("licensed_facade_photo_panels", 0),
+              ))
+              report_panel_count = int(report_checks.get(
+                  "licensed_facade_photo_panel_count",
+                  report.get("licensed_facade_photo_panels_embedded", 0),
+              ))
+              photo_matches = manifest.get("licensed_facade_photo_matches", [])
+              if manifest_panel_count < 1 or report_panel_count < 1:
+                  raise SystemExit(
+                      "Shariatpur APK blocked: zero licensed exterior facade-photo panels "
+                      "were embedded in the map GLBs. Downloaded-photo diagnostics do not count."
+                  )
+              if manifest_panel_count != report_panel_count or len(photo_matches) != manifest_panel_count:
+                  raise SystemExit(
+                      "Shariatpur APK blocked: embedded exterior-photo panel count does not "
+                      "match exact-building attribution records in the map manifest/report."
+                  )
+              if any(
+                  not str(item.get("osm_id", "")).strip()
+                  or not str(item.get("source_page", "")).strip()
+                  or str(item.get("license", "")).strip() not in {"CC BY 4.0", "CC BY-SA 4.0"}
+                  for item in photo_matches
+              ):
+                  raise SystemExit(
+                      "Shariatpur APK blocked: an embedded exterior-photo panel lacks "
+                      "mapped-building identity or required open-license attribution."
+                  )
+              print(
+                  f"MAP QA MODE: Shariatpur map contains {manifest_panel_count} "
+                  "licensed exterior photo panel(s); placement/device QA remains open."
+              )
           elif not manifest.get("tiles"):
               raise SystemExit("Pinned Greater Dhaka package has no tile records")
           print(f"Map package: {selected}")
           print(f"GLB tiles: {len(glbs)}; bytes: {sum(p.stat().st_size for p in glbs):,}")
           print(f"Coverage: {manifest['region_south_west_north_east']}")
           PY
+          if [ "$MAP_PACKAGE" = "shariatpur_review" ]; then
+            # A complete but stale Shariatpur artifact once placed an interior
+            # photo on an exterior wall. Refuse map packages built before the
+            # explicit visual-eligibility gate entered the map pipeline.
+            REQUIRED_MAP_GATE_COMMIT="503bbae0787458652635a96c74c067f6d704ca71"
+            PIPELINE_SHA="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path("build/selected-map/map_tiles_manifest.json").read_text()).get("pipeline_commit_sha", ""))
+          PY
+          )"
+            if [[ -z "$PIPELINE_SHA" ]]; then
+              echo "Shariatpur map manifest has no pinned pipeline SHA; refusing this candidate APK." >&2
+              exit 1
+            fi
+            compare_status="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${REQUIRED_MAP_GATE_COMMIT}...${PIPELINE_SHA}" --jq '.status')"
+            if [[ "$compare_status" != "ahead" && "$compare_status" != "identical" ]]; then
+              echo "Stale Shariatpur map pipeline ${PIPELINE_SHA}; it predates required photo-QA gate ${REQUIRED_MAP_GATE_COMMIT}. Refusing packaging." >&2
+              exit 1
+            fi
+            MAP_SOURCE_BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+                        # Coverage-only KartaView audit does not alter baked geometry; exclude that file from bake freshness.
+            LATEST_MAP_CODE_SHA="$(git log -1 --format='%H' "origin/${MAP_SOURCE_BRANCH}" -- tools/map_pipeline ':(exclude)tools/map_pipeline/audit_kartaview_coverage.py' ':(exclude)tools/map_pipeline/build_real_world_navigation_index.py')"
+            if [[ -z "$LATEST_MAP_CODE_SHA" ]] || ! git merge-base --is-ancestor "$LATEST_MAP_CODE_SHA" "$PIPELINE_SHA"; then
+              echo "Stale Shariatpur map artifact: package pipeline $PIPELINE_SHA does not contain latest map-code revision ${LATEST_MAP_CODE_SHA:-missing}. Refusing to publish an APK that does not contain the latest map build." >&2
+              exit 1
+            fi
+            echo "Shariatpur pipeline provenance gate: PASS (${PIPELINE_SHA})."
+          fi
           rm -rf assets/world/dhaka_tiles
           mkdir -p assets/world/dhaka_tiles
           cp -a build/selected-map/. assets/world/dhaka_tiles/
@@ -160,6 +320,62 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Build named-place and road-routing index for selected map
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find assets/world/dhaka_tiles -type f -name '*.geojson' -print -quit | grep -q .; then
+            python3 tools/map_pipeline/build_real_world_navigation_index.py \
+              --source assets/world/dhaka_tiles \
+              --out assets/world/dhaka_tiles/real_world_navigation_index.json \
+              --runtime
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("assets/world/dhaka_tiles/real_world_navigation_index.json").read_text(encoding="utf-8"))
+          counts = report.get("counts", {})
+          print("Offline navigation index:", json.dumps({
+              "named_roads": counts.get("named_roads", 0),
+              "unnamed_roads": counts.get("unnamed_roads", 0),
+              "named_places": counts.get("named_places", 0),
+              "buildings_with_source_floor_count": counts.get("buildings_with_source_floor_count", 0),
+              "independently_verified_floor_counts": counts.get("buildings_with_independently_verified_floor_count", 0),
+              "total_mapped_buildings": counts.get("buildings", 0),
+              "searchable_buildings": counts.get("searchable_buildings", 0),
+              "runtime_index_bytes": Path("assets/world/dhaka_tiles/real_world_navigation_index.json").stat().st_size,
+          }, ensure_ascii=False))
+          PY
+          else
+            echo "::warning::Selected map package has no source GeoJSON; named search and offline routing will be unavailable."
+          fi
+
+      - name: Configure separate full-resolution map-pack export
+        shell: bash
+        run: python3 tools/map_pack_build.py --configure-pack-preset
+
+      - name: Restore cached Quaternius CC0 hero and animation libraries
+        uses: actions/cache@v4
+        with:
+          path: external_content/quaternius_hero
+          key: ${{ runner.os }}-quaternius-hero-v3-superhero-pinned-source-fdbf1804-cc73fc4e-4008ea20
+
+      - name: Fetch and validate the CC0 rigged player hero
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_quaternius_character.py
+          python3 tools/verify_quaternius_character.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path("external_content/quaternius_hero/asset_manifest.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+          if data.get("available"):
+              print("CC0 authored hero ready:", data.get("animation_count"), "animation clips")
+          else:
+              print("Authored hero source unavailable; documented procedural fallback retained:", data.get("reason", "no reason reported"))
+          PY
+
       - name: Restore Godot import cache for the pinned map assets
         uses: actions/cache@v4
         with:
@@ -167,7 +383,7 @@ jobs:
             .godot/imported
             .godot/editor
             .godot/uid_cache.bin
-          key: ${{ runner.os }}-godot-4.4.1-${{ hashFiles('project.godot', '**/*.import', 'assets/world/dhaka_tiles/**') }}
+          key: ${{ runner.os }}-godot-4.4.1-${{ hashFiles('project.godot', '**/*.import', 'assets/world/dhaka_tiles/**', 'external_content/quaternius_hero/**') }}
           restore-keys: |
             ${{ runner.os }}-godot-4.4.1-
 
@@ -201,7 +417,7 @@ jobs:
             echo "Known Godot 4.4.1 headless GLTF preview warning observed; script checks passed."
           fi
           set +e
-          timeout 30s "$GODOT" --headless --path . --quit-after 120 > "$GODOT_DIR/startup.log" 2>&1
+          WSB_AUTOSTART_MAP_FOR_SMOKE=1 timeout 30s "$GODOT" --headless --path . --quit-after 600 > "$GODOT_DIR/startup.log" 2>&1
           START_STATUS=$?
           cat "$GODOT_DIR/startup.log"
           set -e
@@ -212,6 +428,53 @@ jobs:
           if grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|Invalid call|Invalid get index" "$GODOT_DIR/startup.log"; then
             echo "Godot runtime validation found script errors."
             exit 1
+          fi
+          if [ "${WSB_MAP_PACKAGE:-}" = "shariatpur_review" ]; then
+            python3 - "$GODOT_DIR/startup.log" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          log = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+          reports = []
+          for line in log.splitlines():
+              marker = "REAL_MAP_RUNTIME:"
+              if marker not in line:
+                  continue
+              try:
+                  reports.append(json.loads(line.split(marker, 1)[1].strip()))
+              except json.JSONDecodeError:
+                  continue
+          if not reports:
+              raise SystemExit("MAP RUNTIME GATE FAILED: startup emitted no REAL_MAP_RUNTIME diagnostic.")
+          report = reports[-1]
+          # Tile activation is an event-level diagnostic: later snapshots do not
+          # repeat tile_active once streaming advances to the next tile. Check
+          # the whole trace for that event, while checking readiness/counters on
+          # the latest snapshot. Checking tile_active on reports[-1] creates a
+          # false failure after the second tile starts activating.
+          tile_activation_seen = any(item.get("tile_active") is True for item in reports)
+          print("Real-map runtime smoke report (latest):", json.dumps(report, ensure_ascii=False, sort_keys=True))
+          print(f"Real-map runtime snapshots: {len(reports)}; tile activation observed: {tile_activation_seen}")
+          for key in ("ready", "real_map_loaded"):
+              if report.get(key) is not True:
+                  raise SystemExit(f"MAP RUNTIME GATE FAILED: {key} is not true: {report}")
+          if not tile_activation_seen:
+              raise SystemExit("MAP RUNTIME GATE FAILED: no report showed a successfully activated map tile.")
+          for key in ("loaded_tiles", "navigation_roads", "indexed_display_routes", "loaded_display_routes"):
+              if int(report.get(key, 0)) < 1:
+                  raise SystemExit(f"MAP RUNTIME GATE FAILED: {key} is zero: {report}")
+          PY
+          fi
+
+          if python3 -c 'import json,pathlib; p=pathlib.Path("external_content/quaternius_hero/asset_manifest.json"); raise SystemExit(0 if p.exists() and json.loads(p.read_text(encoding="utf-8")).get("available") is True else 1)'; then
+            if ! grep -Fq "AUTHORED_HERO_READY" "$GODOT_DIR/startup.log"; then
+              echo "ERROR: CC0 hero asset is available but the game did not activate its imported rig/animations."
+              exit 1
+            fi
+            if ! grep -Fq "AUTHORED_HERO_GEAR_READY" "$GODOT_DIR/startup.log"; then
+              echo "ERROR: CC0 hero activated but scale-matched combat gear was not created at runtime."
+              exit 1
+            fi
           fi
 
       - name: Fetch optional CC0 vehicle art
@@ -276,6 +539,26 @@ jobs:
           export/android/debug_keystore_pass = "$WSB_STORE_PASSWORD"
           EOF
 
+      # The preview APK uses a separate package ID so it can coexist with a
+      # previously installed candidate. This avoids forced uninstall/data loss when
+      # the hosted runner has to use a newly generated debug-signing key.
+      - name: Prepare isolated Shariatpur preview package identifier
+        if: ${{ github.event_name == 'pull_request' && github.head_ref == 'feature/real-world-navigation-floor-fidelity-verified' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("export_presets.cfg")
+          content = path.read_text(encoding="utf-8")
+          source = 'package/unique_name="com.titasdev1.worldsandboxbangladesh"'
+          target = 'package/unique_name="com.titasdev1.worldsandboxbangladesh.shariatpurpreview"'
+          if content.count(source) != 1:
+              raise SystemExit("Expected exactly one canonical Android package ID; refusing ambiguous preview export.")
+          path.write_text(content.replace(source, target, 1), encoding="utf-8")
+          print("Preview application ID: com.titasdev1.worldsandboxbangladesh.shariatpurpreview")
+          PY
+
       - name: Export Godot Android APK
         env:
           GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ runner.temp }}/godot-debug.keystore
@@ -291,7 +574,107 @@ jobs:
           export_debug: true
           verbose: true
 
-      - name: Verify exported APK integrity and record checksum
+      - name: Verify selected map and core art are embedded in the exported APK
+        shell: bash
+        env:
+          MAP_PACKAGE: ${{ (inputs.map_package == 'shariatpur_review' || github.event_name == 'pull_request' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && 'shariatpur_review' || 'greater_dhaka' }}
+        run: |
+          set -euo pipefail
+          python3 tools/verify_apk_contents.py --apk build/Android/world_sandbox_bangladesh.apk --map-package "$MAP_PACKAGE" | tee build/apk-content-verification.txt
+          cat build/apk-content-verification.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Export and verify separate full-resolution map pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot-validation/Godot_v4.4.1-stable_linux.x86_64"
+          test -x "$GODOT"
+          if [ "$WSB_MAP_PACKAGE" = "shariatpur_review" ]; then
+            MAP_SLUG="Shariatpur"
+            RELEASE_TAG="shariatpur-review-candidate"
+          else
+            MAP_SLUG="Greater-Dhaka"
+            RELEASE_TAG="android-dev"
+          fi
+          mkdir -p build/MapPacks build/map-pack-verifier
+          PACK="build/MapPacks/Project-A-Square-$MAP_SLUG-Map.pck"
+          META="build/MapPacks/Project-A-Square-$MAP_SLUG-Map.json"
+          "$GODOT" --headless --path . --export-pack "Project A-Square Map Pack" "$PACK"
+          test -s "$PACK"
+          python3 tools/map_pack_build.py --write-metadata --pack "$PACK" --out "$META" --release-tag "$RELEASE_TAG"
+          # Use a clean verifier project so a missing PCK entry cannot be hidden by
+          # the full map files that are present in the CI source checkout.
+          printf '[application]\nconfig/name="Project A-Square Map Pack Verifier"\n' > build/map-pack-verifier/project.godot
+          export WSB_MAP_PACK_PATH="$(realpath "$PACK")"
+          set +e
+          "$GODOT" --headless --path build/map-pack-verifier --script "$GITHUB_WORKSPACE/tools/verify_map_pack.gd" > build/map-pack-verification.txt 2>&1
+          PACK_VERIFY_STATUS=$?
+          set -e
+          cat build/map-pack-verification.txt
+          if [ "$PACK_VERIFY_STATUS" -ne 0 ] || ! grep -Fq "MAP_PACK_GATE:PASS" build/map-pack-verification.txt; then
+            echo "Separate map-pack validation failed."
+            exit 1
+          fi
+          echo "WSB_MAP_PACK_FILE=$PACK" >> "$GITHUB_ENV"
+          echo "WSB_MAP_PACK_METADATA_FILE=$META" >> "$GITHUB_ENV"
+          echo "WSB_MAP_PACK_SLUG=$MAP_SLUG" >> "$GITHUB_ENV"
+          echo "Validated full-resolution pack: $PACK ($(stat -c '%s' "$PACK") bytes)"
+          echo "Verified release-safe parts: $(find build/MapPacks -maxdepth 1 -type f -name '*.pck.part*' | wc -l)"
+          rm -f "$PACK"
+
+      - name: Prepare compact core APK export
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/map_pack_build.py --prepare-core-export
+          # Keep the already-verified PCK and bulky source tree outside the project
+          # during the final export. This prevents Godot's all-resources preset from
+          # silently embedding a second copy from build/selected-map or the source map.
+          mv assets/world/dhaka_tiles "$RUNNER_TEMP/verified-map-source"
+          mv build/selected-map "$RUNNER_TEMP/selected-map-source"
+          mv build/MapPacks "$RUNNER_TEMP/verified-map-packs"
+          rm -rf build/Android
+
+      - name: Export modular core Android APK
+        uses: firebelley/godot-export@v8.0.0
+        with:
+          godot_executable_download_url: https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
+          godot_export_templates_download_url: https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz
+          relative_project_path: ./
+          relative_export_path: build
+          presets_to_export: Android
+          export_debug: true
+          verbose: true
+
+      - name: Verify core APK excludes the bundled district map
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/verify_core_apk_contents.py --apk build/Android/world_sandbox_bangladesh.apk | tee build/core-apk-content-verification.txt
+
+      - name: Restore map pack files for release upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/MapPacks
+          cp -a "$RUNNER_TEMP/verified-map-packs/." build/MapPacks/
+          test -s "$WSB_MAP_PACK_METADATA_FILE"
+          python3 - "$WSB_MAP_PACK_METADATA_FILE" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          metadata = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          parts = metadata.get("parts", [])
+          if not parts:
+              raise SystemExit("MAP PART RESTORE FAILED: metadata contains no release parts.")
+          for part in parts:
+              path = Path("build/MapPacks") / str(part.get("asset_filename", ""))
+              if not path.is_file() or path.stat().st_size != int(part.get("size_bytes", -1)):
+                  raise SystemExit(f"MAP PART RESTORE FAILED: missing or wrong-sized part: {path}")
+          print(f"Restored and checked {len(parts)} split map-pack assets.")
+          PY
+
+      - name: Verify final modular APK integrity and record checksum
         shell: bash
         run: |
           set -euo pipefail
@@ -325,34 +708,25 @@ jobs:
         shell: bash
         run: python3 tools/report_build_assets.py
 
-      - name: Assemble one canonical build artifact
+      - name: Assemble one canonical installable APK
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build/canonical_release
-          find build -type f -name '*.apk' ! -path 'build/canonical_release/*' -exec cp {} build/canonical_release/ \;
-          test -n "$(find build/canonical_release -maxdepth 1 -type f -name '*.apk' -print -quit)"
-          cp build/asset_build_report.json build/canonical_release/ASSET_BUILD_REPORT.json
-          cp build/apk-sha256.txt build/canonical_release/APK_SHA256.txt
-          cp build/apk-zip-test.txt build/canonical_release/APK_ZIP_TEST.txt
-          cp build/apk-signature-verification.txt build/canonical_release/APK_SIGNATURE_VERIFICATION.txt
-          cat > build/canonical_release/README.txt <<EOF
-          World Sandbox: Bangladesh / Project A-Square
-          This artifact contains the Android APK and verification reports.
-          Map package selected by this build: ${WSB_MAP_PACKAGE:-greater_dhaka}
-          Before publishing, CI tests the APK ZIP structure and Android signature.
-          Compare the extracted APK SHA-256 against APK_SHA256.txt.
-          The JSON report is build metadata, not a second game.
-          Artifact-container size and APK file size are different measurements.
-          ${WSB_MAP_PACKAGE:+Map source recorded in the build summary.}
-          EOF
-          ls -lh build/canonical_release
+          APK_SOURCE="build/Android/world_sandbox_bangladesh.apk"
+          test -s "$APK_SOURCE"
+          cp "$APK_SOURCE" build/canonical_release/Project-A-Square.apk
+          test "$(find build/canonical_release -maxdepth 1 -type f -name '*.apk' | wc -l)" -eq 1
+          test "$(find build/canonical_release -maxdepth 1 -type f | wc -l)" -eq 1
+          # Hash, signature, content and asset reports stay in the separate
+          # verification artifact below; never mix them into the game package.
+          ls -lh build/canonical_release/Project-A-Square.apk
 
-      - name: Upload canonical game artifact (APK + verification reports)
+      - name: Upload single installable APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ (inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && 'WorldSandboxBangladesh-Shariatpur-Review-Build' || 'WorldSandboxBangladesh-Canonical-Build' }}
-          path: build/canonical_release/*
+          name: ${{ (inputs.map_package == 'shariatpur_review' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]')) || (github.event_name == 'pull_request' && github.head_ref == 'feature/real-world-navigation-floor-fidelity-verified')) && 'Project-A-Square-Shariatpur-APK' || 'Project-A-Square-Android-APK' }}
+          path: build/canonical_release/Project-A-Square.apk
           if-no-files-found: error
 
       - name: Publish direct APK download (no artifact ZIP wrapper)
@@ -369,7 +743,10 @@ jobs:
           prerelease: true
           make_latest: false
           overwrite_files: true
-          files: build/Android/world_sandbox_bangladesh.apk
+          files: |
+            build/Android/world_sandbox_bangladesh.apk
+            build/MapPacks/*.pck.part*
+            build/MapPacks/*.json
 
       - name: Publish direct Shariatpur review APK (separate from canonical release)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[shariatpur-review-apk]')
@@ -385,7 +762,54 @@ jobs:
           prerelease: true
           make_latest: false
           overwrite_files: true
-          files: build/Android/world_sandbox_bangladesh.apk
+          files: |
+            build/Android/world_sandbox_bangladesh.apk
+            build/MapPacks/*.pck.part*
+            build/MapPacks/*.json
+
+      # Manual Shariatpur review builds need a directly installable APK too.
+      # GitHub Actions artifacts are ZIP containers; this release asset is the APK itself.
+      - name: Publish direct Shariatpur dispatch candidate APK
+        if: github.event_name == 'workflow_dispatch' && inputs.map_package == 'shariatpur_review' && steps.map-selection.outputs.source_branch == github.ref_name
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: shariatpur-review-candidate
+          target_commitish: ${{ github.sha }}
+          name: "World Sandbox: Bangladesh — Shariatpur Review Candidate"
+          body: |
+            Direct Android APK candidate built by manually dispatched workflow run ${{ github.run_id }}.
+            Source branch: ${{ github.ref_name }}
+            Source commit: ${{ github.sha }}
+            This is a review build, not a completed dream-game release. The Shariatpur gate remains REVIEW_REQUIRED until the map, visual fidelity, and physical-device checks pass.
+            APK signature and ZIP structure are checked by CI; gameplay and performance still require physical-device testing.
+          prerelease: true
+          make_latest: false
+          overwrite_files: true
+          files: |
+            build/Android/world_sandbox_bangladesh.apk
+            build/MapPacks/*.pck.part*
+            build/MapPacks/*.json
+
+      # The pull-request artifact is a ZIP; publish the verified APK file itself as a replaceable preview asset.
+      - name: Publish direct Shariatpur pull-request APK preview
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/real-world-navigation-floor-fidelity-verified' && steps.map-selection.outputs.source_branch == github.head_ref
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: shariatpur-review-candidate
+          target_commitish: ${{ github.event.pull_request.head.sha }}
+          name: "World Sandbox: Bangladesh — Shariatpur Direct APK Preview"
+          body: |
+            Direct APK preview generated from the Project A-Square Shariatpur development branch.
+            The APK-content integration gate, APK ZIP integrity test, and Android signature verification must pass before this release step runs.
+            The package contains the current Shariatpur review map, not a production-approved map. Floor-count verification, visual facade review, and physical-device gameplay/performance QA remain incomplete.
+            Preview source commit: ${{ github.event.pull_request.head.sha }}
+          prerelease: true
+          make_latest: false
+          overwrite_files: true
+          files: |
+            build/Android/world_sandbox_bangladesh.apk
+            build/MapPacks/*.pck.part*
+            build/MapPacks/*.json
 
       - name: Upload small verification reports separately
         uses: actions/upload-artifact@v4
@@ -395,5 +819,9 @@ jobs:
             build/apk-sha256.txt
             build/apk-zip-test.txt
             build/apk-signature-verification.txt
+            build/apk-content-verification.txt
+            build/core-apk-content-verification.txt
+            build/map-pack-verification.txt
+            build/MapPacks/*.json
             build/asset_build_report.json
           if-no-files-found: error
