@@ -15,6 +15,7 @@ var exit_direction := Vector3(0, 0, 1)
 var exit_world_position := Vector3.ZERO
 var dialogue_index := 0
 var fan_pivot: Node3D
+var active_entry_anchor: Node3D
 
 func configure(target: Node3D) -> void:
     world = target
@@ -32,11 +33,12 @@ func _player() -> CharacterBody3D:
 func is_inside() -> bool:
     return is_instance_valid(active_root)
 
-func open_interior(seed: Dictionary, exterior_position: Vector3, direction: Vector3, tile_id: String) -> void:
+func open_interior(seed: Dictionary, exterior_position: Vector3, direction: Vector3, tile_id: String, entry_anchor: Node3D = null) -> void:
     if is_inside() or not is_instance_valid(world) or not is_instance_valid(_player()):
         return
     active_seed = seed.duplicate(true)
     active_tile_id = tile_id
+    active_entry_anchor = entry_anchor
     exit_direction = direction.normalized() if direction.length_squared() > 0.01 else Vector3(0, 0, 1)
     exterior_return_position = exterior_position + exit_direction * 4.0 + Vector3(0, 0.25, 0)
     # Keep X/Z aligned to the real exterior tile so the map streamer retains
@@ -498,9 +500,25 @@ func _add_resident(category: String) -> void:
     resident.add_child(label)
 
 func _fictional_name() -> String:
-    var names := ["Rafiq Bhai", "Salma Khala", "Nusrat", "Jamal Uddin", "Mitu Apa", "Shuvo", "Farzana Begum", "Babul Mia", "Tania", "Kamal Chacha"]
-    var id: int = int(active_seed.get("osm_id", 0))
-    return names[abs(id) % names.size()]
+    # NPCs are fictional and must not repeat the same tiny ten-name pool in
+    # every nearby building. A deterministic, salted index keeps identity
+    # stable on reload while producing a much broader local cast.
+    var names := [
+        "Rafiq Bhai", "Salma Khala", "Nusrat", "Jamal Uddin", "Mitu Apa",
+        "Shuvo", "Farzana Begum", "Babul Mia", "Tania", "Kamal Chacha",
+        "Sajjad Hossain", "Nargis Begum", "Rakib", "Shirin Akter", "Masud Rana",
+        "Parvin Apa", "Hasan Ali", "Morshed", "Ruma Begum", "Jahid",
+        "Shahida Khala", "Imran", "Sumi", "Anwar Hossain", "Lima Akter",
+        "Bashar Mia", "Taslima", "Sabbir", "Monowara Begum", "Fahim",
+        "Rezaul Karim", "Ayesha", "Arif", "Nasima Khatun", "Mahfuz",
+        "Jannat", "Aminul Islam", "Rashed", "Shapla Begum", "Nayeem"
+    ]
+    var identity_key := "%s:%s:%s" % [
+        str(active_seed.get("osm_id", 0)),
+        str(active_seed.get("name", "")),
+        str(active_seed.get("category", ""))
+    ]
+    return names[absi(identity_key.hash()) % names.size()]
 
 func _display_name() -> String:
     var tags: Dictionary = active_seed.get("building_tags", {})
@@ -566,6 +584,14 @@ func _close_interior() -> void:
     active_seed.clear()
     active_tile_id = ""
     fan_pivot = null
+    if is_instance_valid(active_entry_anchor):
+        active_entry_anchor.set_meta("door_open", false)
+        var door_hinge := active_entry_anchor.get_node_or_null("DoorHinge") as Node3D
+        if is_instance_valid(door_hinge):
+            var close_tween := world.create_tween()
+            close_tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+            close_tween.tween_property(door_hinge, "rotation:y", 0.0, 0.28)
+    active_entry_anchor = null
     var player := _player()
     if is_instance_valid(player):
         player.global_position = exterior_return_position
