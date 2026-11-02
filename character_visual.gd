@@ -377,14 +377,20 @@ func _play_authored_animation(state: String) -> void:
 
 
 func _update_authored_animation(body: CharacterBody3D, planar_speed: float) -> void:
-    # Camera-relative combat pose overrides travel-facing but not controller movement.
+    # Separate upward motion, downward motion and the landing transition.
+    # A packaged clip is useful only when the live state machine actually selects it.
     var aiming := Input.is_action_pressed("aim")
     var firing := Input.is_action_pressed("fire")
     var reloading := float(body.get("reload_time")) > 0.0
     var crouched := bool(body.get("_is_crouched"))
     var state := "idle"
     if not body.is_on_floor():
-        state = "fall"
+        if body.velocity.y > 0.65 and not String(_authored_animation_lookup.get("jump", "")).is_empty():
+            state = "jump"
+        else:
+            state = "fall"
+    elif bool(body.get_meta("just_landed", false)) and not String(_authored_animation_lookup.get("land", "")).is_empty():
+        state = "land"
     elif reloading and not String(_authored_animation_lookup.get("reload", "")).is_empty():
         state = "reload"
     elif firing and not String(_authored_animation_lookup.get("shoot", "")).is_empty():
@@ -410,6 +416,7 @@ func _update_authored_animation(body: CharacterBody3D, planar_speed: float) -> v
                 var target_local_yaw := wrapf(target_global_yaw - body.global_rotation.y, -PI, PI)
                 rotation.y = lerp_angle(rotation.y, target_local_yaw, minf(get_process_delta_time() * 12.0, 1.0))
     _play_authored_animation(state)
+
 
 func _material(color: Color, roughness: float = 0.78, metallic: float = 0.0) -> StandardMaterial3D:
     var key := "%s|%.2f|%.2f" % [color.to_html(false), roughness, metallic]
