@@ -29,6 +29,9 @@ var _collision_shape: CollisionShape3D
 var _standing_capsule_height := 1.8
 const HUMANOID_BASE_SCALE := Vector3(0.90, 0.90, 0.90)
 var _is_crouched := false
+var _jump_buffer_time := 0.0
+var _coyote_time := 0.0
+var _was_airborne := false
 
 func set_camera_view_mode(mode: String) -> void:
  camera_view_mode = "first_person" if mode == "first_person" else "third_person"
@@ -134,14 +137,33 @@ func _physics_process(delta):
  velocity.z = dir.z * current_speed
  if Input.is_action_just_pressed("jump") and is_on_floor() and not _is_crouched:
   velocity.y = jump_velocity
+ # Buffer a tap slightly before landing and allow a short coyote window after leaving an edge.
+ if Input.is_action_just_pressed("jump") and not _is_crouched:
+  _jump_buffer_time = 0.16
+ else:
+  _jump_buffer_time = maxf(0.0, _jump_buffer_time - delta)
+ if is_on_floor():
+  _coyote_time = 0.12
+ else:
+  _coyote_time = maxf(0.0, _coyote_time - delta)
+
  # Rotate the avatar to face travel direction; -Z is the character forward axis.
  if dir.length_squared() > 0.001:
   rotation.y = lerp_angle(rotation.y, atan2(-dir.x, -dir.z), minf(1.0, delta * 12.0))
+ if _jump_buffer_time > 0.0 and _coyote_time > 0.0 and not _is_crouched:
+  velocity.y = jump_velocity
+  _jump_buffer_time = 0.0
+  _coyote_time = 0.0
+  _was_airborne = true
  if not is_on_floor():
   velocity.y -= gravity * delta
  else:
   velocity.y = -0.5
  move_and_slide()
+ var landed_now := _was_airborne and is_on_floor()
+ set_meta("just_landed", landed_now)
+ if is_on_floor():
+  _was_airborne = false
  # The real-data Greater Dhaka map streams geographically positioned tiles.
  # Keep the smaller bounds only for the fictional fallback city.
  if world and bool(world.get("real_dhaka_loaded")):
