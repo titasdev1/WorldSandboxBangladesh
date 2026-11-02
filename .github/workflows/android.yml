@@ -25,6 +25,9 @@ on:
       - "assets/**"
       - "external_content/**"
       - "tools/fetch_*.py"
+      - "tools/kenney_pack_utils.py"
+      - "tools/verify_medium_stage_assets.py"
+      - "tests/test_kenney_asset_pipeline.py"
       - "tools/fetch_quaternius_character.py"
       - "tools/merge_quaternius_character.mjs"
       - "tools/verify_quaternius_character.py"
@@ -89,7 +92,7 @@ jobs:
 
       - name: Validate asset pipeline Python syntax
         shell: bash
-        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py tools/map_pack_build.py tools/verify_core_apk_contents.py
+        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/kenney_pack_utils.py tools/verify_medium_stage_assets.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py tools/map_pack_build.py tools/verify_core_apk_contents.py
 
       - name: Run navigation-index unit tests
         shell: bash
@@ -488,6 +491,13 @@ jobs:
       - name: Fetch optional Poly Haven CC0 high-resolution PBR surfaces
         shell: bash
         run: python3 tools/fetch_polyhaven_pbr.py
+
+      - name: Require authored vehicle and city models for medium-stage APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/verify_medium_stage_assets.py
+          python3 -m unittest discover -s tests -p "test_kenney_asset_pipeline.py"
 
       - name: Setup Java
         uses: actions/setup-java@v5
