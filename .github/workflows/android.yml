@@ -28,6 +28,7 @@ on:
       - "tools/kenney_pack_utils.py"
       - "tools/verify_medium_stage_assets.py"
       - "tests/test_kenney_asset_pipeline.py"
+      - "tests/test_character_movement_animations.py"
       - "tools/fetch_quaternius_character.py"
       - "tools/merge_quaternius_character.mjs"
       - "tools/verify_quaternius_character.py"
@@ -101,6 +102,10 @@ jobs:
       - name: Run separate map-pack build tests
         shell: bash
         run: python3 -m unittest discover -s tests -p "test_map_pack_build.py"
+
+      - name: Run character movement animation regression tests
+        shell: bash
+        run: python3 -m unittest discover -s tests -p "test_character_movement_animations.py"
 
       - name: Run mobile interaction regression tests
         shell: bash
