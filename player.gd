@@ -135,8 +135,6 @@ func _physics_process(delta):
  var current_speed: float = crouch_speed if _is_crouched else (sprint_speed if sprinting else speed)
  velocity.x = dir.x * current_speed
  velocity.z = dir.z * current_speed
- if Input.is_action_just_pressed("jump") and is_on_floor() and not _is_crouched:
-  velocity.y = jump_velocity
  # Buffer a tap slightly before landing and allow a short coyote window after leaving an edge.
  if Input.is_action_just_pressed("jump") and not _is_crouched:
   _jump_buffer_time = 0.16
