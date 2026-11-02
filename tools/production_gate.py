@@ -94,7 +94,12 @@ for builder in ("_build_car", "_build_cng", "_build_rickshaw", "_build_bus", "_b
 if "func _try_load_authored_model()" not in vehicle_text:
     raise SystemExit("PRODUCTION GATE FAILED: optional authored vehicle loader is missing")
 
-# The candidate APK must not silently fall back to procedural-only cars/city blocks.\nasset_gate_text = (ROOT / "tools/verify_medium_stage_assets.py").read_text(encoding="utf-8")\nfor token in ("kenney_car_kit", "kenney_city_kit_commercial", "kenney_city_kit_industrial", "kenney_city_kit_suburban", "MEDIUM_STAGE_ASSET_GATE: PASS"):\n    if token not in asset_gate_text:\n        raise SystemExit(f"PRODUCTION GATE FAILED: medium-stage authored-asset gate is incomplete ({token})")\ncity_factory_text = (ROOT / "city_asset_factory.gd").read_text(encoding="utf-8")
+# The candidate APK must not silently fall back to procedural-only cars/city blocks.
+asset_gate_text = (ROOT / "tools/verify_medium_stage_assets.py").read_text(encoding="utf-8")
+for token in ("kenney_car_kit", "kenney_city_kit_commercial", "kenney_city_kit_industrial", "kenney_city_kit_suburban", "MEDIUM_STAGE_ASSET_GATE: PASS"):
+    if token not in asset_gate_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: medium-stage authored-asset gate is incomplete ({token})")
+city_factory_text = (ROOT / "city_asset_factory.gd").read_text(encoding="utf-8")
 if "func _model_local_bounds(root: Node3D) -> AABB:" not in city_factory_text:
     raise SystemExit("PRODUCTION GATE FAILED: authored buildings are not normalized from imported mesh bounds")
 if "mesh_bounds.get_endpoint(endpoint_index)" not in city_factory_text or "instance.scale = normalized_scale * variation" not in city_factory_text:
