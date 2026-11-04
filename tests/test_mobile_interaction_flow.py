@@ -81,6 +81,46 @@ class MobileInteractionFlowTests(unittest.TestCase):
         self.assertIn("_draw_clipped_line(a, b, map_rect", self.map_view)
         self.assertIn("_draw_clipped_line(panel_a, panel_b, map_rect", self.map_view)
 
+    def test_minimap_tap_expands_to_district_overview_and_tap_again_closes(self):
+        ready = function_block(self.map_view, "_ready")
+        gui = function_block(self.map_view, "_gui_input")
+        relayout = function_block(self.map_view, "relayout")
+        expanded = function_block(self.map_view, "set_expanded")
+        self.assertIn("Control.MOUSE_FILTER_STOP", ready)
+        self.assertIn("InputEventMouseButton", gui)
+        self.assertIn("InputEventScreenTouch", gui)
+        self.assertIn("set_expanded(not expanded)", gui)
+        self.assertIn("get_district_overview_road_routes", self.map_view)
+        self.assertIn("get_world_bounds", self.map_view)
+        self.assertIn("TAP MAP TO CLOSE", self.map_view)
+        self.assertIn("viewport_size.x * 0.90", relayout)
+        self.assertIn("viewport_size.y * 0.84", relayout)
+        self.assertIn("relayout(get_viewport_rect().size)", expanded)
+
+    def test_district_overview_uses_bounded_route_sampling(self):
+        overview = function_block(self.loader, "get_district_overview_road_routes")
+        self.assertIn("_navigation_display_routes", overview)
+        self.assertIn("safe_limit", overview)
+        self.assertIn("stride", overview)
+        self.assertIn("sampled.append(routes[index])", overview)
+
+    def test_place_search_supports_close_spelling_candidates(self):
+        search = function_block(self.loader, "search_named_place")
+        distance = function_block(self.loader, "_named_search_edit_distance")
+        self.assertIn('match_kind = "close-spelling"', search)
+        self.assertIn("_normalize_named_search", search)
+        self.assertIn("allowed_distance", search)
+        self.assertIn("previous[b.length()]", distance)
+        self.assertIn('"alt_name"', search)
+
+    def test_teleport_panel_displays_and_selects_name_suggestions(self):
+        self.assertIn("PlaceSearchSuggestions", self.hud)
+        self.assertIn("_refresh_named_place_suggestions", self.hud)
+        self.assertIn("_select_named_place_suggestion", self.hud)
+        self.assertIn("_resolve_teleport_selection", self.hud)
+        self.assertIn("lat_lon_to_world", function_block(self.hud, "_navigate_to_named_place"))
+        self.assertIn("teleport_status.text = \"Selected \"", self.hud)
+
     def test_large_map_pack_is_chunked_verified_and_reassembled_before_mount(self):
         self.assertIn('get("schema_version", 0)) != 2', self.boot)
         self.assertIn('downloaded_metadata.get("parts", [])', self.boot)
