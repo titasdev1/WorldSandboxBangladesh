@@ -1224,6 +1224,22 @@ func _stream_tiles(player_position: Vector3) -> void:
 		print("REAL_MAP_TILE_LOAD_QUEUED: ", tile_key, " path=", full_path)
 		requested_this_tick += 1
 
+func get_district_overview_road_routes(max_routes := 1400) -> Array:
+	# The expanded map draws a sampled overview of the full Shariatpur/district road
+	# network. Sampling limits canvas work on mobile without changing source map data.
+	var routes: Array = _navigation_display_routes
+	if routes.is_empty():
+		routes = get_road_routes()
+	var safe_limit := maxi(200, max_routes)
+	if routes.size() <= safe_limit:
+		return routes
+	var stride := maxi(1, int(ceil(float(routes.size()) / float(safe_limit))))
+	var sampled: Array = []
+	for index in range(0, routes.size(), stride):
+		sampled.append(routes[index])
+	return sampled
+
+
 func get_world_bounds() -> Dictionary:
 	return _world_bounds.duplicate(true)
 
