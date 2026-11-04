@@ -677,9 +677,9 @@ func _geo_node_key(lat: float, lon: float) -> String:
 
 
 func search_named_place(query: String, limit := 8) -> Array[Dictionary]:
-	var normalized := query.strip_edges().to_lower()
+	var normalized := _normalize_named_search(query)
 	var results: Array[Dictionary] = []
-	if normalized.is_empty():
+	if normalized.length() < 2:
 		return results
 	for group_name in ["places", "buildings", "roads"]:
 		var records: Variant = _navigation_index.get(group_name, [])
@@ -693,21 +693,34 @@ func search_named_place(query: String, limit := 8) -> Array[Dictionary]:
 				continue
 			var matched_name := ""
 			var best_score := 0
-			for field in ["name_bn", "name", "official_name", "brand", "ref"]:
+			var best_match_kind := ""
+			for field in ["name_bn", "name", "official_name", "brand", "ref", "alt_name", "short_name"]:
 				var candidate := str(record.get(field, "")).strip_edges()
 				if candidate.is_empty():
 					continue
-				var candidate_lower := candidate.to_lower()
+				var candidate_normalized := _normalize_named_search(candidate)
 				var score := 0
-				if candidate_lower == normalized:
+				var match_kind := ""
+				if candidate_normalized == normalized:
 					score = 100
-				elif candidate_lower.begins_with(normalized):
-					score = 70
-				elif candidate_lower.contains(normalized):
-					score = 45
+					match_kind = "exact"
+				elif candidate_normalized.begins_with(normalized):
+					score = 82
+					match_kind = "prefix"
+				elif candidate_normalized.contains(normalized):
+					score = 64
+					match_kind = "partial"
+				elif normalized.length() >= 4 and candidate_normalized.length() >= 4 and candidate_normalized.length() <= 48:
+					var max_length := maxi(normalized.length(), candidate_normalized.length())
+					var allowed_distance := maxi(1, mini(4, int(ceil(float(max_length) * 0.22))))
+					var edit_distance := _named_search_edit_distance(normalized, candidate_normalized)
+					if edit_distance <= allowed_distance:
+						score = 50 - edit_distance * 6
+						match_kind = "close-spelling"
 				if score > best_score:
 					best_score = score
 					matched_name = candidate
+					best_match_kind = match_kind
 			if best_score == 0:
 				continue
 			results.append({
@@ -716,6 +729,7 @@ func search_named_place(query: String, limit := 8) -> Array[Dictionary]:
 				"latitude": float(coords["latitude"]),
 				"longitude": float(coords["longitude"]),
 				"score": best_score,
+				"match_kind": best_match_kind,
 				"coordinate_method": str(coords.get("coordinate_method", "source geometry vertex mean approximation")),
 				"source_id": str(record.get("osm_id", "")),
 			})
@@ -729,6 +743,32 @@ func search_named_place(query: String, limit := 8) -> Array[Dictionary]:
 	return results
 
 
+func _normalize_named_search(value: String) -> String:
+	var normalized := value.strip_edges().to_lower()
+	for token in [" ", "\t", "-", "_", ".", ",", "'", "’", "(", ")", "/"]:
+		normalized = normalized.replace(token, "")
+	return normalized
+
+
+func _named_search_edit_distance(a: String, b: String) -> int:
+	if a == b:
+		return 0
+	if abs(a.length() - b.length()) > 4:
+		return 5
+	var previous: Array[int] = []
+	for index in range(b.length() + 1):
+		previous.append(index)
+	for a_index in range(1, a.length() + 1):
+		var current: Array[int] = []
+		current.append(a_index)
+		for b_index in range(1, b.length() + 1):
+			var substitution_cost := 0 if a.substr(a_index - 1, 1) == b.substr(b_index - 1, 1) else 1
+			var insertion := current[b_index - 1] + 1
+			var deletion := previous[b_index] + 1
+			var substitution := previous[b_index - 1] + substitution_cost
+			current.append(mini(insertion, mini(deletion, substitution)))
+		previous = current
+	return previous[b.length()]
 func resolve_named_place(query: String) -> Dictionary:
 	var matches := search_named_place(query, 8)
 	if matches.is_empty():
