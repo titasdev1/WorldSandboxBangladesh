@@ -28,6 +28,8 @@ var teleport_lon_input: LineEdit
 var teleport_status: Label
 var teleport_place_input: LineEdit
 var teleport_suggestions: VBoxContainer
+var place_search_timer: Timer
+var pending_place_search_query := ""
 var selected_teleport_place: Dictionary = {}
 var navigation_mode_button: Button
 var mode_menu_button: Button
@@ -176,7 +178,7 @@ func _relayout_mobile_controls() -> void:
  if is_instance_valid(settings_button):
   settings_button.position = Vector2(view_width - 255.0, 18.0)
  if is_instance_valid(teleport_panel):
-  teleport_panel.position = Vector2(view_width - 590.0, 125.0)
+  teleport_panel.position = Vector2(view_width - 400.0, 72.0)
  if is_instance_valid(settings_panel):
   settings_panel.position = Vector2(view_width - 430.0, 72.0)
  if is_instance_valid(shop_panel):
@@ -227,12 +229,18 @@ func _build_teleport_ui() -> void:
 
  teleport_panel = PanelContainer.new()
  teleport_panel.name = "CoordinateTeleportPanel"
- teleport_panel.position = Vector2(690, 125)
- teleport_panel.size = Vector2(360, 560)
- teleport_panel.custom_minimum_size = Vector2(360, 560)
+ teleport_panel.position = Vector2(690, 72)
+ teleport_panel.size = Vector2(380, 620)
+ teleport_panel.custom_minimum_size = Vector2(380, 620)
  teleport_panel.visible = false
  teleport_panel.z_index = 40
  add_child(teleport_panel)
+ place_search_timer = Timer.new()
+ place_search_timer.name = "PlaceSearchDebounce"
+ place_search_timer.one_shot = true
+ place_search_timer.wait_time = 0.35
+ place_search_timer.timeout.connect(_run_place_search_suggestions)
+ add_child(place_search_timer)
  var column := VBoxContainer.new()
  column.add_theme_constant_override("separation", 8)
  teleport_panel.add_child(column)
@@ -246,7 +254,7 @@ func _build_teleport_ui() -> void:
  column.add_child(teleport_place_input)
  var suggestion_scroll := ScrollContainer.new()
  suggestion_scroll.name = "PlaceSearchSuggestionsScroll"
- suggestion_scroll.custom_minimum_size = Vector2(310, 94)
+ suggestion_scroll.custom_minimum_size = Vector2(330, 108)
  suggestion_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
  teleport_suggestions = VBoxContainer.new()
  teleport_suggestions.name = "PlaceSearchSuggestions"
@@ -285,7 +293,7 @@ func _build_teleport_ui() -> void:
  teleport_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
  var directions_scroll := ScrollContainer.new()
  directions_scroll.name = "NavigationDirectionsScroll"
- directions_scroll.custom_minimum_size = Vector2(315, 96)
+ directions_scroll.custom_minimum_size = Vector2(335, 90)
  directions_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
  directions_scroll.add_child(teleport_status)
  column.add_child(directions_scroll)
@@ -297,7 +305,16 @@ func _build_teleport_ui() -> void:
 
 func _on_place_search_text_changed(query: String) -> void:
  selected_teleport_place.clear()
- _refresh_named_place_suggestions(query)
+ pending_place_search_query = query
+ if is_instance_valid(place_search_timer):
+  place_search_timer.stop()
+  place_search_timer.start()
+ else:
+  _run_place_search_suggestions()
+
+
+func _run_place_search_suggestions() -> void:
+ _refresh_named_place_suggestions(pending_place_search_query)
 
 
 func _refresh_named_place_suggestions(query: String) -> void:
@@ -349,9 +366,8 @@ func _refresh_named_place_suggestions(query: String) -> void:
 
 
 func _select_named_place_suggestion(place: Dictionary) -> void:
- selected_teleport_place = place.duplicate(true)
  teleport_place_input.text = str(place.get("name", ""))
- # Assign after setting the text because LineEdit emits text_changed synchronously.
+ # LineEdit emits text_changed synchronously and clears any stale choice.
  selected_teleport_place = place.duplicate(true)
  teleport_status.text = "Selected " + str(place.get("name", "place")) + ". Confirm teleport or calculate a road route. The mapped point is approximate."
  if is_instance_valid(district_map) and district_map.has_method("set_navigation_target"):
