@@ -12,6 +12,12 @@ var _has_target := false
 var _last_place_lookup_position := Vector3(1.0e20, 0.0, 1.0e20)
 var _nearby_place_name := ""
 var _has_place_lookup := false
+var _has_draw_state := false
+var _last_draw_player_position := Vector3.ZERO
+var _last_draw_player_yaw := 0.0
+var _last_draw_target_position := Vector3.ZERO
+var _last_draw_has_target := false
+var _last_draw_district := ""
 
 const DISTRICTS := [
  {"name":"Old Town","pos":Vector2(-60,-60),"color":Color("#d9a86c")},
@@ -44,6 +50,11 @@ func _gui_input(event: InputEvent) -> void:
  accept_event()
 
 func update_world(target_world: Node) -> void:
+ var previous_position := _player_position
+ var previous_yaw := _player_yaw
+ var previous_district := current_district
+ var previous_target := _target_position
+ var previous_has_target := _has_target
  world = target_world
  if not is_instance_valid(world):
   return
@@ -92,7 +103,30 @@ func update_world(target_world: Node) -> void:
   if is_instance_valid(side_target):
    _target_position = side_target.global_position
    _has_target = true
- queue_redraw()
+
+ # The expanded district map can render over a thousand sampled road strokes.
+ # Do not rebuild that canvas every frame; invalidate only after meaningful movement,
+ # heading, district or navigation-target changes.
+ var movement_delta := Vector2(_player_position.x - previous_position.x, _player_position.z - previous_position.z).length()
+ var heading_delta := absf(wrapf(_player_yaw - previous_yaw, -PI, PI))
+ var movement_threshold := 1.25 if expanded else 0.35
+ var heading_threshold := 0.10 if expanded else 0.035
+ var target_changed := previous_has_target != _has_target
+ if not target_changed and _has_target:
+  target_changed = _target_position.distance_to(previous_target) >= 0.5
+ var redraw_needed := not _has_draw_state
+ redraw_needed = redraw_needed or movement_delta >= movement_threshold
+ redraw_needed = redraw_needed or heading_delta >= heading_threshold
+ redraw_needed = redraw_needed or current_district != previous_district
+ redraw_needed = redraw_needed or target_changed
+ if redraw_needed:
+  queue_redraw()
+  _has_draw_state = true
+  _last_draw_player_position = _player_position
+  _last_draw_player_yaw = _player_yaw
+  _last_draw_target_position = _target_position
+  _last_draw_has_target = _has_target
+  _last_draw_district = current_district
 
 func get_persistence_state() -> Dictionary:
  var names: Array[String] = []
