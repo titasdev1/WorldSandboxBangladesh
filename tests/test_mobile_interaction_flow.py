@@ -106,12 +106,15 @@ class MobileInteractionFlowTests(unittest.TestCase):
 
     def test_place_search_supports_close_spelling_candidates(self):
         search = function_block(self.loader, "search_named_place")
+        search_pass = function_block(self.loader, "_search_named_place_pass")
         distance = function_block(self.loader, "_named_search_edit_distance")
-        self.assertIn('match_kind = "close-spelling"', search)
         self.assertIn("_normalize_named_search", search)
-        self.assertIn("allowed_distance", search)
+        self.assertIn("_search_named_place_pass(normalized, limit, false)", search)
+        self.assertIn("_search_named_place_pass(normalized, limit, true)", search)
+        self.assertIn('match_kind = "close-spelling"', search_pass)
+        self.assertIn("allowed_distance", search_pass)
         self.assertIn("previous[b.length()]", distance)
-        self.assertIn('"alt_name"', search)
+        self.assertIn('"alt_name"', search_pass)
 
     def test_teleport_panel_displays_and_selects_name_suggestions(self):
         self.assertIn("PlaceSearchSuggestions", self.hud)
