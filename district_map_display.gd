@@ -50,11 +50,6 @@ func _gui_input(event: InputEvent) -> void:
  accept_event()
 
 func update_world(target_world: Node) -> void:
- var previous_position := _player_position
- var previous_yaw := _player_yaw
- var previous_district := current_district
- var previous_target := _target_position
- var previous_has_target := _has_target
  world = target_world
  if not is_instance_valid(world):
   return
@@ -107,17 +102,17 @@ func update_world(target_world: Node) -> void:
  # The expanded district map can render over a thousand sampled road strokes.
  # Do not rebuild that canvas every frame; invalidate only after meaningful movement,
  # heading, district or navigation-target changes.
- var movement_delta := Vector2(_player_position.x - previous_position.x, _player_position.z - previous_position.z).length()
- var heading_delta := absf(wrapf(_player_yaw - previous_yaw, -PI, PI))
+ var movement_delta := Vector2(_player_position.x - _last_draw_player_position.x, _player_position.z - _last_draw_player_position.z).length()
+ var heading_delta := absf(wrapf(_player_yaw - _last_draw_player_yaw, -PI, PI))
  var movement_threshold := 1.25 if expanded else 0.35
  var heading_threshold := 0.10 if expanded else 0.035
- var target_changed := previous_has_target != _has_target
+ var target_changed := _last_draw_has_target != _has_target
  if not target_changed and _has_target:
-  target_changed = _target_position.distance_to(previous_target) >= 0.5
+  target_changed = _target_position.distance_to(_last_draw_target_position) >= 0.5
  var redraw_needed := not _has_draw_state
  redraw_needed = redraw_needed or movement_delta >= movement_threshold
  redraw_needed = redraw_needed or heading_delta >= heading_threshold
- redraw_needed = redraw_needed or current_district != previous_district
+ redraw_needed = redraw_needed or current_district != _last_draw_district
  redraw_needed = redraw_needed or target_changed
  if redraw_needed:
   queue_redraw()
