@@ -678,9 +678,19 @@ func _geo_node_key(lat: float, lon: float) -> String:
 
 func search_named_place(query: String, limit := 8) -> Array[Dictionary]:
 	var normalized := _normalize_named_search(query)
-	var results: Array[Dictionary] = []
 	if normalized.length() < 2:
-		return results
+		return []
+	# Prefer exact/prefix/substring matches. Only pay the edit-distance cost when
+	# ordinary matching finds nothing, so typing does not run fuzzy DP over every
+	# building record on each keystroke.
+	var results := _search_named_place_pass(normalized, limit, false)
+	if results.is_empty() and normalized.length() >= 4:
+		results = _search_named_place_pass(normalized, limit, true)
+	return results
+
+
+func _search_named_place_pass(normalized: String, limit: int, fuzzy_pass: bool) -> Array[Dictionary]:
+	var results: Array[Dictionary] = []
 	for group_name in ["places", "buildings", "roads"]:
 		var records: Variant = _navigation_index.get(group_name, [])
 		if not (records is Array):
@@ -701,22 +711,30 @@ func search_named_place(query: String, limit := 8) -> Array[Dictionary]:
 				var candidate_normalized := _normalize_named_search(candidate)
 				var score := 0
 				var match_kind := ""
-				if candidate_normalized == normalized:
-					score = 100
-					match_kind = "exact"
-				elif candidate_normalized.begins_with(normalized):
-					score = 82
-					match_kind = "prefix"
-				elif candidate_normalized.contains(normalized):
-					score = 64
-					match_kind = "partial"
-				elif normalized.length() >= 4 and candidate_normalized.length() >= 4 and candidate_normalized.length() <= 48:
+				if fuzzy_pass:
+					if candidate_normalized.length() < 4 or candidate_normalized.length() > 48:
+						continue
+					if abs(candidate_normalized.length() - normalized.length()) > 2:
+						continue
+					var first_character := normalized.substr(0, 1)
+					if not candidate_normalized.begins_with(first_character) and candidate_normalized.find(first_character) > 1:
+						continue
 					var max_length := maxi(normalized.length(), candidate_normalized.length())
-					var allowed_distance := maxi(1, mini(4, int(ceil(float(max_length) * 0.22))))
+					var allowed_distance := 1 if max_length < 9 else 2
 					var edit_distance := _named_search_edit_distance(normalized, candidate_normalized)
 					if edit_distance <= allowed_distance:
-						score = 50 - edit_distance * 6
+						score = 52 - edit_distance * 8
 						match_kind = "close-spelling"
+				else:
+					if candidate_normalized == normalized:
+						score = 100
+						match_kind = "exact"
+					elif candidate_normalized.begins_with(normalized):
+						score = 82
+						match_kind = "prefix"
+					elif candidate_normalized.contains(normalized):
+						score = 64
+						match_kind = "partial"
 				if score > best_score:
 					best_score = score
 					matched_name = candidate
@@ -741,6 +759,7 @@ func search_named_place(query: String, limit := 8) -> Array[Dictionary]:
 	if results.size() > limit:
 		return results.slice(0, limit)
 	return results
+
 
 
 func _normalize_named_search(value: String) -> String:
