@@ -7,7 +7,7 @@ on:
       - ".github/workflows/kartaview-coverage-audit.yml"
       - "MAP_PIPELINE.md"
   push:
-    branches: [main, "feature/real-world-navigation-floor-fidelity-verified"]
+    branches: [main, "feature/real-world-navigation-floor-fidelity-verified", "feature/medium-stage-integration"]
     paths:
       - "tools/map_pipeline/audit_kartaview_coverage.py"
       - ".github/workflows/kartaview-coverage-audit.yml"
