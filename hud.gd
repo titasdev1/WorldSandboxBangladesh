@@ -27,6 +27,8 @@ var teleport_lat_input: LineEdit
 var teleport_lon_input: LineEdit
 var teleport_status: Label
 var teleport_place_input: LineEdit
+var teleport_suggestions: VBoxContainer
+var selected_teleport_place: Dictionary = {}
 var navigation_mode_button: Button
 var mode_menu_button: Button
 var replay_round_button: Button
@@ -226,8 +228,8 @@ func _build_teleport_ui() -> void:
  teleport_panel = PanelContainer.new()
  teleport_panel.name = "CoordinateTeleportPanel"
  teleport_panel.position = Vector2(690, 125)
- teleport_panel.size = Vector2(320, 520)
- teleport_panel.custom_minimum_size = Vector2(320, 520)
+ teleport_panel.size = Vector2(360, 560)
+ teleport_panel.custom_minimum_size = Vector2(360, 560)
  teleport_panel.visible = false
  teleport_panel.z_index = 40
  add_child(teleport_panel)
@@ -239,8 +241,18 @@ func _build_teleport_ui() -> void:
  heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
  column.add_child(heading)
  teleport_place_input = LineEdit.new()
- teleport_place_input.placeholder_text = "Search mapped place / road (Bangla or English)"
+ teleport_place_input.placeholder_text = "Search place / road in Bangla or English"
+ teleport_place_input.text_changed.connect(_on_place_search_text_changed)
  column.add_child(teleport_place_input)
+ var suggestion_scroll := ScrollContainer.new()
+ suggestion_scroll.name = "PlaceSearchSuggestionsScroll"
+ suggestion_scroll.custom_minimum_size = Vector2(310, 94)
+ suggestion_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ teleport_suggestions = VBoxContainer.new()
+ teleport_suggestions.name = "PlaceSearchSuggestions"
+ teleport_suggestions.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ suggestion_scroll.add_child(teleport_suggestions)
+ column.add_child(suggestion_scroll)
  var named_teleport_button := Button.new()
  named_teleport_button.text = "FIND PLACE + TELEPORT"
  named_teleport_button.pressed.connect(_teleport_to_named_place)
@@ -267,13 +279,13 @@ func _build_teleport_ui() -> void:
  go_button.pressed.connect(_teleport_to_coordinates)
  column.add_child(go_button)
  teleport_status = Label.new()
- teleport_status.text = "Requires a loaded real-world map package."
+ teleport_status.text = "Choose a suggested mapped place, or enter latitude and longitude."
  teleport_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
- teleport_status.custom_minimum_size = Vector2(280, 120)
+ teleport_status.custom_minimum_size = Vector2(310, 96)
  teleport_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
  var directions_scroll := ScrollContainer.new()
  directions_scroll.name = "NavigationDirectionsScroll"
- directions_scroll.custom_minimum_size = Vector2(285, 120)
+ directions_scroll.custom_minimum_size = Vector2(315, 96)
  directions_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
  directions_scroll.add_child(teleport_status)
  column.add_child(directions_scroll)
@@ -283,24 +295,93 @@ func _build_teleport_ui() -> void:
  column.add_child(close_button)
 
 
+func _on_place_search_text_changed(query: String) -> void:
+ selected_teleport_place.clear()
+ _refresh_named_place_suggestions(query)
+
+
+func _refresh_named_place_suggestions(query: String) -> void:
+ if not is_instance_valid(teleport_suggestions):
+  return
+ for child in teleport_suggestions.get_children():
+  teleport_suggestions.remove_child(child)
+  child.queue_free()
+ var trimmed := query.strip_edges()
+ if trimmed.length() < 2:
+  var hint := Label.new()
+  hint.text = "Type at least two characters to find mapped places."
+  hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+  teleport_suggestions.add_child(hint)
+  return
+ var loader = w.get("real_dhaka_loader") if is_instance_valid(w) else null
+ if not is_instance_valid(loader) or not loader.has_method("search_named_place"):
+  var unavailable := Label.new()
+  unavailable.text = "Place search becomes available when the real-world map is loaded."
+  unavailable.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+  teleport_suggestions.add_child(unavailable)
+  return
+ var matches: Array = loader.call("search_named_place", trimmed, 8)
+ if matches.is_empty():
+  var no_match := Label.new()
+  no_match.text = "No close name found. Try a shorter spelling or the Bangla name."
+  no_match.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+  teleport_suggestions.add_child(no_match)
+  return
+ var title := Label.new()
+ title.text = "SUGGESTED MAP MATCHES"
+ title.add_theme_font_size_override("font_size", 12)
+ title.add_theme_color_override("font_color", Color("#50d7e9"))
+ teleport_suggestions.add_child(title)
+ for item in matches:
+  if not (item is Dictionary):
+   continue
+  var place: Dictionary = item
+  var suggestion := Button.new()
+  var match_kind := str(place.get("match_kind", ""))
+  var hint := " • close spelling" if match_kind == "close-spelling" else ""
+  suggestion.text = str(place.get("name", "Unknown place")) + " • " + str(place.get("kind", "place")) + hint
+  suggestion.alignment = HORIZONTAL_ALIGNMENT_LEFT
+  suggestion.custom_minimum_size = Vector2(0, 36)
+  suggestion.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+  suggestion.add_theme_font_size_override("font_size", 13)
+  suggestion.pressed.connect(_select_named_place_suggestion.bind(place))
+  teleport_suggestions.add_child(suggestion)
+
+
+func _select_named_place_suggestion(place: Dictionary) -> void:
+ selected_teleport_place = place.duplicate(true)
+ teleport_place_input.text = str(place.get("name", ""))
+ # Assign after setting the text because LineEdit emits text_changed synchronously.
+ selected_teleport_place = place.duplicate(true)
+ teleport_status.text = "Selected " + str(place.get("name", "place")) + ". Confirm teleport or calculate a road route. The mapped point is approximate."
+ if is_instance_valid(district_map) and district_map.has_method("set_navigation_target"):
+  district_map.call("set_navigation_target", place)
+
+
+func _resolve_teleport_selection(loader: Node) -> Dictionary:
+ if not selected_teleport_place.is_empty():
+  return {"ok": true, "place": selected_teleport_place}
+ if not loader.has_method("resolve_named_place"):
+  return {"ok": false, "message": "Named-place resolver is unavailable in this build."}
+ return loader.call("resolve_named_place", teleport_place_input.text)
+
+
 func _teleport_to_named_place() -> void:
  if not is_instance_valid(w) or not is_instance_valid(teleport_status):
   return
  var loader = w.get("real_dhaka_loader")
  var player = w.get("player")
- if not is_instance_valid(loader) or not is_instance_valid(player) or not loader.has_method("search_named_place"):
-  teleport_status.text = "Named-place search is unavailable in this build."
+ if not is_instance_valid(loader) or not is_instance_valid(player) or not loader.has_method("teleport_player_to_lat_lon"):
+  teleport_status.text = "Place search is unavailable until the real-world map is loaded."
   return
- if not loader.has_method("resolve_named_place"):
-  teleport_status.text = "Named-place resolver is unavailable in this build."
-  return
- var resolved: Dictionary = loader.resolve_named_place(teleport_place_input.text)
+ var resolved := _resolve_teleport_selection(loader)
  if not bool(resolved.get("ok", false)):
-  teleport_status.text = str(resolved.get("message", "No mapped match."))
+  teleport_status.text = str(resolved.get("message", "No mapped match.")) + " Choose one of the suggested matches."
+  _refresh_named_place_suggestions(teleport_place_input.text)
   return
  var place: Dictionary = resolved["place"]
- var result: Dictionary = loader.teleport_player_to_lat_lon(float(place["latitude"]), float(place["longitude"]), player)
- teleport_status.text = str(place["name"]) + " — " + str(result.get("message", "Teleport request finished.")) + "\nApproximate map point, not a surveyed entrance."
+ var result: Dictionary = loader.call("teleport_player_to_lat_lon", float(place["latitude"]), float(place["longitude"]), player)
+ teleport_status.text = str(place["name"]) + " — " + str(result.get("message", "Teleport request finished.")) + "\nMapped point approximation, not a surveyed building entrance."
  if bool(result.get("ok", false)):
   teleport_panel.visible = false
 
@@ -310,21 +391,32 @@ func _navigate_to_named_place() -> void:
   return
  var loader = w.get("real_dhaka_loader")
  var player = w.get("player")
- if not is_instance_valid(loader) or not is_instance_valid(player) or not loader.has_method("navigate_to_named_place"):
-  teleport_status.text = "Turn-by-turn navigation is unavailable in this build."
+ if not is_instance_valid(loader) or not is_instance_valid(player) or not loader.has_method("navigate_to_world_position"):
+  teleport_status.text = "Turn-by-turn road navigation is unavailable in this build."
   return
- teleport_status.text = "Preparing offline road routing for the first route…"
- var result: Dictionary = await loader.navigate_to_named_place(teleport_place_input.text, player)
+ var resolved := _resolve_teleport_selection(loader)
+ if not bool(resolved.get("ok", false)):
+  teleport_status.text = str(resolved.get("message", "No mapped match.")) + " Choose one of the suggested matches."
+  _refresh_named_place_suggestions(teleport_place_input.text)
+  return
+ var place: Dictionary = resolved["place"]
+ if not loader.has_method("lat_lon_to_world"):
+  teleport_status.text = "Map coordinate conversion is unavailable."
+  return
+ teleport_status.text = "Preparing offline road routing…"
+ var destination: Vector3 = loader.call("lat_lon_to_world", float(place["latitude"]), float(place["longitude"]))
+ var result: Dictionary = await loader.call("navigate_to_world_position", destination, player)
  if not bool(result.get("ok", false)):
   teleport_status.text = str(result.get("message", "No route available."))
   return
+ result["place"] = place
  var lines: Array[String] = [str(result.get("message", "Route ready."))]
  for step in result.get("steps", []):
   if step is Dictionary:
    lines.append("• " + str(step.get("instruction", "")))
  teleport_status.text = "\n".join(lines)
  if district_map and district_map.has_method("set_navigation_target"):
-  district_map.call("set_navigation_target", result.get("place", {}))
+  district_map.call("set_navigation_target", place)
 
 func _toggle_navigation_mode() -> void:
  if not is_instance_valid(w):
