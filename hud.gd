@@ -164,7 +164,7 @@ func _relayout_mobile_controls() -> void:
  if is_instance_valid(map_button):
   map_button.position = Vector2(view_width - 365.0, 18.0)
  if is_instance_valid(district_map):
-  district_map.position = Vector2(view_width - 265.0, 78.0)
+  district_map.call("relayout", Vector2(view_width, view_height))
  var teleport_button := get_node_or_null("TeleportOpenButton") as Control
  if is_instance_valid(teleport_button):
   teleport_button.position = Vector2(view_width - 605.0, 18.0)
@@ -367,7 +367,12 @@ func _toggle_map() -> void:
   return
  var next_expanded: bool = not bool(district_map.get("expanded"))
  district_map.call("set_expanded", next_expanded)
- map_button.text = "CLOSE MAP" if next_expanded else "CITY MAP"
+ _sync_map_button_state()
+
+
+func _sync_map_button_state() -> void:
+ if is_instance_valid(map_button) and is_instance_valid(district_map):
+  map_button.text = "CLOSE MAP" if bool(district_map.get("expanded")) else "CITY MAP"
 
 func _build_settings_ui() -> void:
  var settings_button := Button.new()
