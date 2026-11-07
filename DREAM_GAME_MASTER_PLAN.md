@@ -191,3 +191,114 @@ Success is not “a huge ZIP,” “many commits,” “a successful compile,”
 - Merged commit `123f84f` adds the first distinct combat-mode gameplay controller: six stationary targets and completion feedback for Combat Lab; three escalating waves, enemy pursuit/damage, kill progress and victory reward for Last Stand. Player health/ammo/wanted state reset on entering a combat mode. The lobby now correctly says six modes.
 - This is merged source code, **not yet build-verified** as of this checkpoint. The next canonical workflow must pass before treating the combat loop as validated. Physical Android aiming, enemy navigation/collision, performance, and touch UX still need real-device QA.
 - Immediate next task: verify the combat loop build; fix regressions before adding more features; then deepen multi-stage local missions, transportation fare negotiation, and district-specific activities without replacing the existing city systems.
+
+
+## 12. User's complete end-to-end A-Square experience — continuity update (2026-11-07)
+
+This section preserves the full product direction from the user's long-form requirements. It supplements, and does not silently replace, the six-mode product taxonomy above. It is a target architecture and acceptance plan, **not a claim that the features below already exist**.
+
+### 12.1 Product identity and two workstreams
+
+A-Square has two inseparable production workstreams:
+
+1. **The actual game:** one canonical Android project with a polished playable core, a real lobby and navigation hierarchy, distinct mode rules, vehicles, human characters, NPC/AI systems, missions, combat, economy, sound, animation, saving, and reliable touch controls.
+2. **The explorable world:** Shariatpur as the first default district, then the remaining requested regions through a separate map/content pipeline. A user must select and install only the maps they want rather than loading every country or district at startup.
+
+The Shariatpur map and game base must be integrated as one playable experience, while map packages remain independently buildable and downloadable. Never start a second game or competing APK workflow. Do not rebuild systems that already exist without inspecting their code, assets, branch history, build logs, and user-visible behavior.
+
+The user's comparison target is the combined freedom/mission variety of GTA/Vice City and the presentation, movement, combat, menu hierarchy, staging and controls of CODM/Modern Warfare, with original characters, brands, content, maps, UI, dialogue, audio and assets. The target is aspirational; do not promise "200% GTA 6/CODM" or claim 100% world fidelity without evidence.
+
+### 12.2 Required boot, login, loading and main lobby sequence
+
+The intended sequence is:
+
+1. **Cold start:** initialize quickly and show the engine/company/project identity only briefly. Do not hold a static logo for a long time. Defer district geometry, texture-heavy resources, navigation graph construction and unused game modes.
+2. **Account/profile:** support an immediately usable local guest profile and offline play. Online account providers, token storage, region ping and server handshake are later real integrations; never show a fake successful login or fake server ping.
+3. **First-install content setup:** explain that Shariatpur is the default map, show the actual download/install state and byte progress, verify hashes/versions, and allow the user to continue into the lobby only when the required base content is ready. The first-time download should not be disguised as a fake 0–100 animation.
+4. **Subsequent launch:** check installed content and perform only the work actually required. A short progress indicator must represent measured initialization, not a timer that reaches 100% regardless of load state.
+5. **Main 3D lobby:** display the player's real in-game 3D character and equipped weapon in an animated showcase scene, with idle/look/weapon presentation or authored lobby motion. Do not use a generated still character image as a substitute for a rigged 3D character.
+6. **Persistent navigation hierarchy:** profile/level/rank/currency and notices at the top; a dominant Play destination and mode entry; loadout/character/customization, settings, events, progression, store and social destinations in a coherent hierarchy. Every visible control must be wired to a real screen or explicitly marked unavailable/prototype.
+7. **Return loop:** match result/progression -> post-match rewards -> return to the same lobby/profile state without restarting the entire engine or losing saved progress.
+
+The existing six-card "CHOOSE YOUR WORLD" overlay and the simple map-pack boot screen are not the finished lobby. The lobby must be treated as a product shell around real 3D gameplay systems, not as six menu cards alone.
+
+### 12.3 Game modes and rules matrix
+
+The user wants a GTA/Vice-City-style sandbox family and CODM-style competitive mode family. "Deshi Open World" is a working label for the GTA-like sandbox; the user has not confirmed that as the final name.
+
+| Mode family | Intended experience | Required rule/lifecycle |
+|---|---|---|
+| **Deshi Open World / Deshi Sandbox** | Locally populated Bangladesh world with missions, traffic, pedestrians, vendors, shops, local economy, rickshaw/CNG/bus/car/bike use, fare negotiation, police/wanted response, interiors, exploration and dynamic activities | Select district/world -> spawn/continue saved session -> free roam or mission -> objectives/earnings/world response -> save/return |
+| **Online Open World** | Human players meeting/roaming together in selected downloaded districts, with the user preferring no ambient shopkeeper/pedestrian AI in this variant | Select installed map and online room -> actual server/session creation -> join/leave/reconnect/player sync -> return; do not silently fill with offline AI |
+| **MP Casual / Mini Battles** | Short CODM-like multiplayer matches on selected city/smaller maps | Mode rules, teams, timer/score limit, map choice, spawn points, kill/objective scoring, overtime, result and replay |
+| **MP Ranked** | Competitive MP progression | Country/region eligibility, real player matchmaking, rank/skill rules, map rotation/voting, anti-cheat/server validation, rank adjustment, loss/disconnect handling |
+| **Battle Royale Casual** | Larger-scale survival/loot match | Lobby/roster -> deployment/spawn -> loot and equipment -> safe-zone phase -> elimination/spectate -> victory/defeat and rewards |
+| **Battle Royale Ranked** | Ranked BR progression | Real competitive queue, country/region selection, rank-based matchmaking, validated BR lifecycle and rating adjustment |
+| **Zombies / Co-op Survival** | PvE wave/mission survival | Solo AI or genuine co-op queue, enemy director, waves/objectives, resource/ammo loop, revive/fail/victory, rewards |
+| **Special / Limited-time modes** | Rotating rules, abilities, weapon restrictions, events and distinct game feel | Each event has a data-driven ruleset, supported maps/loadouts, start/end state, scoring and rewards |
+
+The existing six labels (Deshi Stories, Open City, Last Stand, Combat Lab, Street Life, District Atlas) remain useful current prototypes/product categories, but they are not equivalents of the entire requested mode catalogue. A card must never imply that ranked MP, BR, Zombies, online play or local network multiplayer exists until its acceptance test passes.
+
+**Offline vs online is a mode/session option, not merely a label.**
+- Offline must work without a server and use local bots/AI. The sandbox uses local ambient simulation (vendors, residents, pedestrians/traffic) as described above.
+- Online must connect at least two genuine clients to a real session and synchronize state. Online Open World follows the user's human-players-together preference and suppresses ambient civilian/shopkeeper AI unless deliberately selected as a separate server-controlled activity.
+- Casual MP can select installed cities/maps; ranked selection is limited to country/region as requested. A player cannot queue for an uninstalled map.
+- Matchmaking, ping, roster counts, bots entering after a queue timeout and SBMM are genuine systems only after they have real connection/queue logic. Do not fabricate "12/12 players" or server ping.
+
+### 12.4 Match flow and presentation
+
+For a supported competitive match, the target sequence is:
+
+1. Play -> choose mode -> choose offline AI or online real players (where supported).
+2. Select region/country or available city/map according to mode and rank rules.
+3. Pre-match lobby with player roster, readiness and real countdown/matchmaking state. Ranked map vote can offer two eligible maps.
+4. Stream map/shaders/character/weapon assets while the pre-match lobby remains usable. Do not synchronously load all map packs at boot.
+5. Match introduction: roster/calling cards, team lineup and short authored 3D/cinematic spawn-in where supported. Cinematic video/animation is required only when an actual motion asset/sequence exists; static images are not a substitute for motion.
+6. Enter a mode-specific in-match HUD and rule state.
+7. End state: win/loss, MVP/scoreboard, killcam or Play-of-the-Game only when a real replay/highlight system exists, rewards/rank progression and return to lobby.
+
+### 12.5 Character, animation, vehicles and HUD acceptance
+
+- The final player character must be a high-quality rigged 3D in-game asset with believable proportions, clothing, equipment and material detail. It must work in both FPP and TPP; first-person hands/weapon must be properly rigged and not simply a hidden third-person model.
+- Required animation coverage includes idle, walk, run, sprint, start/stop, turn, jump, fall, land, crouch, crouch-walk, aim, fire, reload, hit, death/downed, emotes/interactions, enter/exit vehicles and weapon handling. Clip count alone (including the currently imported 86 clips) is not acceptance: every state must be correctly bound and transition smoothly in motion on a phone.
+- Character clothing/appearance should eventually support region/country-themed cosmetic sets, but no ethnicity/nationality inference or caricature; keep cosmetics optional and respectful.
+- Vehicles need recognisable, detailed authored 3D bodies and differentiated handling, steering/braking/acceleration, collision, wheel motion, indicators/headlights/damage, enter/exit, fuel/ownership where used, and proper third-person chase and first-person/cockpit views. A moving placeholder box is not a drivable vehicle.
+- The round mobile joystick, camera drag, jump/crouch/interact/aim/fire/reload and vehicle controls must be touch-tested. Keep FPP/TPP and vehicle camera switches coherent.
+- The minimap must use real world coordinates, player location/heading, destination and route, and **strictly clip every road/route segment to its visible frame**. A tap on the map toggles an enlarged district/region atlas and tapping again returns to the local close-up; zoom/range and labels must stay legible. The current branch already has a clipping helper and tap-to-expand behavior: preserve and device-test those changes rather than recreating them.
+
+### 12.6 Map packs, regions and world selection
+
+- Shariatpur is the initial/default district, not the final world limit. Dhaka Division is the next geographic target only after Shariatpur quality acceptance.
+- Build a searchable content catalogue: country -> administrative region/division -> district/city -> install status/version/size. Support Bangla and English aliases, transliteration/typo-tolerant search and nearby/named-place suggestions so spelling knowledge is not a barrier.
+- Download only the selected district/map pack. Use checksummed, versioned manifests and independent PCK/asset packages. Resume safely after interruption, check storage, report actual byte progress, verify and activate atomically; keep the game usable if an optional map pack is absent.
+- An optional user-import workflow may accept a documented, signed/verified archive or map-pack format from Downloads/Drive/file manager. The game should validate metadata/hash/version and copy/import into its managed content store. Never require the user to edit app folders or follow developer shell commands.
+- Keep map geometry, texture/photo references, navigation index, gameplay content and licensing/attribution manifests linked by exact map version. Never load all downloaded countries into RAM. Mount/load only the selected map and stream nearby chunks/LODs.
+- 60 Shariatpur tile records are coverage bookkeeping, not the totality of the real world nor proof of visual quality. Real imagery/photogrammetry providers must be lawfully licensed for in-game use; OSM/Overture building footprints alone are not photorealism.
+
+### 12.7 Visual production and the use of images/video
+
+- Do not create random lobby pictures or static AI character portraits as a replacement for the actual game scene. The player avatar, cars, CNG, bus, rickshaw, weapons and architecture are 3D game assets.
+- Use authored 3D animation, skeletal animation, particles, shaders, audio, camera movement and authored video only where those elements materially improve the experience. A still loading poster is allowed as a small part of a screen, not as the entire presentation system.
+- Prefer original or correctly licensed production assets; the current Quaternius CC0 Superhero rig is a **temporary technical rig/animation foundation**, not the requested final CODM-like player. Current Kenney/Poly Haven assets can be used as valid development/placeholder content but require actual in-game visual review before acceptance.
+- Higher-resolution assets are a quality goal, but resolution by itself does not equal detail. Preserve quality while using mipmaps/streaming, LODs, texture variants and memory budgets. Do not decode every 4K/8K asset into memory at launch; load high-detail assets only when their scene/map is active and measure VRAM/RAM, frame-time, loading time, thermal and battery behavior.
+- Never claim 120/144 FPS, native 4K/8K mobile rendering, CODM/GTA-level visuals or a solved OOM until actual device measurements prove it.
+
+### 12.8 Engine, online services and technical decision rule
+
+Continue the existing Godot 4.4.1 project unless a controlled benchmark demonstrates that an alternative engine materially improves the target experience while meeting Android export, build, memory, device compatibility, licensing and maintenance needs. A switch to Unreal or a custom engine does not create characters, animation, gameplay or maps automatically and would risk rewriting the playable foundation.
+
+Build the network path incrementally: two-client LAN/hotspot proof -> small authoritative online session -> reconnect/latency/disconnect handling -> casual MP -> ranked -> BR/co-op/online open-world scale. Real hosted infrastructure, cost, security, moderation, storage/CDN and anti-cheat requirements must be measured and documented; Drive links are not a substitute for a versioned in-game content service.
+
+### 12.9 Progress discipline and current evidence snapshot (2026-11-07)
+
+- Latest audited branch: `feature/medium-stage-integration`, PR #77. This branch is open and not merged into `main`.
+- Fixed an actual Android CI import failure in `tools/fetch_free_assets.py` and `tools/fetch_city_assets.py`: both now add the repository root to `sys.path` before importing `tools.kenney_pack_utils`. Commit: `d2555d8e421d443d72597fef1bf1f070afcf60cc`.
+- On that commit, Fast Map Pipeline Checks run `42388569752`, Godot Project Runtime Validation run `42388569747`, and Licensed Facade Photo Diagnostics run `42388569768` passed. The combined Android APK run `42388569759` was still executing its Godot import/startup step at the time this note was written; this is **not an APK pass**.
+- A manual map sequence from November 4 assembled the Shariatpur review package `Project-A-Square-Shariatpur-Review-Map-41870559555` (artifact ID `13348369333`). The quality report recorded 60/60 tile records; 371,017 building footprints (including 336,208 Overture); 3,056 OSM roads; 3 embedded licensed exterior-photo panels; 1 interior reference photo; 4,922,649 facade-window panels; 25 buildings with source floor-count data; and **0 independently verified floor counts**. The map status remained `REVIEW_REQUIRED`. These counts do not establish photo-realism, correct floor counts for every building or physical-device performance.
+- The previous 2 November APK was inspected: 197,808,670 bytes, valid ZIP structure, Godot 4.4.1, but 0 embedded GLB tile scenes; it required the separate external map pack. It is not the new medium-stage APK.
+- The newest completed earlier PR Android attempt on November 4 stopped at the optional asset fetch because of the missing Python import path. The new import-path fix is intended to address that CI blocker; the new combined Android run must still finish export, APK content checks, PCK checks, signature and artifact upload.
+- The November 4 headless map runtime smoke on the previous PR head loaded 2 tiles and indexed 583 named places / 2,722 roads. This was a Linux headless diagnostic, not physical Redmi QA.
+- Current playable features remain partial: six-card lobby, three offline combat prototypes (Combat Lab, Street Skirmish, Last Stand), basic vehicle driving/camera logic, and fictional building interiors. There is no verified online real-player matchmaking, ranked mode, complete battle royale, Zombies, production lobby hierarchy, final CODM-grade character/vehicle art or Shariatpur photorealistic facade coverage.
+- Physical Redmi install/boot/crash, actual visual quality, touch behavior, memory/FPS/temperature, all mode loops and map-navigation usability remain **unverified** until an exact candidate APK is installed and tested on that device.
+- Do not report one overall game-completion percentage. Report independently: playable game systems, mode completeness, map geometry/coverage, exterior identity/facade evidence, floor evidence, Android build/integrity and physical-device QA.
+- Before each new change inspect current `main`, PRs, commits, open workflows, APKs, map-package versions and previous branches; select one measurable player-visible task; preserve working code; add tests; integrate; run the canonical Android workflow; inspect logs/artifacts; record what actually passed and what remains unverified. Never produce another lobby picture or disconnected prototype instead of integrated functionality.
