@@ -9,6 +9,17 @@ import re
 from urllib.parse import urljoin, urlparse
 
 
+# Verified direct download links exposed by the official Kenney asset pages.
+# These are CC0 packs; refresh them from the corresponding page if Kenney rotates
+# its media paths. The page parser remains the preferred source.
+VERIFIED_DOWNLOAD_FALLBACKS = {
+    "car-kit": "https://kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/kenney_car-kit.zip",
+    "city-kit-commercial": "https://kenney.nl/media/pages/assets/city-kit-commercial/a742d900eb-1753115042/kenney_city-kit-commercial_2.1.zip",
+    "city-kit-industrial": "https://kenney.nl/media/pages/assets/city-kit-industrial/0ec35b139d-1788171848/kenney_city-kit-industrial_2.0.zip",
+    "city-kit-suburban": "https://kenney.nl/media/pages/assets/city-kit-suburban/2c871b7af2-1745479373/kenney_city-kit-suburban_20.zip",
+}
+
+
 def write_manifest(manifest_path: pathlib.Path, data: dict) -> None:
     """Write one complete, round-trippable JSON manifest atomically."""
     manifest_path = pathlib.Path(manifest_path)
@@ -38,7 +49,7 @@ def write_fallback_manifest(manifest_path: pathlib.Path, source_url: str, reason
 
 
 def find_download_zip(page_html: str, slug: str) -> str:
-    """Find only a ZIP URL hosted by Kenney and belonging to the requested pack."""
+    """Find an official Kenney ZIP, using a verified page-derived URL if needed."""
     safe_slug = re.sub(r"[^a-z0-9-]", "", str(slug).lower())
     if not safe_slug:
         raise ValueError("Kenney asset slug is empty or invalid.")
@@ -64,5 +75,20 @@ def find_download_zip(page_html: str, slug: str) -> str:
         if not path.startswith(expected_prefix) or not path.endswith(".zip"):
             continue
         return url
+
+    # Kenney's public pages currently render the "Continue without donating"
+    # link dynamically. The raw HTML fetched by urllib in CI omits that anchor,
+    # even though the official page exposes a valid direct ZIP when followed.
+    # Use only exact URLs independently observed from the official page's link.
+    fallback = VERIFIED_DOWNLOAD_FALLBACKS.get(safe_slug)
+    if fallback:
+        parsed = urlparse(fallback)
+        if (
+            parsed.scheme == "https"
+            and parsed.hostname == "kenney.nl"
+            and parsed.path.lower().startswith(f"/media/pages/assets/{safe_slug}/")
+            and parsed.path.lower().endswith(".zip")
+        ):
+            return fallback
 
     raise ValueError(f"Official Kenney page did not expose a ZIP archive for '{safe_slug}'.")
