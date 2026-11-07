@@ -3,7 +3,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.kenney_pack_utils import find_download_zip, write_fallback_manifest
+from tools.kenney_pack_utils import (
+    VERIFIED_DOWNLOAD_FALLBACKS,
+    find_download_zip,
+    write_fallback_manifest,
+)
 from tools.verify_medium_stage_assets import REQUIRED
 
 
@@ -29,7 +33,18 @@ class KenneyAssetPipelineTests(unittest.TestCase):
     def test_download_resolver_rejects_unrelated_or_external_archives(self):
         page = '<a href="https://example.com/car-kit.zip">external</a><a href="/media/pages/assets/city-kit-roads/abc/roads.zip">wrong</a>'
         with self.assertRaises(ValueError):
-            find_download_zip(page, "car-kit")
+            find_download_zip(page, "unlisted-pack")
+
+    def test_verified_dynamic_download_fallbacks_cover_all_required_cc0_packs(self):
+        expected = {
+            "car-kit", "city-kit-commercial", "city-kit-industrial", "city-kit-suburban"
+        }
+        self.assertEqual(set(VERIFIED_DOWNLOAD_FALLBACKS), expected)
+        for slug, url in VERIFIED_DOWNLOAD_FALLBACKS.items():
+            with self.subTest(slug=slug):
+                self.assertEqual(find_download_zip("<html>dynamic link omitted</html>", slug), url)
+                self.assertTrue(url.startswith(f"https://kenney.nl/media/pages/assets/{slug}/"))
+                self.assertTrue(url.endswith(".zip"))
 
     def test_medium_stage_gate_requires_all_four_authored_packs(self):
         self.assertEqual(set(REQUIRED), {
