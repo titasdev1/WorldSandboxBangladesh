@@ -9,9 +9,14 @@ from __future__ import annotations
 
 import json
 import pathlib
+import sys
 import tempfile
 import urllib.request
 import zipfile
+
+_PROJECT_ROOT = str(pathlib.Path(__file__).resolve().parents[1])
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
 
 from tools.kenney_pack_utils import find_download_zip, write_fallback_manifest, write_manifest
 
