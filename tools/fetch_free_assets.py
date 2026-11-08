@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""Fetch Kenney's official CC0 3D Car Kit for the Android build.
-
-The download link is resolved from the official asset page at build time; no
-stale revision-specific URL is hardcoded. A valid fallback manifest is written
-on failure, and the medium-stage asset gate prevents silent placeholder builds.
-"""
+"""Fetch Kenney's official CC0 3D Car Kit for the Android build."""
 from __future__ import annotations
 
 import json
 import pathlib
 import sys
 import tempfile
-import urllib.request
 import zipfile
 
 _PROJECT_ROOT = str(pathlib.Path(__file__).resolve().parents[1])
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from tools.kenney_pack_utils import find_download_zip, write_fallback_manifest, write_manifest
+from tools.kenney_pack_utils import (
+    download_zip,
+    fetch_bytes,
+    find_download_zip,
+    write_fallback_manifest,
+    write_manifest,
+)
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUT = ROOT / "external_content" / "kenney_car_kit"
@@ -27,20 +27,16 @@ PAGE_URL = "https://kenney.nl/assets/car-kit"
 ALLOWED = {".gltf", ".glb", ".bin", ".png", ".jpg", ".jpeg", ".webp", ".txt", ".md", ".license"}
 
 
-def get(url: str) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": "WorldSandboxBangladesh-AssetBuilder/1.0"})
-    with urllib.request.urlopen(request, timeout=40) as response:
-        return response.read()
-
-
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     try:
-        page = get(PAGE_URL).decode("utf-8", "replace")
+        page_bytes, page_response = fetch_bytes(
+            PAGE_URL,
+            accept="text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        )
+        page = page_bytes.decode("utf-8", "replace")
         zip_url = find_download_zip(page, "car-kit")
-        payload = get(zip_url)
-        if not payload.startswith(b"PK"):
-            raise ValueError("official download did not return a ZIP archive")
+        payload, response = download_zip(zip_url, referer=PAGE_URL)
 
         extracted = []
         with tempfile.NamedTemporaryFile(suffix=".zip") as tmp:
@@ -66,7 +62,7 @@ def main() -> int:
             relative = path.relative_to(ROOT).as_posix()
             models.append({"name": path.stem, "path": "res://" + relative, "format": path.suffix.lower()[1:]})
         if not models:
-            raise ValueError("official archive contained no GLTF/GLB models")
+            raise ValueError("official ZIP contained no GLTF/GLB models after safe extraction")
 
         data = {
             "available": True,
@@ -78,13 +74,18 @@ def main() -> int:
             "model_count": len(models),
             "models": models,
             "note": "CNG and rickshaw remain project-authored vehicle models.",
+            "download_response": response,
+            "asset_page_response": page_response,
         }
         write_manifest(MANIFEST, data)
-        print(f"CC0 vehicle assets prepared: {len(models)} GLTF/GLB models")
+        print(
+            f"CC0 vehicle assets prepared: {len(models)} GLTF/GLB models; "
+            f"ZIP bytes={response['bytes']}; content-type={response['content_type']!r}"
+        )
         return 0
     except Exception as exc:
         data = write_fallback_manifest(MANIFEST, PAGE_URL, str(exc))
-        print(f"WARNING: vehicle art unavailable; recorded valid fallback manifest: {data['reason']}")
+        print(f"WARNING: vehicle art unavailable; recorded diagnostic fallback manifest: {data['reason']}")
         return 0
 
 
