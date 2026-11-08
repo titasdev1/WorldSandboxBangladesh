@@ -14,16 +14,8 @@ import zipfile
 from urllib.parse import urljoin, urlparse
 
 
-# These paths were obtained from the actual "Continue without donating" links
-# on the matching official Kenney asset pages. The page parser is preferred;
-# the exact official paths remain fallbacks if the page omits its link in raw HTML.
-VERIFIED_DOWNLOAD_FALLBACKS = {
-    "car-kit": "https://kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/kenney_car-kit.zip",
-    "city-kit-commercial": "https://kenney.nl/media/pages/assets/city-kit-commercial/a742d900eb-1753115042/kenney_city-kit-commercial_2.1.zip",
-    "city-kit-industrial": "https://kenney.nl/media/pages/assets/city-kit-industrial/0ec35b139d-1788171848/kenney_city-kit-industrial_2.0.zip",
-    "city-kit-suburban": "https://kenney.nl/media/pages/assets/city-kit-suburban/2c871b7af2-1745479373/kenney_city-kit-suburban_20.zip",
-}
-
+# No hard-coded download URLs: only links extracted from the matching official
+# asset page are eligible. This prevents stale/guessed paths from entering builds.
 BROWSER_USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -151,16 +143,5 @@ def find_download_zip(page_html: str, slug: str) -> str:
             continue
         if path.startswith(expected_prefix) and path.endswith(".zip"):
             return url
-
-    fallback = VERIFIED_DOWNLOAD_FALLBACKS.get(safe_slug)
-    if fallback:
-        parsed = urlparse(fallback)
-        if (
-            parsed.scheme == "https"
-            and parsed.hostname == "kenney.nl"
-            and parsed.path.lower().startswith(f"/media/pages/assets/{safe_slug}/")
-            and parsed.path.lower().endswith(".zip")
-        ):
-            return fallback
 
     raise ValueError(f"Official Kenney page did not expose a ZIP archive for '{safe_slug}'.")
