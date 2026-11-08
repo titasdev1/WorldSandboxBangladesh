@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
-"""Fetch official Kenney CC0 city-building packs for the Android build.
-
-The downloader writes a machine-readable fallback manifest on failure. The
-medium-stage asset gate turns a missing/invalid pack into a failed candidate
-rather than silently accepting procedural stand-ins.
-"""
+"""Fetch official Kenney CC0 city-building packs for the Android build."""
 from __future__ import annotations
 
-import json
 import pathlib
 import sys
 import tempfile
-import urllib.request
 import zipfile
 
 _PROJECT_ROOT = str(pathlib.Path(__file__).resolve().parents[1])
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from tools.kenney_pack_utils import find_download_zip, write_fallback_manifest, write_manifest
+from tools.kenney_pack_utils import (
+    download_zip,
+    fetch_bytes,
+    find_download_zip,
+    write_fallback_manifest,
+    write_manifest,
+)
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PACKS = [
@@ -27,12 +26,6 @@ PACKS = [
     ("city-kit-industrial", "https://kenney.nl/assets/city-kit-industrial", "https://kenney.nl/assets/city-kit-industrial"),
 ]
 ALLOWED = {".gltf", ".glb", ".bin", ".png", ".jpg", ".jpeg", ".webp", ".txt", ".md", ".license"}
-
-
-def get(url: str) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": "WorldSandboxBangladesh-CC0-AssetBuilder/1.0"})
-    with urllib.request.urlopen(req, timeout=35) as response:
-        return response.read()
 
 
 def find_zip(page: str, slug: str) -> str:
@@ -44,11 +37,13 @@ def process_pack(slug: str, page_url: str, source_url: str) -> dict:
     out = ROOT / "external_content" / ("kenney_" + slug.replace("-", "_"))
     out.mkdir(parents=True, exist_ok=True)
     try:
-        page = get(page_url).decode("utf-8", "replace")
+        page_bytes, page_response = fetch_bytes(
+            page_url,
+            accept="text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        )
+        page = page_bytes.decode("utf-8", "replace")
         zip_url = find_download_zip(page, slug)
-        payload = get(zip_url)
-        if not payload.startswith(b"PK"):
-            raise ValueError("official download did not return a ZIP archive")
+        payload, response = download_zip(zip_url, referer=page_url)
 
         extracted = []
         with tempfile.NamedTemporaryFile(suffix=".zip") as tmp:
@@ -77,7 +72,7 @@ def process_pack(slug: str, page_url: str, source_url: str) -> dict:
                 "format": path.suffix.lower()[1:],
             })
         if not models:
-            raise ValueError("downloaded pack had no GLTF/GLB models")
+            raise ValueError("downloaded pack had no GLTF/GLB models after safe extraction")
 
         data = {
             "available": True,
@@ -88,13 +83,18 @@ def process_pack(slug: str, page_url: str, source_url: str) -> dict:
             "attribution_required": False,
             "model_count": len(models),
             "models": models,
+            "download_response": response,
+            "asset_page_response": page_response,
         }
         write_manifest(out / "asset_manifest.json", data)
-        print(f"{slug}: prepared {len(models)} authored CC0 models")
+        print(
+            f"{slug}: prepared {len(models)} authored CC0 models; "
+            f"ZIP bytes={response['bytes']}; content-type={response['content_type']!r}"
+        )
         return data
     except Exception as exc:
         data = write_fallback_manifest(out / "asset_manifest.json", source_url, str(exc))
-        print(f"WARNING: {slug} unavailable; recorded valid fallback manifest: {data['reason']}")
+        print(f"WARNING: {slug} unavailable; recorded diagnostic fallback manifest: {data['reason']}")
         return data
 
 
@@ -108,7 +108,7 @@ def main() -> int:
             failed.append(slug)
     print(f"CC0 city model count: {total}")
     if failed:
-        print("Optional city packs unavailable (the medium-stage gate will reject this build): " + ", ".join(failed))
+        print("City packs unavailable (the medium-stage gate will reject this build): " + ", ".join(failed))
     return 0
 
 
