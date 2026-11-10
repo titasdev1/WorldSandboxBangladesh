@@ -152,7 +152,7 @@ func _build_screen() -> void:
 	column.add_child(enter_button)
 
 	var footer := Label.new()
-	footer.text = "Offline prototype • no online matchmaking yet • map download is verified before activation"
+	footer.text = "SHARIATPUR WORLD DATA  •  CHECKSUM-VERIFIED INSTALLATION  •  LOCAL SAVE"
 	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	footer.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	footer.add_theme_color_override("font_color", Color("#819aac"))
@@ -219,7 +219,15 @@ func _refresh_pack_state() -> void:
 		enter_button.text = "ENTER WORLD  →"
 	else:
 		status_label.text = "SHARIATPUR MAP NOT INSTALLED"
-		detail_label.text = "Download the full-resolution district pack once. You do not need a file manager, extraction app or manual copy."
+		var retained_path := ProjectSettings.globalize_path(MERGED_PART_PATH)
+		var retained_size := FileAccess.get_file_as_bytes(MERGED_PART_PATH).size() if FileAccess.file_exists(MERGED_PART_PATH) else 0
+		if retained_size > 0:
+			status_label.text = "SHARIATPUR DOWNLOAD SAVED"
+			detail_label.text = "%.1f MB of verified map sections are saved on this device. Resume without downloading those sections again." % (float(retained_size) / 1048576.0)
+			download_button.text = "RESUME MAP DOWNLOAD"
+		else:
+			detail_label.text = "Download the full-resolution district pack once. Its checked sections are kept on this device if the connection is interrupted."
+			download_button.text = "DOWNLOAD SHARIATPUR MAP"
 		progress_bar.value = 0
 		enter_button.text = "ENTER WORLD  →"
 
@@ -234,8 +242,9 @@ func _begin_metadata_request() -> void:
 	if make_error != OK and not DirAccess.dir_exists_absolute(absolute_directory):
 		_fail_download("Cannot create the private map-pack folder. Check free storage and retry.")
 		return
+	# A failed or interrupted map download must not erase already verified parts.
+	# Only the unfinished HTTP response file is discarded before retrying.
 	_remove_private_file(PART_PATH)
-	_remove_private_file(MERGED_PART_PATH)
 	pack_parts.clear()
 	current_part_index = 0
 	completed_bytes = 0
@@ -243,9 +252,9 @@ func _begin_metadata_request() -> void:
 	download_active = true
 	download_button.disabled = true
 	enter_button.disabled = true
-	progress_bar.value = 2
-	status_label.text = "CHECKING SHARIATPUR PACK • CONNECTING..."
-	detail_label.text = "Getting the current file size and checksum before downloading."
+	progress_bar.value = 1
+	status_label.text = "VERIFYING SAVED MAP DATA..."
+	detail_label.text = "Checking the release manifest and any previously completed map sections."
 	http.download_file = ""
 	var error := http.request(REMOTE_METADATA_URL)
 	if error != OK:
@@ -298,8 +307,21 @@ func _on_http_request_completed(result: int, response_code: int, _headers: Packe
 		if summed_size != expected_size or int(downloaded_metadata.get("part_count", 0)) != pack_parts.size():
 			_fail_download("The map-pack part sizes do not add up to the declared complete file.")
 			return
-		current_part_index = 0
-		completed_bytes = 0
+		current_part_index = await _find_verified_resume_index()
+		if current_part_index >= pack_parts.size():
+			request_phase = "verify"
+			status_label.text = "VERIFYING COMPLETE MAP • SHA-256"
+			detail_label.text = "All previously downloaded sections are verified. Checking the complete district file."
+			progress_bar.value = 95
+			if await _verify_and_install_pack():
+				_mark_map_pack_installed()
+			else:
+				_fail_download("The saved map sections could not be assembled into a valid complete file. Verified chunks are retained where possible.")
+			return
+		if completed_bytes > 0:
+			status_label.text = "RESUMING SHARIATPUR • PART %d/%d" % [current_part_index + 1, pack_parts.size()]
+			detail_label.text = "%.1f MB of previously verified map data will be kept." % (float(completed_bytes) / 1048576.0)
+		progress_bar.value = 5.0 + 83.0 * float(completed_bytes) / float(maxi(1, expected_size))
 		_begin_next_pack_part()
 		return
 
@@ -320,20 +342,12 @@ func _on_http_request_completed(result: int, response_code: int, _headers: Packe
 			return
 		request_phase = "verify"
 		status_label.text = "VERIFYING COMPLETE MAP • SHA-256"
-		detail_label.text = "All parts are assembled. Checking the exact full-resolution PCK before activation."
+		detail_label.text = "All downloaded sections are assembled. Checking the byte-identical district PCK."
 		progress_bar.value = 95
-		var verified := await _verify_and_install_pack()
-		if not verified:
-			_fail_download("The assembled map pack failed its complete-file checksum. The incomplete file was discarded.")
+		if not await _verify_and_install_pack():
+			_fail_download("The assembled map pack failed its complete-file checksum. The previously verified sections remain available for a retry.")
 			return
-		download_active = false
-		request_phase = ""
-		download_button.visible = false
-		enter_button.disabled = false
-		status_label.text = "MAP DOWNLOADED AND VERIFIED"
-		detail_label.text = "All map parts were reassembled into one PCK in private app storage. Tap ENTER WORLD to mount Shariatpur."
-		progress_bar.value = 100
-		enter_button.text = "ENTER WORLD  →"
+		_mark_map_pack_installed()
 
 
 func _is_sha256_hex(value: String) -> bool:
@@ -348,6 +362,69 @@ func _is_sha256_hex(value: String) -> bool:
 func _remove_private_file(path: String) -> void:
 	if FileAccess.file_exists(path):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+
+func _find_verified_resume_index() -> int:
+	completed_bytes = 0
+	if not FileAccess.file_exists(MERGED_PART_PATH):
+		return 0
+	var file := FileAccess.open(MERGED_PART_PATH, FileAccess.READ_WRITE)
+	if file == null:
+		_remove_private_file(MERGED_PART_PATH)
+		return 0
+	var total_length := file.get_length()
+	var verified_length := 0
+	var verified_parts := 0
+	for index in range(pack_parts.size()):
+		var part: Dictionary = pack_parts[index]
+		var part_size := int(part.get("size_bytes", 0))
+		if part_size <= 0 or verified_length + part_size > total_length:
+			break
+		var context := HashingContext.new()
+		if context.start(HashingContext.HASH_SHA256) != OK:
+			break
+		file.seek(verified_length)
+		var remaining := part_size
+		var part_valid := true
+		while remaining > 0:
+			var chunk := file.get_buffer(mini(1024 * 1024, remaining))
+			if chunk.is_empty():
+				part_valid = false
+				break
+			context.update(chunk)
+			remaining -= chunk.size()
+			progress_bar.value = minf(88.0, 5.0 + 83.0 * float(verified_length + part_size - remaining) / float(maxi(1, expected_size)))
+			await get_tree().process_frame
+		if not part_valid or context.finish().hex_encode().to_lower() != str(part.get("sha256", "")).to_lower():
+			break
+		verified_length += part_size
+		completed_bytes = verified_length
+		verified_parts = index + 1
+	# Keep only the complete prefix whose individual SHA-256 hashes passed.
+	# This safely removes a torn append if Android closed during the last write.
+	if total_length != verified_length:
+		var resize_error := file.resize(verified_length)
+		if resize_error != OK:
+			file.close()
+			_remove_private_file(MERGED_PART_PATH)
+			completed_bytes = 0
+			return 0
+	file.close()
+	return verified_parts
+
+
+func _mark_map_pack_installed() -> void:
+	download_active = false
+	request_phase = ""
+	if is_instance_valid(http):
+		http.download_file = ""
+	_remove_private_file(PART_PATH)
+	download_button.visible = false
+	enter_button.disabled = false
+	status_label.text = "SHARIATPUR MAP READY"
+	detail_label.text = "All district sections passed SHA-256 verification and were assembled into the full-resolution map."
+	progress_bar.value = 100
+	enter_button.text = "ENTER WORLD  →"
 
 
 func _begin_next_pack_part() -> void:
@@ -459,15 +536,17 @@ func _fail_download(message: String) -> void:
 	request_phase = ""
 	if is_instance_valid(http):
 		http.download_file = ""
+	# Discard only the incomplete current part. Previously verified parts remain
+	# in the assembling file and are rechecked against the fresh release manifest.
 	_remove_private_file(PART_PATH)
-	_remove_private_file(MERGED_PART_PATH)
-	status_label.text = "MAP DOWNLOAD FAILED"
-	detail_label.text = message
-	progress_bar.value = 0
+	status_label.text = "MAP DOWNLOAD PAUSED"
+	var retained := float(completed_bytes) / 1048576.0
+	detail_label.text = message + ("  %.1f MB of verified data is saved; resume will continue from the next missing section." % retained if completed_bytes > 0 else "  Retry will preserve any previously verified sections.")
+	progress_bar.value = 5.0 + 83.0 * float(completed_bytes) / float(maxi(1, expected_size)) if expected_size > 0 else 0.0
 	download_button.disabled = false
 	download_button.visible = true
 	enter_button.disabled = not _is_local_pack_ready()
-	download_button.text = "RETRY MAP DOWNLOAD"
+	download_button.text = "RESUME MAP DOWNLOAD"
 
 
 
