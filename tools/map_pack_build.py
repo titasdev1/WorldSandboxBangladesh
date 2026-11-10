@@ -14,6 +14,7 @@ PRESET_PATH = ROOT / "export_presets.cfg"
 MAP_ROOT = ROOT / "assets" / "world" / "dhaka_tiles"
 RAW_SUFFIXES = {".json", ".geojson", ".txt", ".photo_bytes"}
 MAP_PACK_BASE = "Project-A-Square"
+DEFAULT_MAX_PART_BYTES = 256 * 1024 * 1024  # 256 MiB: restart-friendly mobile download pieces.
 
 
 def _manifest() -> dict[str, Any]:
@@ -163,7 +164,7 @@ def write_metadata(
     pack_path: Path,
     output_path: Path,
     release_tag: str,
-    max_part_bytes: int = 1_800_000_000,
+    max_part_bytes: int = DEFAULT_MAX_PART_BYTES,
 ) -> None:
     """Split a complete PCK into GitHub-release-safe pieces and describe them.
 
@@ -257,7 +258,7 @@ def main() -> int:
     parser.add_argument("--pack", type=Path)
     parser.add_argument("--out", type=Path)
     parser.add_argument("--release-tag", default="shariatpur-review-candidate")
-    parser.add_argument("--max-part-bytes", type=int, default=1_800_000_000)
+    parser.add_argument("--max-part-bytes", type=int, default=DEFAULT_MAX_PART_BYTES)
     args = parser.parse_args()
     if args.configure_pack_preset:
         configure_pack_preset()
