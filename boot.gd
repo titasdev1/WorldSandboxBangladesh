@@ -219,8 +219,12 @@ func _refresh_pack_state() -> void:
 		enter_button.text = "ENTER WORLD  →"
 	else:
 		status_label.text = "SHARIATPUR MAP NOT INSTALLED"
-		var retained_path := ProjectSettings.globalize_path(MERGED_PART_PATH)
-		var retained_size := FileAccess.get_file_as_bytes(MERGED_PART_PATH).size() if FileAccess.file_exists(MERGED_PART_PATH) else 0
+		var retained_size := 0
+		if FileAccess.file_exists(MERGED_PART_PATH):
+			var retained_file := FileAccess.open(MERGED_PART_PATH, FileAccess.READ)
+			if retained_file != null:
+				retained_size = retained_file.get_length()
+				retained_file.close()
 		if retained_size > 0:
 			status_label.text = "SHARIATPUR DOWNLOAD SAVED"
 			detail_label.text = "%.1f MB of verified map sections are saved on this device. Resume without downloading those sections again." % (float(retained_size) / 1048576.0)
@@ -444,6 +448,18 @@ func _begin_next_pack_part() -> void:
 		_fail_download("Could not start map-pack part %d (error %d)." % [current_part_index + 1, error])
 
 
+func _truncate_merged_pack(length_to_keep: int) -> void:
+	if length_to_keep <= 0:
+		_remove_private_file(MERGED_PART_PATH)
+		return
+	if not FileAccess.file_exists(MERGED_PART_PATH):
+		return
+	var file := FileAccess.open(MERGED_PART_PATH, FileAccess.READ_WRITE)
+	if file != null:
+		file.resize(length_to_keep)
+		file.close()
+
+
 func _verify_and_append_part() -> bool:
 	if not FileAccess.file_exists(PART_PATH):
 		return false
@@ -454,6 +470,14 @@ func _verify_and_append_part() -> bool:
 	if source_length != expected_part_size:
 		source.close()
 		return false
+	var previous_length := 0
+	if current_part_index > 0 and FileAccess.file_exists(MERGED_PART_PATH):
+		var previous := FileAccess.open(MERGED_PART_PATH, FileAccess.READ)
+		if previous == null:
+			source.close()
+			return false
+		previous_length = previous.get_length()
+		previous.close()
 	var output_mode := FileAccess.WRITE if current_part_index == 0 else FileAccess.READ_WRITE
 	var output := FileAccess.open(MERGED_PART_PATH, output_mode)
 	if output == null:
@@ -465,17 +489,20 @@ func _verify_and_append_part() -> bool:
 	if context.start(HashingContext.HASH_SHA256) != OK:
 		source.close()
 		output.close()
+		_truncate_merged_pack(previous_length)
 		return false
 	while source.get_position() < source_length:
 		var chunk := source.get_buffer(mini(1024 * 1024, source_length - source.get_position()))
 		if chunk.is_empty():
 			source.close()
 			output.close()
+			_truncate_merged_pack(previous_length)
 			return false
 		context.update(chunk)
 		if not output.store_buffer(chunk):
 			source.close()
 			output.close()
+			_truncate_merged_pack(previous_length)
 			return false
 		if source.get_position() % (8 * 1024 * 1024) < 1024 * 1024:
 			await get_tree().process_frame
@@ -485,7 +512,7 @@ func _verify_and_append_part() -> bool:
 	var actual_sha := context.finish().hex_encode().to_lower()
 	_remove_private_file(PART_PATH)
 	if actual_sha != expected_part_sha256:
-		_remove_private_file(MERGED_PART_PATH)
+		_truncate_merged_pack(previous_length)
 		return false
 	return true
 
