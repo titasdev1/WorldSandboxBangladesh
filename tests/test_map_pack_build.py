@@ -116,6 +116,9 @@ class MapPackBuildTests(unittest.TestCase):
             reconstructed.extend(part_bytes)
         self.assertEqual(bytes(reconstructed), payload)
 
+    def test_default_release_parts_are_bounded_for_mobile_retry(self):
+        self.assertEqual(map_pack_build.DEFAULT_MAX_PART_BYTES, 256 * 1024 * 1024)
+
     def test_metadata_rejects_a_part_limit_that_github_cannot_accept(self):
         pack = self.root / "Project-A-Square-Shariatpur-Map.pck"
         pack.write_bytes(b"fixture")
