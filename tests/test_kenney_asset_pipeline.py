@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tools.kenney_pack_utils import (
+    VERIFIED_DOWNLOAD_FALLBACKS,
     download_zip,
     find_download_zip,
     write_fallback_manifest,
@@ -82,14 +83,23 @@ class KenneyAssetPipelineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             find_download_zip(page, "unlisted-pack")
 
-    def test_resolver_fails_closed_when_official_page_has_no_pack_link(self):
-        for slug in ("car-kit", "city-kit-commercial", "city-kit-industrial", "city-kit-suburban"):
+    def test_official_fallbacks_cover_all_required_cc0_packs(self):
+        expected = {
+            "car-kit", "city-kit-commercial", "city-kit-industrial", "city-kit-suburban"
+        }
+        self.assertEqual(set(VERIFIED_DOWNLOAD_FALLBACKS), expected)
+        for slug, url in VERIFIED_DOWNLOAD_FALLBACKS.items():
             with self.subTest(slug=slug):
-                with self.assertRaises(ValueError):
-                    find_download_zip("<html>download link omitted</html>", slug)
+                self.assertEqual(find_download_zip("<html>Download button only</html>", slug), url)
+                self.assertTrue(url.startswith(f"https://kenney.nl/media/pages/assets/{slug}/"))
+                self.assertTrue(url.endswith(".zip"))
+
+    def test_resolver_fails_closed_for_unlisted_pack(self):
+        with self.assertRaises(ValueError):
+            find_download_zip("<html>download link omitted</html>", "unlisted-pack")
 
     def test_download_uses_browser_headers_and_checks_actual_zip_bytes(self):
-        url = "https://kenney.nl/media/pages/assets/car-kit/abc123/kenney_car-kit.zip"
+        url = VERIFIED_DOWNLOAD_FALLBACKS["car-kit"]
         referer = "https://kenney.nl/assets/car-kit"
         response = FakeResponse(sample_zip(), url)
         with patch("urllib.request.urlopen", return_value=response) as mocked:
