@@ -247,6 +247,12 @@ func interact():
   return
 
 func take_damage(amount: int):
- health = max(0, health - amount)
+ if health <= 0:
+  return
+ health = maxi(0, health - amount)
  if health <= 0 and world:
+  var combat = world.get("combat_controller")
+  if is_instance_valid(combat) and bool(combat.get("active")) and not bool(combat.get("run_over")):
+   combat.call("on_player_defeated")
+   return
   world.respawn_player()

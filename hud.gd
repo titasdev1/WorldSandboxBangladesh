@@ -41,6 +41,11 @@ var shop_item_option: OptionButton
 var shop_money_label: Label
 var shop_inventory_label: Label
 var shop_status_label: Label
+var lobby_content: VBoxContainer
+var lobby_cash_label: Label
+var lobby_profile_label: Label
+var lobby_section := "home"
+var _shown_result_token := ""
 
 func _ready():
  process_mode = Node.PROCESS_MODE_ALWAYS
@@ -185,10 +190,19 @@ func _relayout_mobile_controls() -> void:
   shop_panel.position = Vector2((view_width - 560.0) * 0.5, (view_height - 470.0) * 0.5)
  if is_instance_valid(driving_status):
   driving_status.position = Vector2(view_width - 390.0, view_height - 220.0)
- var lobby_panel := get_node_or_null("ModeLobby/LobbyPanel") as Control
- if is_instance_valid(lobby_panel):
-  lobby_panel.position = Vector2(55.0, 42.0)
-  lobby_panel.size = Vector2(view_width - 110.0, view_height - 84.0)
+ var lobby_content_panel := get_node_or_null("ModeLobby/LobbyContentPanel") as Control
+ if is_instance_valid(lobby_content_panel):
+  lobby_content_panel.position = Vector2(view_width - 555.0, 100.0)
+  lobby_content_panel.size = Vector2(535.0, view_height - 194.0)
+ var lobby_nav_panel := get_node_or_null("ModeLobby/LobbyNavigation") as Control
+ if is_instance_valid(lobby_nav_panel):
+  lobby_nav_panel.size.y = view_height - 194.0
+ var lobby_header := get_node_or_null("ModeLobby/LobbyTopBar") as Control
+ if is_instance_valid(lobby_header):
+  lobby_header.size.x = view_width - 40.0
+ if is_instance_valid(save_feedback_label):
+  save_feedback_label.position = Vector2(205.0, view_height - 77.0)
+  save_feedback_label.size.x = view_width - 225.0
 
 
 func _build_navigation_map() -> void:
@@ -665,6 +679,8 @@ func _build_driving_status() -> void:
 func _process(_delta):
  if not w:
   return
+ _update_lobby_header()
+ _check_combat_result()
  if is_instance_valid(lobby_loading_label):
   if bool(w.get("real_dhaka_loaded")):
    var startup_loader: Variant = w.get("real_dhaka_loader")
@@ -714,7 +730,7 @@ func _process(_delta):
  if replay_round_button:
   var combat = w.get("combat_controller")
   var current_combat_mode := String(combat.get("active_mode")) if is_instance_valid(combat) else ""
-  replay_round_button.visible = is_instance_valid(combat) and bool(combat.get("run_over")) and current_combat_mode in ["survival", "arena_training", "street_skirmish"]
+  replay_round_button.visible = is_instance_valid(combat) and bool(combat.get("run_over")) and not bool(lobby_overlay.visible) and current_combat_mode in ["survival", "arena_training", "street_skirmish"]
  _update_interaction_prompt()
  var health_value: int = w.player.health if w.player else 100
  stats.text = "৳ %d    Health: %d    Wanted: %d/5    Weather: %s" % [w.cash, health_value, w.wanted, "RAIN" if w.rain else "CLEAR"]
@@ -800,172 +816,408 @@ func _current_route_instruction() -> String:
 func _build_lobby_ui() -> void:
  lobby_overlay = ColorRect.new()
  lobby_overlay.name = "ModeLobby"
- lobby_overlay.color = Color(0.015, 0.035, 0.065, 0.94)
+ lobby_overlay.color = Color(0.006, 0.014, 0.024, 0.30)
  lobby_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
  lobby_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
  lobby_overlay.z_index = 100
  lobby_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
  add_child(lobby_overlay)
-
- var panel := PanelContainer.new()
- panel.name = "LobbyPanel"
- panel.position = Vector2(55, 42)
- panel.size = Vector2(1170, 625)
- panel.add_theme_stylebox_override("panel", _lobby_style(Color(0.035, 0.075, 0.12, 0.98), Color(0.12, 0.68, 0.82, 0.9), 2, 22))
- lobby_overlay.add_child(panel)
-
- var column := VBoxContainer.new()
- column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
- column.size_flags_vertical = Control.SIZE_EXPAND_FILL
- column.add_theme_constant_override("separation", 14)
- panel.add_child(column)
-
- var eyebrow := Label.new()
- eyebrow.text = "PROJECT A-SQUARE  /  BANGLADESH OPEN-WORLD"
- eyebrow.add_theme_color_override("font_color", Color("#50d7e9"))
- eyebrow.add_theme_font_size_override("font_size", 15)
- column.add_child(eyebrow)
-
- var heading := Label.new()
- heading.text = "CHOOSE YOUR WORLD"
- heading.add_theme_color_override("font_color", Color("#f4f9ff"))
- heading.add_theme_font_size_override("font_size", 34)
- column.add_child(heading)
-
- var subheading := Label.new()
- subheading.text = "One city. Six ways to play. Touch controls and graphics settings are available in-game."
- subheading.add_theme_color_override("font_color", Color("#b6c8d9"))
- subheading.add_theme_font_size_override("font_size", 16)
- column.add_child(subheading)
-
+ var viewport_size := get_viewport_rect().size
+ var header := PanelContainer.new()
+ header.name = "LobbyTopBar"
+ header.position = Vector2(20.0, 16.0)
+ header.size = Vector2(viewport_size.x - 40.0, 70.0)
+ header.add_theme_stylebox_override("panel", _lobby_style(Color(0.008, 0.026, 0.043, 0.92), Color(0.18, 0.62, 0.72, 0.88), 1, 10))
+ lobby_overlay.add_child(header)
+ var header_row := HBoxContainer.new()
+ header_row.add_theme_constant_override("separation", 18)
+ header_row.alignment = BoxContainer.ALIGNMENT_CENTER
+ header.add_child(header_row)
+ var identity := VBoxContainer.new()
+ identity.custom_minimum_size = Vector2(260.0, 0.0)
+ identity.add_theme_constant_override("separation", 1)
+ header_row.add_child(identity)
+ var identity_name := Label.new()
+ identity_name.text = "PROJECT A-SQUARE  /  FIELD COMMAND"
+ identity_name.add_theme_font_size_override("font_size", 11)
+ identity_name.add_theme_color_override("font_color", Color("#66dce9"))
+ identity.add_child(identity_name)
+ lobby_profile_label = Label.new()
+ lobby_profile_label.name = "CareerIdentity"
+ lobby_profile_label.text = "LOCAL OPERATOR  •  LEVEL 01  •  ROOKIE"
+ lobby_profile_label.add_theme_font_size_override("font_size", 17)
+ lobby_profile_label.add_theme_color_override("font_color", Color("#f2f7fb"))
+ identity.add_child(lobby_profile_label)
+ var spacer := Control.new()
+ spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ header_row.add_child(spacer)
+ var map_box := VBoxContainer.new()
+ map_box.custom_minimum_size = Vector2(240.0, 0.0)
+ map_box.add_theme_constant_override("separation", 2)
+ header_row.add_child(map_box)
  lobby_loading_label = Label.new()
  lobby_loading_label.name = "StartupMapStatus"
- lobby_loading_label.text = "INITIALIZING LOCAL WORLD..."
- lobby_loading_label.add_theme_color_override("font_color", Color("#50d7e9"))
- lobby_loading_label.add_theme_font_size_override("font_size", 13)
- column.add_child(lobby_loading_label)
+ lobby_loading_label.text = "SHARIATPUR WORLD DATA"
+ lobby_loading_label.add_theme_font_size_override("font_size", 11)
+ lobby_loading_label.add_theme_color_override("font_color", Color("#b8d0dc"))
+ map_box.add_child(lobby_loading_label)
  lobby_loading_progress = ProgressBar.new()
  lobby_loading_progress.name = "StartupMapProgress"
- lobby_loading_progress.custom_minimum_size = Vector2(0, 12)
- lobby_loading_progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
- lobby_loading_progress.min_value = 0
+ lobby_loading_progress.custom_minimum_size = Vector2(220.0, 9.0)
  lobby_loading_progress.max_value = 100
- lobby_loading_progress.value = 0
- lobby_loading_progress.show_percentage = true
- column.add_child(lobby_loading_progress)
-
- var cards := GridContainer.new()
- cards.columns = 3
- cards.size_flags_vertical = Control.SIZE_EXPAND_FILL
- cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL
- cards.add_theme_constant_override("h_separation", 14)
- cards.add_theme_constant_override("v_separation", 12)
- column.add_child(cards)
-
- var modes := [
-  {"id":"deshi_story", "title":"DESHI STORIES", "subtitle":"01  /  STORY MISSIONS", "desc":"Follow local deliveries, bargain transport fares, earn cash and finish the connected three-stage story."},
-  {"id":"free_roam", "title":"OPEN CITY", "subtitle":"02  /  FREE ROAM", "desc":"Explore the living starter city with pedestrians, traffic, rickshaws, CNGs, shops and side activities."},
-  {"id":"survival", "title":"LAST STAND", "subtitle":"03  /  SOLO COMBAT", "desc":"Enter the current combat sandbox. A full shrinking-zone battle royale and downloadable arenas are not implemented yet."},
-  {"id":"arena_training", "title":"COMBAT LAB", "subtitle":"04  /  OFFLINE PRACTICE", "desc":"Practice movement, camera control and shooting against the current sandbox systems; no online matchmaking yet."},
-  {"id":"street_life", "title":"STREET LIFE", "subtitle":"05  /  CITY ACTIVITIES", "desc":"Focus on city exploration, market stalls, local economy, transport interactions and dynamic street events."},
-  {"id":"street_skirmish", "title":"STREET SKIRMISH", "subtitle":"06  /  OFFLINE COMBAT", "desc":"Fight a ten-enemy round in the city, track eliminations, and earn a cash reward. Solo offline prototype; no online matchmaking."}
- ]
- mode_buttons.clear()
- for mode in modes:
-  var card := Button.new()
-  card.text = ""
-  card.custom_minimum_size = Vector2(205, 170)
-  card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-  card.size_flags_vertical = Control.SIZE_EXPAND_FILL
-  var card_content := VBoxContainer.new()
-  card_content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-  card_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
-  card_content.add_theme_constant_override("separation", 6)
-  card.add_child(card_content)
-  var card_title := Label.new()
-  card_title.text = mode.title
-  card_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-  card_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-  card_title.add_theme_font_size_override("font_size", 17)
-  card_title.add_theme_color_override("font_color", Color("#f4f9ff"))
-  card_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-  card_content.add_child(card_title)
-  var card_subtitle := Label.new()
-  card_subtitle.text = mode.subtitle
-  card_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-  card_subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-  card_subtitle.add_theme_font_size_override("font_size", 11)
-  card_subtitle.add_theme_color_override("font_color", Color("#50d7e9"))
-  card_subtitle.mouse_filter = Control.MOUSE_FILTER_IGNORE
-  card_content.add_child(card_subtitle)
-  var card_desc := Label.new()
-  card_desc.text = mode.desc
-  card_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-  card_desc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-  card_desc.add_theme_font_size_override("font_size", 13)
-  card_desc.add_theme_color_override("font_color", Color("#c4d6e5"))
-  card_desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-  card_content.add_child(card_desc)
-  card.add_theme_color_override("font_hover_color", Color("#ffffff"))
-  card.add_theme_stylebox_override("normal", _lobby_style(Color("#10263a"), Color("#2b5268"), 1, 14))
-  card.add_theme_stylebox_override("hover", _lobby_style(Color("#153c52"), Color("#50d7e9"), 2, 14))
-  card.add_theme_stylebox_override("pressed", _lobby_style(Color("#14546a"), Color("#50d7e9"), 3, 14))
-  card.add_theme_stylebox_override("focus", _lobby_style(Color("#173c50"), Color("#8beafa"), 2, 14))
-  card.toggle_mode = true
-  card.button_pressed = mode.id == selected_mode
-  card.pressed.connect(_select_lobby_mode.bind(mode.id, card))
-  cards.add_child(card)
-  mode_buttons.append(card)
-
- var footer := HBoxContainer.new()
- footer.add_theme_constant_override("separation", 16)
- column.add_child(footer)
-
- var note := Label.new()
- note.text = "ONLINE PLAY, REAL BANGLADESH MAPS AND FULL BATTLE ROYALE ARE future systems—not claimed as finished."
- note.size_flags_horizontal = Control.SIZE_EXPAND_FILL
- note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
- note.add_theme_color_override("font_color", Color("#a7bacb"))
- note.add_theme_font_size_override("font_size", 13)
- footer.add_child(note)
- var shop_lobby_button := Button.new()
- shop_lobby_button.text = "SHOP"
- shop_lobby_button.custom_minimum_size = Vector2(88, 52)
- shop_lobby_button.add_theme_font_size_override("font_size", 15)
- shop_lobby_button.pressed.connect(_open_shop_panel)
- footer.add_child(shop_lobby_button)
-
- var save_button := Button.new()
- save_button.text = "SAVE"
- save_button.custom_minimum_size = Vector2(88, 52)
- save_button.add_theme_font_size_override("font_size", 15)
- save_button.pressed.connect(_save_progress_from_lobby)
- footer.add_child(save_button)
-
- var load_button := Button.new()
- load_button.text = "LOAD"
- load_button.custom_minimum_size = Vector2(88, 52)
- load_button.add_theme_font_size_override("font_size", 15)
- load_button.pressed.connect(_load_progress_from_lobby)
- footer.add_child(load_button)
-
+ lobby_loading_progress.show_percentage = false
+ map_box.add_child(lobby_loading_progress)
+ lobby_cash_label = Label.new()
+ lobby_cash_label.name = "CareerCurrency"
+ lobby_cash_label.text = "৳ 0"
+ lobby_cash_label.custom_minimum_size = Vector2(120.0, 0.0)
+ lobby_cash_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+ lobby_cash_label.add_theme_font_size_override("font_size", 22)
+ lobby_cash_label.add_theme_color_override("font_color", Color("#f5d27a"))
+ header_row.add_child(lobby_cash_label)
+ var nav_panel := PanelContainer.new()
+ nav_panel.name = "LobbyNavigation"
+ nav_panel.position = Vector2(20.0, 100.0)
+ nav_panel.size = Vector2(160.0, viewport_size.y - 194.0)
+ nav_panel.add_theme_stylebox_override("panel", _lobby_style(Color(0.008, 0.025, 0.042, 0.90), Color(0.10, 0.37, 0.49, 0.70), 1, 10))
+ lobby_overlay.add_child(nav_panel)
+ var nav := VBoxContainer.new()
+ nav.add_theme_constant_override("separation", 8)
+ nav_panel.add_child(nav)
+ var nav_items := [["HOME","home"],["PLAY","play"],["LOADOUT","loadout"],["OPERATOR","operator"],["EVENTS","events"],["STORE","store"],["CLAN","clan"],["PROFILE","profile"]]
+ for item in nav_items:
+  var button := Button.new()
+  button.text = item[0]
+  button.custom_minimum_size = Vector2(0.0, 48.0)
+  button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+  button.add_theme_font_size_override("font_size", 14)
+  button.add_theme_color_override("font_color", Color("#e4eff5"))
+  button.add_theme_stylebox_override("normal", _lobby_style(Color("#102b3d"), Color("#24546a"), 1, 7))
+  button.add_theme_stylebox_override("hover", _lobby_style(Color("#19475a"), Color("#59d7e5"), 2, 7))
+  button.add_theme_stylebox_override("pressed", _lobby_style(Color("#1e596c"), Color("#8beafa"), 2, 7))
+  button.pressed.connect(_show_lobby_page.bind(item[1]))
+  nav.add_child(button)
+ var content_panel := PanelContainer.new()
+ content_panel.name = "LobbyContentPanel"
+ content_panel.position = Vector2(viewport_size.x - 555.0, 100.0)
+ content_panel.size = Vector2(535.0, viewport_size.y - 194.0)
+ content_panel.add_theme_stylebox_override("panel", _lobby_style(Color(0.008, 0.022, 0.038, 0.93), Color(0.16, 0.56, 0.68, 0.82), 1, 12))
+ lobby_overlay.add_child(content_panel)
+ var scroll := ScrollContainer.new()
+ scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+ content_panel.add_child(scroll)
+ lobby_content = VBoxContainer.new()
+ lobby_content.name = "LobbyPageContent"
+ lobby_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ lobby_content.add_theme_constant_override("separation", 12)
+ scroll.add_child(lobby_content)
  save_feedback_label = Label.new()
- save_feedback_label.text = "LOCAL SAVE"
- save_feedback_label.custom_minimum_size = Vector2(112, 0)
- save_feedback_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ save_feedback_label.name = "LobbyFooterStatus"
+ save_feedback_label.position = Vector2(205.0, viewport_size.y - 77.0)
+ save_feedback_label.size = Vector2(viewport_size.x - 225.0, 35.0)
+ save_feedback_label.text = "SHARIATPUR  /  PROJECT A-SQUARE"
  save_feedback_label.add_theme_font_size_override("font_size", 12)
- save_feedback_label.add_theme_color_override("font_color", Color("#50d7e9"))
- footer.add_child(save_feedback_label)
+ save_feedback_label.add_theme_color_override("font_color", Color("#b3c9d6"))
+ lobby_overlay.add_child(save_feedback_label)
+ if is_instance_valid(w) and is_instance_valid(w.player):
+  w.player.set_camera_view_mode("third_person")
+  w.player.camera_yaw = 24.0
+  w.player.camera_pitch = -8.0
+  w.player.call("_update_camera")
+ _update_lobby_header()
+ _show_lobby_page("home")
 
- var play := Button.new()
- play.text = "ENTER CITY  →"
- play.custom_minimum_size = Vector2(210, 58)
- play.add_theme_font_size_override("font_size", 20)
- play.add_theme_color_override("font_color", Color("#061724"))
- play.add_theme_stylebox_override("normal", _lobby_style(Color("#50d7e9"), Color("#50d7e9"), 1, 12))
- play.add_theme_stylebox_override("hover", _lobby_style(Color("#8beafa"), Color("#ffffff"), 2, 12))
- play.pressed.connect(_enter_selected_mode)
- footer.add_child(play)
+
+func _update_lobby_header() -> void:
+ if not is_instance_valid(w):
+  return
+ if is_instance_valid(lobby_cash_label):
+  lobby_cash_label.text = "৳ %s" % str(int(w.get("cash")))
+ if is_instance_valid(lobby_profile_label):
+  var profile: Node = w.get("career_profile") as Node
+  if is_instance_valid(profile):
+   lobby_profile_label.text = "LOCAL OPERATOR  •  LEVEL %02d  •  %s" % [int(profile.call("get_level")), String(profile.call("get_career_tier"))]
+
+
+func _lobby_clear_content() -> void:
+ if not is_instance_valid(lobby_content):
+  return
+ for child in lobby_content.get_children():
+  lobby_content.remove_child(child)
+  child.queue_free()
+
+
+func _lobby_add_heading(title_text: String, subtitle_text: String = "") -> void:
+ var eyebrow := Label.new()
+ eyebrow.text = "PROJECT A-SQUARE  /  WORLD COMMAND"
+ eyebrow.add_theme_font_size_override("font_size", 10)
+ eyebrow.add_theme_color_override("font_color", Color("#62d8e7"))
+ lobby_content.add_child(eyebrow)
+ var heading := Label.new()
+ heading.text = title_text
+ heading.add_theme_font_size_override("font_size", 28)
+ heading.add_theme_color_override("font_color", Color("#f5f8fc"))
+ heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ lobby_content.add_child(heading)
+ if not subtitle_text.is_empty():
+  var subtitle := Label.new()
+  subtitle.text = subtitle_text
+  subtitle.add_theme_font_size_override("font_size", 13)
+  subtitle.add_theme_color_override("font_color", Color("#b4c8d5"))
+  subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+  lobby_content.add_child(subtitle)
+
+
+func _lobby_add_section(section_text: String) -> void:
+ var label := Label.new()
+ label.text = section_text
+ label.add_theme_font_size_override("font_size", 12)
+ label.add_theme_color_override("font_color", Color("#62d8e7"))
+ lobby_content.add_child(label)
+
+
+func _lobby_add_action(title_text: String, detail_text: String, callback: Callable, available: bool = true) -> Button:
+ var button := Button.new()
+ button.text = title_text + "\n" + detail_text
+ button.custom_minimum_size = Vector2(0.0, 70.0)
+ button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+ button.add_theme_font_size_override("font_size", 15)
+ button.add_theme_color_override("font_color", Color("#f0f6fa"))
+ button.add_theme_stylebox_override("normal", _lobby_style(Color("#102c40"), Color("#28566d"), 1, 8))
+ button.add_theme_stylebox_override("hover", _lobby_style(Color("#19465b"), Color("#58d8e7"), 2, 8))
+ button.add_theme_stylebox_override("pressed", _lobby_style(Color("#1d5b6e"), Color("#9cebf1"), 2, 8))
+ button.disabled = not available
+ if available and callback.is_valid():
+  button.pressed.connect(callback)
+ lobby_content.add_child(button)
+ return button
+
+
+func _lobby_add_info(label_text: String, value_text: String) -> void:
+ var box := PanelContainer.new()
+ box.add_theme_stylebox_override("panel", _lobby_style(Color("#0e293b"), Color("#28566c"), 1, 7))
+ var row := VBoxContainer.new()
+ row.add_theme_constant_override("separation", 3)
+ box.add_child(row)
+ var label := Label.new()
+ label.text = label_text
+ label.add_theme_font_size_override("font_size", 10)
+ label.add_theme_color_override("font_color", Color("#63d8e6"))
+ row.add_child(label)
+ var value := Label.new()
+ value.text = value_text
+ value.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ value.add_theme_font_size_override("font_size", 13)
+ value.add_theme_color_override("font_color", Color("#e2edf3"))
+ row.add_child(value)
+ lobby_content.add_child(box)
+
+
+func _show_lobby_page(page: String) -> void:
+ if not is_instance_valid(lobby_content):
+  return
+ lobby_section = page
+ _lobby_clear_content()
+ if is_instance_valid(save_feedback_label):
+  save_feedback_label.text = "SHARIATPUR  /  PROJECT A-SQUARE"
+ if page == "home":
+  _lobby_add_heading("WORLD COMMAND", "Your local world, career and deployments are gathered here.")
+  var installed := is_instance_valid(w) and bool(w.get("real_dhaka_loaded"))
+  _lobby_add_section("FEATURED • BANGLADESH")
+  _lobby_add_action("SHARIATPUR WORLD", "60 district tile records • full-resolution local streaming", Callable(self, "_show_map_information"))
+  _lobby_add_action("DESHI STORIES", "Local missions, transport fares, markets and connected jobs", Callable(self, "_choose_mode").bind("deshi_story"))
+  _lobby_add_action("OPEN WORLD SANDBOX", "Explore the currently installed district and local activities", Callable(self, "_choose_mode").bind("free_roam"))
+  _lobby_add_action("COMBAT LAB", "Offline AI practice • six targets • movement and weapon training", Callable(self, "_choose_mode").bind("arena_training"))
+  _lobby_add_section("WORLD STATUS")
+  _lobby_add_info("MAP STATUS", "Shariatpur is active." if installed else "Local starter world is active; Shariatpur data remains a separate installable map pack.")
+  _lobby_add_info("ONLINE SERVICES", "No real-player server is connected in this build. Online matchmaking is not simulated.")
+ elif page == "play":
+  _lobby_add_heading("PLAY", "Choose a real local experience. Online queues remain unavailable until a multiplayer service is connected.")
+  _lobby_add_section("OPEN WORLD • LOCAL")
+  _lobby_add_action("DESHI STORIES", "40 chapters • connected local destination jobs", Callable(self, "_choose_mode").bind("deshi_story"))
+  _lobby_add_action("OPEN CITY SANDBOX", "Free roam • traffic, local characters, shops and transport", Callable(self, "_choose_mode").bind("free_roam"))
+  _lobby_add_action("STREET LIFE", "Markets, local economy, transport and city activities", Callable(self, "_choose_mode").bind("street_life"))
+  _lobby_add_section("COMBAT • OFFLINE AI")
+  _lobby_add_action("LAST STAND", "Three escalating waves against armed AI opponents", Callable(self, "_choose_mode").bind("survival"))
+  _lobby_add_action("COMBAT LAB", "Six practice targets • solo training", Callable(self, "_choose_mode").bind("arena_training"))
+  _lobby_add_action("STREET SKIRMISH", "Ten AI opponents • elimination objective", Callable(self, "_choose_mode").bind("street_skirmish"))
+  _lobby_add_section("ONLINE • NOT CONNECTED")
+  _lobby_add_action("MULTIPLAYER QUICK PLAY", "Requires a real-time multiplayer server", Callable(), false)
+  _lobby_add_action("MULTIPLAYER RANKED", "Requires accounts, matchmaking and authoritative servers", Callable(), false)
+  _lobby_add_action("BATTLE ROYALE / RANKED BR", "Large-scale online mode is not available in this build", Callable(), false)
+  _lobby_add_action("ZOMBIES / SPECIAL MODES", "Mode-specific maps and logic are not connected yet", Callable(), false)
+ elif page == "briefing":
+  _build_mode_briefing()
+ elif page == "loadout":
+  _lobby_add_heading("LOADOUT", "Your current field equipment.")
+  var player_node: Node = w.get("player") as Node if is_instance_valid(w) else null
+  var ammo := int(player_node.get("ammo")) if is_instance_valid(player_node) else 30
+  var reserve := int(player_node.get("reserve_ammo")) if is_instance_valid(player_node) else 120
+  _lobby_add_section("ACTIVE WEAPON")
+  _lobby_add_info("SERVICE RIFLE", "Equipped • %d / %d rounds" % [ammo, reserve])
+  _lobby_add_info("WEAPON CONFIGURATION", "A single base rifle is available. Weapon attachments, skins and a multi-weapon inventory are not yet wired.")
+ elif page == "operator":
+  _lobby_add_heading("OPERATOR", "Your field character is rendered in the 3D world behind this command panel.")
+  _lobby_add_info("ACTIVE OPERATOR", "Bangladesh field operator • third-person showcase")
+  _lobby_add_info("ANIMATION", "Imported rig and clips are loaded in stages. Clip count alone does not certify every animation or motion quality.")
+  _lobby_add_info("UNIFORM CUSTOMIZATION", "Country-specific outfit sets are not connected yet.")
+ elif page == "events":
+  _lobby_add_heading("DESHI JOBS", "Local mission catalogue and current chapter progress.")
+  var factory: Node = w.get_node_or_null("MissionFactory") if is_instance_valid(w) else null
+  if is_instance_valid(factory):
+   var jobs: Array = factory.get("missions")
+   _lobby_add_info("CATALOGUE", "%s data-driven local job variations" % str(jobs.size()))
+   var active_index := int(factory.get("active_index"))
+   if active_index >= 0 and active_index < jobs.size():
+    var active_job: Dictionary = jobs[active_index]
+    _lobby_add_info("ACTIVE JOB", "%s • %s" % [str(active_job.get("title", "Local job")), str(active_job.get("brief", "Follow the marked destination."))])
+   else:
+    _lobby_add_info("CURRENT STATUS", "No side job is active. Start Deshi Stories to begin a local mission.")
+  else:
+   _lobby_add_info("MISSION BOARD", "Mission services are still initializing.")
+ elif page == "store":
+  _lobby_add_heading("MARKET", "Use earned local cash to buy supplies for the open-world experience.")
+  _lobby_add_action("OPEN LOCAL MARKET", "Food, medical supplies, ammunition and fuel", Callable(self, "_open_shop_panel"))
+ elif page == "clan":
+  _lobby_add_heading("SQUAD / CLAN", "Real-player social services")
+  _lobby_add_info("SERVICE STATUS", "No online account, party, clan or invite server is connected. This screen does not fabricate players.")
+ elif page == "profile":
+  _build_career_page()
+ elif page == "results":
+  _build_combat_results_page()
+ else:
+  _lobby_add_heading("WORLD COMMAND", "Choose a section from the navigation rail.")
+ _update_lobby_header()
+
+
+func _show_map_information() -> void:
+ _show_lobby_page("home")
+ if is_instance_valid(save_feedback_label):
+  save_feedback_label.text = "SHARIATPUR • 60 TILE RECORDS • STREAMED LOCALLY"
+
+
+func _choose_mode(mode_id: String) -> void:
+ selected_mode = mode_id
+ _show_lobby_page("briefing")
+
+
+func _build_mode_briefing() -> void:
+ var descriptions := {
+  "deshi_story": "Local destination missions, transport fares, shops and chapter-based work.",
+  "free_roam": "Roam the currently installed city area without a mission objective.",
+  "street_life": "Explore shops, markets, transport and local activities.",
+  "survival": "Three escalating waves of armed AI opponents. Offline solo combat.",
+  "arena_training": "Six stationary practice targets for movement and weapon training.",
+  "street_skirmish": "Ten armed AI opponents in a local elimination round."
+ }
+ _lobby_add_heading("DEPLOYMENT BRIEF", String(descriptions.get(selected_mode, "Local deployment.")))
+ _lobby_add_section("MISSION PARAMETERS")
+ _lobby_add_info("MODE", selected_mode.replace("_", " ").to_upper())
+ var map_name := "Noborongo Starter City"
+ if is_instance_valid(w) and bool(w.get("real_dhaka_loaded")):
+  map_name = "Shariatpur, Bangladesh"
+ _lobby_add_info("AREA", map_name)
+ if selected_mode in ["survival", "arena_training", "street_skirmish"]:
+  var targets := 6 if selected_mode == "arena_training" or selected_mode == "survival" else 10
+  _lobby_add_section("LOCAL ROSTER • NO ONLINE PLAYERS")
+  _lobby_add_info("YOU", "Local operator • active player")
+  _lobby_add_info("AI OPPOSITION", "%d opponents / targets will be spawned by the local combat system" % targets)
+ else:
+  _lobby_add_section("EXPERIENCE")
+  _lobby_add_info("PLAY STYLE", "Single-player local world simulation")
+ _lobby_add_action("DEPLOY", "Run a short pre-entry countdown and start this mode", Callable(self, "_start_deployment_sequence"))
+ _lobby_add_action("BACK TO MODES", "Return to the Play screen", Callable(self, "_show_lobby_page").bind("play"))
+
+
+func _start_deployment_sequence() -> void:
+ if _map_entry_in_progress:
+  return
+ _lobby_clear_content()
+ _lobby_add_heading("PREPARING DEPLOYMENT", "Loading the selected mode and checking the active world.")
+ var countdown := Label.new()
+ countdown.name = "DeploymentCountdown"
+ countdown.text = "READY"
+ countdown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+ countdown.add_theme_font_size_override("font_size", 34)
+ countdown.add_theme_color_override("font_color", Color("#70e3ef"))
+ lobby_content.add_child(countdown)
+ var progress := ProgressBar.new()
+ progress.custom_minimum_size = Vector2(0.0, 14.0)
+ progress.max_value = 100
+ lobby_content.add_child(progress)
+ for count in [3, 2, 1]:
+  if not is_instance_valid(countdown):
+   return
+  countdown.text = "DEPLOYING  %d" % count
+  progress.value = float(4 - count) * 33.0
+  await get_tree().create_timer(1.0, true, false, true).timeout
+ countdown.text = "ENGAGING"
+ progress.value = 100
+ await get_tree().create_timer(0.35, true, false, true).timeout
+ _enter_selected_mode()
+
+
+func _build_career_page() -> void:
+ _lobby_add_heading("CAREER PROFILE", "Local career progression saved on this device.")
+ var profile: Node = w.get("career_profile") as Node if is_instance_valid(w) else null
+ if not is_instance_valid(profile):
+  _lobby_add_info("PROFILE", "Career data is initializing.")
+  return
+ var level := int(profile.call("get_level"))
+ var level_xp := int(profile.call("get_level_xp"))
+ _lobby_add_section("CAREER IDENTITY")
+ _lobby_add_info("LEVEL / TIER", "LEVEL %02d  •  %s" % [level, String(profile.call("get_career_tier"))])
+ _lobby_add_info("CAREER XP", "%d / 500 XP to the next level" % level_xp)
+ var xp_bar := ProgressBar.new()
+ xp_bar.max_value = 500
+ xp_bar.value = level_xp
+ xp_bar.custom_minimum_size = Vector2(0.0, 12.0)
+ lobby_content.add_child(xp_bar)
+ _lobby_add_info("ELIMINATIONS", str(int(profile.get("total_eliminations"))))
+ _lobby_add_info("MATCH RECORD", "%d played  •  %d wins  •  %d losses" % [
+  int(profile.get("matches_played")), int(profile.get("matches_won")), int(profile.get("matches_lost"))
+ ])
+ _lobby_add_info("LOCAL CREDITS", "৳ %d" % int(w.get("cash")))
+
+
+func _build_combat_results_page() -> void:
+ var combat: Node = w.get("combat_controller") as Node if is_instance_valid(w) else null
+ if not is_instance_valid(combat):
+  _lobby_add_heading("MATCH RESULTS", "Combat results are unavailable.")
+  return
+ var result := String(w.get("last_combat_result"))
+ var victory := result == "VICTORY"
+ var title := "VICTORY" if victory else ("DEFEAT" if result == "DEFEAT" else "TRAINING COMPLETE")
+ _lobby_add_heading(title, "MVP  •  YOU  /  LOCAL OPERATOR")
+ _lobby_add_section("AFTER ACTION REPORT")
+ _lobby_add_info("MODE", String(combat.get("active_mode")).replace("_", " ").to_upper())
+ _lobby_add_info("ELIMINATIONS", str(int(combat.get("kills"))))
+ _lobby_add_info("WAVE / TARGETS", "%d  /  %d" % [int(combat.get("wave")), int(combat.get("target_goal"))])
+ _lobby_add_info("LOCAL BALANCE", "৳ %d" % int(w.get("cash")))
+ var profile: Node = w.get("career_profile") as Node
+ if is_instance_valid(profile):
+  _lobby_add_info("CAREER REWARD", "+%d XP  •  LEVEL %02d" % [int(profile.get("last_match_xp")), int(profile.call("get_level"))])
+ _lobby_add_action("PLAY AGAIN", "Restart the same offline mode", Callable(self, "_replay_combat_round"))
+ _lobby_add_action("RETURN TO LOBBY", "Choose another experience", Callable(self, "_show_mode_lobby"))
+
+
+func _check_combat_result() -> void:
+ if not is_instance_valid(w) or not is_instance_valid(lobby_overlay):
+  return
+ var combat: Node = w.get("combat_controller") as Node
+ if not is_instance_valid(combat) or not bool(combat.get("run_over")):
+  return
+ var token := "%s:%s:%s:%s" % [String(combat.get("active_mode")), str(combat.get("kills")), str(combat.get("wave")), String(w.get("last_combat_result"))]
+ if token == _shown_result_token:
+  return
+ _shown_result_token = token
+ _release_gameplay_inputs()
+ lobby_overlay.visible = true
+ _show_lobby_page("results")
+ get_tree().paused = true
+
 
 
 func _save_progress_from_lobby() -> void:
@@ -1164,6 +1416,7 @@ func _show_mode_lobby() -> void:
   return
  _release_gameplay_inputs()
  lobby_overlay.visible = true
+ _show_lobby_page("home")
  get_tree().paused = true
 
 func _replay_combat_round() -> void:
@@ -1177,8 +1430,11 @@ func _replay_combat_round() -> void:
   return
  _release_gameplay_inputs()
  selected_mode = mode_id
+ _shown_result_token = ""
  w.set("game_mode", mode_id)
  combat.call("start_mode", mode_id)
+ if is_instance_valid(lobby_overlay):
+  lobby_overlay.visible = false
  get_tree().paused = false
  if replay_round_button:
   replay_round_button.visible = false
@@ -1310,7 +1566,7 @@ func _complete_enter_selected_mode() -> void:
    w.event_text = "STREET LIFE: MARKETS • TRANSPORT • CITY EVENTS"
   elif selected_mode == "survival":
    w.mission_active = false
-   w.event_text = "SOLO SURVIVAL PROTOTYPE • NO ONLINE PLAY"
+   w.event_text = "LAST STAND • OFFLINE AI MODE"
   elif selected_mode == "street_skirmish":
    w.mission_active = false
    w.event_text = "STREET SKIRMISH • ELIMINATE 10 ENEMIES"
@@ -1319,7 +1575,7 @@ func _complete_enter_selected_mode() -> void:
    w.event_text = "DISTRICT ATLAS: FOLLOW THE CITY MARKER"
   else:
    w.mission_active = false
-   w.event_text = "OFFLINE ARENA TRAINING • ONLINE MATCHES NOT AVAILABLE"
+   w.event_text = "COMBAT LAB • OFFLINE PRACTICE"
   if w.combat_controller:
    w.combat_controller.start_mode(selected_mode)
   w.event_time_left = 8.0

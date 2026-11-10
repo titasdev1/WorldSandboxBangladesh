@@ -10,6 +10,7 @@ var alive_enemies := 0
 var intermission := 0.0
 var run_over := false
 var reward_paid := false
+var profile_recorded := false
 
 func configure(w) -> void:
     world = w
@@ -25,6 +26,9 @@ func start_mode(mode_id: String) -> void:
     intermission = 0.0
     run_over = false
     reward_paid = false
+    profile_recorded = false
+    if is_instance_valid(world):
+        world.last_combat_result = ""
     if is_instance_valid(world) and is_instance_valid(world.player):
         world.player.health = 100
         world.player.ammo = 30
@@ -54,6 +58,25 @@ func start_mode(mode_id: String) -> void:
         wave = 1
         _spawn_wave()
     world.event_time_left = 6.0
+
+func _finish_match(result: String) -> void:
+    active = false
+    run_over = true
+    if is_instance_valid(world):
+        world.last_combat_result = result
+        if not profile_recorded and is_instance_valid(world.career_profile):
+            world.career_profile.call("record_match", result, active_mode)
+            profile_recorded = true
+
+
+func on_player_defeated() -> void:
+    if run_over or not active:
+        return
+    _finish_match("DEFEAT")
+    if is_instance_valid(world):
+        world.event_text = "MISSION FAILED • OPERATOR DOWN"
+        world.event_time_left = 8.0
+
 
 func _spawn_wave() -> void:
     if not is_instance_valid(world) or not is_instance_valid(world.player):
@@ -110,11 +133,12 @@ func enemy_defeated(enemy: Node) -> void:
     if not active or run_over or not is_instance_valid(enemy):
         return
     kills += 1
+    if is_instance_valid(world) and is_instance_valid(world.career_profile):
+        world.career_profile.call("record_elimination")
     if active_mode == "arena_training":
         alive_enemies = maxi(0, alive_enemies - 1)
         if kills >= target_goal:
-            active = false
-            run_over = true
+            _finish_match("PRACTICE")
             world.event_text = "COMBAT LAB COMPLETE • %d/%d TARGETS" % [kills, target_goal]
             world.event_time_left = 8.0
         else:
@@ -123,8 +147,7 @@ func enemy_defeated(enemy: Node) -> void:
     elif active_mode == "street_skirmish":
         alive_enemies = maxi(0, alive_enemies - 1)
         if kills >= target_goal:
-            active = false
-            run_over = true
+            _finish_match("VICTORY")
             if not reward_paid:
                 world.cash += 300
                 reward_paid = true
@@ -137,8 +160,7 @@ func enemy_defeated(enemy: Node) -> void:
         alive_enemies = maxi(0, alive_enemies - 1)
         if alive_enemies == 0:
             if wave >= 3:
-                active = false
-                run_over = true
+                _finish_match("VICTORY")
                 if not reward_paid:
                     world.cash += 500
                     reward_paid = true

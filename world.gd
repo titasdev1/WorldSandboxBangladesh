@@ -26,6 +26,8 @@ var material_cache: Dictionary = {}
 var city_asset_factory
 var pbr_surface_factory
 var combat_controller
+var career_profile: Node
+var last_combat_result := ""
 var interior_factory
 var real_dhaka_loader
 var real_dhaka_loaded := false
@@ -39,6 +41,9 @@ var road_z := [-60.0, -36.0, -12.0, 12.0, 36.0, 60.0]
 
 func _ready():
  rng.randomize()
+ career_profile = load("res://career_profile.gd").new()
+ career_profile.name = "CareerProfile"
+ add_child(career_profile)
  inventory_system = load("res://inventory_system.gd").new()
  inventory_system.name = "InventorySystem"
  add_child(inventory_system)
