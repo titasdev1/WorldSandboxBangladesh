@@ -237,7 +237,7 @@ if 'window/stretch/aspect="expand"' not in project_text:
     raise SystemExit("PRODUCTION GATE FAILED: mobile canvas does not expand its logical viewport to screen aspect")
 if "func _relayout_mobile_controls() -> void:" not in hud_text or "get_viewport().size_changed.connect(_relayout_mobile_controls)" not in hud_text:
     raise SystemExit("PRODUCTION GATE FAILED: mobile HUD does not reflow when viewport aspect changes")
-for token in ('get_viewport().get_visible_rect().size', 'view_width - 200.0', 'district_map.call("relayout", Vector2(view_width, view_height))', 'view_height - 248.0', 'ModeLobby/LobbyPanel', 'touch_action_buttons', 'func _sync_map_button_state() -> void:'):
+for token in ('get_viewport().get_visible_rect().size', 'view_width - 200.0', 'district_map.call("relayout", Vector2(view_width, view_height))', 'view_height - 248.0', "LobbyTopBar", "LobbyNavigation", "LobbyContentPanel", 'touch_action_buttons', 'func _sync_map_button_state() -> void:'):
     if token not in hud_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: responsive mobile HUD is missing {token}")
 # The mobile movement control must be a true analog circular stick, not four

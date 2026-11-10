@@ -822,7 +822,7 @@ func _build_lobby_ui() -> void:
  lobby_overlay.z_index = 100
  lobby_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
  add_child(lobby_overlay)
- var viewport_size := get_viewport_rect().size
+ var viewport_size := get_viewport().get_visible_rect().size
  var header := PanelContainer.new()
  header.name = "LobbyTopBar"
  header.position = Vector2(20.0, 16.0)
