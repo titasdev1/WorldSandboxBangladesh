@@ -14,6 +14,18 @@ import zipfile
 from urllib.parse import urljoin, urlparse
 
 
+# These exact official-host ZIP paths produced valid, complete model packs in
+# Android build #964 (2026-11-08). Keep them as verified fallbacks because the
+# current Kenney asset pages expose a Download button but omit the ZIP href
+# from their static HTML response.
+VERIFIED_DOWNLOAD_FALLBACKS = {
+    "car-kit": "https://kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/kenney_car-kit.zip",
+    "city-kit-commercial": "https://kenney.nl/media/pages/assets/city-kit-commercial/a742d900eb-1753115042/kenney_city-kit-commercial_2.1.zip",
+    "city-kit-industrial": "https://kenney.nl/media/pages/assets/city-kit-industrial/0ec35b139d-1788171848/kenney_city-kit-industrial_2.0.zip",
+    "city-kit-suburban": "https://kenney.nl/media/pages/assets/city-kit-suburban/2c871b7af2-1745479373/kenney_city-kit-suburban_20.zip",
+}
+
+
 # No hard-coded download URLs: only links extracted from the matching official
 # asset page are eligible. This prevents stale/guessed paths from entering builds.
 BROWSER_USER_AGENT = (
@@ -143,5 +155,16 @@ def find_download_zip(page_html: str, slug: str) -> str:
             continue
         if path.startswith(expected_prefix) and path.endswith(".zip"):
             return url
+
+    fallback = VERIFIED_DOWNLOAD_FALLBACKS.get(safe_slug)
+    if fallback:
+        parsed = urlparse(fallback)
+        if (
+            parsed.scheme == "https"
+            and parsed.hostname == "kenney.nl"
+            and parsed.path.lower().startswith(f"/media/pages/assets/{safe_slug}/")
+            and parsed.path.lower().endswith(".zip")
+        ):
+            return fallback
 
     raise ValueError(f"Official Kenney page did not expose a ZIP archive for '{safe_slug}'.")
