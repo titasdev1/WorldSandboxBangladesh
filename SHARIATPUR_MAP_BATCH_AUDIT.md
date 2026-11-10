@@ -33,3 +33,8 @@ Each tile includes `AI_Interior_Seeds.json`; those files are interaction anchors
 - **Attribution correction:** this initial smoke artifact's `ATTRIBUTION.txt` records OSM and the ADM1 boundary but omits the ADM2 tile-ordering source. The production-pipeline change in this PR adds the ADM2 source, boundary ID, and license to `ATTRIBUTION.txt` before the full map sequence runs.
 
 This artifact is proof of a successful two-tile Shariatpur-first map build. It is **not** proof that the complete Dhaka Division map has been assembled or integrated into the Android game.
+
+
+## Review assembly recovery
+
+The full review assembly initially stopped because Python could not resolve the repository-level `tools` package when the merge script was run by file path. The map workflow now sets `PYTHONPATH` to the checked-out workspace for the merge step. Reassemble sequence `39059651141` from its successful, retained batch artifacts before treating the Shariatpur package as complete.

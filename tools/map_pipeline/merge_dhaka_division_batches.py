@@ -12,6 +12,8 @@ from typing import Any
 import numpy as np
 import trimesh
 
+from tools.map_pipeline.build_real_world_navigation_index import build_index
+
 
 def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "full_division") -> dict[str, Any]:
     if stage not in {"shariatpur_review", "full_division"}:
@@ -114,6 +116,83 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
             else:
                 shutil.copy2(source, destination)
 
+    facade_photo_matches: list[dict[str, Any]] = []
+    interior_reference_photo_matches: list[dict[str, Any]] = []
+    for tile_manifest_path in sorted(out.rglob("map_manifest.json")):
+        try:
+            tile_manifest = json.loads(tile_manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        matches = tile_manifest.get("licensed_facade_photo_matches", [])
+        if isinstance(matches, list):
+            facade_photo_matches.extend(item for item in matches if isinstance(item, dict))
+        interior_matches = tile_manifest.get("interior_reference_photo_matches", [])
+        if isinstance(interior_matches, list):
+            interior_reference_photo_matches.extend(item for item in interior_matches if isinstance(item, dict))
+
+    approved_facade_photo_ids_required: list[str] = []
+    approved_facade_photo_ids_embedded: list[str] = []
+    # A Shariatpur review package must bake every currently approved, site-specific
+    # exterior reference—not merely one panel to satisfy a minimum counter. The
+    # required set is loaded from the licensed catalog on each build, so adding a
+    # newly approved reference automatically makes it part of the release gate.
+    # The catalog is intentionally landmark-only; this check does not imply that
+    # ordinary houses, shops, or every street facade have reference photography.
+    if stage == "shariatpur_review":
+        panel_count = int(feature_counts.get("licensed_facade_photo_panels", 0))
+        if panel_count < 1:
+            raise RuntimeError(
+                "Shariatpur review assembly blocked: zero embedded licensed exterior photo panels."
+            )
+        if not facade_photo_matches:
+            raise RuntimeError(
+                "Shariatpur review assembly blocked: photo panel count has no matching licensed-photo records."
+            )
+
+        catalog_path = pathlib.Path(__file__).resolve().parents[2] / "tools" / "map_pipeline" / "shariatpur_facade_images.json"
+        try:
+            catalog_payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"Cannot load approved Shariatpur exterior-photo catalog: {exc}") from exc
+        approved_facade_photo_ids_required = sorted({
+            str(photo.get("id", "")).strip()
+            for photo in catalog_payload.get("images", [])
+            if isinstance(photo, dict)
+            and photo.get("facade_eligible") is True
+            and str(photo.get("view_type", "")).casefold() == "exterior"
+            and str(photo.get("visual_qa", "")).casefold() == "passed"
+            and str(photo.get("license", "")) in {"CC BY 4.0", "CC BY-SA 4.0"}
+            and str(photo.get("id", "")).strip()
+            and isinstance(photo.get("target_location_lat_lon"), (list, tuple))
+            and len(photo.get("target_location_lat_lon", [])) == 2
+        })
+        if not approved_facade_photo_ids_required:
+            raise RuntimeError("Shariatpur review assembly blocked: no approved site-specific exterior-photo records exist in the catalog.")
+
+        approved_facade_photo_ids_embedded = sorted({
+            str(match.get("image_id", "")).strip()
+            for match in facade_photo_matches
+            if str(match.get("image_id", "")).strip()
+        })
+        missing_photo_ids = sorted(
+            set(approved_facade_photo_ids_required) - set(approved_facade_photo_ids_embedded)
+        )
+        if missing_photo_ids:
+            raise RuntimeError(
+                "Shariatpur review assembly blocked: approved exterior photo panel coverage is incomplete; "
+                f"missing embedded photo IDs: {', '.join(missing_photo_ids)}."
+            )
+
+        required_photo_fields = ("image_id", "source_page", "author", "license")
+        incomplete_matches = [
+            match for match in facade_photo_matches
+            if any(not str(match.get(field, "")).strip() for field in required_photo_fields)
+        ]
+        if incomplete_matches:
+            raise RuntimeError(
+                "Shariatpur review assembly blocked: at least one exterior photo panel lacks license/identity provenance."
+            )
+
     attribution_source = next((path / "ATTRIBUTION.txt" for _, path, _ in batches if (path / "ATTRIBUTION.txt").is_file()), None)
     if attribution_source is None:
         raise RuntimeError("No batch contains required attribution")
@@ -157,6 +236,21 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "tile_count_intersecting_build_boundary": total_tiles,
         "tile_count_with_geometry": geometry_count,
         "feature_counts_across_tiles": feature_counts,
+        "overture_building_footprints_added": int(feature_counts.get("overture_building_footprints", 0)),
+        "overture_duplicate_footprints_suppressed": sum(
+            int(record.get("overture_duplicate_footprints_suppressed", 0)) for record in all_records
+        ),
+        "licensed_facade_photo_matches": facade_photo_matches,
+        "licensed_facade_photo_panels_embedded": int(feature_counts.get("licensed_facade_photo_panels", 0)),
+        "approved_facade_photo_ids_required": approved_facade_photo_ids_required,
+        "approved_facade_photo_ids_embedded": approved_facade_photo_ids_embedded,
+        "approved_facade_photo_ids_missing": sorted(
+            set(approved_facade_photo_ids_required) - set(approved_facade_photo_ids_embedded)
+        ),
+        "interior_reference_photo_matches": interior_reference_photo_matches,
+        "interior_reference_photos_embedded": int(feature_counts.get("interior_reference_photos", 0)),
+        "interior_reference_photo_note": "Interior reference photos are licensed, separate assets rendered only within the matching mapped building's generated in-game interior. They are not exterior textures or scans of the actual private interior.",
+        "buildings_with_embedded_facade_photo_panel": int(feature_counts.get("licensed_facade_photo_panels", 0)),
         "source_elements_processed_across_batches": source_element_count,
         "map_build_batch_count": len(batches),
         "pipeline_commit_sha": pipeline_commit_sha,
@@ -167,7 +261,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
             "All generated batches for every tile intersecting the Shariatpur District boundary "
             "are present. Tile geometry is clipped to the district polygon. This is geographic coverage, "
             "not proof that every real-world feature is mapped or that exteriors are photorealistic. "
-            "Licensed façade imagery, surveyed heights, actual interiors, and real residents are not supplied by OSM."
+            "OSM does not supply licensed facade photography, surveyed heights, actual private interiors, or real residents. Strict-name CC-licensed landmark photo panels may be embedded when downloaded and matched; they are not full photogrammetric exteriors."
             if stage == "shariatpur_review"
             else "All generated batches for every tile intersecting the Dhaka Division administrative boundary "
             "are present in this package. The map is based on mapped OpenStreetMap features and is not proof "
@@ -211,14 +305,65 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
     boundary_license = str(boundary_metadata.get("boundary_license", boundary_record.get("license", "See manifest")))
     boundary_license_source = str(boundary_metadata.get("boundary_license_source", "See manifest"))
     boundary_id = str(boundary_metadata.get("boundary_id", "unspecified"))
-    (out / "ATTRIBUTION.txt").write_text(
+    attribution_text = (
         "© OpenStreetMap contributors — https://www.openstreetmap.org/copyright\n"
         + boundary_attribution + "\n"
         + "OSM data license: ODbL 1.0.\n"
+        + "Supplemental building footprints: Overture Maps Foundation Buildings theme via the official Overture Maps Python client; per-feature source datasets/record IDs remain in map tags. Follow current attribution guidance: https://docs.overturemaps.org/getting-data/.\n"
         + f"Clipping boundary: {expected_boundary_name} (geoBoundaries gbOpen BGD {boundary_type}).\n"
         + f"Clipping boundary ID: {boundary_id}.\n"
-        + f"Clipping boundary license: {boundary_license}. License source: {boundary_license_source}.\n",
-        encoding="utf-8",
+        + f"Clipping boundary license: {boundary_license}. License source: {boundary_license_source}.\n"
+    )
+    seen_photo_attributions: set[str] = set()
+    for match in interior_reference_photo_matches:
+        attribution = str(match.get("attribution", "")).strip()
+        license_name = str(match.get("license", "")).strip()
+        license_url = str(match.get("license_url", "")).strip()
+        entry = (
+            f"{attribution}\nLicense: {license_name} — {license_url}\n"
+            "Use restriction: INTERIOR REFERENCE ONLY; NOT AN EXTERIOR FACADE TEXTURE."
+        )
+        if attribution and entry not in seen_photo_attributions:
+            seen_photo_attributions.add(entry)
+            attribution_text += "\n" + entry + "\n"
+    for match in facade_photo_matches:
+        attribution = str(match.get("attribution", "")).strip()
+        license_name = str(match.get("license", "")).strip()
+        license_url = str(match.get("license_url", "")).strip()
+        entry = f"{attribution}\nLicense: {license_name} — {license_url}"
+        if attribution and entry not in seen_photo_attributions:
+            seen_photo_attributions.add(entry)
+            attribution_text += "\n" + entry + "\n"
+    (out / "ATTRIBUTION.txt").write_text(attribution_text, encoding="utf-8")
+    floor_evidence_source = pathlib.Path(__file__).resolve().with_name("shariatpur_floor_evidence.json")
+    floor_evidence_package = out / "building_floor_evidence.json"
+    if floor_evidence_source.is_file():
+        shutil.copy2(floor_evidence_source, floor_evidence_package)
+    navigation_index = build_index(out, floor_evidence_package if floor_evidence_package.is_file() else None)
+    embedded_photo_by_osm_id = {
+        "way/" + str(match.get("osm_id", "")): match
+        for match in facade_photo_matches
+        if str(match.get("osm_id", "")).strip()
+    }
+    embedded_building_count = 0
+    for building in navigation_index.get("buildings", []):
+        photo_match = embedded_photo_by_osm_id.get(str(building.get("osm_id", "")))
+        if not isinstance(photo_match, dict):
+            continue
+        reference = building.setdefault("facade_reference", {})
+        reference.update({
+            "source_page": photo_match.get("source_page"),
+            "author": photo_match.get("author"),
+            "license": photo_match.get("license"),
+            "license_url": photo_match.get("license_url"),
+            "attribution": photo_match.get("attribution"),
+            "status": "LICENSED_PHOTO_PANEL_EMBEDDED_REVIEW_REQUIRED",
+            "visual_identity_verified": False,
+        })
+        embedded_building_count += 1
+    navigation_index["counts"]["buildings_with_embedded_facade_photo_panel"] = embedded_building_count
+    (out / "real_world_navigation_index.json").write_text(
+        json.dumps(navigation_index, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     quality_report = {
         "build_stage": stage,
@@ -237,11 +382,27 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
             "ground_only_tiles_count": len(ground_only_tiles),
             "ground_only_tiles": ground_only_tiles,
             "photorealistic_facade_imagery_mapped": False,
+            "licensed_facade_photo_panels_embedded": int(feature_counts.get("licensed_facade_photo_panels", 0)) > 0,
+            "licensed_facade_photo_panel_count": int(feature_counts.get("licensed_facade_photo_panels", 0)),
+            "interior_reference_photo_asset_count": int(feature_counts.get("interior_reference_photos", 0)),
+            "interior_reference_photo_matches_manifest": len(interior_reference_photo_matches) == int(feature_counts.get("interior_reference_photos", 0)),
+            "facade_photo_panel_visual_review_required": True,
             "physical_android_integration_verified": False,
             "all_building_heights_verified_or_surveyed": building_count > 0 and inferred_height_count == 0,
             "estimated_building_heights_count": inferred_height_count,
             "estimated_building_heights_percent": inferred_height_percent,
             "manual_visual_review_required": True,
+            "navigation_index_written": (out / "real_world_navigation_index.json").is_file(),
+            "named_road_count_in_source": navigation_index["counts"]["named_roads"],
+            "unnamed_road_count_in_source": navigation_index["counts"]["unnamed_roads"],
+            "buildings_with_source_floor_count": navigation_index["counts"]["buildings_with_source_floor_count"],
+            "buildings_with_independently_verified_floor_count": navigation_index["counts"]["buildings_with_independently_verified_floor_count"],
+            "buildings_missing_source_floor_count": navigation_index["counts"]["buildings_missing_source_floor_count"],
+            "facade_references_requiring_license_review": navigation_index["counts"]["buildings_with_any_facade_reference"],
+        "licensed_facade_photo_panels_embedded": int(feature_counts.get("licensed_facade_photo_panels", 0)),
+        "licensed_facade_photo_match_records": len(facade_photo_matches),
+        "facade_photo_panel_visual_review_required": True,
+            "verified_facade_reference_count": navigation_index["counts"]["buildings_with_verified_facade_reference"],
         },
         "tiles_expected": total_tiles,
         "tiles_in_manifest": len(all_records),
@@ -263,6 +424,7 @@ def merge_batches(batches_dir: pathlib.Path, out: pathlib.Path, stage: str = "fu
         "mesh_geometry_count": mesh_geometry_count,
         "feature_counts": feature_counts,
         "quality_gate_status": quality_report["status"],
+        "navigation_index_counts": navigation_index["counts"],
         "batch_count": len(batches),
         "glb_bytes": sum(path.stat().st_size for path in glbs),
     }
