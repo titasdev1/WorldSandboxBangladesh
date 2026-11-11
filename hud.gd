@@ -679,8 +679,12 @@ func _build_driving_status() -> void:
  add_child(driving_status)
 
 func _process(_delta):
- if not w:
+ if not is_instance_valid(w):
   return
+ # HUD._ready() runs before the world root's _ready(), so the player does not
+ # exist during the first lobby construction. Create the presentation rig as
+ # soon as spawn_player() and HumanoidVisual have finished their _ready calls.
+ _ensure_lobby_showcase()
  _update_lobby_header()
  _check_combat_result()
  if is_instance_valid(lobby_loading_label):
@@ -935,13 +939,21 @@ func _build_lobby_ui() -> void:
   w.player.camera_yaw = 24.0
   w.player.camera_pitch = -8.0
   w.player.call("_update_camera")
-  lobby_showcase = Node3D.new()
-  lobby_showcase.name = "LobbyOperatorShowcase"
-  lobby_showcase.set_script(load("res://systems/lobby_showcase.gd"))
-  w.add_child(lobby_showcase)
-  lobby_showcase.call("configure", w.player)
+ _ensure_lobby_showcase()
  _update_lobby_header()
  _show_lobby_page("home")
+
+
+func _ensure_lobby_showcase() -> void:
+ if is_instance_valid(lobby_showcase) or not is_instance_valid(w) or not is_instance_valid(w.player):
+  return
+ if not is_instance_valid(w.player.get_node_or_null("HumanoidVisual")):
+  return
+ lobby_showcase = Node3D.new()
+ lobby_showcase.name = "LobbyOperatorShowcase"
+ lobby_showcase.set_script(load("res://systems/lobby_showcase.gd"))
+ w.add_child(lobby_showcase)
+ lobby_showcase.call("configure", w.player)
 
 
 func _update_lobby_header() -> void:
@@ -1242,6 +1254,7 @@ func _build_combat_results_page() -> void:
 func _check_combat_result() -> void:
  if not is_instance_valid(w) or not is_instance_valid(lobby_overlay):
   return
+ _ensure_lobby_showcase()
  var combat: Node = w.get("combat_controller") as Node
  if not is_instance_valid(combat) or not bool(combat.get("run_over")):
   return
@@ -1462,6 +1475,7 @@ func _release_gameplay_inputs() -> void:
 func _show_mode_lobby() -> void:
  if not is_instance_valid(lobby_overlay):
   return
+ _ensure_lobby_showcase()
  _release_gameplay_inputs()
  _freeze_player_for_lobby()
  if is_instance_valid(lobby_showcase):
