@@ -129,8 +129,8 @@ func _build_stage() -> void:
 	_key_light.spot_range = 8.5
 	_key_light.spot_angle = 38.0
 	_key_light.shadow_enabled = false
-	_key_light.look_at(Vector3(0.0, 1.05, 0.0), Vector3.UP)
 	_stage_root.add_child(_key_light)
+	_key_light.look_at(Vector3(0.0, 1.05, 0.0), Vector3.UP)
 
 	_fill_light = OmniLight3D.new()
 	_fill_light.name = "OperatorRimLight"
