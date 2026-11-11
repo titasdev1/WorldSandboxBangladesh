@@ -167,7 +167,7 @@ func _add_ring(node_name: String, inner_radius: float, outer_radius: float, y: f
 	mesh.ring_segments = 12
 	node.mesh = mesh
 	node.material_override = _surface(color, 0.34, 0.22, emission)
-	node.rotation.x = PI * 0.5
+	# TorusMesh is already aligned to the XZ ground plane in Godot 4.
 	node.position.y = y
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_stage_root.add_child(node)
