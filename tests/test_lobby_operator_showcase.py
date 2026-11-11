@@ -59,6 +59,14 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('_player.call("_update_camera")', self.showcase)
         self.assertIn('CHARACTER_IDLE_SWAY_RADIANS', self.showcase)
 
+    def test_showcase_is_created_after_world_player_spawn(self):
+        process = function_block(self.hud, "_process")
+        ensure = function_block(self.hud, "_ensure_lobby_showcase")
+        self.assertIn('_ensure_lobby_showcase()', process)
+        self.assertIn('is_instance_valid(w.player)', ensure)
+        self.assertIn('get_node_or_null("HumanoidVisual")', ensure)
+        self.assertIn('lobby_showcase.call("configure", w.player)', ensure)
+
     def test_player_is_stopped_before_lobby_stage_takes_over(self):
         freeze = function_block(self.hud, "_freeze_player_for_lobby")
         self.assertIn('stopped_velocity.x = 0.0', freeze)
