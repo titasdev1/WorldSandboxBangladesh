@@ -111,6 +111,10 @@ jobs:
         shell: bash
         run: python3 -m unittest discover -s tests -p "test_mobile_interaction_flow.py"
 
+      - name: Run lobby operator showcase regression tests
+        shell: bash
+        run: python3 -m unittest discover -s tests -p "test_lobby_operator_showcase.py"
+
       # Release/push builds retain Greater Dhaka by default. PR validation uses the
       # latest assembled Shariatpur review package so map/game changes are tested
       # together without promoting the review map as a production release.
