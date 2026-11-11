@@ -45,6 +45,8 @@ var lobby_content: VBoxContainer
 var lobby_cash_label: Label
 var lobby_profile_label: Label
 var lobby_section := "home"
+var lobby_nav_buttons: Dictionary = {}
+var lobby_showcase: Node3D
 var _shown_result_token := ""
 
 func _ready():
@@ -887,15 +889,23 @@ func _build_lobby_ui() -> void:
  var nav_items := [["HOME","home"],["PLAY","play"],["LOADOUT","loadout"],["OPERATOR","operator"],["EVENTS","events"],["STORE","store"],["CLAN","clan"],["PROFILE","profile"]]
  for item in nav_items:
   var button := Button.new()
-  button.text = item[0]
-  button.custom_minimum_size = Vector2(0.0, 48.0)
+  var page_id := String(item[1])
+  var is_play_navigation := page_id == "play"
+  button.name = "LobbyNav_" + page_id.capitalize()
+  button.text = ("▶  " if is_play_navigation else "   ") + String(item[0])
+  button.toggle_mode = true
+  button.button_pressed = page_id == "home"
+  button.custom_minimum_size = Vector2(0.0, 60.0 if is_play_navigation else 48.0)
   button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-  button.add_theme_font_size_override("font_size", 14)
-  button.add_theme_color_override("font_color", Color("#e4eff5"))
-  button.add_theme_stylebox_override("normal", _lobby_style(Color("#102b3d"), Color("#24546a"), 1, 7))
+  button.add_theme_font_size_override("font_size", 17 if is_play_navigation else 14)
+  button.add_theme_color_override("font_color", Color("#102332") if is_play_navigation else Color("#e4eff5"))
+  var normal_fill := Color("#d5ad58") if is_play_navigation else Color("#102b3d")
+  var normal_border := Color("#f2d58f") if is_play_navigation else Color("#24546a")
+  button.add_theme_stylebox_override("normal", _lobby_style(normal_fill, normal_border, 1, 7))
   button.add_theme_stylebox_override("hover", _lobby_style(Color("#19475a"), Color("#59d7e5"), 2, 7))
   button.add_theme_stylebox_override("pressed", _lobby_style(Color("#1e596c"), Color("#8beafa"), 2, 7))
-  button.pressed.connect(_show_lobby_page.bind(item[1]))
+  button.pressed.connect(_show_lobby_page.bind(page_id))
+  lobby_nav_buttons[page_id] = button
   nav.add_child(button)
  var content_panel := PanelContainer.new()
  content_panel.name = "LobbyContentPanel"
@@ -925,6 +935,11 @@ func _build_lobby_ui() -> void:
   w.player.camera_yaw = 24.0
   w.player.camera_pitch = -8.0
   w.player.call("_update_camera")
+  lobby_showcase = Node3D.new()
+  lobby_showcase.name = "LobbyOperatorShowcase"
+  lobby_showcase.set_script(load("res://systems/lobby_showcase.gd"))
+  w.add_child(lobby_showcase)
+  lobby_showcase.call("configure", w.player)
  _update_lobby_header()
  _show_lobby_page("home")
 
@@ -977,6 +992,22 @@ func _lobby_add_section(section_text: String) -> void:
  lobby_content.add_child(label)
 
 
+func _lobby_add_featured_play() -> void:
+ var button := Button.new()
+ button.name = "FeaturedPlayNow"
+ button.text = "▶  PLAY NOW\nChoose your experience"
+ button.custom_minimum_size = Vector2(0.0, 94.0)
+ button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+ button.add_theme_font_size_override("font_size", 21)
+ button.add_theme_color_override("font_color", Color("#102332"))
+ button.add_theme_stylebox_override("normal", _lobby_style(Color("#e2b95f"), Color("#fff0bd"), 2, 10))
+ button.add_theme_stylebox_override("hover", _lobby_style(Color("#f1d27e"), Color("#fff7d8"), 2, 10))
+ button.add_theme_stylebox_override("pressed", _lobby_style(Color("#c99b42"), Color("#fff0bd"), 2, 10))
+ button.pressed.connect(_show_lobby_page.bind("play"))
+ lobby_content.add_child(button)
+
+
 func _lobby_add_action(title_text: String, detail_text: String, callback: Callable, available: bool = true) -> Button:
  var button := Button.new()
  button.text = title_text + "\n" + detail_text
@@ -1019,11 +1050,16 @@ func _show_lobby_page(page: String) -> void:
  if not is_instance_valid(lobby_content):
   return
  lobby_section = page
+ for page_id in lobby_nav_buttons.keys():
+  var nav_button := lobby_nav_buttons[page_id] as Button
+  if is_instance_valid(nav_button):
+   nav_button.button_pressed = String(page_id) == page
  _lobby_clear_content()
  if is_instance_valid(save_feedback_label):
   save_feedback_label.text = "SHARIATPUR  /  PROJECT A-SQUARE"
  if page == "home":
   _lobby_add_heading("WORLD COMMAND", "Your local world, career and deployments are gathered here.")
+  _lobby_add_featured_play()
   var installed := is_instance_valid(w) and bool(w.get("real_dhaka_loaded"))
   _lobby_add_section("FEATURED • BANGLADESH")
   _lobby_add_action("SHARIATPUR WORLD", "60 district tile records • full-resolution local streaming", Callable(self, "_show_map_information"))
@@ -1214,6 +1250,9 @@ func _check_combat_result() -> void:
   return
  _shown_result_token = token
  _release_gameplay_inputs()
+ _freeze_player_for_lobby()
+ if is_instance_valid(lobby_showcase):
+  lobby_showcase.call("set_enabled", true)
  lobby_overlay.visible = true
  _show_lobby_page("results")
  get_tree().paused = true
@@ -1399,6 +1438,15 @@ func _build_round_controls() -> void:
  replay_round_button.pressed.connect(_replay_combat_round)
  add_child(replay_round_button)
 
+func _freeze_player_for_lobby() -> void:
+ if not is_instance_valid(w) or not is_instance_valid(w.player):
+  return
+ var stopped_velocity: Vector3 = w.player.velocity
+ stopped_velocity.x = 0.0
+ stopped_velocity.z = 0.0
+ w.player.velocity = stopped_velocity
+
+
 func _release_gameplay_inputs() -> void:
  # Opening menus during a multitouch gesture must not leave movement/fire held.
  var actions := [
@@ -1415,6 +1463,9 @@ func _show_mode_lobby() -> void:
  if not is_instance_valid(lobby_overlay):
   return
  _release_gameplay_inputs()
+ _freeze_player_for_lobby()
+ if is_instance_valid(lobby_showcase):
+  lobby_showcase.call("set_enabled", true)
  lobby_overlay.visible = true
  _show_lobby_page("home")
  get_tree().paused = true
@@ -1429,6 +1480,8 @@ func _replay_combat_round() -> void:
  if mode_id not in ["survival", "arena_training", "street_skirmish"]:
   return
  _release_gameplay_inputs()
+ if is_instance_valid(lobby_showcase):
+  lobby_showcase.call("set_enabled", false)
  selected_mode = mode_id
  _shown_result_token = ""
  w.set("game_mode", mode_id)
@@ -1548,6 +1601,8 @@ func _enter_selected_mode() -> void:
 
 
 func _complete_enter_selected_mode() -> void:
+ if is_instance_valid(lobby_showcase):
+  lobby_showcase.call("set_enabled", false)
  get_tree().paused = false
  _release_gameplay_inputs()
  if w:
