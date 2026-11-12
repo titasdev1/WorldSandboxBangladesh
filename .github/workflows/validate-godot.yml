@@ -61,7 +61,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Validate character asset pipeline Python syntax
-        run: python3 -m py_compile tools/fetch_quaternius_character.py tools/verify_quaternius_character.py
+        run: python3 -m py_compile tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/fetch_charactercreator_hero.py tools/convert_charactercreator_glbs.py
 
       - name: Restore cached Quaternius CC0 hero and animation libraries
         uses: actions/cache@v4
@@ -75,6 +75,18 @@ jobs:
           set -euo pipefail
           python3 tools/fetch_quaternius_character.py
           python3 tools/verify_quaternius_character.py
+
+      - name: Restore pinned CharacterCreator human and outfit layers
+        uses: actions/cache@v4
+        with:
+          path: external_content/asquare_charactercreator
+          key: ${{ runner.os }}-asquare-charactercreator-v2-852e48f316b90a0937234886630e4fb4cdfd1f78
+
+      - name: Fetch and validate modular CharacterCreator operator
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_charactercreator_hero.py --required
 
       - name: Dequantize CharacterCreator GLBs for Godot 4.4.1
         shell: bash
@@ -131,6 +143,17 @@ jobs:
             }
             grep -Fq "AUTHORED_HERO_GEAR_READY" "$RUNNER_TEMP/godot/startup.log" || {
               echo "CC0 hero activated but scale-matched combat gear was not created at runtime." >&2
+              exit 1
+            }
+          fi
+
+          if python3 -c 'import json,pathlib; p=pathlib.Path("external_content/asquare_charactercreator/asset_manifest.json"); raise SystemExit(0 if p.exists() and json.loads(p.read_text(encoding="utf-8")).get("available") is True else 1)'; then
+            grep -Fq "CHARACTER_CREATOR_HERO_READY" "$RUNNER_TEMP/godot/startup.log" || {
+              echo "CharacterCreator assets are available but the modular humanoid did not activate." >&2
+              exit 1
+            }
+            grep -Fq "CHARACTER_CREATOR_COMBAT_GEAR_READY" "$RUNNER_TEMP/godot/startup.log" || {
+              echo "CharacterCreator humanoid activated but bone-attached gear was not created." >&2
               exit 1
             }
           fi
