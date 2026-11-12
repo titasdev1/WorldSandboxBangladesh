@@ -527,8 +527,8 @@ jobs:
             echo "ERROR: CharacterCreator GLB did not activate its rig, clips and modular outfit in Godot."
             exit 1
           fi
-          if ! grep -Fq "CHARACTER_CREATOR_COMBAT_GEAR_READY" "$GODOT_DIR/startup.log"; then
-            echo "ERROR: CharacterCreator operator did not create bone-attached tactical gear."
+          if ! grep -Fq "AUTHORED_HERO_GEAR_READY" "$GODOT_DIR/startup.log" && ! grep -Fq "CHARACTER_CREATOR_COMBAT_GEAR_READY" "$GODOT_DIR/startup.log"; then
+            echo "ERROR: runtime hero did not activate a rig-attached tactical gear layer."
             exit 1
           fi
 
@@ -642,7 +642,7 @@ jobs:
           MAP_PACKAGE: ${{ (inputs.map_package == 'shariatpur_review' || github.event_name == 'pull_request' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[shariatpur-review-apk]'))) && 'shariatpur_review' || 'greater_dhaka' }}
         run: |
           set -euo pipefail
-          python3 tools/verify_apk_contents.py --apk build/Android/world_sandbox_bangladesh.apk --map-package "$MAP_PACKAGE" | tee build/apk-content-verification.txt
+          python3 tools/verify_apk_contents.py --apk build/Android/world_sandbox_bangladesh.apk --map-package "$MAP_PACKAGE" --require-charactercreator | tee build/apk-content-verification.txt
           cat build/apk-content-verification.txt >> "$GITHUB_STEP_SUMMARY"
 
       - name: Export and verify separate full-resolution map pack
