@@ -553,11 +553,14 @@ func _create_charactercreator_bone_gear_root(
     var visual_to_skeleton := skeleton.global_transform.affine_inverse() * global_transform
     var target_in_skeleton := visual_to_skeleton * Transform3D(Basis.IDENTITY, target_position_in_visual)
     var bone_pose := skeleton.get_bone_global_pose(bone_index)
-    attachment.transform = bone_pose.affine_inverse() * target_in_skeleton
+    var gear_offset_from_bone := bone_pose.affine_inverse() * target_in_skeleton
 
     var gear_root := Node3D.new()
     gear_root.name = gear_name
     attachment.add_child(gear_root)
+    # BoneAttachment3D owns the live bone transform; place the authored offset
+    # on its child so the engine cannot overwrite that offset on the next update.
+    gear_root.transform = gear_offset_from_bone
     return gear_root
 
 
