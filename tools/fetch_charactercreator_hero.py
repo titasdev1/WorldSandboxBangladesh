@@ -39,7 +39,7 @@ ASSETS = {
     },
     "clothing_tshirt.glb": {
         "path": "output/clothing_tshirt.glb",
-        "blob_sha1": "b6b7d4b32f4ca8ea1b83d30b6e0ce25c51eb5ca6",
+        "blob_sha1": "ce7966dfd52c4bc6158e1e3b21969e6a63b066da",
         "role": "skinned base shirt layer",
     },
     "clothing_jacket.glb": {
