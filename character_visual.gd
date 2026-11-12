@@ -32,6 +32,9 @@ const CHARACTER_CREATOR_LAYER_PATHS := [
     "res://external_content/asquare_charactercreator/clothing_jeans.glb",
     "res://external_content/asquare_charactercreator/clothing_boots.glb",
 ]
+# A streamed district must never keep the authored operator hidden forever.
+# Start the rig load after the map settles, or after this bounded staging window.
+const MAX_AUTHORED_HERO_MAP_WAIT_MS := 15000
 
 var _selected_authored_hero_path := ""
 var _authored_hero_source := ""
@@ -121,23 +124,23 @@ func _begin_staged_authored_hero_load() -> void:
     var world_node: Node = player_node.get_parent() if is_instance_valid(player_node) else null
     var map_loader: Node = world_node.get("real_dhaka_loader") as Node if is_instance_valid(world_node) else null
     if is_instance_valid(world_node) and bool(world_node.get("real_dhaka_loaded")) and is_instance_valid(map_loader):
-        # Do not let a timeout launch a large character import while the first
-        # map tile is still loading. Keep the procedural fallback visible until
-        # the first tile and its lightweight navigation index are ready.
+        # Avoid competing with the first map import, but never let a delayed or
+        # missing navigation index trap the player in the primitive fallback.
+        # The actual GLB is still loaded on Godot's background resource thread.
         var wait_started_ms := Time.get_ticks_msec()
-        var wait_warning_sent := false
-        while is_inside_tree():
+        var map_ready_for_character := false
+        while is_inside_tree() and Time.get_ticks_msec() - wait_started_ms < MAX_AUTHORED_HERO_MAP_WAIT_MS:
             var diagnostics: Dictionary = {}
             if map_loader.has_method("get_runtime_map_diagnostics"):
                 diagnostics = map_loader.call("get_runtime_map_diagnostics")
             if int(diagnostics.get("loaded_tiles", 0)) > 0 and bool(diagnostics.get("navigation_index_ready", false)):
+                map_ready_for_character = true
                 break
-            if bool(diagnostics.get("streaming_started", false)) and not wait_warning_sent and Time.get_ticks_msec() - wait_started_ms > 15000:
-                push_warning("AUTHORED_HERO_STAGED_WAIT: map is still preparing; keeping the fallback visible and avoiding a competing import.")
-                wait_warning_sent = true
             await get_tree().process_frame
         if not is_inside_tree():
             return
+        if not map_ready_for_character:
+            push_warning("AUTHORED_HERO_STAGING_LIMIT: map/navigation is still preparing; starting the authored character load anyway.")
     else:
         await get_tree().process_frame
         await get_tree().process_frame
