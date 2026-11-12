@@ -89,13 +89,37 @@ class MobileInteractionFlowTests(unittest.TestCase):
         self.assertIn("Control.MOUSE_FILTER_STOP", ready)
         self.assertIn("InputEventMouseButton", gui)
         self.assertIn("InputEventScreenTouch", gui)
-        self.assertIn("set_expanded(not expanded)", gui)
+        self.assertIn("_toggle_expanded_from_input()", gui)
+        self.assertIn("set_expanded(not expanded)", function_block(self.map_view, "_toggle_expanded_from_input"))
         self.assertIn("get_district_overview_road_routes", self.map_view)
         self.assertIn("get_world_bounds", self.map_view)
         self.assertIn("TAP MAP TO CLOSE", self.map_view)
         self.assertIn("viewport_size.x * 0.90", relayout)
         self.assertIn("viewport_size.y * 0.84", relayout)
         self.assertIn("relayout(get_viewport_rect().size)", expanded)
+
+    def test_touch_jump_is_queued_for_the_next_physics_tick(self):
+        touch_button = function_block(self.hud, "add_touch_button")
+        queue_handler = function_block(self.hud, "_queue_player_jump")
+        self.assertIn('if action_name == "jump"', touch_button)
+        self.assertIn("_queue_player_jump", touch_button)
+        self.assertIn('w.player.call("queue_jump")', queue_handler)
+        self.assertIn("var _jump_requested := false", self.player)
+        self.assertIn("func queue_jump() -> void:", self.player)
+        self.assertIn('var jump_requested_now := _jump_requested or Input.is_action_just_pressed("jump")', self.player)
+
+    def test_expanded_map_distinguishes_tap_from_pinch_and_applies_zoom(self):
+        gui = function_block(self.map_view, "_gui_input")
+        pinch = function_block(self.map_view, "_update_pinch_zoom")
+        self.assertIn("InputEventScreenDrag", gui)
+        self.assertIn("_touch_sequence_used_pinch", gui)
+        self.assertIn("_begin_pinch_zoom()", gui)
+        self.assertIn("_update_pinch_zoom()", gui)
+        self.assertIn("_map_zoom = clampf", pinch)
+        self.assertIn("MAP_ZOOM_MIN", self.map_view)
+        self.assertIn("MAP_ZOOM_MAX", self.map_view)
+        self.assertIn("PINCH TO ZOOM", self.map_view)
+        self.assertIn("TAP MAP TO CLOSE", self.map_view)
 
     def test_district_overview_uses_bounded_route_sampling(self):
         overview = function_block(self.loader, "get_district_overview_road_routes")
