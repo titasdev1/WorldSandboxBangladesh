@@ -30,8 +30,17 @@ var _standing_capsule_height := 1.8
 const HUMANOID_BASE_SCALE := Vector3(0.90, 0.90, 0.90)
 var _is_crouched := false
 var _jump_buffer_time := 0.0
+var _jump_requested := false
 var _coyote_time := 0.0
 var _was_airborne := false
+const JUMP_BUFFER_SECONDS := 0.16
+
+
+func queue_jump() -> void:
+ # Mobile button presses can begin and end between physics ticks. Queue the
+ # request so the next _physics_process consumes it deterministically.
+ if not _is_crouched:
+  _jump_requested = true
 
 func set_camera_view_mode(mode: String) -> void:
  camera_view_mode = "first_person" if mode == "first_person" else "third_person"
@@ -135,9 +144,13 @@ func _physics_process(delta):
  var current_speed: float = crouch_speed if _is_crouched else (sprint_speed if sprinting else speed)
  velocity.x = dir.x * current_speed
  velocity.z = dir.z * current_speed
- # Buffer a tap slightly before landing and allow a short coyote window after leaving an edge.
- if Input.is_action_just_pressed("jump") and not _is_crouched:
-  _jump_buffer_time = 0.16
+ # Keyboard and touch requests share the same physics-frame buffer. The
+ # touch HUD calls queue_jump() directly, so a fast tap cannot vanish between
+ # render and physics ticks.
+ var jump_requested_now := _jump_requested or Input.is_action_just_pressed("jump")
+ _jump_requested = false
+ if jump_requested_now and not _is_crouched:
+  _jump_buffer_time = JUMP_BUFFER_SECONDS
  else:
   _jump_buffer_time = maxf(0.0, _jump_buffer_time - delta)
  if is_on_floor():
