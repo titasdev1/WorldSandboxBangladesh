@@ -16,6 +16,16 @@ class CharacterMovementAnimationTests(unittest.TestCase):
         self.assertIn('state = "land"', block)
         self.assertIn('body.get_meta("just_landed", false)', block)
 
+    def test_featured_operator_uses_modular_human_and_rig_following_gear(self):
+        source = (ROOT / "character_visual.gd").read_text(encoding="utf-8")
+        self.assertIn("CHARACTER_CREATOR_HERO_PATH", source)
+        self.assertIn("_attach_charactercreator_layers", source)
+        self.assertIn("_sync_charactercreator_layer_skeletons", source)
+        self.assertIn("set_bone_pose(", source)
+        self.assertIn("BoneAttachment3D.new()", source)
+        self.assertIn("CHARACTER_CREATOR_HERO_READY", source)
+        self.assertIn("CHARACTER_CREATOR_COMBAT_GEAR_READY", source)
+
     def test_jump_has_a_short_buffer_and_coyote_window(self):
         source = (ROOT / "player.gd").read_text(encoding="utf-8")
         self.assertIn("var _jump_buffer_time := 0.0", source)
