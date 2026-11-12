@@ -142,6 +142,11 @@ if "AUTHORED_HERO_GEAR_READY" not in hero_android_workflow_text or "AUTHORED_HER
     raise SystemExit("PRODUCTION GATE FAILED: runtime validation does not verify the playable hero's attached gear layer.")
 if "AUTHORED_HERO_READY" not in hero_android_workflow_text or "Project_A_Square_Hero.glb" not in (ROOT / "tools" / "verify_apk_contents.py").read_text(encoding="utf-8"):
     raise SystemExit("PRODUCTION GATE FAILED: authored hero activation/package verification is disconnected")
+
+for workflow_path in (".github/workflows/android.yml", ".github/workflows/validate-godot.yml"):
+    workflow_text = (ROOT / workflow_path).read_text(encoding="utf-8")
+    if "python3 tools/convert_charactercreator_glbs.py" not in workflow_text:
+        raise SystemExit(f"PRODUCTION GATE FAILED: {workflow_path} does not dequantize pinned character GLBs before Godot import.")
 export_presets_text = (ROOT / "export_presets.cfg").read_text(encoding="utf-8")
 # The Android preset must retain both the licensed-image payloads used by
 # interior references and the tile-local GeoJSON needed by real-world roads,

@@ -76,6 +76,12 @@ jobs:
           python3 tools/fetch_quaternius_character.py
           python3 tools/verify_quaternius_character.py
 
+      - name: Dequantize CharacterCreator GLBs for Godot 4.4.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/convert_charactercreator_glbs.py
+
       - name: Download Godot
         shell: bash
         run: |

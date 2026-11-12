@@ -204,12 +204,14 @@ def main() -> int:
     if not args.force and manifest_path.is_file():
         try:
             cached = json.loads(manifest_path.read_text(encoding="utf-8"))
-            if cached.get("available") is True and all(
+            records = cached.get("asset_files", {})
+            if cached.get("available") is True and cached.get("godot_compatibility", {}).get("dequantized") is True and all(
                 (OUTPUT / name).is_file()
-                and git_blob_sha1((OUTPUT / name).read_bytes()) == spec["blob_sha1"]
+                and records.get(name, {}).get("git_blob_sha1") == spec["blob_sha1"]
+                and sha256_bytes((OUTPUT / name).read_bytes()) == records.get(name, {}).get("sha256")
                 for name, spec in ASSETS.items()
             ):
-                print("Pinned CharacterCreator assets already verified.")
+                print("Pinned CharacterCreator assets and Godot-compatible conversions already verified.")
                 return 0
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             pass

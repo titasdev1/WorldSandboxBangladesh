@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import fetch_charactercreator_hero as pipeline
+import convert_charactercreator_glbs as converter
 
 
 def make_glb(document: dict) -> bytes:
@@ -77,6 +78,31 @@ class CharacterCreatorHeroPipelineTests(unittest.TestCase):
                 "animation_count": 2,
                 "morph_target_count_per_primitive": 1,
             })
+
+    def test_quantized_glb_is_rejected_until_dequantized(self):
+        quantized = {
+            "asset": {"version": "2.0"},
+            "extensionsUsed": ["KHR_mesh_quantization"],
+            "extensionsRequired": ["KHR_mesh_quantization"],
+            "nodes": [],
+            "skins": [],
+            "animations": [],
+            "meshes": [],
+        }
+        with self.assertRaisesRegex(RuntimeError, "KHR_mesh_quantization remains"):
+            converter.assert_core_gltf_compatible(quantized, "quantized.glb")
+
+    def test_core_gltf_without_mesh_quantization_is_accepted(self):
+        compatible = {
+            "asset": {"version": "2.0"},
+            "extensionsUsed": [],
+            "extensionsRequired": [],
+            "nodes": [],
+            "skins": [],
+            "animations": [],
+            "meshes": [],
+        }
+        converter.assert_core_gltf_compatible(compatible, "dequantized.glb")
 
     def test_accessory_requires_shared_skinned_bones(self):
         body = {f"bone_{index}" for index in range(25)}
