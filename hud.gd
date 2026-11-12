@@ -662,10 +662,21 @@ func add_touch_button(label_text: String, pos: Vector2, size: Vector2, action_na
  b.position = pos
  b.size = size
  b.add_theme_font_size_override("font_size", 18)
- b.button_down.connect(func(): Input.action_press(action_name))
+ if action_name == "jump":
+  # A direct buffered request is reliable even when a touch tap lasts less
+  # than one rendered frame. Keyboard jump remains on the normal InputMap.
+  b.button_down.connect(_queue_player_jump)
+ else:
+  b.button_down.connect(func(): Input.action_press(action_name))
  b.button_up.connect(func(): Input.action_release(action_name))
  add_child(b)
  return b
+
+
+func _queue_player_jump() -> void:
+ if is_instance_valid(w) and is_instance_valid(w.player) and w.player.has_method("queue_jump"):
+  w.player.call("queue_jump")
+
 
 func _build_driving_status() -> void:
  driving_status = Label.new()
