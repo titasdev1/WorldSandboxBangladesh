@@ -29,6 +29,7 @@ on:
       - "tools/verify_medium_stage_assets.py"
       - "tests/test_kenney_asset_pipeline.py"
       - "tests/test_character_movement_animations.py"
+      - "tests/test_charactercreator_hero.py"
       - "tools/fetch_quaternius_character.py"
       - "tools/merge_quaternius_character.mjs"
       - "tools/verify_quaternius_character.py"
@@ -93,7 +94,7 @@ jobs:
 
       - name: Validate asset pipeline Python syntax
         shell: bash
-        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/kenney_pack_utils.py tools/verify_medium_stage_assets.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py tools/map_pack_build.py tools/verify_core_apk_contents.py
+        run: python3 -m py_compile tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/fetch_charactercreator_hero.py tools/kenney_pack_utils.py tools/verify_medium_stage_assets.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py tools/map_pack_build.py tools/verify_core_apk_contents.py
 
       - name: Run navigation-index unit tests
         shell: bash
@@ -106,6 +107,10 @@ jobs:
       - name: Run character movement animation regression tests
         shell: bash
         run: python3 -m unittest discover -s tests -p "test_character_movement_animations.py"
+
+      - name: Run modular CharacterCreator GLB validation tests
+        shell: bash
+        run: python3 -m unittest discover -s tests -p "test_charactercreator_hero.py"
 
       - name: Run mobile interaction regression tests
         shell: bash
@@ -401,6 +406,29 @@ jobs:
               print("Authored hero source unavailable; documented procedural fallback retained:", data.get("reason", "no reason reported"))
           PY
 
+      - name: Restore pinned CharacterCreator human and outfit layers
+        uses: actions/cache@v4
+        with:
+          path: external_content/asquare_charactercreator
+          key: ${{ runner.os }}-asquare-charactercreator-v1-852e48f316b90a0937234886630e4fb4cdfd1f78
+
+      - name: Fetch and verify the modular A-Square human candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_charactercreator_hero.py --required
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("external_content/asquare_charactercreator/asset_manifest.json").read_text(encoding="utf-8"))
+          if manifest.get("available") is not True:
+              raise SystemExit("CHARACTER CREATOR GATE FAILED: asset manifest is unavailable.")
+          print("CharacterCreator humanoid rig:", manifest["body"]["bone_count"], "bones")
+          print("Baked locomotion/air clips:", manifest["body"]["animation_count"])
+          print("Morph targets per primitive:", manifest["body"]["morph_target_count_per_primitive"])
+          print("Modular skinned clothing/hair:", len(manifest["asset_files"]) - 1, "layers")
+          PY
+
       - name: Restore Godot import cache for the pinned map assets
         uses: actions/cache@v4
         with:
@@ -408,7 +436,7 @@ jobs:
             .godot/imported
             .godot/editor
             .godot/uid_cache.bin
-          key: ${{ runner.os }}-godot-4.4.1-${{ hashFiles('project.godot', '**/*.import', 'assets/world/dhaka_tiles/**', 'external_content/quaternius_hero/**') }}
+          key: ${{ runner.os }}-godot-4.4.1-${{ hashFiles('project.godot', '**/*.import', 'assets/world/dhaka_tiles/**', 'external_content/quaternius_hero/**', 'external_content/asquare_charactercreator/**') }}
           restore-keys: |
             ${{ runner.os }}-godot-4.4.1-
 
@@ -491,15 +519,17 @@ jobs:
           PY
           fi
 
-          if python3 -c 'import json,pathlib; p=pathlib.Path("external_content/quaternius_hero/asset_manifest.json"); raise SystemExit(0 if p.exists() and json.loads(p.read_text(encoding="utf-8")).get("available") is True else 1)'; then
-            if ! grep -Fq "AUTHORED_HERO_READY" "$GODOT_DIR/startup.log"; then
-              echo "ERROR: CC0 hero asset is available but the game did not activate its imported rig/animations."
-              exit 1
-            fi
-            if ! grep -Fq "AUTHORED_HERO_GEAR_READY" "$GODOT_DIR/startup.log"; then
-              echo "ERROR: CC0 hero activated but scale-matched combat gear was not created at runtime."
-              exit 1
-            fi
+          if ! python3 -c 'import json,pathlib; p=pathlib.Path("external_content/asquare_charactercreator/asset_manifest.json"); raise SystemExit(0 if p.exists() and json.loads(p.read_text(encoding="utf-8")).get("available") is True else 1)'; then
+            echo "ERROR: pinned modular CharacterCreator assets are missing from the medium-stage candidate."
+            exit 1
+          fi
+          if ! grep -Fq "CHARACTER_CREATOR_HERO_READY" "$GODOT_DIR/startup.log"; then
+            echo "ERROR: CharacterCreator GLB did not activate its rig, clips and modular outfit in Godot."
+            exit 1
+          fi
+          if ! grep -Fq "CHARACTER_CREATOR_COMBAT_GEAR_READY" "$GODOT_DIR/startup.log"; then
+            echo "ERROR: CharacterCreator operator did not create bone-attached tactical gear."
+            exit 1
           fi
 
       - name: Fetch optional CC0 vehicle art
