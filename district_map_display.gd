@@ -19,6 +19,17 @@ var _last_draw_target_position := Vector3.ZERO
 var _last_draw_has_target := false
 var _last_draw_district := ""
 
+const MAP_ZOOM_MIN := 0.65
+const MAP_ZOOM_MAX := 3.2
+var _map_zoom := 1.0
+var _active_touches: Dictionary = {}
+var _touch_tap_start := Vector2.ZERO
+var _touch_sequence_moved := false
+var _touch_sequence_used_pinch := false
+var _pinch_active := false
+var _pinch_start_distance := 0.0
+var _pinch_start_zoom := 1.0
+
 const DISTRICTS := [
  {"name":"Old Town","pos":Vector2(-60,-60),"color":Color("#d9a86c")},
  {"name":"Nobo Bazar","pos":Vector2(0,0),"color":Color("#f0c95b")},
@@ -36,18 +47,89 @@ func _ready() -> void:
 
 
 func _gui_input(event: InputEvent) -> void:
- var activate := false
  if event is InputEventMouseButton:
-  activate = event.button_index == MOUSE_BUTTON_LEFT and event.pressed
- elif event is InputEventScreenTouch:
-  activate = event.pressed
- if not activate:
+  if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+   _toggle_expanded_from_input()
+   accept_event()
+  elif expanded and event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
+   _adjust_map_zoom(1.15)
+   accept_event()
+  elif expanded and event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+   _adjust_map_zoom(1.0 / 1.15)
+   accept_event()
   return
+
+ if event is InputEventScreenTouch:
+  var touch := event as InputEventScreenTouch
+  if touch.pressed:
+   if _active_touches.is_empty():
+    _touch_tap_start = touch.position
+    _touch_sequence_moved = false
+    _touch_sequence_used_pinch = false
+   _active_touches[touch.index] = touch.position
+   if _active_touches.size() >= 2:
+    _touch_sequence_used_pinch = true
+    if expanded:
+     _begin_pinch_zoom()
+  else:
+   _active_touches.erase(touch.index)
+   if _active_touches.is_empty():
+    if not _touch_sequence_used_pinch and not _touch_sequence_moved and touch.position.distance_to(_touch_tap_start) < 18.0:
+     _toggle_expanded_from_input()
+    _touch_sequence_moved = false
+    _touch_sequence_used_pinch = false
+    _pinch_active = false
+  accept_event()
+  return
+
+ if event is InputEventScreenDrag:
+  var drag := event as InputEventScreenDrag
+  if _active_touches.has(drag.index):
+   _active_touches[drag.index] = drag.position
+   if drag.position.distance_to(_touch_tap_start) >= 14.0:
+    _touch_sequence_moved = true
+   if _active_touches.size() >= 2:
+    _touch_sequence_used_pinch = true
+    if expanded:
+     if not _pinch_active:
+      _begin_pinch_zoom()
+     _update_pinch_zoom()
+  accept_event()
+
+
+func _toggle_expanded_from_input() -> void:
  set_expanded(not expanded)
  var hud := get_parent()
  if is_instance_valid(hud) and hud.has_method("_sync_map_button_state"):
   hud.call("_sync_map_button_state")
- accept_event()
+
+
+func _begin_pinch_zoom() -> void:
+ if _active_touches.size() < 2:
+  _pinch_active = false
+  return
+ var touch_ids := _active_touches.keys()
+ var first: Vector2 = _active_touches[touch_ids[0]]
+ var second: Vector2 = _active_touches[touch_ids[1]]
+ _pinch_start_distance = first.distance_to(second)
+ _pinch_start_zoom = _map_zoom
+ _pinch_active = _pinch_start_distance >= 8.0
+
+
+func _update_pinch_zoom() -> void:
+ if not _pinch_active or _active_touches.size() < 2 or _pinch_start_distance <= 0.0:
+  return
+ var touch_ids := _active_touches.keys()
+ var first: Vector2 = _active_touches[touch_ids[0]]
+ var second: Vector2 = _active_touches[touch_ids[1]]
+ var current_distance := first.distance_to(second)
+ _map_zoom = clampf(_pinch_start_zoom * current_distance / _pinch_start_distance, MAP_ZOOM_MIN, MAP_ZOOM_MAX)
+ queue_redraw()
+
+
+func _adjust_map_zoom(factor: float) -> void:
+ _map_zoom = clampf(_map_zoom * factor, MAP_ZOOM_MIN, MAP_ZOOM_MAX)
+ queue_redraw()
 
 func update_world(target_world: Node) -> void:
  world = target_world
@@ -155,7 +237,7 @@ func _draw() -> void:
  var map_rect := Rect2(Vector2(margin, margin), size - Vector2(margin*2.0, margin*2.0))
  var real_map := is_instance_valid(world) and bool(world.get("real_dhaka_loaded"))
  var overview_map := expanded and real_map
- var range_m := 300.0 if expanded else 105.0
+ var range_m := (300.0 if expanded else 105.0) / _map_zoom
  var map_world_center := Vector2(_player_position.x, _player_position.z)
  var center := map_rect.position + map_rect.size * 0.5
  var pixels_per_m := minf(map_rect.size.x, map_rect.size.y) / (range_m * 2.0)
@@ -172,7 +254,7 @@ func _draw() -> void:
    var map_width := maxf(max_x - min_x, 1.0)
    var map_depth := maxf(max_z - min_z, 1.0)
    map_world_center = Vector2((min_x + max_x) * 0.5, (min_z + max_z) * 0.5)
-   pixels_per_m = minf(map_rect.size.x / map_width, map_rect.size.y / map_depth) * 0.94
+   pixels_per_m = minf(map_rect.size.x / map_width, map_rect.size.y / map_depth) * 0.94 * _map_zoom
  if real_map:
   var loader = world.get("real_dhaka_loader")
   if is_instance_valid(loader) and loader.has_method("get_road_routes"):
@@ -260,7 +342,7 @@ func _draw() -> void:
    if is_instance_valid(loader) and loader.has_method("world_to_lat_lon"):
     var lat_lon: Vector2 = loader.world_to_lat_lon(_player_position)
     draw_string(ThemeDB.fallback_font, Vector2(margin+4, margin+34), "%.6f, %.6f" % [lat_lon.x, lat_lon.y], HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color("#b6d8e5"))
-  draw_string(ThemeDB.fallback_font, Vector2(map_rect.end.x - 145.0, margin + 17.0), "TAP MAP TO CLOSE" if expanded else "TAP TO EXPAND", HORIZONTAL_ALIGNMENT_RIGHT, 145.0, 11, Color("#b6d8e5"))
+  draw_string(ThemeDB.fallback_font, Vector2(map_rect.end.x - 220.0, margin + 17.0), "PINCH TO ZOOM • TAP MAP TO CLOSE" if expanded else "TAP TO EXPAND", HORIZONTAL_ALIGNMENT_RIGHT, 220.0, 11, Color("#b6d8e5"))
 
 func set_navigation_target(place: Dictionary) -> void:
  if not is_instance_valid(world):
@@ -340,4 +422,10 @@ func set_expanded(value: bool) -> void:
  if expanded == value:
   return
  expanded = value
+ if not expanded:
+  _map_zoom = 1.0
+ _active_touches.clear()
+ _touch_sequence_moved = false
+ _touch_sequence_used_pinch = false
+ _pinch_active = false
  relayout(get_viewport_rect().size)
