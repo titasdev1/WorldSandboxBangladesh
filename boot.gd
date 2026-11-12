@@ -8,6 +8,15 @@ const FINAL_PATH := MAP_PACK_DIR + "/" + MAP_PACK_FILENAME
 const LOCAL_METADATA_PATH := MAP_PACK_DIR + "/installed_map_pack.json"
 const REMOTE_METADATA_URL := "https://github.com/titasdev1/WorldSandboxBangladesh/releases/download/shariatpur-review-candidate/Project-A-Square-Shariatpur-Map.json"
 const ALLOWED_ASSET_BASE_URL := "https://github.com/titasdev1/WorldSandboxBangladesh/releases/download/shariatpur-review-candidate/" + MAP_PACK_FILENAME
+const GUEST_IDENTITY_PATH := "user://a_square_guest_profile.json"
+const BOOT_SPLASH_DURATION_SECONDS := 0.9
+const BOOT_SPLASH_FADE_SECONDS := 0.28
+
+var boot_content: Control
+var intro_overlay: Control
+var login_overlay: Control
+var callsign_input: LineEdit
+var guest_display_name := "OPERATOR"
 
 var status_label: Label
 var detail_label: Label
@@ -38,10 +47,259 @@ func _ready() -> void:
 	http.request_completed.connect(_on_http_request_completed)
 	add_child(http)
 	_refresh_pack_state()
-	# CI needs to exercise the actual world scene with the full map workspace.
-	# Normal Android launches remain on this lightweight scene until Enter is tapped.
+	# CI opens the real world directly. Never block headless map/Android validation
+	# with a branded intro or a local sign-in panel.
 	if OS.get_environment("WSB_AUTOSTART_MAP_FOR_SMOKE") == "1":
+		boot_content.visible = true
 		call_deferred("_autostart_world_for_smoke")
+		return
+	boot_content.visible = false
+	call_deferred("_run_boot_sequence")
+
+
+
+func _run_boot_sequence() -> void:
+	intro_overlay = _create_intro_overlay()
+	add_child(intro_overlay)
+	var brand_mark := intro_overlay.get_node("IntroCenter/IntroStack/BrandMark") as Label
+	var brand_title := intro_overlay.get_node("IntroCenter/IntroStack/BrandTitle") as Label
+	var brand_subtitle := intro_overlay.get_node("IntroCenter/IntroStack/BrandSubtitle") as Label
+	brand_mark.scale = Vector2(0.78, 0.78)
+	brand_subtitle.modulate.a = 0.0
+	var intro_tween := create_tween()
+	intro_tween.set_parallel(true)
+	intro_tween.tween_property(brand_mark, "scale", Vector2.ONE, 0.62).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	intro_tween.tween_property(brand_subtitle, "modulate:a", 1.0, 0.42).set_delay(0.14)
+	intro_tween.tween_property(brand_title, "modulate:a", 1.0, 0.34)
+	await get_tree().create_timer(BOOT_SPLASH_DURATION_SECONDS).timeout
+	var fade_tween := create_tween()
+	fade_tween.tween_property(intro_overlay, "modulate:a", 0.0, BOOT_SPLASH_FADE_SECONDS)
+	await fade_tween.finished
+	if is_instance_valid(intro_overlay):
+		intro_overlay.queue_free()
+	intro_overlay = null
+
+	var identity := _load_guest_identity()
+	if identity.is_empty():
+		_show_guest_login_screen()
+	else:
+		guest_display_name = _sanitize_callsign(str(identity.get("display_name", "OPERATOR")))
+		_show_map_install_screen()
+
+
+func _create_intro_overlay() -> Control:
+	var layer := Control.new()
+	layer.name = "ASquareBootIntro"
+	layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.mouse_filter = Control.MOUSE_FILTER_STOP
+
+	var background := ColorRect.new()
+	background.name = "IntroBackground"
+	background.color = Color("#06111f")
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(background)
+
+	var accent_top := ColorRect.new()
+	accent_top.name = "IntroAccentTop"
+	accent_top.color = Color("#123d56")
+	accent_top.anchor_left = 0.0
+	accent_top.anchor_top = 0.0
+	accent_top.anchor_right = 1.0
+	accent_top.anchor_bottom = 0.0
+	accent_top.offset_bottom = 3.0
+	accent_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(accent_top)
+
+	var center := CenterContainer.new()
+	center.name = "IntroCenter"
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(center)
+
+	var stack := VBoxContainer.new()
+	stack.name = "IntroStack"
+	stack.alignment = BoxContainer.ALIGNMENT_CENTER
+	stack.add_theme_constant_override("separation", 12)
+	center.add_child(stack)
+
+	var brand_mark := Label.new()
+	brand_mark.name = "BrandMark"
+	brand_mark.text = "A²"
+	brand_mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	brand_mark.add_theme_font_size_override("font_size", 104)
+	brand_mark.add_theme_color_override("font_color", Color("#73e9fa"))
+	stack.add_child(brand_mark)
+
+	var brand_title := Label.new()
+	brand_title.name = "BrandTitle"
+	brand_title.text = "PROJECT A-SQUARE"
+	brand_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	brand_title.add_theme_font_size_override("font_size", 22)
+	brand_title.add_theme_color_override("font_color", Color("#f5f9ff"))
+	stack.add_child(brand_title)
+
+	var brand_subtitle := Label.new()
+	brand_subtitle.name = "BrandSubtitle"
+	brand_subtitle.text = "WORLD SANDBOX  •  BANGLADESH"
+	brand_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	brand_subtitle.add_theme_font_size_override("font_size", 13)
+	brand_subtitle.add_theme_color_override("font_color", Color("#9bb8cb"))
+	stack.add_child(brand_subtitle)
+
+	return layer
+
+
+func _show_guest_login_screen() -> void:
+	if is_instance_valid(login_overlay):
+		login_overlay.queue_free()
+	login_overlay = Control.new()
+	login_overlay.name = "LocalGuestLogin"
+	login_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	login_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	login_overlay.modulate.a = 0.0
+	add_child(login_overlay)
+
+	var background := ColorRect.new()
+	background.color = Color("#06111f")
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	login_overlay.add_child(background)
+
+	var center := CenterContainer.new()
+	center.name = "GuestLoginCenter"
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	login_overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.name = "GuestLoginPanel"
+	panel.custom_minimum_size = Vector2(minf(440.0, maxf(280.0, get_viewport_rect().size.x - 44.0)), 0.0)
+	panel.add_theme_stylebox_override("panel", _panel_style(Color("#0b2032"), Color("#28b8d3"), 2, 18))
+	center.add_child(panel)
+
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 13)
+	panel.add_child(content)
+
+	var eyebrow := Label.new()
+	eyebrow.text = "PROJECT A-SQUARE  /  LOCAL PROFILE"
+	eyebrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	eyebrow.add_theme_color_override("font_color", Color("#51d9ed"))
+	eyebrow.add_theme_font_size_override("font_size", 12)
+	content.add_child(eyebrow)
+
+	var title := Label.new()
+	title.text = "WELCOME, OPERATOR"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title.add_theme_color_override("font_color", Color("#f4f8ff"))
+	title.add_theme_font_size_override("font_size", 25)
+	content.add_child(title)
+
+	var description := Label.new()
+	description.text = "Create a local guest profile to save your callsign and career progress on this device."
+	description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	description.add_theme_color_override("font_color", Color("#a9c3d5"))
+	description.add_theme_font_size_override("font_size", 14)
+	content.add_child(description)
+
+	var callsign_label := Label.new()
+	callsign_label.text = "OPERATOR CALLSIGN"
+	callsign_label.add_theme_color_override("font_color", Color("#73e9fa"))
+	callsign_label.add_theme_font_size_override("font_size", 12)
+	content.add_child(callsign_label)
+
+	callsign_input = LineEdit.new()
+	callsign_input.name = "OperatorCallsign"
+	callsign_input.placeholder_text = "Enter a name (max 16 characters)"
+	callsign_input.text = guest_display_name if guest_display_name != "OPERATOR" else ""
+	callsign_input.max_length = 16
+	callsign_input.custom_minimum_size = Vector2(0, 48)
+	callsign_input.add_theme_font_size_override("font_size", 17)
+	content.add_child(callsign_input)
+
+	var guest_button := Button.new()
+	guest_button.name = "ContinueAsGuestButton"
+	guest_button.text = "CONTINUE AS GUEST  →"
+	guest_button.custom_minimum_size = Vector2(0, 56)
+	guest_button.add_theme_font_size_override("font_size", 18)
+	guest_button.add_theme_color_override("font_color", Color("#061724"))
+	guest_button.add_theme_stylebox_override("normal", _panel_style(Color("#51d9ed"), Color("#51d9ed"), 1, 10))
+	guest_button.add_theme_stylebox_override("hover", _panel_style(Color("#8beafa"), Color("#ffffff"), 2, 10))
+	guest_button.pressed.connect(_continue_as_guest)
+	content.add_child(guest_button)
+
+	var online_note := Label.new()
+	online_note.text = "ONLINE SIGN-IN IS NOT CONNECTED IN THIS BUILD"
+	online_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	online_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	online_note.add_theme_color_override("font_color", Color("#e0b47b"))
+	online_note.add_theme_font_size_override("font_size", 11)
+	content.add_child(online_note)
+
+	var local_note := Label.new()
+	local_note.text = "GUEST PROFILE • SAVED PRIVATELY ON THIS DEVICE"
+	local_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	local_note.add_theme_color_override("font_color", Color("#819aac"))
+	local_note.add_theme_font_size_override("font_size", 10)
+	content.add_child(local_note)
+
+	var entrance := create_tween()
+	entrance.set_parallel(true)
+	entrance.tween_property(login_overlay, "modulate:a", 1.0, 0.28)
+	entrance.tween_property(panel, "scale", Vector2.ONE, 0.32).from(Vector2(0.96, 0.96)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	callsign_input.grab_focus()
+
+
+func _sanitize_callsign(value: String) -> String:
+	var clean := value.strip_edges().replace("\\n", "").replace("\\r", "")
+	if clean.length() > 16:
+		clean = clean.substr(0, 16)
+	return clean if not clean.is_empty() else "OPERATOR"
+
+
+func _load_guest_identity() -> Dictionary:
+	if not FileAccess.file_exists(GUEST_IDENTITY_PATH):
+		return {}
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(GUEST_IDENTITY_PATH))
+	if not (parsed is Dictionary):
+		return {}
+	if str(parsed.get("profile_type", "")) != "LOCAL_GUEST":
+		return {}
+	return parsed
+
+
+func _continue_as_guest() -> void:
+	guest_display_name = _sanitize_callsign(callsign_input.text if is_instance_valid(callsign_input) else "")
+	var identity := {
+		"schema_version": 1,
+		"profile_type": "LOCAL_GUEST",
+		"display_name": guest_display_name,
+		"saved_locally": true
+	}
+	var file := FileAccess.open(GUEST_IDENTITY_PATH, FileAccess.WRITE)
+	if file != null:
+		file.store_string(JSON.stringify(identity))
+		file.flush()
+		file.close()
+	else:
+		push_warning("GUEST_PROFILE_SAVE_FAILED: " + str(FileAccess.get_open_error()))
+	_show_map_install_screen()
+
+
+func _show_map_install_screen() -> void:
+	if is_instance_valid(login_overlay):
+		login_overlay.queue_free()
+	login_overlay = null
+	if not is_instance_valid(boot_content):
+		return
+	boot_content.visible = true
+	boot_content.modulate.a = 0.0
+	var entrance := create_tween()
+	entrance.tween_property(boot_content, "modulate:a", 1.0, 0.32)
+
 
 func _build_screen() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -61,6 +319,7 @@ func _build_screen() -> void:
 	shell.add_theme_constant_override("margin_top", 22)
 	shell.add_theme_constant_override("margin_bottom", 22)
 	add_child(shell)
+	boot_content = shell
 
 	var panel := PanelContainer.new()
 	panel.name = "BootPanel"

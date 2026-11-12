@@ -975,7 +975,8 @@ func _update_lobby_header() -> void:
  if is_instance_valid(lobby_profile_label):
   var profile: Node = w.get("career_profile") as Node
   if is_instance_valid(profile):
-   lobby_profile_label.text = "LOCAL OPERATOR  •  LEVEL %02d  •  %s" % [int(profile.call("get_level")), String(profile.call("get_career_tier"))]
+   var callsign := String(profile.call("get_display_name")) if profile.has_method("get_display_name") else "OPERATOR"
+    lobby_profile_label.text = "LOCAL OPERATOR  •  %s  •  LEVEL %02d  •  %s" % [callsign, int(profile.call("get_level")), String(profile.call("get_career_tier"))]
 
 
 func _lobby_clear_content() -> void:

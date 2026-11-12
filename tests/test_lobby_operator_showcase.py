@@ -24,6 +24,31 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
     def setUpClass(cls):
         cls.hud = read("hud.gd")
         cls.showcase = read("systems/lobby_showcase.gd")
+        cls.boot = read("boot.gd")
+        cls.profile = read("career_profile.gd")
+
+    def test_boot_has_animated_intro_local_guest_login_and_verified_map_handoff(self):
+        for token in (
+            "BOOT_SPLASH_DURATION_SECONDS",
+            "func _run_boot_sequence()",
+            "func _create_intro_overlay()",
+            "func _show_guest_login_screen()",
+            "CONTINUE AS GUEST",
+            "ONLINE SIGN-IN IS NOT CONNECTED IN THIS BUILD",
+            "user://a_square_guest_profile.json",
+            "_show_map_install_screen()",
+            "WSB_AUTOSTART_MAP_FOR_SMOKE",
+        ):
+            self.assertIn(token, self.boot)
+        self.assertIn("create_tween()", self.boot)
+        self.assertIn('login_overlay.name = "LocalGuestLogin"', self.boot)
+        self.assertIn("func _load_guest_identity() -> Dictionary:", self.boot)
+        self.assertIn("profile_type", self.boot)
+        self.assertIn("func get_display_name() -> String:", self.profile)
+        self.assertIn('profile.call("get_display_name")', self.hud)
+        # The existing split-PCK installer remains the verified map-entry route.
+        self.assertIn("func _verify_and_install_pack() -> bool:", self.boot)
+        self.assertIn("expected_sha256", self.boot)
 
     def test_home_has_one_prominent_play_now_entry(self):
         home = function_block(self.hud, "_show_lobby_page")
