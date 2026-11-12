@@ -25,7 +25,7 @@ jobs:
   coverage-audit:
     # Run one bounded live coverage audit on main or the active development branch.
     # PRs still use offline mocked tests and do not consume public API quota.
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/real-world-navigation-floor-fidelity-verified' || github.ref == 'refs/heads/feature/medium-stage-integration'))
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feature/lobby-operator-showcase') || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/real-world-navigation-floor-fidelity-verified' || github.ref == 'refs/heads/feature/medium-stage-integration'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
