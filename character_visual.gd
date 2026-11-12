@@ -24,7 +24,19 @@ var _muzzle_flash_timer := 0.0
 var _weapon_recoil_offset := 0.0
 
 const AUTHORED_HERO_PATH := "res://external_content/quaternius_hero/Project_A_Square_Hero.glb"
+const CHARACTER_CREATOR_HERO_PATH := "res://external_content/asquare_charactercreator/base_body_anim.glb"
+const CHARACTER_CREATOR_LAYER_PATHS := [
+    "res://external_content/asquare_charactercreator/hair_short02.glb",
+    "res://external_content/asquare_charactercreator/clothing_tshirt.glb",
+    "res://external_content/asquare_charactercreator/clothing_jacket.glb",
+    "res://external_content/asquare_charactercreator/clothing_jeans.glb",
+    "res://external_content/asquare_charactercreator/clothing_boots.glb",
+]
 
+var _selected_authored_hero_path := ""
+var _authored_hero_source := ""
+var _authored_skeleton: Skeleton3D
+var _charactercreator_layer_skeletons: Array[Skeleton3D] = []
 var _procedural_root: Node3D
 var _authored_hero: Node3D
 var _authored_animation_player: AnimationPlayer
@@ -79,11 +91,26 @@ func _find_authored_animation(candidates: Array[String]) -> String:
 
 
 func _try_load_authored_hero() -> void:
-    if not ResourceLoader.exists(AUTHORED_HERO_PATH):
-        push_warning("AUTHORED_HERO_FALLBACK: rigged hero is not packaged; keeping procedural hero.")
+    # Prefer the new modular, morph-capable human rig. Keep the previous rig as a
+    # safe fallback until the full body, hair and clothing layers pass import checks.
+    if ResourceLoader.exists(CHARACTER_CREATOR_HERO_PATH):
+        var layers_available := true
+        for layer_path in CHARACTER_CREATOR_LAYER_PATHS:
+            if not ResourceLoader.exists(layer_path):
+                layers_available = false
+                break
+        if layers_available:
+            _selected_authored_hero_path = CHARACTER_CREATOR_HERO_PATH
+            _authored_hero_source = "CharacterCreator"
+        else:
+            push_warning("CHARACTER_CREATOR_LAYERS_MISSING: retaining the existing authored hero.")
+    if _selected_authored_hero_path.is_empty() and ResourceLoader.exists(AUTHORED_HERO_PATH):
+        _selected_authored_hero_path = AUTHORED_HERO_PATH
+        _authored_hero_source = "QuaterniusFallback"
+    if _selected_authored_hero_path.is_empty():
+        push_warning("AUTHORED_HERO_FALLBACK: no rigged hero package is available; keeping procedural hero.")
         return
-    # Keep the procedural model visible while the first district GLB streams.
-    # Importing the large rig at the same moment may increase the startup memory/driver peak.
+    # Keep the tested fallback visible while the first district and hero are staged.
     call_deferred("_begin_staged_authored_hero_load")
 
 
@@ -116,7 +143,7 @@ func _begin_staged_authored_hero_load() -> void:
         await get_tree().process_frame
     if not is_inside_tree():
         return
-    var request_error := ResourceLoader.load_threaded_request(AUTHORED_HERO_PATH, "PackedScene")
+    var request_error := ResourceLoader.load_threaded_request(_selected_authored_hero_path, "PackedScene")
     if request_error != OK and request_error != ERR_BUSY:
         push_warning("AUTHORED_HERO_FALLBACK: threaded hero request failed: " + str(request_error))
         return
@@ -128,14 +155,14 @@ func _poll_authored_hero_load() -> void:
     if not _authored_hero_load_pending:
         return
     var progress: Array = []
-    var status := ResourceLoader.load_threaded_get_status(AUTHORED_HERO_PATH, progress)
+    var status := ResourceLoader.load_threaded_get_status(_selected_authored_hero_path, progress)
     if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
         return
     _authored_hero_load_pending = false
     if status != ResourceLoader.THREAD_LOAD_LOADED:
         push_warning("AUTHORED_HERO_FALLBACK: threaded hero load failed with status " + str(status))
         return
-    var packed := ResourceLoader.load_threaded_get(AUTHORED_HERO_PATH) as PackedScene
+    var packed := ResourceLoader.load_threaded_get(_selected_authored_hero_path) as PackedScene
     if packed == null:
         push_warning("AUTHORED_HERO_FALLBACK: loaded hero resource was not a PackedScene.")
         return
@@ -225,9 +252,10 @@ func _build_authored_hero(packed: PackedScene) -> void:
     _authored_hero.scale = Vector3.ONE * fit_scale
     _authored_hero.position = Vector3(0.0, -min_y * fit_scale, 0.0)
 
-    var idle_name := _find_authored_animation(["Idle_Loop", "Idle", "Pistol_Idle_Loop", "Standing_Idle", "Stand_Idle", "Neutral_Idle"])
-    var walk_name := _find_authored_animation(["Walk_Loop", "Walk_Formal_Loop", "Walk_Forward", "Walking", "Walk"])
-    var run_name := _find_authored_animation(["Sprint_Loop", "Run_Loop", "Jog_Fwd_Loop", "Jog_Loop", "Jog", "Run", "Fast_Walk"])
+    var is_character_creator := _authored_hero_source == "CharacterCreator"
+    var idle_name := _find_authored_animation(["Idle_Loop", "idle", "Idle", "Pistol_Idle_Loop", "Standing_Idle", "Stand_Idle", "Neutral_Idle"])
+    var walk_name := _find_authored_animation(["Walk_Loop", "walk", "Walk_Formal_Loop", "Walk_Forward", "Walking", "Walk"])
+    var run_name := _find_authored_animation(["Sprint_Loop", "Run_Loop", "run", "Run", "Jog_Fwd_Loop", "Jog_Loop", "Jog", "Fast_Walk"])
     if idle_name.is_empty() or walk_name.is_empty() or run_name.is_empty():
         _authored_hero.queue_free()
         _authored_hero = null
@@ -235,30 +263,50 @@ func _build_authored_hero(packed: PackedScene) -> void:
         push_warning("AUTHORED_HERO_FALLBACK: imported clips do not contain idle, walk, and run/sprint.")
         return
 
+    var crouch_idle_name := _find_authored_animation(["Crouch_Idle_Loop", "Crouch_Idle"])
+    var crouch_walk_name := _find_authored_animation(["Crouch_Fwd_Loop", "Crouch_Walk"])
+    var jump_name := _find_authored_animation(["Jump_Loop", "Jump_Start", "jump", "Jump"])
+    var fall_name := _find_authored_animation(["fall", "Fall"])
+    var land_name := _find_authored_animation(["Jump_Land", "land", "Land"])
     _authored_animation_lookup = {
         "idle": idle_name,
         "walk": walk_name,
         "run": run_name,
-        "crouch_idle": _find_authored_animation(["Crouch_Idle_Loop", "Crouch_Idle"]),
-        "crouch_walk": _find_authored_animation(["Crouch_Fwd_Loop", "Crouch_Walk"]),
-        "jump": _find_authored_animation(["Jump_Loop", "Jump_Start", "Jump"]),
-        "fall": _find_authored_animation(["Jump_Loop", "Fall"]),
+        "crouch_idle": crouch_idle_name if not crouch_idle_name.is_empty() else idle_name,
+        "crouch_walk": crouch_walk_name if not crouch_walk_name.is_empty() else walk_name,
+        "jump": jump_name,
+        "fall": fall_name,
         "aim": _find_authored_animation(["Pistol_Aim_Forward_Loop", "Pistol_Aim", "Pistol_Idle_Loop"]),
         "shoot": _find_authored_animation(["Pistol_Shoot", "Shoot", "Fire"]),
         "reload": _find_authored_animation(["Pistol_Reload", "Reload"]),
-        "land": _find_authored_animation(["Jump_Land", "Land"]),
+        "land": land_name,
+        "idle_look": _find_authored_animation(["idle_look", "Idle_Look"]),
+        "idle_breathe": _find_authored_animation(["idle_breathe", "Idle_Breathe"]),
+        "idle_fidget": _find_authored_animation(["idle_fidget", "Idle_Fidget"]),
     }
     var hero_clip_count := _authored_animation_player.get_animation_list().size()
-    if hero_clip_count < 30:
+    var minimum_clip_count := 10 if is_character_creator else 30
+    var has_air_motion := not jump_name.is_empty() and not fall_name.is_empty() and not land_name.is_empty()
+    if hero_clip_count < minimum_clip_count or (is_character_creator and not has_air_motion):
         _authored_hero.queue_free()
         _authored_hero = null
         _authored_animation_player = null
-        push_warning("AUTHORED_HERO_FALLBACK: only %d animation clips imported; expected the merged CC0 library." % hero_clip_count)
+        push_warning("AUTHORED_HERO_FALLBACK: %d clips; minimum %d; jump/fall/land ready=%s." % [hero_clip_count, minimum_clip_count, str(has_air_motion)])
         return
 
     # Reparent the existing rifle and muzzle effects to an actual rigged right-hand
     # bone only after the imported skeleton/animations have passed the validation gate.
     var skeleton := skeletons[0] as Skeleton3D
+    _authored_skeleton = skeleton
+    if is_character_creator:
+        if not await _attach_charactercreator_layers():
+            _authored_hero.queue_free()
+            _authored_hero = null
+            _authored_animation_player = null
+            _authored_skeleton = null
+            push_warning("CHARACTER_CREATOR_FALLBACK: one or more skinned clothing or hair layers failed to import.")
+            return
+        _tint_charactercreator_body()
     var hand_bone_name := ""
     for possible_hand in ["hand_r", "RightHand", "Hand_R", "hand.r", "hand_r_socket"]:
         if skeleton.find_bone(possible_hand) >= 0:
@@ -279,9 +327,18 @@ func _build_authored_hero(packed: PackedScene) -> void:
     _procedural_root.visible = false
     _authored_hero_ready = true
     if is_player_character:
-        _build_authored_combat_gear()
+        if is_character_creator:
+            _build_charactercreator_combat_gear(skeleton)
+        else:
+            _build_authored_combat_gear()
     _play_authored_animation("idle")
-    print("AUTHORED_HERO_READY • height=1.8m • clips=%d • source=Quaternius-CC0" % hero_clip_count)
+    if is_character_creator:
+        _sync_charactercreator_layer_skeletons()
+        print("CHARACTER_CREATOR_HERO_READY • height=1.8m • bones=%d • clips=%d • modular_layers=%d • source_commit=852e48f316b90a0937234886630e4fb4cdfd1f78" % [
+            skeleton.get_bone_count(), hero_clip_count, _charactercreator_layer_skeletons.size()
+        ])
+    else:
+        print("AUTHORED_HERO_READY • height=1.8m • clips=%d • source=Quaternius-fallback" % hero_clip_count)
 
 
 func _build_authored_combat_gear() -> void:
@@ -362,6 +419,223 @@ func _build_authored_combat_gear() -> void:
     _box(gear, "GearBackpackStrapL", Vector3(-0.14, 1.31, 0.09), Vector3(0.045, 0.30, 0.035), webbing, 0.92)
     _box(gear, "GearBackpackStrapR", Vector3(0.14, 1.31, 0.09), Vector3(0.045, 0.30, 0.035), webbing, 0.92)
     print("AUTHORED_HERO_GEAR_READY • pieces=%d • normalized_to_rig=true" % gear.get_child_count())
+
+
+
+func _attach_charactercreator_layers() -> bool:
+    # Load garments and hair in the background, then share the animated pose from
+    # the body rig. This avoids five independent animation players and keeps the
+    # modular outfit aligned with the same 53-bone character.
+    for layer_path in CHARACTER_CREATOR_LAYER_PATHS:
+        var request_error := ResourceLoader.load_threaded_request(layer_path, "PackedScene")
+        if request_error != OK and request_error != ERR_BUSY:
+            push_warning("CHARACTER_CREATOR_LAYER_REQUEST_FAILED • %s • %s" % [layer_path, str(request_error)])
+            return false
+
+    var deadline := Time.get_ticks_msec() + 30000
+    while Time.get_ticks_msec() < deadline:
+        var all_loaded := true
+        for layer_path in CHARACTER_CREATOR_LAYER_PATHS:
+            var state := ResourceLoader.load_threaded_get_status(layer_path)
+            if state == ResourceLoader.THREAD_LOAD_FAILED:
+                push_warning("CHARACTER_CREATOR_LAYER_LOAD_FAILED • " + layer_path)
+                return false
+            if state != ResourceLoader.THREAD_LOAD_LOADED:
+                all_loaded = false
+        if all_loaded:
+            break
+        await get_tree().process_frame
+
+    for layer_path in CHARACTER_CREATOR_LAYER_PATHS:
+        if ResourceLoader.load_threaded_get_status(layer_path) != ResourceLoader.THREAD_LOAD_LOADED:
+            push_warning("CHARACTER_CREATOR_LAYER_TIMEOUT • " + layer_path)
+            return false
+        var packed := ResourceLoader.load_threaded_get(layer_path) as PackedScene
+        if packed == null:
+            return false
+        var layer_root := packed.instantiate() as Node3D
+        if layer_root == null:
+            return false
+        layer_root.name = layer_path.get_file().get_basename()
+        _authored_hero.add_child(layer_root)
+        var skeleton_nodes := layer_root.find_children("*", "Skeleton3D", true, false)
+        if layer_root is Skeleton3D:
+            _charactercreator_layer_skeletons.append(layer_root as Skeleton3D)
+        elif not skeleton_nodes.is_empty():
+            _charactercreator_layer_skeletons.append(skeleton_nodes[0] as Skeleton3D)
+        else:
+            push_warning("CHARACTER_CREATOR_LAYER_NO_SKELETON • " + layer_path)
+            return false
+        _tint_charactercreator_layer(layer_root, layer_path.get_file().get_basename())
+
+    return _charactercreator_layer_skeletons.size() == CHARACTER_CREATOR_LAYER_PATHS.size()
+
+
+func _sync_charactercreator_layer_skeletons() -> void:
+    if not is_instance_valid(_authored_skeleton):
+        return
+    for layer_skeleton in _charactercreator_layer_skeletons:
+        if not is_instance_valid(layer_skeleton):
+            continue
+        for layer_bone_index in range(layer_skeleton.get_bone_count()):
+            var bone_name := layer_skeleton.get_bone_name(layer_bone_index)
+            var body_bone_index := _authored_skeleton.find_bone(bone_name)
+            if body_bone_index < 0:
+                continue
+            layer_skeleton.set_bone_pose(
+                layer_bone_index,
+                _authored_skeleton.get_bone_pose(body_bone_index)
+            )
+
+
+func _tint_charactercreator_layer(layer_root: Node3D, asset_name: String) -> void:
+    var tint := Color("#68745c")
+    if asset_name.contains("tshirt"):
+        tint = Color("#737c64")
+    elif asset_name.contains("jacket"):
+        tint = Color("#657052")
+    elif asset_name.contains("jeans"):
+        tint = Color("#414c43")
+    elif asset_name.contains("boots"):
+        tint = Color("#252a25")
+    elif asset_name.contains("hair"):
+        tint = Color("#171615")
+    for candidate in layer_root.find_children("*", "MeshInstance3D", true, false):
+        var mesh_instance := candidate as MeshInstance3D
+        if mesh_instance == null or mesh_instance.mesh == null:
+            continue
+        for surface_index in range(mesh_instance.mesh.get_surface_count()):
+            var active_material := mesh_instance.get_active_material(surface_index) as BaseMaterial3D
+            if active_material == null:
+                continue
+            var material_copy := active_material.duplicate() as BaseMaterial3D
+            material_copy.albedo_color = tint
+            if asset_name.contains("boots"):
+                material_copy.roughness = 0.86
+            mesh_instance.set_surface_override_material(surface_index, material_copy)
+
+
+func _tint_charactercreator_body() -> void:
+    # CharacterCreator ships a neutral/tintable skin texture; apply a warmer brown
+    # base tint for the A-Square operator while retaining the texture detail.
+    for candidate in _authored_hero.find_children("*", "MeshInstance3D", true, false):
+        var mesh_instance := candidate as MeshInstance3D
+        if mesh_instance == null or mesh_instance.mesh == null:
+            continue
+        var mesh_name := mesh_instance.name.to_lower()
+        for surface_index in range(mesh_instance.mesh.get_surface_count()):
+            var active_material := mesh_instance.get_active_material(surface_index) as BaseMaterial3D
+            if active_material == null:
+                continue
+            var material_name := active_material.resource_name.to_lower()
+            if not (mesh_name.contains("body") or mesh_name.contains("skin") or material_name.contains("skin")):
+                continue
+            var material_copy := active_material.duplicate() as BaseMaterial3D
+            material_copy.albedo_color = Color("#956448")
+            mesh_instance.set_surface_override_material(surface_index, material_copy)
+
+
+func _create_charactercreator_bone_gear_root(
+    skeleton: Skeleton3D,
+    bone_name: String,
+    gear_name: String,
+    target_position_in_visual: Vector3
+) -> Node3D:
+    var bone_index := skeleton.find_bone(bone_name)
+    if bone_index < 0:
+        push_warning("CHARACTER_CREATOR_GEAR_BONE_MISSING • " + bone_name)
+        return null
+    var attachment := BoneAttachment3D.new()
+    attachment.name = gear_name + "Attachment"
+    attachment.bone_name = bone_name
+    skeleton.add_child(attachment)
+
+    var visual_to_skeleton := skeleton.global_transform.affine_inverse() * global_transform
+    var target_in_skeleton := visual_to_skeleton * Transform3D(Basis.IDENTITY, target_position_in_visual)
+    var bone_pose := skeleton.get_bone_global_pose(bone_index)
+    attachment.transform = bone_pose.affine_inverse() * target_in_skeleton
+
+    var gear_root := Node3D.new()
+    gear_root.name = gear_name
+    attachment.add_child(gear_root)
+    return gear_root
+
+
+func _build_charactercreator_combat_gear(skeleton: Skeleton3D) -> void:
+    # Rigid gear pieces are attached to the bones they belong to, rather than
+    # floating under the character root while the animated body moves beneath them.
+    var armor := Color("#3b4438")
+    var armor_edge := Color("#56604c")
+    var pouch := Color("#4a5142")
+    var webbing := Color("#242b25")
+    var metal := Color("#72786b")
+
+    var chest := _create_charactercreator_bone_gear_root(skeleton, "spine_02", "A_Square_Plate_Carrier", Vector3(0.0, 1.22, 0.0))
+    if is_instance_valid(chest):
+        _box(chest, "CarrierOuterShell", Vector3(0.0, 0.0, 0.0), Vector3(0.43, 0.38, 0.14), armor, 0.88)
+        _box(chest, "CarrierFrontPlate", Vector3(0.0, 0.005, -0.082), Vector3(0.33, 0.27, 0.045), armor_edge, 0.82)
+        for row in range(3):
+            _box(chest, "MOLLERow_%d" % row, Vector3(0.0, -0.035 + float(row) * 0.07, -0.109), Vector3(0.34, 0.014, 0.013), webbing, 0.9)
+        for index in range(4):
+            var pouch_x := (float(index) - 1.5) * 0.083
+            var pouch_y := -0.115 if index < 2 else -0.105
+            _box(chest, "MagazinePouch_%d" % index, Vector3(pouch_x, pouch_y, -0.132), Vector3(0.073, 0.105, 0.045), pouch, 0.88)
+            _box(chest, "MagazinePouchFlap_%d" % index, Vector3(pouch_x, pouch_y + 0.043, -0.158), Vector3(0.068, 0.019, 0.012), armor_edge, 0.86)
+        var shoulder_tab := _box(chest, "BangladeshFlagPatch", Vector3(-0.17, 0.12, -0.106), Vector3(0.10, 0.065, 0.012), Color("#17633e"), 0.9)
+        var flag_disk := MeshInstance3D.new()
+        flag_disk.name = "FlagRedCircle"
+        var flag_mesh := SphereMesh.new()
+        flag_mesh.radius = 0.018
+        flag_mesh.height = 0.018
+        flag_mesh.radial_segments = 16
+        flag_mesh.rings = 8
+        flag_disk.mesh = flag_mesh
+        flag_disk.position = Vector3(-0.17, 0.12, -0.117)
+        flag_disk.scale = Vector3(1.0, 1.0, 0.22)
+        flag_disk.material_override = _material(Color("#d33b34"), 0.78)
+        chest.add_child(flag_disk)
+        var shoulder_text := Label3D.new()
+        shoulder_text.name = "A_Square_Operator_ID"
+        shoulder_text.text = "A-SQUARE"
+        shoulder_text.font_size = 18
+        shoulder_text.pixel_size = 0.0028
+        shoulder_text.modulate = Color("#eee6d2")
+        shoulder_text.position = Vector3(0.12, 0.14, -0.117)
+        chest.add_child(shoulder_text)
+
+    var belt := _create_charactercreator_bone_gear_root(skeleton, "pelvis", "A_Square_Field_Belt", Vector3(0.0, 0.93, 0.0))
+    if is_instance_valid(belt):
+        _box(belt, "FieldBeltBand", Vector3.ZERO, Vector3(0.49, 0.065, 0.31), webbing, 0.92)
+        _box(belt, "FieldBeltBuckle", Vector3(0.0, 0.0, -0.163), Vector3(0.085, 0.055, 0.025), metal, 0.42, 0.42)
+        for side in [-1.0, 1.0]:
+            _box(belt, "FieldUtilityPouch", Vector3(side * 0.245, 0.02, -0.015), Vector3(0.105, 0.14, 0.105), pouch, 0.9)
+
+    var backpack := _create_charactercreator_bone_gear_root(skeleton, "spine_03", "A_Square_Field_Pack", Vector3(0.0, 1.27, 0.17))
+    if is_instance_valid(backpack):
+        _box(backpack, "PackBody", Vector3.ZERO, Vector3(0.31, 0.38, 0.16), armor, 0.92)
+        _box(backpack, "PackTopFlap", Vector3(0.0, 0.18, 0.0), Vector3(0.25, 0.055, 0.17), armor_edge, 0.88)
+        for side in [-1.0, 1.0]:
+            _box(backpack, "PackCompressionStrap", Vector3(side * 0.13, 0.0, -0.085), Vector3(0.026, 0.34, 0.018), webbing, 0.92)
+
+    for side in [-1.0, 1.0]:
+        var side_name := "L" if side < 0.0 else "R"
+        var thigh_bone := "thigh_l" if side < 0.0 else "thigh_r"
+        var knee := _create_charactercreator_bone_gear_root(
+            skeleton, thigh_bone, "A_Square_Knee_Guard_" + side_name,
+            Vector3(side * 0.15, 0.57, -0.12)
+        )
+        if is_instance_valid(knee):
+            _box(knee, "KneeGuard", Vector3.ZERO, Vector3(0.14, 0.135, 0.045), armor_edge, 0.84)
+            _box(knee, "KneeGuardRidge", Vector3(0.0, 0.035, -0.027), Vector3(0.10, 0.012, 0.009), metal, 0.56, 0.22)
+
+    var radio := _create_charactercreator_bone_gear_root(skeleton, "spine_02", "A_Square_Field_Radio", Vector3(-0.22, 1.39, 0.0))
+    if is_instance_valid(radio):
+        _box(radio, "RadioShell", Vector3.ZERO, Vector3(0.072, 0.14, 0.062), webbing, 0.72)
+        _box(radio, "RadioDisplay", Vector3(0.0, 0.012, -0.034), Vector3(0.041, 0.045, 0.008), Color("#83a79b"), 0.3)
+        _box(radio, "RadioAntenna", Vector3(-0.018, 0.105, 0.008), Vector3(0.012, 0.095, 0.012), webbing, 0.7)
+    print("CHARACTER_CREATOR_COMBAT_GEAR_READY • bone_attached=true • carrier+pouches+belt+pack+radio+knee_guards")
+
+
 
 
 func _play_authored_animation(state: String) -> void:
@@ -735,6 +1009,8 @@ func _process(delta: float) -> void:
     animation_time += delta
     if _authored_hero_ready and is_instance_valid(_authored_hero):
         _update_authored_animation(body, planar_speed)
+        if _authored_hero_source == "CharacterCreator":
+            _sync_charactercreator_layer_skeletons()
         return
 
     # Smooth the gait envelope so starting/stopping does not snap the limbs.
