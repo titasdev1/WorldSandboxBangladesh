@@ -65,6 +65,7 @@ func _run_boot_sequence() -> void:
 	var brand_title := intro_overlay.get_node("IntroCenter/IntroStack/BrandTitle") as Label
 	var brand_subtitle := intro_overlay.get_node("IntroCenter/IntroStack/BrandSubtitle") as Label
 	brand_mark.scale = Vector2(0.78, 0.78)
+	brand_title.modulate.a = 0.0
 	brand_subtitle.modulate.a = 0.0
 	var intro_tween := create_tween()
 	intro_tween.set_parallel(true)
