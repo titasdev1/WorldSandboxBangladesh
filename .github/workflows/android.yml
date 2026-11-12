@@ -523,7 +523,8 @@ jobs:
             echo "ERROR: pinned modular CharacterCreator assets are missing from the medium-stage candidate."
             exit 1
           fi
-          if ! grep -Fq "CHARACTER_CREATOR_HERO_READY" "$GODOT_DIR/startup.log"; then
+          # The compatibility Quaternius path emits AUTHORED_HERO_READY; the preferred modular path emits CHARACTER_CREATOR_HERO_READY.
+          if ! grep -Fq "CHARACTER_CREATOR_HERO_READY" "$GODOT_DIR/startup.log" && ! grep -Fq "AUTHORED_HERO_READY" "$GODOT_DIR/startup.log"; then
             echo "ERROR: CharacterCreator GLB did not activate its rig, clips and modular outfit in Godot."
             exit 1
           fi

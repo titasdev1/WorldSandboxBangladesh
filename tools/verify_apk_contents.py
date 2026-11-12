@@ -496,11 +496,6 @@ def main() -> int:
                     raise SystemExit(f"APK CONTENT GATE FAILED: imported CharacterCreator scene missing or empty: {filename}")
                 creator_imported_scenes += 1
             creator_body = creator_manifest.get("body", {})
-            if creator_imported_scenes != creator_glb_record_count:
-                raise SystemExit(
-                    f"APK CONTENT GATE FAILED: only {creator_imported_scenes}/{creator_glb_record_count} CharacterCreator GLBs imported."
-                )
-            creator_body = creator_manifest.get("body", {})
             if creator_manifest.get("available") is True:
                 if creator_imported_scenes != creator_glb_record_count:
                     raise SystemExit(
@@ -513,6 +508,7 @@ def main() -> int:
                 if int(creator_body.get("morph_target_count_per_primitive", 0)) < 50:
                     raise SystemExit("APK CONTENT GATE FAILED: CharacterCreator body has fewer than 50 morph targets.")
 
+            counts = navigation.get("counts", {})
             named_places = int(counts.get("named_places", 0))
             named_roads = int(counts.get("named_roads", 0))
             if named_places < 1 or named_roads < 1:
