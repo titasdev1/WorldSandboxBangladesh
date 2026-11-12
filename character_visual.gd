@@ -129,6 +129,7 @@ func _begin_staged_authored_hero_load() -> void:
         # The actual GLB is still loaded on Godot's background resource thread.
         var wait_started_ms := Time.get_ticks_msec()
         var map_ready_for_character := false
+        var wait_warning_sent := false
         while is_inside_tree() and Time.get_ticks_msec() - wait_started_ms < MAX_AUTHORED_HERO_MAP_WAIT_MS:
             var diagnostics: Dictionary = {}
             if map_loader.has_method("get_runtime_map_diagnostics"):
@@ -136,6 +137,9 @@ func _begin_staged_authored_hero_load() -> void:
             if int(diagnostics.get("loaded_tiles", 0)) > 0 and bool(diagnostics.get("navigation_index_ready", false)):
                 map_ready_for_character = true
                 break
+            if bool(diagnostics.get("streaming_started", false)) and not wait_warning_sent and Time.get_ticks_msec() - wait_started_ms > 5000:
+                push_warning("AUTHORED_HERO_STAGED_WAIT: map is still preparing; bounded wait continues before the background character load.")
+                wait_warning_sent = true
             await get_tree().process_frame
         if not is_inside_tree():
             return
