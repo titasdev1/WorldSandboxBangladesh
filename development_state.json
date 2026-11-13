@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "030_REAL_WORLD_NAVIGATION_AND_LICENSED_FACADE_PHOTO_PIPELINE_PENDING_QA",
+  "current_milestone": "031_DURABLE_CONTINUITY_CROSS_GAME_PRESENTATION_AND_CHARACTER_PIPELINE",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -26,9 +26,13 @@
     "017_SAVE_LOAD",
     "016_REAL_WORLD_NAVIGATION",
     "018_LICENSED_LANDMARK_FACADE_PHOTO_PANELS",
-    "019_INDEPENDENT_FLOOR_EVIDENCE_GATE"
+    "019_INDEPENDENT_FLOOR_EVIDENCE_GATE",
+    "020_AI_ASSISTED_RIGGED_OPERATOR_ASSET_CANDIDATE",
+    "021_PLAYER_JUMP_VELOCITY_FIX_PENDING_ANDROID_PHYSICS_REGRESSION",
+    "022_CROSS_GAME_MODE_AND_CINEMATIC_PRESENTATION_BLUEPRINT",
+    "023_DURABLE_CHAT_RECONNECT_CHECKPOINT"
   ],
-  "next_priority": "Finish CI on PR #74, then run one pinned full 60-tile Shariatpur rebuild from the validated navigation/facade feature revision. Inspect the assembled quality_gate_report.json, actual licensed photo-panel counts and attribution, and independently verified floor count (must remain zero until evidence is reviewed). Build a Shariatpur review APK against that exact assembled package. Keep REVIEW_REQUIRED until manual exterior/entrance review and physical Android QA; do not expand to other districts before Shariatpur is polished.",
+  "next_priority": "Confirm the Android physics smoke test on jump-fix commit ce1b98876b833d153193827c76a437c0e1f17dca in run 43442181834. If it passes, inspect measured walk/sprint/jump values and move on to clothing/animation deformation. Review the Ara 3D Gen artifact 14045621227 (high/medium/low GLBs, structural PASS) through a real texture-aware renderer and Godot import before any integration; optimize its 28–36 MB candidate GLBs into shared textures and trimmed animation/LOD packages. Keep Shariatpur REVIEW_REQUIRED and verify all map/build/device acceptance separately. Use COMPETITIVE_REFERENCE_BLUEPRINT.md for original CODM/VALORANT/AOV/MLBB/GTA/Forza-inspired mode families and cinematic use; use TOOLS_AND_PLATFORMS_REGISTRY.md for free/open-source vs credit-based tool routing. Resume after app reconnect from A_SQUARE_SESSION_CHECKPOINT.md.",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -50,9 +54,12 @@
     "Independent floor-evidence registry is intentionally empty; independently verified floor counts remain 0. Source-tagged building:levels and inferred heights must never be reported as independently verified.",
     "Licensed Shariatpur facade-photo pipeline currently catalogs Bibir Hat Mosque (CC BY-SA 4.0) and Rudrakar Moth (CC BY 4.0); strict exact-name panels are optional until photos download and mapped names match. Panel integration tests pass, but full Shariatpur bake and visual identity QA are pending.",
     "Offline named-place search and Dijkstra road-route guidance are implemented on the PR branch; turn directions are based on mapped geometry/name changes and do not yet enforce traffic, one-way, access, pedestrian-safety, or live traffic restrictions. Android build and physical-device QA are pending.",
-    "PR #74 is not merged. The new navigation and licensed facade-photo changes must pass the full Shariatpur rebuild and review APK gate before being treated as the canonical game base."
+    "PR #74 is not merged. The new navigation and licensed facade-photo changes must pass the full Shariatpur rebuild and review APK gate before being treated as the canonical game base.",
+    "2026-11-13: The newly added headless physics smoke test exposed a real jump cancellation bug: assigning jump_velocity was immediately overwritten by the grounded snap velocity while is_on_floor() still reflected the previous physics tick. Source fix committed to feature/lobby-operator-showcase as ce1b98876b833d153193827c76a437c0e1f17dca; re-run Android workflow 43442181834 must pass the walk/sprint/jump smoke before claiming it fixed.",
+    "2026-11-13: Ara 3D Gen generated and structurally verified high/medium/low operator GLBs in workflow 43438511770, artifact 14045621227. It has 69 joints, WeaponR, 216 clips and facial morphs per GLB, but candidate sizes are about 28–36 MB each; actual visual QA, Godot import, animation deformation, Android LOD and integration remain pending.",
+    "2026-11-13: Instagram post Dew_yBIEuoJ slide 16 was inaccessible behind login; Reel DfkzCLqqBjf playback failed. Captions/hashtags were inspected only. Do not infer unseen video contents or exact tool pipeline."
   ],
-  "build_status": "SHARIATPUR_60_TILE_ASSEMBLY_EXISTS_REVIEW_REQUIRED; NAVIGATION_AND_LICENSED_FACADE_PIPELINE_IN_PR_CI; FULL_BRANCH_REBUILD_AND_SHARIATPUR_REVIEW_APK_PENDING",
+  "build_status": "ARA_OPERATOR_STRUCTURAL_ASSET_BUILD_PASS; JUMP_FIX_COMMITTED_ANDROID_PHYSICS_RETEST_PENDING; SHARIATPUR_REVIEW_REQUIRED",
   "latest_verified_run": 38892036942,
   "latest_verified_commit": "7d62ad457907a72094a6cbdc072ebbdd152d0066",
   "latest_build_artifact": {
@@ -163,5 +170,23 @@
         "review APK and physical-device QA pending"
       ]
     }
+  },
+  "latest_development_commit": "ce1b98876b833d153193827c76a437c0e1f17dca",
+  "latest_development_branch": "feature/lobby-operator-showcase",
+  "session_checkpoint": "A_SQUARE_SESSION_CHECKPOINT.md",
+  "competitive_reference_blueprint": "COMPETITIVE_REFERENCE_BLUEPRINT.md",
+  "tools_registry": "TOOLS_AND_PLATFORMS_REGISTRY.md",
+  "recent_evidence": {
+    "date": "2026-11-13",
+    "ara_operator_workflow_run": 43438511770,
+    "ara_operator_artifact_id": 14045621227,
+    "ara_operator_artifact_bytes": 31189824,
+    "ara_operator_structural_validation": "PASS",
+    "ara_operator_visual_device_integration": "PENDING",
+    "jump_fix_commit": "ce1b98876b833d153193827c76a437c0e1f17dca",
+    "jump_fix_android_workflow_run": 43442181834,
+    "jump_fix_android_workflow_status": "IN_PROGRESS_AT_CHECKPOINT",
+    "instagram_carousel_slide_16": "NOT_ACCESSIBLE_LOGIN_MODAL",
+    "instagram_reel_video": "PLAYBACK_FAILED_CAPTION_AND_HASHTAGS_ONLY"
   }
 }
