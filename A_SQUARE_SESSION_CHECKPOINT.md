@@ -1,6 +1,6 @@
 # A-Square — durable session checkpoint
 
-**Checkpoint date:** 13 November 2026  
+**Checkpoint date:** 13 November 2026 (revised after cross-game/tool registry commits)  
 **Purpose:** restore continuity after app reconnects, force-closes or a new chat. This file is a durable state snapshot; read the linked source-of-truth documents before editing.
 
 ## Resume instruction
@@ -13,7 +13,9 @@ When resuming, say:
 
 - Repository: https://github.com/titasdev1/WorldSandboxBangladesh
 - Current development branch: `feature/lobby-operator-showcase`
-- Current checkpoint commit: `ce1b98876b833d153193827c76a437c0e1f17dca`
+- Latest gameplay/source fix commit: `ce1b98876b833d153193827c76a437c0e1f17dca` (jump velocity correction).
+- Latest complete branch checkpoint before this file's revision: `29bf987e32f3b183b15a9eff58988c3a7325f93f`.
+- New persistent docs committed: cross-game blueprint `963127219d02f6334d7192cc7071e2035cff61ee`; tool registry `3ba8702f40a97cc45546c5512eb21b88721684ab`; checkpoint baseline `3937bce7b4071e5408d40966e63c6b3f903186c7`; README, master plan, acceptance matrix and state subsequently linked in commits `2ab832420f169245490157b4175c6293b2ccde5c`, `79a8d145d0547effcdd14a221e8ea67353220165`, `35ab93ac4cd2a5be2c5220e5aae2f061cccd9931`, `29bf987e32f3b183b15a9eff58988c3a7325f93f`.
 - PR #78: https://github.com/titasdev1/WorldSandboxBangladesh/pull/78 (draft/open at last check; verify live state before editing).
 - Canonical Android workflow: `.github/workflows/android.yml`
 - Master product vision: `DREAM_GAME_MASTER_PLAN.md`
@@ -58,7 +60,8 @@ One canonical Android game, not disconnected demos:
 - Previous candidate run: https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/43438517262 — failed specifically at the newly added jump-height assertion.
 - In that run, forward movement and sprint comparison reached the jump test, and jump peak was 0.000 m. The defect was real: the old code assigned jump velocity and then immediately reset it to the grounded snap velocity because `is_on_floor()` still represented the previous physics tick.
 - Fix committed in `player.gd` at `ce1b98876b833d153193827c76a437c0e1f17dca`: track `jump_started_this_tick` / `_was_airborne` so stale floor contact cannot cancel jump velocity.
-- Current re-run triggered at the fix commit: Android run https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/43442181834. At checkpoint creation it was still in progress; player smoke test step 23 had not yet been reached. **Do not claim the fix passes until step 23 passes.**
+- First re-run triggered at the fix commit: Android run https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/43442181834. It validated script import/startup but must not be counted as a completed passing jump test unless its step 23 completed successfully.
+- Latest Android re-run after adding the persistent docs/state: https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/43443017842 (source head `29bf987e32f3b183b15a9eff58988c3a7325f93f`). At checkpoint refresh, map package install/indexing had passed, Godot runtime validation was not yet complete and player physics smoke step 23 was still pending. **Do not claim the fix passes until the current run's step 23 passes.**
 - On the pre-fix run, Godot import/startup passed; Shariatpur runtime smoke loaded two tiles and indexed 583 named places / 2,722 road ways / 2,337 routes in headless CI. This is not map acceptance or device QA.
 
 ## Live defects still requiring evidence/fixes
