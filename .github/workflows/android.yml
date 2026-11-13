@@ -38,6 +38,8 @@ on:
       - "tools/verify_apk_contents.py"
       - "tools/map_pack_build.py"
       - "tools/verify_core_apk_contents.py"
+      - "tools/verify_final_distribution.py"
+      - "tests/test_verify_final_distribution.py"
       - "tools/production_gate.py"
       - "tests/test_map_pack_build.py"
       - "tests/test_mobile_interaction_flow.py"
@@ -62,6 +64,8 @@ on:
       - "tools/verify_apk_contents.py"
       - "tools/map_pack_build.py"
       - "tools/verify_core_apk_contents.py"
+      - "tools/verify_final_distribution.py"
+      - "tests/test_verify_final_distribution.py"
       - "tools/production_gate.py"
       - "tests/test_map_pack_build.py"
       - "tests/test_mobile_interaction_flow.py"
@@ -94,7 +98,7 @@ jobs:
 
       - name: Validate asset pipeline Python syntax
         shell: bash
-        run: python3 -m py_compile tools/convert_charactercreator_glbs.py tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/fetch_charactercreator_hero.py tools/kenney_pack_utils.py tools/verify_medium_stage_assets.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py tools/map_pack_build.py tools/verify_core_apk_contents.py
+        run: python3 -m py_compile tools/convert_charactercreator_glbs.py tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/fetch_charactercreator_hero.py tools/kenney_pack_utils.py tools/verify_medium_stage_assets.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py tools/map_pack_build.py tools/verify_core_apk_contents.py tools/verify_final_distribution.py
 
       - name: Run navigation-index unit tests
         shell: bash
@@ -103,6 +107,10 @@ jobs:
       - name: Run separate map-pack build tests
         shell: bash
         run: python3 -m unittest discover -s tests -p "test_map_pack_build.py"
+
+      - name: Test signed Android distribution verification
+        shell: bash
+        run: python3 -m unittest discover -s tests -p "test_verify_final_distribution.py"
 
       - name: Run character movement animation regression tests
         shell: bash
@@ -751,7 +759,7 @@ jobs:
           print(f"Restored and checked {len(parts)} split map-pack assets.")
           PY
 
-      - name: Verify final APK plus separately downloaded Shariatpur distribution
+      - name: Pre-sign Shariatpur map-part integrity check
         shell: bash
         run: |
           set -euo pipefail
@@ -844,6 +852,10 @@ jobs:
             printf -- '- ZIP structure test: PASS\n'
             printf -- '- Android signature verification: PASS\n'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Reconcile final signed APK with Shariatpur distribution
+        shell: bash
+        run: python3 tools/verify_final_distribution.py
 
       - name: Report exact APK and included asset sizes
         shell: bash
