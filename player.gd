@@ -161,19 +161,24 @@ func _physics_process(delta):
  # Rotate the avatar to face travel direction; -Z is the character forward axis.
  if dir.length_squared() > 0.001:
   rotation.y = lerp_angle(rotation.y, atan2(-dir.x, -dir.z), minf(1.0, delta * 12.0))
+ var jump_started_this_tick := false
  if _jump_buffer_time > 0.0 and _coyote_time > 0.0 and not _is_crouched:
   velocity.y = jump_velocity
   _jump_buffer_time = 0.0
   _coyote_time = 0.0
   _was_airborne = true
- if not is_on_floor():
+  jump_started_this_tick = true
+ # is_on_floor() describes the contact state from the PREVIOUS move_and_slide().
+ # Do not apply the grounded -0.5 m/s snap after assigning jump_velocity, or the
+ # same physics tick cancels every jump before the body can leave the floor.
+ if not is_on_floor() or _was_airborne:
   velocity.y -= gravity * delta
  else:
   velocity.y = -0.5
  move_and_slide()
- var landed_now := _was_airborne and is_on_floor()
+ var landed_now := _was_airborne and is_on_floor() and not jump_started_this_tick
  set_meta("just_landed", landed_now)
- if is_on_floor():
+ if landed_now:
   _was_airborne = false
  # The real-data Greater Dhaka map streams geographically positioned tiles.
  # Keep the smaller bounds only for the fictional fallback city.
