@@ -803,8 +803,8 @@ jobs:
               "",
               "The earlier full-map APK check is retained separately as full-map-apk-content-verification.txt; it is not evidence that the final core APK bundles the district map.",
           ]
-          Path("build/apk-content-verification.txt").write_text("\\n".join(report) + "\\n", encoding="utf-8")
-          print("\\n".join(report))
+          Path("build/apk-content-verification.txt").write_text("\n".join(report) + "\n", encoding="utf-8")
+          print("\n".join(report))
           PY
 
       - name: Verify final modular APK integrity and record checksum
