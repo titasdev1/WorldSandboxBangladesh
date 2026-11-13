@@ -39,6 +39,8 @@ on:
       - "tools/map_pack_build.py"
       - "tools/verify_core_apk_contents.py"
       - "tools/verify_final_distribution.py"
+      - "tests/mobile_joystick_runtime_smoke.gd"
+      - "virtual_stick.gd"
       - "tests/test_verify_final_distribution.py"
       - "tools/production_gate.py"
       - "tests/test_map_pack_build.py"
@@ -65,6 +67,8 @@ on:
       - "tools/map_pack_build.py"
       - "tools/verify_core_apk_contents.py"
       - "tools/verify_final_distribution.py"
+      - "tests/mobile_joystick_runtime_smoke.gd"
+      - "virtual_stick.gd"
       - "tests/test_verify_final_distribution.py"
       - "tools/production_gate.py"
       - "tests/test_map_pack_build.py"
@@ -554,6 +558,14 @@ jobs:
           GODOT="$RUNNER_TEMP/godot-validation/Godot_v4.4.1-stable_linux.x86_64"
           test -x "$GODOT"
           "$GODOT" --headless --path . --script res://tests/player_input_runtime_smoke.gd
+
+      - name: Exercise mobile joystick viewport coordinates and release
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot-validation/Godot_v4.4.1-stable_linux.x86_64"
+          test -x "$GODOT"
+          "$GODOT" --headless --path . --script res://tests/mobile_joystick_runtime_smoke.gd
 
       - name: Fetch optional CC0 vehicle art
         shell: bash
