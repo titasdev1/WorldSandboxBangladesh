@@ -302,3 +302,19 @@ Build the network path incrementally: two-client LAN/hotspot proof -> small auth
 - Physical Redmi install/boot/crash, actual visual quality, touch behavior, memory/FPS/temperature, all mode loops and map-navigation usability remain **unverified** until an exact candidate APK is installed and tested on that device.
 - Do not report one overall game-completion percentage. Report independently: playable game systems, mode completeness, map geometry/coverage, exterior identity/facade evidence, floor evidence, Android build/integrity and physical-device QA.
 - Before each new change inspect current `main`, PRs, commits, open workflows, APKs, map-package versions and previous branches; select one measurable player-visible task; preserve working code; add tests; integrate; run the canonical Android workflow; inspect logs/artifacts; record what actually passed and what remains unverified. Never produce another lobby picture or disconnected prototype instead of integrated functionality.
+
+
+## 13. Cross-game references, cinematic production and continuity (2026-11-13)
+
+The user expects A-Square to combine several distinct experiences, not just the existing six-card menu. The original, evidence-based interpretation is maintained in [COMPETITIVE_REFERENCE_BLUEPRINT.md](COMPETITIVE_REFERENCE_BLUEPRINT.md):
+- CODM/CoD-inspired operator lobby, loadout, shooter and BR systems;
+- VALORANT-inspired original tactical 5v5 round/role/ability mode;
+- AOV/MLBB-inspired original 5v5 lane/minion/tower/jungle/hero/item mode;
+- GTA-inspired Bangladesh open-world life and mission density;
+- Forza-inspired driving, garage, meets, tuning and racing.
+
+High-resolution original stills and video are explicitly part of production for boot, login, season/event, lobby panels, matchmaking interstitials, map/arena loading, team introductions, victory/defeat, MVP, achievements and reward reveals. These are presentation media assets, not substitutes for interactive avatars, gameplay, UI values, map geometry or real match state. Keep critical text and controls as live Godot UI, stream/cache media by version, optimize Android encodings and provide skip/mute/reduced-motion/low-bandwidth fallbacks. Inspect generated media for visual warping, identity drift, illegible text and rights before packaging.
+
+The persistent tool and credit map is [TOOLS_AND_PLATFORMS_REGISTRY.md](TOOLS_AND_PLATFORMS_REGISTRY.md). It distinguishes connected apps, open-source build pipelines, media-generation tools, export licences and point-in-time credit limits. Never assume "free" means unlimited; never spend unverified or exhausted credits.
+
+For mobile reconnects and chat continuity, the resumable source-of-truth snapshot is [A_SQUARE_SESSION_CHECKPOINT.md](A_SQUARE_SESSION_CHECKPOINT.md). Read it together with this blueprint, the production directive, map pipeline, acceptance matrix and live GitHub state before continuing. The checkpoint is a snapshot, so refresh current commits and workflow statuses instead of trusting stale run states.
