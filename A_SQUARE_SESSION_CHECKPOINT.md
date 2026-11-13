@@ -142,3 +142,16 @@ Use `TOOLS_AND_PLATFORMS_REGISTRY.md` as the durable directory. Snapshot 2026-11
 - Post-sign distribution report regression: **PENDING** on run 43448794049.
 - Shariatpur world fidelity: **REVIEW_REQUIRED**.
 - Device QA, integrated game modes, real online multiplayer and full dream-game completion: **NOT VERIFIED / NOT DONE**.
+
+
+## 2026-11-13 — analog mobile joystick correction (validation pending)
+- Branch: `feature/lobby-operator-showcase`, PR #78.
+- Root cause: `virtual_stick.gd` receives events through `Control._gui_input()`, whose `event.position` is already local to that Control. The previous code called `get_global_transform_with_canvas().affine_inverse()` on that local position, subtracting the HUD offset a second time. It could make the visible lower-left joystick hit-test/knob position wrong.
+- Fixed `virtual_stick.gd` to test `Rect2(Vector2.ZERO, size)` against a local `event.position`, feed touch/drag directly to `_update_stick(event.position)`, and remove the redundant transform helper. Commit: `e1e8079e4dbce532b0b8504bedd30e41bcd327e2`.
+- Added `tests/mobile_joystick_runtime_smoke.gd`: injects screen-touch and screen-drag events through the Godot viewport at the stick's actual HUD screen location; verifies right, forward, backward, and neutral release input strengths. Commit: `69ee68a057415b71b670cdc9d9d49ff3c984ecd0`.
+- Android workflow commit `80eda18cc40fa884758152b1880aa64903945725` inserted the Godot runtime test after movement physics.
+- First PR build run 43450521582 failed before Godot/tests at production preflight: `tools/production_gate.py` still required the removed `_viewport_to_local()` helper and rejected direct Control-local input. This was a stale source-text assertion, not a runtime failure.
+- Updated the preflight contract to require Control-local touch assignment, hit test and drag routing, and to forbid the redundant inverse-transform helper. Commit: `6df49e897b978661e12e51b0f99bf6b4fa696bf8`.
+- New Android run: https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/43450870427 — run 1010, in progress at checkpoint time (job 131972358446). No claim yet that the Godot touch test passes.
+- Latest known completed movement test remains Android run 43443145933 with walk 3.50 m, sprint 5.50 m, jump peak 1.24 m. That was a physics smoke test, not this joystick test.
+- Next: inspect run 1010 and confirm the new Godot viewport-injected joystick runtime test passes. If it fails, debug the event routing based on actual Godot logs. Then test crouch/animation and phone layout, and continue Shariatpur evidence gate.
