@@ -57,7 +57,7 @@
   "faceBones": true,
   "restPose": "T",
   "animations": true,
-  "weapon": "rifle",
+  "weapon": "none",
   "carry": "none",
   "vehicle": "none",
   "expression": "neutral",
