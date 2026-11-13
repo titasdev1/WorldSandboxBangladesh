@@ -20,10 +20,11 @@ func _ready() -> void:
 	queue_redraw()
 
 func _gui_input(event: InputEvent) -> void:
-	# Screen touch positions are in viewport coordinates, not this Control's
-	# local circle. Convert them before testing the hit rectangle or moving the knob.
+	# Control._gui_input() provides event.position relative to this Control's
+	# origin. Applying a CanvasItem transform here would subtract the stick's
+	# screen offset a second time and make touch input miss the visible joystick.
 	if event is InputEventScreenTouch:
-		var local_position := _viewport_to_local(event.position)
+		var local_position: Vector2 = event.position
 		if event.pressed and _touch_index == -1 and Rect2(Vector2.ZERO, size).has_point(local_position):
 			_touch_index = event.index
 			_active = true
@@ -33,7 +34,7 @@ func _gui_input(event: InputEvent) -> void:
 			_release_stick()
 			accept_event()
 	elif event is InputEventScreenDrag and event.index == _touch_index:
-		_update_stick(_viewport_to_local(event.position))
+		_update_stick(event.position)
 		accept_event()
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		var local_mouse := get_local_mouse_position()
@@ -48,10 +49,6 @@ func _gui_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion and _touch_index == -2:
 		_update_stick(get_local_mouse_position())
 		accept_event()
-
-
-func _viewport_to_local(viewport_position: Vector2) -> Vector2:
-	return get_global_transform_with_canvas().affine_inverse() * viewport_position
 
 func _update_stick(local_point: Vector2) -> void:
 	var offset := local_point - _center
