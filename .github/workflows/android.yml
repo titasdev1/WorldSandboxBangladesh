@@ -650,7 +650,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/verify_apk_contents.py --apk build/Android/world_sandbox_bangladesh.apk --map-package "$MAP_PACKAGE" --require-charactercreator | tee build/full-map-apk-content-verification.txt
-          cat build/apk-content-verification.txt >> "$GITHUB_STEP_SUMMARY"
+          cat build/full-map-apk-content-verification.txt >> "$GITHUB_STEP_SUMMARY"
 
       - name: Export and verify separate full-resolution map pack
         shell: bash
