@@ -108,3 +108,37 @@ Use `TOOLS_AND_PLATFORMS_REGISTRY.md` as the durable directory. Snapshot 2026-11
 7. Only deliver a new APK after canonical build, map-package provenance, signatures/checksums, actual included content and Android/device testing are honestly reported.
 
 **Checkpoint quality rule:** A file existing is not a feature; a model exporting is not visual acceptance; a script passing is not physical-device QA; a game mode card is not a playable mode.
+
+
+## 2026-11-13 — live verification update (supersedes the earlier pending jump status)
+
+### Latest completed Android candidate
+- Workflow run: https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/43443145933
+- Source: branch `feature/lobby-operator-showcase`, commit `7bdd167596b8b45ea1de95b857aa9f0b77595ae4`.
+- The sole Android job completed successfully. The physics step printed: `PLAYER_INPUT_RUNTIME_PASS • walk=3.50m • sprint=5.50m • jump_peak=1.24m`. This confirms the stale-floor-contact jump cancellation was corrected in the tested headless Godot scene. It does **not** test analog touch-joystick feel, streamed-world collision, animation deformation, or a physical phone.
+- The runtime map smoke reported: 60 tile records, two tiles currently loaded around the test spawn, zero failed tile loads, navigation index ready, 583 named places, 2,722 road ways and 2,337 indexed display routes. Only two loaded tiles in this headless snapshot is not a visual/coverage acceptance result.
+- The CI asset gate found 50 CC0 vehicle-kit models, 118 CC0 city models (168 in total), seven CC0 PBR surface sets, a Quaternius rigged hero with 86 animation clips, and six imported CharacterCreator GLBs. Pack presence/import success is not proof every model is used in the live world or that art resembles CODM/GTA quality.
+- APK artifact: run 43443145933, artifact 14047569809, `Project-A-Square-Android-APK`. The extracted installable APK is 263,929,914 bytes; SHA-256 `6ad5f801eb92ded133707d2e1793bd277e89dd62b35158aea2744f91bc6d3b6c`. ZIP integrity and Android v2/v3 signature checks passed. Signing mode was `debug-fallback`, not a production signing key.
+- The map is **not inside** the modular core APK. Shariatpur is a separate first-run download, approximately 2,451,134,681 bytes split into 10 parts. The report's full-pack SHA-256 is `7a8178ab3cbed71d97e72b8d2d6fd461e75d6f6dbf24816f5eee2bac565d3901`.
+- Shariatpur remains `REVIEW_REQUIRED`: 60 GLB tile scenes, three licensed façade-photo panels, 0 independently verified floor counts. Physical Redmi launch, touch, visual, performance, heat and stability QA remain unverified. Do not ask the user to test this candidate as the finished game.
+
+### Release-evidence ordering bug discovered and fix started
+- Inspection of run 43443145933 found `apk-content-verification.txt` was generated before APK signing, while `apk-sha256.txt` and the uploaded APK were produced after signing. Therefore the content report had a stale unsigned size/hash; the uploaded APK itself had a valid v2/v3 signature and its own recorded hash.
+- Added `tools/verify_final_distribution.py` and `tests/test_verify_final_distribution.py` to verify the signed APK checksum, core map-exclusion report, all split map-part sizes/hashes and manifest total, then overwrite the final distribution report after signing.
+- Updated `.github/workflows/android.yml` so this regression test runs and the final reconciliation happens after signing. The pre-sign check is now labelled as an intermediate map-part check.
+- Fix commit: `f31d77965e52e0ef96b7469c44599a627fe27d1a`.
+- Validation run: https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/43448794049 — pending at the time this checkpoint was written. Do not claim the report-order fix passes until the new run's test and post-sign reconciliation step succeed.
+
+### Next engineering priorities
+1. Finish run 43448794049; inspect the new unit test and confirm the signed report hash exactly matches the uploaded APK.
+2. Inspect the actual rendered operator/outfit animations and fix clipping before replacing the player. Ara 3D Gen candidates remain separate, structurally verified but visually/import/device-unapproved.
+3. Close the Shariatpur gaps: three ground-only tiles, building-specific exterior review, zero independently verified floor counts, only three licensed photo panels, unique doors/interiors, route accuracy, and player-following minimap. Keep the gate blocked until evidence exists.
+4. Reduce the 2.45 GB Shariatpur delivery cost through real mobile asset engineering (texture/mesh compression, streamed LODs, deduplication and per-tile budgets) without pretending to remove required geography or substitute primitive placeholders.
+5. Add physical-device performance evidence for the Redmi Note 14 Pro 4G only after a candidate is coherent enough for meaningful review. Never invent FPS/thermal or stability results.
+
+### Current honest status
+- Jump/sprint/walk headless regression: **CI PASS** (measured above).
+- Signed artifact ZIP/signature: **CI PASS**.
+- Post-sign distribution report regression: **PENDING** on run 43448794049.
+- Shariatpur world fidelity: **REVIEW_REQUIRED**.
+- Device QA, integrated game modes, real online multiplayer and full dream-game completion: **NOT VERIFIED / NOT DONE**.
