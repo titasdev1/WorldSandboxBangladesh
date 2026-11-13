@@ -539,6 +539,14 @@ jobs:
             exit 1
           fi
 
+      - name: Exercise real player movement, sprint and jump physics
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot-validation/Godot_v4.4.1-stable_linux.x86_64"
+          test -x "$GODOT"
+          "$GODOT" --headless --path . --script res://tests/player_input_runtime_smoke.gd
+
       - name: Fetch optional CC0 vehicle art
         shell: bash
         run: python3 tools/fetch_free_assets.py
