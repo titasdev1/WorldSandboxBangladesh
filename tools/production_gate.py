@@ -255,17 +255,18 @@ for token in (
     "func _gui_input(",
     "InputEventScreenTouch",
     "InputEventScreenDrag",
-    "func _viewport_to_local(viewport_position: Vector2) -> Vector2:",
-    "get_global_transform_with_canvas().affine_inverse() * viewport_position",
-    "_update_stick(_viewport_to_local(event.position))",
+    "var local_position: Vector2 = event.position",
+    "Rect2(Vector2.ZERO, size).has_point(local_position)",
+    "_update_stick(local_position)",
+    "_update_stick(event.position)",
     "get_local_mouse_position()",
     "func _release_stick()",
     "_sync_actions()",
 ):
     if token not in stick_text:
-        raise SystemExit(f"PRODUCTION GATE FAILED: analog movement stick is missing coordinate-safe input behavior {token}")
-if "Rect2(Vector2.ZERO, size).has_point(event.position)" in stick_text or "_update_stick(event.position)" in stick_text:
-    raise SystemExit("PRODUCTION GATE FAILED: raw viewport touch positions are still used as local joystick coordinates")
+        raise SystemExit(f"PRODUCTION GATE FAILED: analog movement stick is missing Control-local touch behavior {token}")
+if "_viewport_to_local(" in stick_text or "get_global_transform_with_canvas().affine_inverse()" in stick_text:
+    raise SystemExit("PRODUCTION GATE FAILED: joystick redundantly transforms Control-local GUI input coordinates")
 stick_position_match = re.search(r"stick\.position = Vector2\(([^)]+)\)", hud_text)
 stick_size_match = re.search(r"stick\.size = Vector2\(([^)]+)\)", hud_text)
 sprint_match = re.search(r'add_touch_button\("SPRINT", Vector2\(([^)]+)\), Vector2\(([^)]+)\)', hud_text)
