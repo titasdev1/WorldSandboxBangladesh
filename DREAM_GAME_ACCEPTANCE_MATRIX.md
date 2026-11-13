@@ -23,11 +23,11 @@ This file is a quality-control ledger, not a claim that listed features are comp
 | Area | Required acceptance evidence | Current evidence / honest state |
 |---|---|---|
 | Canonical project and startup | Existing game starts; no blank screen, missing resources, parser/runtime errors | Godot headless import/startup passed in PR #74 CI; physical-device result not recorded |
-| Player movement | Analog circular joystick moves in all directions; no reversed axes; smooth acceleration, stop, sprint, jump, crouch | Controls/code exist; physical touch/feel and collision QA pending |
+| Player movement | Analog circular joystick moves in all directions; no reversed axes; smooth acceleration, stop, sprint, jump, crouch | Headless Godot physics smoke PASS in Android run 43443145933: walk 3.50 m, sprint 5.50 m, jump peak 1.24 m. This validates the physics test scene only; analog touch feel, crouch, streamed-ground collision and physical-device controls remain pending |
 | Camera | Drag-to-look, stable sensitivity, no camera inversion surprises, collision/occlusion handling | Code/UI exist; device QA pending |
 | First-/third-person | Switch views without breaking aim, animation, collision, or controls | Toggle exists; full behavior not device-verified |
-| Character visuals | Recognizable, well-proportioned 3D character, visible outfit/hair/skin detail, consistent animations | Procedural character visual exists; CODM/GTA-quality art is not evidenced |
-| Animation | Walk/run/sprint/idle/jump/fall/crouch/aim/fire/reload/interaction transitions without snapping | Not evidenced as a complete animation set |
+| Character visuals | Recognizable, well-proportioned 3D character, visible outfit/hair/skin detail, consistent animations | APK contains a rigged Quaternius hero (86 clips) and six imported CharacterCreator GLBs; the base remains stylized, clothing deformation/rendered review is unverified, and CODM/GTA-quality art is not evidenced |
+| Animation | Walk/run/sprint/idle/jump/fall/crouch/aim/fire/reload/interaction transitions without snapping | 86 hero clips and CharacterCreator clips are packaged/imported; walk/sprint/jump physics test passes, but full rendered state transitions, clothing deformation and touch/device review remain pending |
 | Collision and ground | Player never falls through terrain, floats, gets trapped, or spawns outside a walkable surface | Known historical issue; exact candidate needs device/scene regression |
 | HUD and touch layout | No clipped/overlapping controls on phone aspect ratios; usable one-handed/two-thumb layout; scalable UI | UI exists; real-device layout test pending |
 | Accessibility/settings | Sensitivity, graphics, FPS, audio, touch size and control options persist across relaunch | Some settings exist; persistence and each option need verification |
@@ -55,7 +55,7 @@ This file is a quality-control ledger, not a claim that listed features are comp
 | Area | Required acceptance evidence | Current evidence / honest state |
 |---|---|---|
 | Traffic | Vehicles follow connected roads, respect directions/obstacles, avoid stacking and disappear safely at stream boundaries | Procedural/mapped traffic code exists; behavior QA pending |
-| Local vehicles | Rickshaw, CNG, bus, car, motorcycle are distinct, recognizable 3D models with correct scale and collision | Types/spawn paths exist; high-quality final models and on-device appearance not verified |
+| Local vehicles | Rickshaw, CNG, bus, car, motorcycle are distinct, recognizable 3D models with correct scale and collision | 50 CC0 car-kit models are packaged; CNG/rickshaw remain project-authored, and final distinct local models, live-world use, collision and on-device appearance are not verified |
 | Driving | Enter/exit vehicle, steering, acceleration/braking, camera, collision and safe recovery | Partial code; full driving loop not verified |
 | Fare negotiation | Contextual origin/destination, fare estimate, negotiation choices and clear outcome | Partial fare/economy code; end-to-end QA pending |
 | NPCs | Visible local pedestrians, varied movement, collision avoidance, schedules and responsive interaction | Procedural NPC movement carried forward; full behaviors/variety not proven |
@@ -70,11 +70,11 @@ This file is a quality-control ledger, not a claim that listed features are comp
 
 | Area | Required acceptance evidence | Current evidence / honest state |
 |---|---|---|
-| Coverage | All 60 district tile records assembled; every tile has meaningful, correctly clipped mapped geometry | 60/60 records; only 57/60 tiles have renderable OSM features; three ground-only tiles block acceptance |
-| Roads | Connected road network, no accidental gaps at tile boundaries, sensible intersections and correct local coordinates | OSM-derived road geometry exists; full continuity/route audit pending |
+| Coverage | All 60 district tile records assembled; every tile has meaningful, correctly clipped mapped geometry | 60 GLB tile scenes/records are packaged; prior source audit still reports only 57/60 tiles with renderable OSM features and three ground-only tiles. Headless smoke loaded two tiles near test spawn; district gate remains blocked |
+| Roads | Connected road network, no accidental gaps at tile boundaries, sensible intersections and correct local coordinates | Runtime index reports 2,722 road ways and 2,337 indexed display routes; package index lists 247 named roads. These counts do not prove continuity, legality, route quality or minimap alignment; full audit pending |
 | Buildings | Correct placement/footprints, no floating structures, buildings rest on ground, no duplicate seams | 34,806 footprints in recorded audit; exact visual/placement audit pending |
 | Heights/floors | Every claimed verified floor count has human-reviewed evidence linked to the exact building; inferred values remain labelled estimates | Registry intentionally empty; independently verified floor counts = 0 |
-| Façades | Licensed imagery matched to the correct mapped structure, attribution retained, texture orientation/scale checked in-world | Downloader fetched 2 allowlisted images; number of successfully embedded and visually approved building panels is unknown/pending |
+| Façades | Licensed imagery matched to the correct mapped structure, attribution retained, texture orientation/scale checked in-world | Latest package contains 3 licensed façade-photo panels with mapped-building attribution; in-world orientation, exact visual identity and district-wide coverage remain unapproved |
 | Photorealism | Recognizable real exteriors from appropriate lawful sources, not just coloured boxes, generic facades or OSM polygons | Not achieved/evidenced; two photo panels would not constitute district-wide photorealism |
 | Ground/terrain | No holes or floating ground; district boundary and waterways/land use behave plausibly | Three ground-only tiles plus visual terrain QA pending |
 | Vegetation/street furniture | Spatially plausible mapped vegetation, poles, lamps and other features; no random clutter or collisions | Audit listed 2 mapped trees, 35 utility poles, 0 mapped street lamps; completeness/visual QA pending |
