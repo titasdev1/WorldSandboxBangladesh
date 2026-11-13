@@ -7,7 +7,7 @@ This is an isolated asset-generation lane for Project A-Square. It does not repl
 - Output: high / medium / low detail GLB variants for the same original operator brief.
 - Rig: game rig with Mixamo-compatible naming and a `WeaponR` socket.
 - Exports include the upstream animation set and facial blend shapes.
-- Character brief: South-Asian/Bangladesh-inspired appearance, camouflaged fatigue clothing, tactical vest, combat helmet, combat boots and a right-hand rifle prop.
+- Character brief: South-Asian/Bangladesh-inspired appearance, camouflaged fatigue clothing, tactical vest, combat helmet and combat boots. The rifle is intentionally omitted because Ara's built-in weapon is a procedural placeholder; only its real `WeaponR` attachment socket is retained for a separately authored A-Square weapon.
 
 Licensing:
 - Generator code is MIT.
