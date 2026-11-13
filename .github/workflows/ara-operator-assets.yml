@@ -1,0 +1,96 @@
+name: Build Ara 3D Gen Operator Assets
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/lobby-operator-showcase
+    paths:
+      - "tools/ara3d/**"
+      - ".github/workflows/ara-operator-assets.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ara-operator-assets-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-operator:
+    name: Generate and validate rigged operator LODs
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout Project A-Square
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: tools/ara3d/upstream-package-lock.json
+
+      - name: Fetch pinned Ara 3D Gen source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone https://github.com/olatunde85/3d-gen.git "$RUNNER_TEMP/ara-3d-gen"
+          git -C "$RUNNER_TEMP/ara-3d-gen" checkout 4122e90633fda0384c6611115b64a15102e5463d
+          echo "ARA_SOURCE=$RUNNER_TEMP/ara-3d-gen" >> "$GITHUB_ENV"
+
+      - name: Install Ara 3D Gen dependencies
+        working-directory: ${{ runner.temp }}/ara-3d-gen
+        run: npm ci
+
+      - name: Download and build licensed character source data
+        working-directory: ${{ runner.temp }}/ara-3d-gen
+        run: npm run setup-assets
+
+      - name: Generate high, medium and low operator GLBs
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/build/ara_operator"
+          mkdir -p "$OUT"
+          for DETAIL in high medium low; do
+            mkdir -p "$OUT/$DETAIL"
+            npm --prefix "$ARA_SOURCE" run export --               --params "$GITHUB_WORKSPACE/tools/ara3d/asquare_operator.params.json"               --out "$OUT/$DETAIL"               --formats glb               --detail "$DETAIL"
+          done
+
+      - name: Verify geometry, skinning, facial shapes, weapon socket and animation groups
+        shell: bash
+        run: |
+          set -euo pipefail
+          find build/ara_operator -type f -name '*.glb' -print
+          HIGH="$(find build/ara_operator/high -maxdepth 1 -type f -name '*.glb' -print -quit)"
+          MEDIUM="$(find build/ara_operator/medium -maxdepth 1 -type f -name '*.glb' -print -quit)"
+          LOW="$(find build/ara_operator/low -maxdepth 1 -type f -name '*.glb' -print -quit)"
+          test -s "$HIGH" && test -s "$MEDIUM" && test -s "$LOW"
+          python3 tools/ara3d/verify_ara_glb.py             --high "$HIGH" --medium "$MEDIUM" --low "$LOW"             --out build/ara_operator/verification.json
+
+      - name: Record source and asset licences
+        shell: bash
+        run: |
+          cat > build/ara_operator/ASSET-LICENSES.txt <<'EOF'
+          Ara 3D Gen source: https://github.com/olatunde85/3d-gen
+          Pinned source commit: 4122e90633fda0384c6611115b64a15102e5463d
+          Generator source code: MIT License.
+          MakeHuman character mesh, morph targets, skins, hair, clothing and proxies: CC0 1.0.
+          CMU motion capture: Graphics Lab Motion Capture Database; may be used in commercial products, must not be resold as a standalone converted motion asset. See upstream scripts/ASSETS_LICENSE.txt.
+          This generated operator is an evaluation candidate. It has not yet passed visual or Android-device QA.
+          EOF
+
+      - name: Upload validated character candidates
+        uses: actions/upload-artifact@v4
+        with:
+          name: A-Square-Ara3D-Operator-Candidates
+          path: |
+            build/ara_operator/high/*.glb
+            build/ara_operator/medium/*.glb
+            build/ara_operator/low/*.glb
+            build/ara_operator/verification.json
+            build/ara_operator/ASSET-LICENSES.txt
+          if-no-files-found: error
+          retention-days: 14
