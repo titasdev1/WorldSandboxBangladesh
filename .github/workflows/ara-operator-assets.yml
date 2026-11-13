@@ -29,8 +29,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: npm
-          cache-dependency-path: tools/ara3d/upstream-package-lock.json
 
       - name: Fetch pinned Ara 3D Gen source
         shell: bash
