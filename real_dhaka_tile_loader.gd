@@ -361,6 +361,62 @@ func get_nearest_named_place(world_position: Vector3, max_distance_m := 180.0) -
 	return best
 
 
+func get_sports_venues(world_position: Vector3, max_distance_m := 1800.0) -> Array:
+	var result: Array = []
+	if _navigation_index.is_empty():
+		return result
+	var records: Variant = _navigation_index.get("places", [])
+	if not (records is Array):
+		return result
+	for record_variant in records:
+		if not (record_variant is Dictionary):
+			continue
+		var record: Dictionary = record_variant
+		var categories: Variant = record.get("categories", {})
+		if not (categories is Dictionary):
+			continue
+		var leisure := str(categories.get("leisure", "")).to_lower()
+		var amenity := str(categories.get("amenity", "")).to_lower()
+		var sport := str(categories.get("sport", "")).to_lower()
+		var venue_type := ""
+		if leisure in ["stadium", "sports_centre", "pitch", "sports_hall", "sports_ground"]:
+			venue_type = leisure
+		elif sport in ["football", "soccer", "cricket", "athletics", "rugby"]:
+			venue_type = sport
+		elif amenity == "sports_centre":
+			venue_type = amenity
+		if venue_type.is_empty():
+			continue
+		var coordinates: Variant = record.get("coordinates", {})
+		if not (coordinates is Dictionary) or not coordinates.has("latitude") or not coordinates.has("longitude"):
+			continue
+		var position := _geo_to_world(float(coordinates["latitude"]), float(coordinates["longitude"]))
+		var distance := Vector2(position.x-world_position.x, position.z-world_position.z).length()
+		if distance > max_distance_m:
+			continue
+		var display_name := str(record.get("name_bn", "")).strip_edges()
+		if display_name.is_empty():
+			display_name = str(record.get("name", record.get("official_name", "Sports venue"))).strip_edges()
+		var venue_id := str(record.get("osm_id", ""))
+		if venue_id.is_empty():
+			venue_id = display_name + ":" + str(roundi(position.x)) + ":" + str(roundi(position.z))
+		result.append({
+			"id": venue_id,
+			"name": display_name,
+			"name_bn": str(record.get("name_bn", "")),
+			"category": venue_type,
+			"position": Vector3(position.x,0.12,position.z),
+			"distance_m": distance,
+			"latitude": float(coordinates["latitude"]),
+			"longitude": float(coordinates["longitude"]),
+			"source": "OpenStreetMap navigation index"
+		})
+	result.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a.get("distance_m", INF)) < float(b.get("distance_m", INF))
+	)
+	return result
+
+
 func get_road_routes() -> Array:
 	var result: Array = []
 	for routes in _road_routes_by_tile.values():

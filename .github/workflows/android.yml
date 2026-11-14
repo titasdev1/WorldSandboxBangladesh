@@ -40,6 +40,9 @@ on:
       - "tools/verify_core_apk_contents.py"
       - "tools/verify_final_distribution.py"
       - "tests/mobile_joystick_runtime_smoke.gd"
+      - "tests/test_jibonjatra_pitchbound.py"
+      - "tests/pitchbound_runtime_smoke.gd"
+      - "tests/player_vehicle_physics_smoke.gd"
       - "virtual_stick.gd"
       - "tests/test_verify_final_distribution.py"
       - "tools/production_gate.py"
@@ -131,6 +134,10 @@ jobs:
       - name: Run lobby operator showcase regression tests
         shell: bash
         run: python3 -m unittest discover -s tests -p "test_lobby_operator_showcase.py"
+
+      - name: Run JibonJatra, Roadline and Pitchbound regression tests
+        shell: bash
+        run: python3 -m unittest discover -s tests -p "test_jibonjatra_pitchbound.py"
 
       # Release/push builds retain Greater Dhaka by default. PR validation uses the
       # latest assembled Shariatpur review package so map/game changes are tested
@@ -566,6 +573,22 @@ jobs:
           GODOT="$RUNNER_TEMP/godot-validation/Godot_v4.4.1-stable_linux.x86_64"
           test -x "$GODOT"
           "$GODOT" --headless --path . --script res://tests/mobile_joystick_runtime_smoke.gd
+
+      - name: Exercise player car rigid-body acceleration and braking
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot-validation/Godot_v4.4.1-stable_linux.x86_64"
+          test -x "$GODOT"
+          "$GODOT" --headless --path . --script res://tests/player_vehicle_physics_smoke.gd
+
+      - name: Exercise Pitchbound 3D team and match-ball runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot-validation/Godot_v4.4.1-stable_linux.x86_64"
+          test -x "$GODOT"
+          "$GODOT" --headless --path . --script res://tests/pitchbound_runtime_smoke.gd
 
       - name: Fetch optional CC0 vehicle art
         shell: bash

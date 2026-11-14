@@ -245,6 +245,9 @@ func interact():
  # This prevents a building-anchor overlap from making parked cars undrivable.
  if world.has_method("try_vehicle_interaction") and world.try_vehicle_interaction():
   return
+ var activity_director: Node = world.get_node_or_null("WorldActivityDirector")
+ if is_instance_valid(activity_director) and activity_director.has_method("try_stadium_interaction") and activity_director.try_stadium_interaction(global_position):
+  return
  if world.has_method("try_street_vendor") and world.try_street_vendor(global_position):
   return
  if world.has_method("try_open_interior_door") and world.try_open_interior_door(global_position):

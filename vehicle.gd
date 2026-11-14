@@ -14,6 +14,7 @@ var cruise_speed := 4.0
 var steering_velocity := 0.0
 var vehicle_camera: Camera3D
 var vehicle_first_person_camera: Camera3D
+var _driving_body: RigidBody3D
 var vehicle_camera_mode := "third_person"
 var wheel_pivots: Array[Node3D] = []
 var authored_wheels: Array[Node3D] = []
@@ -268,8 +269,7 @@ func _build_motorcycle(w: float, h: float, length: float, metal: Color, dark: Co
 func _physics_process(delta: float) -> void:
     indicator_time += delta
     if occupied and world and world.player:
-        _drive_player_vehicle(delta)
-        _animate_wheels(delta)
+        # PlayerVehicleDynamics owns the detached rigid-body simulation.
         return
 
     if route_points.size() >= 2:
@@ -398,45 +398,94 @@ func on_hit() -> void:
             world.wanted = mini(5, world.wanted + 2)
 
 func enter_player(p: CharacterBody3D) -> bool:
-    if occupied or not is_instance_valid(p):
+    if occupied or not is_instance_valid(p) or not is_instance_valid(world):
         return false
+    var body := RigidBody3D.new()
+    body.name = "PlayerDrivingBody_" + vehicle_type.validate_node_name()
+    body.set_script(load("res://player_vehicle_dynamics.gd"))
+    body.global_transform = global_transform
+    world.add_child(body)
+
+    var collision := get_node_or_null("CollisionShape3D") as CollisionShape3D
+    if is_instance_valid(collision):
+        collision.disabled = true
+    for child in get_children().duplicate():
+        if child == collision:
+            continue
+        if child is Node:
+            child.reparent(body,true)
+
+    body.call("configure",self,vehicle_type,body_size)
+    _driving_body = body
     occupied = true
-    if is_instance_valid(world):
-        world.set("occupied_vehicle", self)
+    visible = false
+    world.set("occupied_vehicle",body)
     p.visible = false
     p.set_physics_process(false)
-    speed = 0.0
     if p.camera:
         p.camera.current = false
-    _apply_vehicle_camera_mode()
+    var active_camera := body.get_node_or_null("VehicleCamera") as Camera3D
+    if is_instance_valid(active_camera):
+        active_camera.make_current()
     return true
 
 func toggle_vehicle_camera_mode() -> String:
-    vehicle_camera_mode = "first_person" if vehicle_camera_mode == "third_person" else "third_person"
-    _apply_vehicle_camera_mode()
+    if is_instance_valid(_driving_body):
+        vehicle_camera_mode = String(_driving_body.call("toggle_vehicle_camera_mode"))
     return vehicle_camera_mode
 
-
 func _apply_vehicle_camera_mode() -> void:
-    if not occupied:
-        return
-    if vehicle_camera_mode == "first_person" and is_instance_valid(vehicle_first_person_camera):
-        vehicle_first_person_camera.make_current()
-    elif is_instance_valid(vehicle_camera):
-        vehicle_camera.make_current()
-
+    if is_instance_valid(_driving_body):
+        _driving_body.call("toggle_vehicle_camera_mode")
 
 func exit_player() -> void:
-    if not occupied or not world or not world.player:
+    if not occupied or not is_instance_valid(world) or not is_instance_valid(world.player):
         return
-    var p: CharacterBody3D = world.player
+    var body := _driving_body
+    var exit_transform := global_transform
+    var final_speed := 0.0
+    if is_instance_valid(body):
+        exit_transform = body.global_transform
+        final_speed = float(body.get("speed"))
+        global_transform = exit_transform
+        for child in body.get_children().duplicate():
+            if child is CollisionShape3D:
+                continue
+            if child is Node:
+                child.reparent(self,true)
+        body.queue_free()
+    global_transform = exit_transform
+    _driving_body = null
     occupied = false
-    if is_instance_valid(world) and world.get("occupied_vehicle") == self:
-        world.set("occupied_vehicle", null)
+    visible = true
+    var collision := get_node_or_null("CollisionShape3D") as CollisionShape3D
+    if is_instance_valid(collision):
+        collision.disabled = false
+    if world.get("occupied_vehicle") == body:
+        world.set("occupied_vehicle",null)
+    var p: CharacterBody3D = world.player
     p.visible = true
     p.set_physics_process(true)
-    p.global_position = global_position + global_transform.basis.x * 2.5 + Vector3(0, 0.1, 0)
+    p.global_position = global_position + global_transform.basis.x*2.5 + Vector3(0,0.1,0)
     if p.camera:
         p.camera.current = true
         p.camera.make_current()
-    speed = 0.0
+    speed = final_speed
+    engine_empty_notified = false
+
+func refuel(amount: float) -> bool:
+    if occupied and is_instance_valid(_driving_body):
+        var did_refuel := bool(_driving_body.call("refuel",amount))
+        fuel = float(_driving_body.get("fuel"))
+        return did_refuel
+    if amount <= 0.0 or fuel >= 99.9:
+        return false
+    fuel = minf(100.0, fuel + amount)
+    engine_empty_notified = false
+    return true
+
+func on_hit() -> void:
+    if world:
+        world.cash += 20
+        if is_police:
+            world.wanted = mini(5, world.wanted + 2)

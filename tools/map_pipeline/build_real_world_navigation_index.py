@@ -207,7 +207,7 @@ def build_index(source: Path, floor_evidence_path: Path | None = None) -> dict[s
                     "source_file": str(path.relative_to(source)),
                     "name_status": "NAMED" if tags.get("name") or tags.get("name:bn") or tags.get("ref") else "UNNAMED_IN_SOURCE",
                 }
-            place_keys = ("amenity", "shop", "tourism", "leisure", "office", "healthcare", "education", "public_transport", "railway", "historic", "craft", "emergency")
+            place_keys = ("amenity", "shop", "tourism", "leisure", "sport", "office", "healthcare", "education", "public_transport", "railway", "historic", "craft", "emergency")
             if center and any(tags.get(k) for k in place_keys) and any(tags.get(k) for k in ("name", "name:bn", "official_name", "brand")):
                 key = str(feature.get("id", osm_id))
                 places[key] = {

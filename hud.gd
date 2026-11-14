@@ -21,6 +21,7 @@ var mode_buttons: Array[Button] = []
 var district_map: Control
 var map_button: Button
 var interaction_button: Button
+var roadline_event_button: Button
 var driving_status: Label
 var teleport_panel: PanelContainer
 var teleport_lat_input: LineEdit
@@ -53,7 +54,7 @@ func _ready():
  process_mode = Node.PROCESS_MODE_ALWAYS
  w = get_parent()
  var title = Label.new()
- title.text = "WORLD SANDBOX: BANGLADESH"
+ title.text = "JIBONJATRA  /  WORLD SANDBOX: BANGLADESH"
  title.position = Vector2(28, 20)
  title.add_theme_font_size_override("font_size", 28)
  add_child(title)
@@ -108,6 +109,23 @@ func _ready():
  add_touch_button("JUMP", Vector2(1070, 445), Vector2(140, 48), "jump")
  add_touch_button("CROUCH", Vector2(1070, 500), Vector2(140, 48), "crouch")
  interaction_button = add_touch_button("INTERACT", Vector2(900, 650), Vector2(170, 55), "interact")
+ var throttle_button := add_touch_button("THROTTLE",Vector2(1080,590),Vector2(150,54),"vehicle_accelerate")
+ var brake_button := add_touch_button("BRAKE",Vector2(910,590),Vector2(145,54),"vehicle_brake")
+ var handbrake_button := add_touch_button("HANDBRAKE",Vector2(910,530),Vector2(145,48),"vehicle_handbrake")
+ var reverse_button := add_touch_button("REVERSE",Vector2(1080,530),Vector2(150,48),"vehicle_reverse")
+ for drive_button in [throttle_button,brake_button,handbrake_button,reverse_button]:
+  drive_button.add_to_group("vehicle_driving_controls")
+  drive_button.visible = false
+ roadline_event_button = Button.new()
+ roadline_event_button.name = "RoadlineEventButton"
+ roadline_event_button.text = "ROADLINE  /  RACE"
+ roadline_event_button.position = Vector2(1080,465)
+ roadline_event_button.size = Vector2(150,48)
+ roadline_event_button.add_theme_font_size_override("font_size",14)
+ roadline_event_button.visible = false
+ roadline_event_button.process_mode = Node.PROCESS_MODE_ALWAYS
+ roadline_event_button.pressed.connect(_open_roadline_event)
+ add_child(roadline_event_button)
  var camera_view_button := Button.new()
  camera_view_button.name = "CameraViewToggle"
  camera_view_button.text = "VIEW: TPP"
@@ -163,6 +181,14 @@ func _relayout_mobile_controls() -> void:
     action_button.position = Vector2(view_width - 380.0, view_height - 70.0)
    "rain":
     action_button.position = Vector2(view_width - 220.0, view_height - 70.0)
+   "vehicle_accelerate":
+    action_button.position = Vector2(view_width - 205.0, view_height - 75.0)
+   "vehicle_brake":
+    action_button.position = Vector2(view_width - 375.0, view_height - 75.0)
+   "vehicle_handbrake":
+    action_button.position = Vector2(view_width - 375.0, view_height - 128.0)
+   "vehicle_reverse":
+    action_button.position = Vector2(view_width - 205.0, view_height - 128.0)
 
  if is_instance_valid(crosshair_label):
   crosshair_label.position = Vector2(view_width * 0.5 - 8.0, view_height * 0.5 - 18.0)
@@ -172,6 +198,8 @@ func _relayout_mobile_controls() -> void:
  var view_button := get_node_or_null("CameraViewToggle") as Control
  if is_instance_valid(view_button):
   view_button.position = Vector2(view_width - 410.0, view_height - 165.0)
+ if is_instance_valid(roadline_event_button):
+  roadline_event_button.position = Vector2(view_width - 205.0, view_height - 185.0)
  if is_instance_valid(map_button):
   map_button.position = Vector2(view_width - 365.0, 18.0)
  if is_instance_valid(district_map):
@@ -1090,16 +1118,20 @@ func _show_lobby_page(page: String) -> void:
   _lobby_add_action("DESHI STORIES", "Local missions, transport fares, markets and connected jobs", Callable(self, "_choose_mode").bind("deshi_story"))
   _lobby_add_action("OPEN WORLD SANDBOX", "Explore the currently installed district and local activities", Callable(self, "_choose_mode").bind("free_roam"))
   _lobby_add_action("COMBAT LAB", "Offline AI practice • six targets • movement and weapon training", Callable(self, "_choose_mode").bind("arena_training"))
+  _lobby_add_section("LIVING OPEN WORLD")
+  _lobby_add_action("JIBONJATRA", "Walk, meet, drive and race on the same district roads", Callable(self, "_choose_mode").bind("jibon_jatra"))
   _lobby_add_section("WORLD STATUS")
   _lobby_add_info("MAP STATUS", "Shariatpur is active." if installed else "Local starter world is active; Shariatpur data remains a separate installable map pack.")
   _lobby_add_info("ONLINE SERVICES", "No real-player server is connected in this build. Online matchmaking is not simulated.")
  elif page == "play":
   _lobby_add_heading("PLAY", "Choose a real local experience. Online queues remain unavailable until a multiplayer service is connected.")
+  _lobby_add_section("LIVING WORLD • JIBONJATRA")
+  _lobby_add_action("JIBONJATRA  /  ENTER WORLD", "Walk, meet, drive, open a private room and race on city roads", Callable(self, "_choose_mode").bind("jibon_jatra"))
   _lobby_add_section("OPEN WORLD • LOCAL")
   _lobby_add_action("DESHI STORIES", "40 chapters • connected local destination jobs", Callable(self, "_choose_mode").bind("deshi_story"))
   _lobby_add_action("OPEN CITY SANDBOX", "Free roam • traffic, local characters, shops and transport", Callable(self, "_choose_mode").bind("free_roam"))
   _lobby_add_action("STREET LIFE", "Markets, local economy, transport and city activities", Callable(self, "_choose_mode").bind("street_life"))
-  _lobby_add_section("COMBAT • OFFLINE AI")
+  _lobby_add_section("STRIKEFRONT  /  COMBAT • OFFLINE AI")
   _lobby_add_action("LAST STAND", "Three escalating waves against armed AI opponents", Callable(self, "_choose_mode").bind("survival"))
   _lobby_add_action("COMBAT LAB", "Six practice targets • solo training", Callable(self, "_choose_mode").bind("arena_training"))
   _lobby_add_action("STREET SKIRMISH", "Ten AI opponents • elimination objective", Callable(self, "_choose_mode").bind("street_skirmish"))
@@ -1165,6 +1197,7 @@ func _choose_mode(mode_id: String) -> void:
 
 func _build_mode_briefing() -> void:
  var descriptions := {
+  "jibon_jatra": "Living open world: walking, social meetups, vehicle driving, Roadline races, stadium gates and individual Deshi missions.",
   "deshi_story": "Local destination missions, transport fares, shops and chapter-based work.",
   "free_roam": "Roam the currently installed city area without a mission objective.",
   "street_life": "Explore shops, markets, transport and local activities.",
@@ -1518,23 +1551,54 @@ func _replay_combat_round() -> void:
  if replay_round_button:
   replay_round_button.visible = false
 
+func _open_roadline_event() -> void:
+ if not is_instance_valid(w):
+  return
+ var director: Node = w.get_node_or_null("WorldActivityDirector")
+ if is_instance_valid(director) and director.has_method("open_race_menu"):
+  director.call("open_race_menu")
+
+
 func _update_interaction_prompt() -> void:
  if not is_instance_valid(w) or not is_instance_valid(w.player) or not is_instance_valid(interaction_button) or not is_instance_valid(driving_status):
   return
  var occupied_vehicle: Node3D = w.get("occupied_vehicle") as Node3D
  if is_instance_valid(occupied_vehicle):
   interaction_button.text = "EXIT VEHICLE"
-  var speed_mps := absf(float(occupied_vehicle.get("speed")))
-  driving_status.text = "DRIVING  %03d km/h\\nJOYSTICK: STEER / ACCELERATE" % int(speed_mps * 3.6)
+  roadline_event_button.visible = true
+  for drive_button in get_tree().get_nodes_in_group("vehicle_driving_controls"):
+   if is_instance_valid(drive_button):
+    drive_button.visible = true
+  for action_button in get_tree().get_nodes_in_group("touch_action_buttons"):
+   if not is_instance_valid(action_button):
+    continue
+   var action_name := String(action_button.get_meta("action_name",""))
+   if action_name in ["sprint","fire","aim","reload","jump","crouch","rain"]:
+    action_button.visible = false
+  var vehicle_speed := absf(float(occupied_vehicle.get("speed")))*3.6
+  var engine_rpm := int(occupied_vehicle.get("engine_rpm")) if occupied_vehicle.get("engine_rpm")!=null else 0
+  var current_gear := int(occupied_vehicle.get("current_gear")) if occupied_vehicle.get("current_gear")!=null else 1
+  driving_status.text = "DRIVING  %03d km/h  •  GEAR %d  •  %04d RPM\nJOYSTICK: STEER  •  THROTTLE / BRAKE" % [int(vehicle_speed),current_gear,engine_rpm]
   driving_status.visible = true
   return
+
+ roadline_event_button.visible = false
+ for drive_button in get_tree().get_nodes_in_group("vehicle_driving_controls"):
+  if is_instance_valid(drive_button):
+   drive_button.visible = false
+ for action_button in get_tree().get_nodes_in_group("touch_action_buttons"):
+  if not is_instance_valid(action_button):
+   continue
+  var action_name := String(action_button.get_meta("action_name",""))
+  if action_name in ["sprint","fire","aim","reload","jump","crouch","rain"]:
+   action_button.visible = true
 
  var nearest_vehicle: Node3D = null
  var nearest_distance := 4.0
  for node in w.get_children():
   if node is CharacterBody3D and node.has_method("enter_player") and not bool(node.get("occupied")) and not bool(node.get("is_police")):
    var distance: float = w.player.global_position.distance_to(node.global_position)
-   if distance < nearest_distance:
+   if distance<nearest_distance:
     nearest_distance = distance
     nearest_vehicle = node as Node3D
  if is_instance_valid(nearest_vehicle):
@@ -1542,6 +1606,13 @@ func _update_interaction_prompt() -> void:
   driving_status.visible = false
   return
 
+ var activity_director: Node = w.get_node_or_null("WorldActivityDirector")
+ if is_instance_valid(activity_director) and activity_director.has_method("get_interaction_label"):
+  var activity_label: String = String(activity_director.call("get_interaction_label",w.player.global_position))
+  if not activity_label.is_empty():
+   interaction_button.text = activity_label
+   driving_status.visible = false
+   return
  if w.has_method("get_interior_interaction_label"):
   var interior_label: String = w.get_interior_interaction_label(w.player.global_position)
   if not interior_label.is_empty():
@@ -1633,7 +1704,10 @@ func _complete_enter_selected_mode() -> void:
  _release_gameplay_inputs()
  if w:
   w.game_mode = selected_mode
-  if selected_mode == "free_roam":
+  if selected_mode == "jibon_jatra":
+   w.mission_active = false
+   w.event_text = "JIBONJATRA • OPEN WORLD SESSION ACTIVE"
+  elif selected_mode == "free_roam":
    w.mission_active = false
    w.event_text = "FREE ROAM SELECTED"
   elif selected_mode == "deshi_story":
@@ -1657,7 +1731,7 @@ func _complete_enter_selected_mode() -> void:
   else:
    w.mission_active = false
    w.event_text = "COMBAT LAB • OFFLINE PRACTICE"
-  if w.combat_controller:
+  if w.combat_controller and selected_mode in ["survival","arena_training","street_skirmish"]:
    w.combat_controller.start_mode(selected_mode)
   w.event_time_left = 8.0
  if lobby_overlay:

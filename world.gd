@@ -89,6 +89,10 @@ func _ready():
  combat_controller.name = "CombatModeController"
  add_child(combat_controller)
  combat_controller.configure(self)
+ var activity_director := load("res://systems/activities/world_activity_director.gd").new()
+ activity_director.name = "WorldActivityDirector"
+ add_child(activity_director)
+ activity_director.configure(self)
  call_deferred("_load_saved_session")
 
 func _load_saved_session() -> void:
