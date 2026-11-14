@@ -13,17 +13,48 @@ var sensitivity_value_label: Label
 var settings_config := ConfigFile.new()
 var _world_quality_applied := false
 var lobby_overlay: ColorRect
+var lobby_loading_label: Label
+var lobby_loading_progress: ProgressBar
+var _map_entry_in_progress := false
 var selected_mode := "deshi_story"
 var mode_buttons: Array[Button] = []
 var district_map: Control
 var map_button: Button
 var interaction_button: Button
+var roadline_event_button: Button
 var driving_status: Label
+var teleport_panel: PanelContainer
+var teleport_lat_input: LineEdit
+var teleport_lon_input: LineEdit
+var teleport_status: Label
+var teleport_place_input: LineEdit
+var teleport_suggestions: VBoxContainer
+var place_search_timer: Timer
+var pending_place_search_query := ""
+var selected_teleport_place: Dictionary = {}
+var navigation_mode_button: Button
+var mode_menu_button: Button
+var replay_round_button: Button
+var save_feedback_label: Label
+var shop_button: Button
+var shop_panel: PanelContainer
+var shop_item_option: OptionButton
+var shop_money_label: Label
+var shop_inventory_label: Label
+var shop_status_label: Label
+var lobby_content: VBoxContainer
+var lobby_cash_label: Label
+var lobby_profile_label: Label
+var lobby_section := "home"
+var lobby_nav_buttons: Dictionary = {}
+var lobby_showcase: Node3D
+var _shown_result_token := ""
 
 func _ready():
+ process_mode = Node.PROCESS_MODE_ALWAYS
  w = get_parent()
  var title = Label.new()
- title.text = "WORLD SANDBOX: BANGLADESH"
+ title.text = "JIBONJATRA  /  WORLD SANDBOX: BANGLADESH"
  title.position = Vector2(28, 20)
  title.add_theme_font_size_override("font_size", 28)
  add_child(title)
@@ -55,6 +86,7 @@ func _ready():
  add_child(crosshair_label)
 
  var hint = Label.new()
+ hint.name = "MobileInputHint"
  hint.text = "CIRCULAR MOVE • DRAG TO LOOK • AIM • AUTO FIRE • RELOAD • VIEW: FPP/TPP"
  hint.position = Vector2(28, 680)
  hint.add_theme_font_size_override("font_size", 16)
@@ -68,13 +100,32 @@ func _ready():
  stick.size = Vector2(220, 220)
  stick.add_to_group("movement_stick")
  add_child(stick)
- add_touch_button("SPRINT", Vector2(35, 645), Vector2(150, 45), "sprint")
+ # Keep sprint outside the joystick's full 220×220 touch-capture rectangle;
+ # overlapping GUI controls can steal a thumb gesture from the analog stick.
+ add_touch_button("SPRINT", Vector2(255, 645), Vector2(150, 45), "sprint")
  add_touch_button("FIRE", Vector2(1080, 560), Vector2(150, 75), "fire")
  add_touch_button("AIM", Vector2(900, 500), Vector2(130, 45), "aim")
  add_touch_button("RELOAD", Vector2(900, 450), Vector2(130, 45), "reload")
  add_touch_button("JUMP", Vector2(1070, 445), Vector2(140, 48), "jump")
  add_touch_button("CROUCH", Vector2(1070, 500), Vector2(140, 48), "crouch")
  interaction_button = add_touch_button("INTERACT", Vector2(900, 650), Vector2(170, 55), "interact")
+ var throttle_button := add_touch_button("THROTTLE",Vector2(1080,590),Vector2(150,54),"vehicle_accelerate")
+ var brake_button := add_touch_button("BRAKE",Vector2(910,590),Vector2(145,54),"vehicle_brake")
+ var handbrake_button := add_touch_button("HANDBRAKE",Vector2(910,530),Vector2(145,48),"vehicle_handbrake")
+ var reverse_button := add_touch_button("REVERSE",Vector2(1080,530),Vector2(150,48),"vehicle_reverse")
+ for drive_button in [throttle_button,brake_button,handbrake_button,reverse_button]:
+  drive_button.add_to_group("vehicle_driving_controls")
+  drive_button.visible = false
+ roadline_event_button = Button.new()
+ roadline_event_button.name = "RoadlineEventButton"
+ roadline_event_button.text = "ROADLINE  /  RACE"
+ roadline_event_button.position = Vector2(1080,465)
+ roadline_event_button.size = Vector2(150,48)
+ roadline_event_button.add_theme_font_size_override("font_size",14)
+ roadline_event_button.visible = false
+ roadline_event_button.process_mode = Node.PROCESS_MODE_ALWAYS
+ roadline_event_button.pressed.connect(_open_roadline_event)
+ add_child(roadline_event_button)
  var camera_view_button := Button.new()
  camera_view_button.name = "CameraViewToggle"
  camera_view_button.text = "VIEW: TPP"
@@ -88,37 +139,400 @@ func _ready():
  _build_settings_ui()
  _load_graphics_settings()
  _build_navigation_map()
+ _build_teleport_ui()
  _build_lobby_ui()
+ _build_shop_ui()
+ _build_round_controls()
+ # Reflow controls when the expanded logical viewport differs from 16:9.
+ get_viewport().size_changed.connect(_relayout_mobile_controls)
+ call_deferred("_relayout_mobile_controls")
+ get_tree().paused = true
+
+
+func _relayout_mobile_controls() -> void:
+ var visible_size: Vector2 = get_viewport().get_visible_rect().size
+ # Godot's "expand" aspect mode preserves the 16:9 design and exposes extra
+ # logical width on wide phones. Anchor touch actions at edges, not old x-values.
+ var view_width: float = maxf(1280.0, visible_size.x)
+ var view_height: float = maxf(720.0, visible_size.y)
+
+ for stick in get_tree().get_nodes_in_group("movement_stick"):
+  if is_instance_valid(stick):
+   stick.position = Vector2(24.0, view_height - 248.0)
+
+ for action_button in get_tree().get_nodes_in_group("touch_action_buttons"):
+  if not is_instance_valid(action_button):
+   continue
+  var action_name := String(action_button.get_meta("action_name", ""))
+  match action_name:
+   "sprint":
+    action_button.position = Vector2(255.0, view_height - 75.0)
+   "fire":
+    action_button.position = Vector2(view_width - 200.0, view_height - 160.0)
+   "aim":
+    action_button.position = Vector2(view_width - 380.0, view_height - 220.0)
+   "reload":
+    action_button.position = Vector2(view_width - 380.0, view_height - 270.0)
+   "jump":
+    action_button.position = Vector2(view_width - 210.0, view_height - 275.0)
+   "crouch":
+    action_button.position = Vector2(view_width - 210.0, view_height - 220.0)
+   "interact":
+    action_button.position = Vector2(view_width - 380.0, view_height - 70.0)
+   "rain":
+    action_button.position = Vector2(view_width - 220.0, view_height - 70.0)
+   "vehicle_accelerate":
+    action_button.position = Vector2(view_width - 205.0, view_height - 75.0)
+   "vehicle_brake":
+    action_button.position = Vector2(view_width - 375.0, view_height - 75.0)
+   "vehicle_handbrake":
+    action_button.position = Vector2(view_width - 375.0, view_height - 128.0)
+   "vehicle_reverse":
+    action_button.position = Vector2(view_width - 205.0, view_height - 128.0)
+
+ if is_instance_valid(crosshair_label):
+  crosshair_label.position = Vector2(view_width * 0.5 - 8.0, view_height * 0.5 - 18.0)
+ var hint := get_node_or_null("MobileInputHint") as Control
+ if is_instance_valid(hint):
+  hint.position = Vector2(28.0, view_height - 40.0)
+ var view_button := get_node_or_null("CameraViewToggle") as Control
+ if is_instance_valid(view_button):
+  view_button.position = Vector2(view_width - 410.0, view_height - 165.0)
+ if is_instance_valid(roadline_event_button):
+  roadline_event_button.position = Vector2(view_width - 205.0, view_height - 185.0)
+ if is_instance_valid(map_button):
+  map_button.position = Vector2(view_width - 365.0, 18.0)
+ if is_instance_valid(district_map):
+  district_map.call("relayout", Vector2(view_width, view_height))
+ var teleport_button := get_node_or_null("TeleportOpenButton") as Control
+ if is_instance_valid(teleport_button):
+  teleport_button.position = Vector2(view_width - 605.0, 18.0)
+ if is_instance_valid(shop_button):
+  shop_button.position = Vector2(view_width - 475.0, 18.0)
+ var settings_button := get_node_or_null("SettingsOpenButton") as Control
+ if is_instance_valid(settings_button):
+  settings_button.position = Vector2(view_width - 255.0, 18.0)
+ if is_instance_valid(teleport_panel):
+  teleport_panel.position = Vector2(view_width - 400.0, 72.0)
+ if is_instance_valid(settings_panel):
+  settings_panel.position = Vector2(view_width - 430.0, 72.0)
+ if is_instance_valid(shop_panel):
+  shop_panel.position = Vector2((view_width - 560.0) * 0.5, (view_height - 470.0) * 0.5)
+ if is_instance_valid(driving_status):
+  driving_status.position = Vector2(view_width - 390.0, view_height - 220.0)
+ var lobby_content_panel := get_node_or_null("ModeLobby/LobbyContentPanel") as Control
+ if is_instance_valid(lobby_content_panel):
+  lobby_content_panel.position = Vector2(view_width - 555.0, 100.0)
+  lobby_content_panel.size = Vector2(535.0, view_height - 194.0)
+ var lobby_nav_panel := get_node_or_null("ModeLobby/LobbyNavigation") as Control
+ if is_instance_valid(lobby_nav_panel):
+  lobby_nav_panel.size.y = view_height - 194.0
+ var lobby_header := get_node_or_null("ModeLobby/LobbyTopBar") as Control
+ if is_instance_valid(lobby_header):
+  lobby_header.size.x = view_width - 40.0
+ if is_instance_valid(save_feedback_label):
+  save_feedback_label.position = Vector2(205.0, view_height - 77.0)
+  save_feedback_label.size.x = view_width - 225.0
+
 
 func _build_navigation_map() -> void:
  district_map = Control.new()
  district_map.set_script(load("res://district_map_display.gd"))
  district_map.name = "DistrictMapDisplay"
+ district_map.add_to_group("district_map_display")
  district_map.position = Vector2(1015, 78)
  district_map.size = Vector2(230, 230)
  district_map.z_index = 5
  add_child(district_map)
  map_button = Button.new()
  map_button.text = "CITY MAP"
- map_button.position = Vector2(955, 18)
- map_button.size = Vector2(140, 44)
- map_button.add_theme_font_size_override("font_size", 17)
+ map_button.position = Vector2(915, 18)
+ map_button.size = Vector2(100, 44)
+ map_button.add_theme_font_size_override("font_size", 15)
  map_button.pressed.connect(_toggle_map)
  add_child(map_button)
+
+func _build_teleport_ui() -> void:
+ var teleport_button := Button.new()
+ teleport_button.name = "TeleportOpenButton"
+ teleport_button.text = "TELEPORT"
+ teleport_button.position = Vector2(675, 18)
+ teleport_button.size = Vector2(120, 44)
+ teleport_button.add_theme_font_size_override("font_size", 15)
+ teleport_button.pressed.connect(func(): teleport_panel.visible = not teleport_panel.visible)
+ add_child(teleport_button)
+ shop_button = Button.new()
+ shop_button.name = "ShopButton"
+ shop_button.text = "SHOP"
+ shop_button.position = Vector2(805, 18)
+ shop_button.size = Vector2(100, 44)
+ shop_button.add_theme_font_size_override("font_size", 15)
+ shop_button.process_mode = Node.PROCESS_MODE_ALWAYS
+ shop_button.pressed.connect(_toggle_shop_panel)
+ add_child(shop_button)
+
+ teleport_panel = PanelContainer.new()
+ teleport_panel.name = "CoordinateTeleportPanel"
+ teleport_panel.position = Vector2(690, 72)
+ teleport_panel.size = Vector2(380, 620)
+ teleport_panel.custom_minimum_size = Vector2(380, 620)
+ teleport_panel.visible = false
+ teleport_panel.z_index = 40
+ add_child(teleport_panel)
+ place_search_timer = Timer.new()
+ place_search_timer.name = "PlaceSearchDebounce"
+ place_search_timer.one_shot = true
+ place_search_timer.wait_time = 0.35
+ place_search_timer.timeout.connect(_run_place_search_suggestions)
+ add_child(place_search_timer)
+ var column := VBoxContainer.new()
+ column.add_theme_constant_override("separation", 8)
+ teleport_panel.add_child(column)
+ var heading := Label.new()
+ heading.text = "TELEPORT TO REAL-WORLD COORDINATES"
+ heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ column.add_child(heading)
+ teleport_place_input = LineEdit.new()
+ teleport_place_input.placeholder_text = "Search place / road in Bangla or English"
+ teleport_place_input.text_changed.connect(_on_place_search_text_changed)
+ column.add_child(teleport_place_input)
+ var suggestion_scroll := ScrollContainer.new()
+ suggestion_scroll.name = "PlaceSearchSuggestionsScroll"
+ suggestion_scroll.custom_minimum_size = Vector2(330, 108)
+ suggestion_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ teleport_suggestions = VBoxContainer.new()
+ teleport_suggestions.name = "PlaceSearchSuggestions"
+ teleport_suggestions.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ suggestion_scroll.add_child(teleport_suggestions)
+ column.add_child(suggestion_scroll)
+ var named_teleport_button := Button.new()
+ named_teleport_button.text = "FIND PLACE + TELEPORT"
+ named_teleport_button.pressed.connect(_teleport_to_named_place)
+ column.add_child(named_teleport_button)
+ var navigate_button := Button.new()
+ navigate_button.text = "NAVIGATE TO PLACE"
+ navigate_button.pressed.connect(_navigate_to_named_place)
+ column.add_child(navigate_button)
+ navigation_mode_button = Button.new()
+ navigation_mode_button.name = "NavigationModeToggle"
+ navigation_mode_button.text = "ROUTE MODE: DRIVE"
+ navigation_mode_button.pressed.connect(_toggle_navigation_mode)
+ column.add_child(navigation_mode_button)
+ teleport_lat_input = LineEdit.new()
+ teleport_lat_input.placeholder_text = "Latitude (e.g. 23.216700)"
+ teleport_lat_input.text = "23.216700"
+ column.add_child(teleport_lat_input)
+ teleport_lon_input = LineEdit.new()
+ teleport_lon_input.placeholder_text = "Longitude (e.g. 90.350000)"
+ teleport_lon_input.text = "90.350000"
+ column.add_child(teleport_lon_input)
+ var go_button := Button.new()
+ go_button.text = "TELEPORT NEAR ROAD"
+ go_button.pressed.connect(_teleport_to_coordinates)
+ column.add_child(go_button)
+ teleport_status = Label.new()
+ teleport_status.text = "Choose a suggested mapped place, or enter latitude and longitude."
+ teleport_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ teleport_status.custom_minimum_size = Vector2(310, 96)
+ teleport_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ var directions_scroll := ScrollContainer.new()
+ directions_scroll.name = "NavigationDirectionsScroll"
+ directions_scroll.custom_minimum_size = Vector2(335, 90)
+ directions_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+ directions_scroll.add_child(teleport_status)
+ column.add_child(directions_scroll)
+ var close_button := Button.new()
+ close_button.text = "CLOSE"
+ close_button.pressed.connect(func(): teleport_panel.visible = false)
+ column.add_child(close_button)
+
+
+func _on_place_search_text_changed(query: String) -> void:
+ selected_teleport_place.clear()
+ pending_place_search_query = query
+ if is_instance_valid(place_search_timer):
+  place_search_timer.stop()
+  place_search_timer.start()
+ else:
+  _run_place_search_suggestions()
+
+
+func _run_place_search_suggestions() -> void:
+ _refresh_named_place_suggestions(pending_place_search_query)
+
+
+func _refresh_named_place_suggestions(query: String) -> void:
+ if not is_instance_valid(teleport_suggestions):
+  return
+ for child in teleport_suggestions.get_children():
+  teleport_suggestions.remove_child(child)
+  child.queue_free()
+ var trimmed := query.strip_edges()
+ if trimmed.length() < 2:
+  var hint := Label.new()
+  hint.text = "Type at least two characters to find mapped places."
+  hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+  teleport_suggestions.add_child(hint)
+  return
+ var loader = w.get("real_dhaka_loader") if is_instance_valid(w) else null
+ if not is_instance_valid(loader) or not loader.has_method("search_named_place"):
+  var unavailable := Label.new()
+  unavailable.text = "Place search becomes available when the real-world map is loaded."
+  unavailable.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+  teleport_suggestions.add_child(unavailable)
+  return
+ var matches: Array = loader.call("search_named_place", trimmed, 8)
+ if matches.is_empty():
+  var no_match := Label.new()
+  no_match.text = "No close name found. Try a shorter spelling or the Bangla name."
+  no_match.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+  teleport_suggestions.add_child(no_match)
+  return
+ var title := Label.new()
+ title.text = "SUGGESTED MAP MATCHES"
+ title.add_theme_font_size_override("font_size", 12)
+ title.add_theme_color_override("font_color", Color("#50d7e9"))
+ teleport_suggestions.add_child(title)
+ for item in matches:
+  if not (item is Dictionary):
+   continue
+  var place: Dictionary = item
+  var suggestion := Button.new()
+  var match_kind := str(place.get("match_kind", ""))
+  var hint := " • close spelling" if match_kind == "close-spelling" else ""
+  suggestion.text = str(place.get("name", "Unknown place")) + " • " + str(place.get("kind", "place")) + hint
+  suggestion.alignment = HORIZONTAL_ALIGNMENT_LEFT
+  suggestion.custom_minimum_size = Vector2(0, 36)
+  suggestion.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+  suggestion.add_theme_font_size_override("font_size", 13)
+  suggestion.pressed.connect(_select_named_place_suggestion.bind(place))
+  teleport_suggestions.add_child(suggestion)
+
+
+func _select_named_place_suggestion(place: Dictionary) -> void:
+ teleport_place_input.text = str(place.get("name", ""))
+ # LineEdit emits text_changed synchronously and clears any stale choice.
+ selected_teleport_place = place.duplicate(true)
+ teleport_status.text = "Selected " + str(place.get("name", "place")) + ". Confirm teleport or calculate a road route. The mapped point is approximate."
+ if is_instance_valid(district_map) and district_map.has_method("set_navigation_target"):
+  district_map.call("set_navigation_target", place)
+
+
+func _resolve_teleport_selection(loader: Node) -> Dictionary:
+ if not selected_teleport_place.is_empty():
+  return {"ok": true, "place": selected_teleport_place}
+ if not loader.has_method("resolve_named_place"):
+  return {"ok": false, "message": "Named-place resolver is unavailable in this build."}
+ return loader.call("resolve_named_place", teleport_place_input.text)
+
+
+func _teleport_to_named_place() -> void:
+ if not is_instance_valid(w) or not is_instance_valid(teleport_status):
+  return
+ var loader = w.get("real_dhaka_loader")
+ var player = w.get("player")
+ if not is_instance_valid(loader) or not is_instance_valid(player) or not loader.has_method("teleport_player_to_lat_lon"):
+  teleport_status.text = "Place search is unavailable until the real-world map is loaded."
+  return
+ var resolved := _resolve_teleport_selection(loader)
+ if not bool(resolved.get("ok", false)):
+  teleport_status.text = str(resolved.get("message", "No mapped match.")) + " Choose one of the suggested matches."
+  _refresh_named_place_suggestions(teleport_place_input.text)
+  return
+ var place: Dictionary = resolved["place"]
+ var result: Dictionary = loader.call("teleport_player_to_lat_lon", float(place["latitude"]), float(place["longitude"]), player)
+ teleport_status.text = str(place["name"]) + " — " + str(result.get("message", "Teleport request finished.")) + "\nMapped point approximation, not a surveyed building entrance."
+ if bool(result.get("ok", false)):
+  teleport_panel.visible = false
+
+
+func _navigate_to_named_place() -> void:
+ if not is_instance_valid(w) or not is_instance_valid(teleport_status):
+  return
+ var loader = w.get("real_dhaka_loader")
+ var player = w.get("player")
+ if not is_instance_valid(loader) or not is_instance_valid(player) or not loader.has_method("navigate_to_world_position"):
+  teleport_status.text = "Turn-by-turn road navigation is unavailable in this build."
+  return
+ var resolved := _resolve_teleport_selection(loader)
+ if not bool(resolved.get("ok", false)):
+  teleport_status.text = str(resolved.get("message", "No mapped match.")) + " Choose one of the suggested matches."
+  _refresh_named_place_suggestions(teleport_place_input.text)
+  return
+ var place: Dictionary = resolved["place"]
+ if not loader.has_method("lat_lon_to_world"):
+  teleport_status.text = "Map coordinate conversion is unavailable."
+  return
+ teleport_status.text = "Preparing offline road routing…"
+ var destination: Vector3 = loader.call("lat_lon_to_world", float(place["latitude"]), float(place["longitude"]))
+ var result: Dictionary = await loader.call("navigate_to_world_position", destination, player)
+ if not bool(result.get("ok", false)):
+  teleport_status.text = str(result.get("message", "No route available."))
+  return
+ result["place"] = place
+ var lines: Array[String] = [str(result.get("message", "Route ready."))]
+ for step in result.get("steps", []):
+  if step is Dictionary:
+   lines.append("• " + str(step.get("instruction", "")))
+ teleport_status.text = "\n".join(lines)
+ if district_map and district_map.has_method("set_navigation_target"):
+  district_map.call("set_navigation_target", place)
+
+func _toggle_navigation_mode() -> void:
+ if not is_instance_valid(w):
+  return
+ var loader = w.get("real_dhaka_loader")
+ if not is_instance_valid(loader) or not loader.has_method("set_navigation_mode"):
+  if is_instance_valid(teleport_status):
+   teleport_status.text = "Route mode switching is unavailable in this build."
+  return
+ var next_mode := "walking" if str(loader.get_navigation_mode()) == "driving" else "driving"
+ loader.set_navigation_mode(next_mode)
+ navigation_mode_button.text = "ROUTE MODE: WALK" if next_mode == "walking" else "ROUTE MODE: DRIVE"
+ if is_instance_valid(teleport_status):
+  teleport_status.text = "Route mode: " + next_mode.capitalize() + ". Calculate a new route to apply the updated road restrictions."
+
+
+func _teleport_to_coordinates() -> void:
+ if not is_instance_valid(w) or not is_instance_valid(teleport_status):
+  return
+ if not bool(w.get("real_dhaka_loaded")):
+  teleport_status.text = "Real-world map is not loaded; teleport is unavailable in fallback city."
+  return
+ var latitude := teleport_lat_input.text.strip_edges().to_float()
+ var longitude := teleport_lon_input.text.strip_edges().to_float()
+ if latitude < -90.0 or latitude > 90.0 or longitude < -180.0 or longitude > 180.0:
+  teleport_status.text = "Enter valid latitude and longitude."
+  return
+ var loader = w.get("real_dhaka_loader")
+ var player = w.get("player")
+ if not is_instance_valid(loader) or not is_instance_valid(player) or not loader.has_method("teleport_player_to_lat_lon"):
+  teleport_status.text = "Coordinate teleport service is unavailable."
+  return
+ var result: Dictionary = loader.teleport_player_to_lat_lon(latitude, longitude, player)
+ teleport_status.text = str(result.get("message", "Teleport request finished."))
+ if bool(result.get("ok", false)):
+  teleport_panel.visible = false
 
 func _toggle_map() -> void:
  if not district_map:
   return
  var next_expanded: bool = not bool(district_map.get("expanded"))
  district_map.call("set_expanded", next_expanded)
- map_button.text = "CLOSE MAP" if next_expanded else "CITY MAP"
+ _sync_map_button_state()
+
+
+func _sync_map_button_state() -> void:
+ if is_instance_valid(map_button) and is_instance_valid(district_map):
+  map_button.text = "CLOSE MAP" if bool(district_map.get("expanded")) else "CITY MAP"
 
 func _build_settings_ui() -> void:
  var settings_button := Button.new()
+ settings_button.name = "SettingsOpenButton"
  settings_button.text = "SETTINGS"
- settings_button.position = Vector2(1110, 18)
- settings_button.size = Vector2(140, 44)
- settings_button.add_theme_font_size_override("font_size", 17)
+ settings_button.position = Vector2(1025, 18)
+ settings_button.size = Vector2(100, 44)
+ settings_button.add_theme_font_size_override("font_size", 15)
  settings_button.pressed.connect(_toggle_settings)
  add_child(settings_button)
 
@@ -189,7 +603,15 @@ func _build_settings_ui() -> void:
 func _toggle_camera_view() -> void:
  if not is_instance_valid(w) or not is_instance_valid(w.player):
   return
- var mode: String = w.player.toggle_camera_view_mode()
+ var occupied_vehicle: Node3D = w.get("occupied_vehicle") as Node3D
+ var mode := ""
+ if is_instance_valid(occupied_vehicle) and occupied_vehicle.has_method("toggle_vehicle_camera_mode"):
+  mode = str(occupied_vehicle.call("toggle_vehicle_camera_mode"))
+  var vehicle_button := get_node_or_null("CameraViewToggle") as Button
+  if vehicle_button:
+   vehicle_button.text = "VEHICLE: FPP" if mode == "first_person" else "VEHICLE: TPP"
+  return
+ mode = w.player.toggle_camera_view_mode()
  var button := get_node_or_null("CameraViewToggle") as Button
  if button:
   button.text = "VIEW: FPP" if mode == "first_person" else "VIEW: TPP"
@@ -261,14 +683,28 @@ func _save_graphics_settings() -> void:
 
 func add_touch_button(label_text: String, pos: Vector2, size: Vector2, action_name: String) -> Button:
  var b = Button.new()
+ b.name = "TouchAction_" + action_name
+ b.add_to_group("touch_action_buttons")
+ b.set_meta("action_name", action_name)
  b.text = label_text
  b.position = pos
  b.size = size
  b.add_theme_font_size_override("font_size", 18)
- b.button_down.connect(func(): Input.action_press(action_name))
+ if action_name == "jump":
+  # A direct buffered request is reliable even when a touch tap lasts less
+  # than one rendered frame. Keyboard jump remains on the normal InputMap.
+  b.button_down.connect(_queue_player_jump)
+ else:
+  b.button_down.connect(func(): Input.action_press(action_name))
  b.button_up.connect(func(): Input.action_release(action_name))
  add_child(b)
  return b
+
+
+func _queue_player_jump() -> void:
+ if is_instance_valid(w) and is_instance_valid(w.player) and w.player.has_method("queue_jump"):
+  w.player.call("queue_jump")
+
 
 func _build_driving_status() -> void:
  driving_status = Label.new()
@@ -282,8 +718,44 @@ func _build_driving_status() -> void:
  add_child(driving_status)
 
 func _process(_delta):
- if not w:
+ if not is_instance_valid(w):
   return
+ # HUD._ready() runs before the world root's _ready(), so the player does not
+ # exist during the first lobby construction. Create the presentation rig as
+ # soon as spawn_player() and HumanoidVisual have finished their _ready calls.
+ _ensure_lobby_showcase()
+ _update_lobby_header()
+ _check_combat_result()
+ if is_instance_valid(lobby_loading_label):
+  if bool(w.get("real_dhaka_loaded")):
+   var startup_loader: Variant = w.get("real_dhaka_loader")
+   if is_instance_valid(startup_loader) and startup_loader.has_method("get_runtime_map_diagnostics"):
+    var startup_diagnostics: Dictionary = startup_loader.call("get_runtime_map_diagnostics")
+    var streaming_started := bool(startup_diagnostics.get("streaming_started", false))
+    var loaded_count := int(startup_diagnostics.get("loaded_tiles", 0))
+    var pending_count := int(startup_diagnostics.get("pending_tile_loads", 0))
+    var activating_count := int(startup_diagnostics.get("activating_tiles", 0))
+    if not streaming_started:
+     lobby_loading_label.text = "SHARIATPUR MAP VERIFIED • TAP ENTER TO LOAD THE NEAREST AREA"
+     lobby_loading_progress.value = 0
+    elif bool(startup_diagnostics.get("navigation_index_ready", false)):
+     lobby_loading_label.text = "SHARIATPUR READY • NEARBY TILE AND ROAD INDEX LOADED"
+     lobby_loading_progress.value = 100
+    elif loaded_count > 0:
+     lobby_loading_label.text = "PREPARING SHARIATPUR • FINISHING ROADS AND INTERACTIONS"
+     lobby_loading_progress.value = 65
+    elif pending_count > 0 or activating_count > 0:
+     lobby_loading_label.text = "LOADING SHARIATPUR • STREAMING THE NEAREST MAP AREA"
+     lobby_loading_progress.value = 28
+    else:
+     lobby_loading_label.text = "STARTING SHARIATPUR • PREPARING THE NEAREST AREA"
+     lobby_loading_progress.value = 8
+   else:
+    lobby_loading_label.text = "CHECKING INSTALLED MAP..."
+    lobby_loading_progress.value = 0
+  else:
+   lobby_loading_label.text = "LOCAL STARTER CITY READY"
+   lobby_loading_progress.value = 0
  # HUD child _ready runs before the world creates its lights/environment.
  # Apply the saved preset once those world nodes actually exist.
  if not _world_quality_applied and w.get_node_or_null("Sun"):
@@ -300,6 +772,10 @@ func _process(_delta):
    crosshair_label.add_theme_color_override("font_color", Color("#e8f7ff"))
  if district_map:
   district_map.call("update_world", w)
+ if replay_round_button:
+  var combat = w.get("combat_controller")
+  var current_combat_mode := String(combat.get("active_mode")) if is_instance_valid(combat) else ""
+  replay_round_button.visible = is_instance_valid(combat) and bool(combat.get("run_over")) and not bool(lobby_overlay.visible) and current_combat_mode in ["survival", "arena_training", "street_skirmish"]
  _update_interaction_prompt()
  var health_value: int = w.player.health if w.player else 100
  stats.text = "৳ %d    Health: %d    Wanted: %d/5    Weather: %s" % [w.cash, health_value, w.wanted, "RAIN" if w.rain else "CLEAR"]
@@ -322,19 +798,32 @@ func _process(_delta):
    var chapter_title := String(active_mission.get("chapter_title", "Deshi Stories"))
    if chapter_title.length() > 48:
     chapter_title = chapter_title.substr(0, 45) + "..."
-   mission.text = "CHAPTER %02d/40 • %s\\nDESHI JOB %04d/4000: %s    REWARD +৳%d%s\\n%s" % [int(active_mission.get("chapter", 1)), chapter_title, int(active_mission.get("id", 0)) + 1, active_mission.get("title", "Local job"), int(active_mission.get("reward", 0)), mission_step_text, mission_brief]
+   mission.text = "CHAPTER %02d/40 • %s\nDESHI JOB %04d/4000: %s    REWARD +৳%d%s\n%s" % [int(active_mission.get("chapter", 1)), chapter_title, int(active_mission.get("id", 0)) + 1, active_mission.get("title", "Local job"), int(active_mission.get("reward", 0)), mission_step_text, mission_brief]
+   var route_instruction := _current_route_instruction()
+   if not route_instruction.is_empty():
+    mission.text += "\nROAD ROUTE: " + route_instruction
  elif w.mission_active:
-  var stage_names = ["Market delivery", "Tower pickup", "Bus terminal drop"]
-  mission.text = "STORY %d/3: %s    Rickshaw fare ৳%d → offer ৳%d" % [w.mission_stage + 1, stage_names[w.mission_stage], w.fare_requested, w.bargain_offer]
+  if bool(w.get("real_dhaka_loaded")) and w.real_mission_targets.size() < 3:
+   mission.text = "STORY ROUTE LOADING • waiting for mapped road coverage"
+  else:
+   var stage_names = ["Market delivery", "Tower pickup", "Bus terminal drop"]
+   mission.text = "STORY %d/3: %s    Rickshaw fare ৳%d → offer ৳%d" % [w.mission_stage + 1, stage_names[w.mission_stage], w.fare_requested, w.bargain_offer]
+   var route_instruction := _current_route_instruction()
+   if not route_instruction.is_empty():
+    mission.text += "\nROAD ROUTE: " + route_instruction
  else:
   mission.text = "STORY COMPLETE  +৳1000   FREE ROAM"
- if w.combat_controller and w.combat_controller.active_mode in ["survival", "arena_training"]:
+ if w.combat_controller and w.combat_controller.active_mode in ["survival", "arena_training", "street_skirmish"]:
   mission.text = w.combat_controller.get_status_text()
  var ammo_text = "%d/%d" % [w.player.ammo, w.player.reserve_ammo] if w.player else "30/120"
  var reload_text = " • RELOADING" if w.player and w.player.reload_time > 0.0 else ""
  var district_name := "Noborongo City"
  if bool(w.get("real_dhaka_loaded")):
-  district_name = "Greater Dhaka"
+  var map_loader: Node = w.get("real_dhaka_loader") as Node
+  if is_instance_valid(map_loader) and map_loader.has_method("get_map_display_name"):
+   district_name = str(map_loader.call("get_map_display_name"))
+  else:
+   district_name = "Real-world map"
  elif w.district_factory and w.district_factory.has_method("current_district") and w.player:
   district_name = w.district_factory.current_district(w.player)
  var active_target_position: Vector3 = w.mission_target
@@ -350,6 +839,21 @@ func _process(_delta):
  var map_attribution := "\n© OpenStreetMap contributors" if bool(w.get("real_dhaka_loaded")) else ""
  status.text = "%s • %s\nAMMO %s%s   %s%s" % [district_name.to_upper(), objective_text, ammo_text, reload_text, w.event_text if w.event_time_left > 0 else "Explore • drive • bargain • fight", map_attribution]
 
+func _current_route_instruction() -> String:
+ if not is_instance_valid(w) or not bool(w.get("real_dhaka_loaded")):
+  return ""
+ var route_loader: Node = w.get("real_dhaka_loader") as Node
+ if not is_instance_valid(route_loader) or not route_loader.has_method("get_navigation_steps"):
+  return ""
+ var route_steps: Array = route_loader.call("get_navigation_steps")
+ if route_steps.is_empty() or not (route_steps[0] is Dictionary):
+  return ""
+ var instruction := str(route_steps[0].get("instruction", "")).strip_edges()
+ if instruction.length() > 100:
+  instruction = instruction.substr(0, 97) + "..."
+ return instruction
+
+
 # HUD integrated district/objective layer.
 
 
@@ -357,160 +861,767 @@ func _process(_delta):
 func _build_lobby_ui() -> void:
  lobby_overlay = ColorRect.new()
  lobby_overlay.name = "ModeLobby"
- lobby_overlay.color = Color(0.015, 0.035, 0.065, 0.94)
+ lobby_overlay.color = Color(0.006, 0.014, 0.024, 0.30)
  lobby_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
  lobby_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
  lobby_overlay.z_index = 100
+ lobby_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
  add_child(lobby_overlay)
+ var viewport_size := get_viewport().get_visible_rect().size
+ var header := PanelContainer.new()
+ header.name = "LobbyTopBar"
+ header.position = Vector2(20.0, 16.0)
+ header.size = Vector2(viewport_size.x - 40.0, 70.0)
+ header.add_theme_stylebox_override("panel", _lobby_style(Color(0.008, 0.026, 0.043, 0.92), Color(0.18, 0.62, 0.72, 0.88), 1, 10))
+ lobby_overlay.add_child(header)
+ var header_row := HBoxContainer.new()
+ header_row.add_theme_constant_override("separation", 18)
+ header_row.alignment = BoxContainer.ALIGNMENT_CENTER
+ header.add_child(header_row)
+ var identity := VBoxContainer.new()
+ identity.custom_minimum_size = Vector2(260.0, 0.0)
+ identity.add_theme_constant_override("separation", 1)
+ header_row.add_child(identity)
+ var identity_name := Label.new()
+ identity_name.text = "PROJECT A-SQUARE  /  FIELD COMMAND"
+ identity_name.add_theme_font_size_override("font_size", 11)
+ identity_name.add_theme_color_override("font_color", Color("#66dce9"))
+ identity.add_child(identity_name)
+ lobby_profile_label = Label.new()
+ lobby_profile_label.name = "CareerIdentity"
+ lobby_profile_label.text = "LOCAL OPERATOR  •  LEVEL 01  •  ROOKIE"
+ lobby_profile_label.add_theme_font_size_override("font_size", 17)
+ lobby_profile_label.add_theme_color_override("font_color", Color("#f2f7fb"))
+ identity.add_child(lobby_profile_label)
+ var spacer := Control.new()
+ spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ header_row.add_child(spacer)
+ var map_box := VBoxContainer.new()
+ map_box.custom_minimum_size = Vector2(240.0, 0.0)
+ map_box.add_theme_constant_override("separation", 2)
+ header_row.add_child(map_box)
+ lobby_loading_label = Label.new()
+ lobby_loading_label.name = "StartupMapStatus"
+ lobby_loading_label.text = "SHARIATPUR WORLD DATA"
+ lobby_loading_label.add_theme_font_size_override("font_size", 11)
+ lobby_loading_label.add_theme_color_override("font_color", Color("#b8d0dc"))
+ map_box.add_child(lobby_loading_label)
+ lobby_loading_progress = ProgressBar.new()
+ lobby_loading_progress.name = "StartupMapProgress"
+ lobby_loading_progress.custom_minimum_size = Vector2(220.0, 9.0)
+ lobby_loading_progress.max_value = 100
+ lobby_loading_progress.show_percentage = false
+ map_box.add_child(lobby_loading_progress)
+ lobby_cash_label = Label.new()
+ lobby_cash_label.name = "CareerCurrency"
+ lobby_cash_label.text = "৳ 0"
+ lobby_cash_label.custom_minimum_size = Vector2(120.0, 0.0)
+ lobby_cash_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+ lobby_cash_label.add_theme_font_size_override("font_size", 22)
+ lobby_cash_label.add_theme_color_override("font_color", Color("#f5d27a"))
+ header_row.add_child(lobby_cash_label)
+ var nav_panel := PanelContainer.new()
+ nav_panel.name = "LobbyNavigation"
+ nav_panel.position = Vector2(20.0, 100.0)
+ nav_panel.size = Vector2(160.0, viewport_size.y - 194.0)
+ nav_panel.add_theme_stylebox_override("panel", _lobby_style(Color(0.008, 0.025, 0.042, 0.90), Color(0.10, 0.37, 0.49, 0.70), 1, 10))
+ lobby_overlay.add_child(nav_panel)
+ var nav := VBoxContainer.new()
+ nav.add_theme_constant_override("separation", 8)
+ nav_panel.add_child(nav)
+ var nav_items := [["HOME","home"],["PLAY","play"],["LOADOUT","loadout"],["OPERATOR","operator"],["EVENTS","events"],["STORE","store"],["CLAN","clan"],["PROFILE","profile"]]
+ for item in nav_items:
+  var button := Button.new()
+  var page_id := String(item[1])
+  var is_play_navigation := page_id == "play"
+  button.name = "LobbyNav_" + page_id.capitalize()
+  button.text = ("▶  " if is_play_navigation else "   ") + String(item[0])
+  button.toggle_mode = true
+  button.button_pressed = page_id == "home"
+  button.custom_minimum_size = Vector2(0.0, 60.0 if is_play_navigation else 48.0)
+  button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+  button.add_theme_font_size_override("font_size", 17 if is_play_navigation else 14)
+  button.add_theme_color_override("font_color", Color("#102332") if is_play_navigation else Color("#e4eff5"))
+  var normal_fill := Color("#d5ad58") if is_play_navigation else Color("#102b3d")
+  var normal_border := Color("#f2d58f") if is_play_navigation else Color("#24546a")
+  button.add_theme_stylebox_override("normal", _lobby_style(normal_fill, normal_border, 1, 7))
+  button.add_theme_stylebox_override("hover", _lobby_style(Color("#19475a"), Color("#59d7e5"), 2, 7))
+  button.add_theme_stylebox_override("pressed", _lobby_style(Color("#1e596c"), Color("#8beafa"), 2, 7))
+  button.pressed.connect(_show_lobby_page.bind(page_id))
+  lobby_nav_buttons[page_id] = button
+  nav.add_child(button)
+ var content_panel := PanelContainer.new()
+ content_panel.name = "LobbyContentPanel"
+ content_panel.position = Vector2(viewport_size.x - 555.0, 100.0)
+ content_panel.size = Vector2(535.0, viewport_size.y - 194.0)
+ content_panel.add_theme_stylebox_override("panel", _lobby_style(Color(0.008, 0.022, 0.038, 0.93), Color(0.16, 0.56, 0.68, 0.82), 1, 12))
+ lobby_overlay.add_child(content_panel)
+ var scroll := ScrollContainer.new()
+ scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+ content_panel.add_child(scroll)
+ lobby_content = VBoxContainer.new()
+ lobby_content.name = "LobbyPageContent"
+ lobby_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ lobby_content.add_theme_constant_override("separation", 12)
+ scroll.add_child(lobby_content)
+ save_feedback_label = Label.new()
+ save_feedback_label.name = "LobbyFooterStatus"
+ save_feedback_label.position = Vector2(205.0, viewport_size.y - 77.0)
+ save_feedback_label.size = Vector2(viewport_size.x - 225.0, 35.0)
+ save_feedback_label.text = "SHARIATPUR  /  PROJECT A-SQUARE"
+ save_feedback_label.add_theme_font_size_override("font_size", 12)
+ save_feedback_label.add_theme_color_override("font_color", Color("#b3c9d6"))
+ lobby_overlay.add_child(save_feedback_label)
+ if is_instance_valid(w) and is_instance_valid(w.player):
+  w.player.set_camera_view_mode("third_person")
+  w.player.camera_yaw = 24.0
+  w.player.camera_pitch = -8.0
+  w.player.call("_update_camera")
+ _ensure_lobby_showcase()
+ _update_lobby_header()
+ _show_lobby_page("home")
 
- var panel := PanelContainer.new()
- panel.position = Vector2(55, 42)
- panel.size = Vector2(1170, 625)
- panel.add_theme_stylebox_override("panel", _lobby_style(Color(0.035, 0.075, 0.12, 0.98), Color(0.12, 0.68, 0.82, 0.9), 2, 22))
- lobby_overlay.add_child(panel)
 
- var column := VBoxContainer.new()
- column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
- column.size_flags_vertical = Control.SIZE_EXPAND_FILL
- column.add_theme_constant_override("separation", 14)
- panel.add_child(column)
+func _ensure_lobby_showcase() -> void:
+ if is_instance_valid(lobby_showcase) or not is_instance_valid(w) or not is_instance_valid(w.player):
+  return
+ if not is_instance_valid(w.player.get_node_or_null("HumanoidVisual")):
+  return
+ lobby_showcase = Node3D.new()
+ lobby_showcase.name = "LobbyOperatorShowcase"
+ lobby_showcase.set_script(load("res://systems/lobby_showcase.gd"))
+ w.add_child(lobby_showcase)
+ lobby_showcase.call("configure", w.player)
 
+
+func _update_lobby_header() -> void:
+ if not is_instance_valid(w):
+  return
+ if is_instance_valid(lobby_cash_label):
+  lobby_cash_label.text = "৳ %s" % str(int(w.get("cash")))
+ if is_instance_valid(lobby_profile_label):
+  var profile: Node = w.get("career_profile") as Node
+  if is_instance_valid(profile):
+   var callsign := String(profile.call("get_display_name")) if profile.has_method("get_display_name") else "OPERATOR"
+   lobby_profile_label.text = "LOCAL OPERATOR  •  %s  •  LEVEL %02d  •  %s" % [callsign, int(profile.call("get_level")), String(profile.call("get_career_tier"))]
+
+
+func _lobby_clear_content() -> void:
+ if not is_instance_valid(lobby_content):
+  return
+ for child in lobby_content.get_children():
+  lobby_content.remove_child(child)
+  child.queue_free()
+
+
+func _lobby_add_heading(title_text: String, subtitle_text: String = "") -> void:
  var eyebrow := Label.new()
- eyebrow.text = "PROJECT A-SQUARE  /  BANGLADESH OPEN-WORLD"
- eyebrow.add_theme_color_override("font_color", Color("#50d7e9"))
- eyebrow.add_theme_font_size_override("font_size", 15)
- column.add_child(eyebrow)
-
+ eyebrow.text = "PROJECT A-SQUARE  /  WORLD COMMAND"
+ eyebrow.add_theme_font_size_override("font_size", 10)
+ eyebrow.add_theme_color_override("font_color", Color("#62d8e7"))
+ lobby_content.add_child(eyebrow)
  var heading := Label.new()
- heading.text = "CHOOSE YOUR WORLD"
- heading.add_theme_color_override("font_color", Color("#f4f9ff"))
- heading.add_theme_font_size_override("font_size", 34)
- column.add_child(heading)
+ heading.text = title_text
+ heading.add_theme_font_size_override("font_size", 28)
+ heading.add_theme_color_override("font_color", Color("#f5f8fc"))
+ heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ lobby_content.add_child(heading)
+ if not subtitle_text.is_empty():
+  var subtitle := Label.new()
+  subtitle.text = subtitle_text
+  subtitle.add_theme_font_size_override("font_size", 13)
+  subtitle.add_theme_color_override("font_color", Color("#b4c8d5"))
+  subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+  lobby_content.add_child(subtitle)
 
- var subheading := Label.new()
- subheading.text = "One city. Six ways to play. Touch controls and graphics settings are available in-game."
- subheading.add_theme_color_override("font_color", Color("#b6c8d9"))
- subheading.add_theme_font_size_override("font_size", 16)
- column.add_child(subheading)
 
- var cards := GridContainer.new()
- cards.columns = 3
- cards.size_flags_vertical = Control.SIZE_EXPAND_FILL
- cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL
- cards.add_theme_constant_override("h_separation", 14)
- cards.add_theme_constant_override("v_separation", 12)
- column.add_child(cards)
+func _lobby_add_section(section_text: String) -> void:
+ var label := Label.new()
+ label.text = section_text
+ label.add_theme_font_size_override("font_size", 12)
+ label.add_theme_color_override("font_color", Color("#62d8e7"))
+ lobby_content.add_child(label)
 
- var modes := [
-  {"id":"deshi_story", "title":"DESHI STORIES", "subtitle":"01  /  STORY MISSIONS", "desc":"Follow local deliveries, bargain transport fares, earn cash and finish the connected three-stage story."},
-  {"id":"free_roam", "title":"OPEN CITY", "subtitle":"02  /  FREE ROAM", "desc":"Explore the living starter city with pedestrians, traffic, rickshaws, CNGs, shops and side activities."},
-  {"id":"survival", "title":"LAST STAND", "subtitle":"03  /  SOLO COMBAT", "desc":"Enter the current combat sandbox. A full shrinking-zone battle royale and downloadable arenas are not implemented yet."},
-  {"id":"arena_training", "title":"COMBAT LAB", "subtitle":"04  /  OFFLINE PRACTICE", "desc":"Practice movement, camera control and shooting against the current sandbox systems; no online matchmaking yet."},
-  {"id":"street_life", "title":"STREET LIFE", "subtitle":"05  /  CITY ACTIVITIES", "desc":"Focus on city exploration, market stalls, local economy, transport interactions and dynamic street events."},
-  {"id":"district_explorer", "title":"DISTRICT ATLAS", "subtitle":"06  /  NAVIGATION", "desc":"Learn the fictional starter city's named districts and follow map markers. Licensed Bangladesh geodata is a later integration."}
+
+func _lobby_add_featured_play() -> void:
+ var button := Button.new()
+ button.name = "FeaturedPlayNow"
+ button.text = "▶  PLAY NOW\nChoose your experience"
+ button.custom_minimum_size = Vector2(0.0, 94.0)
+ button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+ button.add_theme_font_size_override("font_size", 21)
+ button.add_theme_color_override("font_color", Color("#102332"))
+ button.add_theme_stylebox_override("normal", _lobby_style(Color("#e2b95f"), Color("#fff0bd"), 2, 10))
+ button.add_theme_stylebox_override("hover", _lobby_style(Color("#f1d27e"), Color("#fff7d8"), 2, 10))
+ button.add_theme_stylebox_override("pressed", _lobby_style(Color("#c99b42"), Color("#fff0bd"), 2, 10))
+ button.pressed.connect(_show_lobby_page.bind("play"))
+ lobby_content.add_child(button)
+
+
+func _lobby_add_action(title_text: String, detail_text: String, callback: Callable, available: bool = true) -> Button:
+ var button := Button.new()
+ button.text = title_text + "\n" + detail_text
+ button.custom_minimum_size = Vector2(0.0, 70.0)
+ button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+ button.add_theme_font_size_override("font_size", 15)
+ button.add_theme_color_override("font_color", Color("#f0f6fa"))
+ button.add_theme_stylebox_override("normal", _lobby_style(Color("#102c40"), Color("#28566d"), 1, 8))
+ button.add_theme_stylebox_override("hover", _lobby_style(Color("#19465b"), Color("#58d8e7"), 2, 8))
+ button.add_theme_stylebox_override("pressed", _lobby_style(Color("#1d5b6e"), Color("#9cebf1"), 2, 8))
+ button.disabled = not available
+ if available and callback.is_valid():
+  button.pressed.connect(callback)
+ lobby_content.add_child(button)
+ return button
+
+
+func _lobby_add_info(label_text: String, value_text: String) -> void:
+ var box := PanelContainer.new()
+ box.add_theme_stylebox_override("panel", _lobby_style(Color("#0e293b"), Color("#28566c"), 1, 7))
+ var row := VBoxContainer.new()
+ row.add_theme_constant_override("separation", 3)
+ box.add_child(row)
+ var label := Label.new()
+ label.text = label_text
+ label.add_theme_font_size_override("font_size", 10)
+ label.add_theme_color_override("font_color", Color("#63d8e6"))
+ row.add_child(label)
+ var value := Label.new()
+ value.text = value_text
+ value.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ value.add_theme_font_size_override("font_size", 13)
+ value.add_theme_color_override("font_color", Color("#e2edf3"))
+ row.add_child(value)
+ lobby_content.add_child(box)
+
+
+func _show_lobby_page(page: String) -> void:
+ if not is_instance_valid(lobby_content):
+  return
+ lobby_section = page
+ for page_id in lobby_nav_buttons.keys():
+  var nav_button := lobby_nav_buttons[page_id] as Button
+  if is_instance_valid(nav_button):
+   nav_button.button_pressed = String(page_id) == page
+ _lobby_clear_content()
+ if is_instance_valid(save_feedback_label):
+  save_feedback_label.text = "SHARIATPUR  /  PROJECT A-SQUARE"
+ if page == "home":
+  _lobby_add_heading("WORLD COMMAND", "Your local world, career and deployments are gathered here.")
+  _lobby_add_featured_play()
+  var installed := is_instance_valid(w) and bool(w.get("real_dhaka_loaded"))
+  _lobby_add_section("FEATURED • BANGLADESH")
+  _lobby_add_action("SHARIATPUR WORLD", "60 district tile records • full-resolution local streaming", Callable(self, "_show_map_information"))
+  _lobby_add_action("DESHI STORIES", "Local missions, transport fares, markets and connected jobs", Callable(self, "_choose_mode").bind("deshi_story"))
+  _lobby_add_action("OPEN WORLD SANDBOX", "Explore the currently installed district and local activities", Callable(self, "_choose_mode").bind("free_roam"))
+  _lobby_add_action("COMBAT LAB", "Offline AI practice • six targets • movement and weapon training", Callable(self, "_choose_mode").bind("arena_training"))
+  _lobby_add_section("LIVING OPEN WORLD")
+  _lobby_add_action("JIBONJATRA", "Walk, meet, drive and race on the same district roads", Callable(self, "_choose_mode").bind("jibon_jatra"))
+  _lobby_add_section("WORLD STATUS")
+  _lobby_add_info("MAP STATUS", "Shariatpur is active." if installed else "Local starter world is active; Shariatpur data remains a separate installable map pack.")
+  _lobby_add_info("ONLINE SERVICES", "No real-player server is connected in this build. Online matchmaking is not simulated.")
+ elif page == "play":
+  _lobby_add_heading("PLAY", "Choose a real local experience. Online queues remain unavailable until a multiplayer service is connected.")
+  _lobby_add_section("LIVING WORLD • JIBONJATRA")
+  _lobby_add_action("JIBONJATRA  /  ENTER WORLD", "Walk, meet, drive, open a private room and race on city roads", Callable(self, "_choose_mode").bind("jibon_jatra"))
+  _lobby_add_section("OPEN WORLD • LOCAL")
+  _lobby_add_action("DESHI STORIES", "40 chapters • connected local destination jobs", Callable(self, "_choose_mode").bind("deshi_story"))
+  _lobby_add_action("OPEN CITY SANDBOX", "Free roam • traffic, local characters, shops and transport", Callable(self, "_choose_mode").bind("free_roam"))
+  _lobby_add_action("STREET LIFE", "Markets, local economy, transport and city activities", Callable(self, "_choose_mode").bind("street_life"))
+  _lobby_add_section("STRIKEFRONT  /  COMBAT • OFFLINE AI")
+  _lobby_add_action("LAST STAND", "Three escalating waves against armed AI opponents", Callable(self, "_choose_mode").bind("survival"))
+  _lobby_add_action("COMBAT LAB", "Six practice targets • solo training", Callable(self, "_choose_mode").bind("arena_training"))
+  _lobby_add_action("STREET SKIRMISH", "Ten AI opponents • elimination objective", Callable(self, "_choose_mode").bind("street_skirmish"))
+  _lobby_add_section("ONLINE • NOT CONNECTED")
+  _lobby_add_action("MULTIPLAYER QUICK PLAY", "Requires a real-time multiplayer server", Callable(), false)
+  _lobby_add_action("MULTIPLAYER RANKED", "Requires accounts, matchmaking and authoritative servers", Callable(), false)
+  _lobby_add_action("BATTLE ROYALE / RANKED BR", "Large-scale online mode is not available in this build", Callable(), false)
+  _lobby_add_action("ZOMBIES / SPECIAL MODES", "Mode-specific maps and logic are not connected yet", Callable(), false)
+ elif page == "briefing":
+  _build_mode_briefing()
+ elif page == "loadout":
+  _lobby_add_heading("LOADOUT", "Your current field equipment.")
+  var player_node: Node = w.get("player") as Node if is_instance_valid(w) else null
+  var ammo := int(player_node.get("ammo")) if is_instance_valid(player_node) else 30
+  var reserve := int(player_node.get("reserve_ammo")) if is_instance_valid(player_node) else 120
+  _lobby_add_section("ACTIVE WEAPON")
+  _lobby_add_info("SERVICE RIFLE", "Equipped • %d / %d rounds" % [ammo, reserve])
+  _lobby_add_info("WEAPON CONFIGURATION", "A single base rifle is available. Weapon attachments, skins and a multi-weapon inventory are not yet wired.")
+ elif page == "operator":
+  _lobby_add_heading("OPERATOR", "Your field character is rendered in the 3D world behind this command panel.")
+  _lobby_add_info("ACTIVE OPERATOR", "Bangladesh field operator • third-person showcase")
+  _lobby_add_info("ANIMATION", "Imported rig and clips are loaded in stages. Clip count alone does not certify every animation or motion quality.")
+  _lobby_add_info("UNIFORM CUSTOMIZATION", "Country-specific outfit sets are not connected yet.")
+ elif page == "events":
+  _lobby_add_heading("DESHI JOBS", "Local mission catalogue and current chapter progress.")
+  var factory: Node = w.get_node_or_null("MissionFactory") if is_instance_valid(w) else null
+  if is_instance_valid(factory):
+   var jobs: Array = factory.get("missions")
+   _lobby_add_info("CATALOGUE", "%s data-driven local job variations" % str(jobs.size()))
+   var active_index := int(factory.get("active_index"))
+   if active_index >= 0 and active_index < jobs.size():
+    var active_job: Dictionary = jobs[active_index]
+    _lobby_add_info("ACTIVE JOB", "%s • %s" % [str(active_job.get("title", "Local job")), str(active_job.get("brief", "Follow the marked destination."))])
+   else:
+    _lobby_add_info("CURRENT STATUS", "No side job is active. Start Deshi Stories to begin a local mission.")
+  else:
+   _lobby_add_info("MISSION BOARD", "Mission services are still initializing.")
+ elif page == "store":
+  _lobby_add_heading("MARKET", "Use earned local cash to buy supplies for the open-world experience.")
+  _lobby_add_action("OPEN LOCAL MARKET", "Food, medical supplies, ammunition and fuel", Callable(self, "_open_shop_panel"))
+ elif page == "clan":
+  _lobby_add_heading("SQUAD / CLAN", "Real-player social services")
+  _lobby_add_info("SERVICE STATUS", "No online account, party, clan or invite server is connected. This screen does not fabricate players.")
+ elif page == "profile":
+  _build_career_page()
+ elif page == "results":
+  _build_combat_results_page()
+ else:
+  _lobby_add_heading("WORLD COMMAND", "Choose a section from the navigation rail.")
+ _update_lobby_header()
+
+
+func _show_map_information() -> void:
+ _show_lobby_page("home")
+ if is_instance_valid(save_feedback_label):
+  save_feedback_label.text = "SHARIATPUR • 60 TILE RECORDS • STREAMED LOCALLY"
+
+
+func _choose_mode(mode_id: String) -> void:
+ selected_mode = mode_id
+ _show_lobby_page("briefing")
+
+
+func _build_mode_briefing() -> void:
+ var descriptions := {
+  "jibon_jatra": "Living open world: walking, social meetups, vehicle driving, Roadline races, stadium gates and individual Deshi missions.",
+  "deshi_story": "Local destination missions, transport fares, shops and chapter-based work.",
+  "free_roam": "Roam the currently installed city area without a mission objective.",
+  "street_life": "Explore shops, markets, transport and local activities.",
+  "survival": "Three escalating waves of armed AI opponents. Offline solo combat.",
+  "arena_training": "Six stationary practice targets for movement and weapon training.",
+  "street_skirmish": "Ten armed AI opponents in a local elimination round."
+ }
+ _lobby_add_heading("DEPLOYMENT BRIEF", String(descriptions.get(selected_mode, "Local deployment.")))
+ _lobby_add_section("MISSION PARAMETERS")
+ _lobby_add_info("MODE", selected_mode.replace("_", " ").to_upper())
+ var map_name := "Noborongo Starter City"
+ if is_instance_valid(w) and bool(w.get("real_dhaka_loaded")):
+  map_name = "Shariatpur, Bangladesh"
+ _lobby_add_info("AREA", map_name)
+ if selected_mode in ["survival", "arena_training", "street_skirmish"]:
+  var targets := 6 if selected_mode == "arena_training" or selected_mode == "survival" else 10
+  _lobby_add_section("LOCAL ROSTER • NO ONLINE PLAYERS")
+  _lobby_add_info("YOU", "Local operator • active player")
+  _lobby_add_info("AI OPPOSITION", "%d opponents / targets will be spawned by the local combat system" % targets)
+ else:
+  _lobby_add_section("EXPERIENCE")
+  _lobby_add_info("PLAY STYLE", "Single-player local world simulation")
+ _lobby_add_action("DEPLOY", "Run a short pre-entry countdown and start this mode", Callable(self, "_start_deployment_sequence"))
+ _lobby_add_action("BACK TO MODES", "Return to the Play screen", Callable(self, "_show_lobby_page").bind("play"))
+
+
+func _start_deployment_sequence() -> void:
+ if _map_entry_in_progress:
+  return
+ _lobby_clear_content()
+ _lobby_add_heading("PREPARING DEPLOYMENT", "Loading the selected mode and checking the active world.")
+ var countdown := Label.new()
+ countdown.name = "DeploymentCountdown"
+ countdown.text = "READY"
+ countdown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+ countdown.add_theme_font_size_override("font_size", 34)
+ countdown.add_theme_color_override("font_color", Color("#70e3ef"))
+ lobby_content.add_child(countdown)
+ var progress := ProgressBar.new()
+ progress.custom_minimum_size = Vector2(0.0, 14.0)
+ progress.max_value = 100
+ lobby_content.add_child(progress)
+ for count in [3, 2, 1]:
+  if not is_instance_valid(countdown):
+   return
+  countdown.text = "DEPLOYING  %d" % count
+  progress.value = float(4 - count) * 33.0
+  await get_tree().create_timer(1.0, true, false, true).timeout
+ countdown.text = "ENGAGING"
+ progress.value = 100
+ await get_tree().create_timer(0.35, true, false, true).timeout
+ _enter_selected_mode()
+
+
+func _build_career_page() -> void:
+ _lobby_add_heading("CAREER PROFILE", "Local career progression saved on this device.")
+ var profile: Node = w.get("career_profile") as Node if is_instance_valid(w) else null
+ if not is_instance_valid(profile):
+  _lobby_add_info("PROFILE", "Career data is initializing.")
+  return
+ var level := int(profile.call("get_level"))
+ var level_xp := int(profile.call("get_level_xp"))
+ _lobby_add_section("CAREER IDENTITY")
+ _lobby_add_info("LEVEL / TIER", "LEVEL %02d  •  %s" % [level, String(profile.call("get_career_tier"))])
+ _lobby_add_info("CAREER XP", "%d / 500 XP to the next level" % level_xp)
+ var xp_bar := ProgressBar.new()
+ xp_bar.max_value = 500
+ xp_bar.value = level_xp
+ xp_bar.custom_minimum_size = Vector2(0.0, 12.0)
+ lobby_content.add_child(xp_bar)
+ _lobby_add_info("ELIMINATIONS", str(int(profile.get("total_eliminations"))))
+ _lobby_add_info("MATCH RECORD", "%d played  •  %d wins  •  %d losses" % [
+  int(profile.get("matches_played")), int(profile.get("matches_won")), int(profile.get("matches_lost"))
+ ])
+ _lobby_add_info("LOCAL CREDITS", "৳ %d" % int(w.get("cash")))
+
+
+func _build_combat_results_page() -> void:
+ var combat: Node = w.get("combat_controller") as Node if is_instance_valid(w) else null
+ if not is_instance_valid(combat):
+  _lobby_add_heading("MATCH RESULTS", "Combat results are unavailable.")
+  return
+ var result := String(w.get("last_combat_result"))
+ var victory := result == "VICTORY"
+ var title := "VICTORY" if victory else ("DEFEAT" if result == "DEFEAT" else "TRAINING COMPLETE")
+ _lobby_add_heading(title, "MVP  •  YOU  /  LOCAL OPERATOR")
+ _lobby_add_section("AFTER ACTION REPORT")
+ _lobby_add_info("MODE", String(combat.get("active_mode")).replace("_", " ").to_upper())
+ _lobby_add_info("ELIMINATIONS", str(int(combat.get("kills"))))
+ _lobby_add_info("WAVE / TARGETS", "%d  /  %d" % [int(combat.get("wave")), int(combat.get("target_goal"))])
+ _lobby_add_info("LOCAL BALANCE", "৳ %d" % int(w.get("cash")))
+ var profile: Node = w.get("career_profile") as Node
+ if is_instance_valid(profile):
+  _lobby_add_info("CAREER REWARD", "+%d XP  •  LEVEL %02d" % [int(profile.get("last_match_xp")), int(profile.call("get_level"))])
+ _lobby_add_action("PLAY AGAIN", "Restart the same offline mode", Callable(self, "_replay_combat_round"))
+ _lobby_add_action("RETURN TO LOBBY", "Choose another experience", Callable(self, "_show_mode_lobby"))
+
+
+func _check_combat_result() -> void:
+ if not is_instance_valid(w) or not is_instance_valid(lobby_overlay):
+  return
+ _ensure_lobby_showcase()
+ var combat: Node = w.get("combat_controller") as Node
+ if not is_instance_valid(combat) or not bool(combat.get("run_over")):
+  return
+ var token := "%s:%s:%s:%s" % [String(combat.get("active_mode")), str(combat.get("kills")), str(combat.get("wave")), String(w.get("last_combat_result"))]
+ if token == _shown_result_token:
+  return
+ _shown_result_token = token
+ _release_gameplay_inputs()
+ _freeze_player_for_lobby()
+ if is_instance_valid(lobby_showcase):
+  lobby_showcase.call("set_enabled", true)
+ lobby_overlay.visible = true
+ _show_lobby_page("results")
+ get_tree().paused = true
+
+
+
+func _save_progress_from_lobby() -> void:
+ if not is_instance_valid(w) or not w.has_method("save_game_progress"):
+  _set_save_feedback("SAVE UNAVAILABLE", false)
+  return
+ var saved: bool = w.call("save_game_progress", true)
+ _set_save_feedback("SAVED TO THIS DEVICE" if saved else "SAVE FAILED", saved)
+
+
+func _load_progress_from_lobby() -> void:
+ if not is_instance_valid(w) or not w.has_method("load_saved_progress"):
+  _set_save_feedback("LOAD UNAVAILABLE", false)
+  return
+ var restored: bool = w.call("load_saved_progress")
+ _set_save_feedback("PROGRESS LOADED" if restored else "NO VALID SAVE", restored)
+
+
+func _set_save_feedback(message: String, success: bool) -> void:
+ if not is_instance_valid(save_feedback_label):
+  return
+ save_feedback_label.text = message
+ save_feedback_label.add_theme_color_override("font_color", Color("#50d7e9") if success else Color("#ffb39d"))
+
+
+func _build_shop_ui() -> void:
+ shop_panel = PanelContainer.new()
+ shop_panel.name = "ShopInventoryPanel"
+ shop_panel.position = Vector2(360, 112)
+ shop_panel.size = Vector2(560, 470)
+ shop_panel.custom_minimum_size = Vector2(560, 470)
+ shop_panel.z_index = 200
+ shop_panel.visible = false
+ shop_panel.process_mode = Node.PROCESS_MODE_ALWAYS
+ add_child(shop_panel)
+ var layout := VBoxContainer.new()
+ layout.add_theme_constant_override("separation", 12)
+ shop_panel.add_child(layout)
+ var heading := Label.new()
+ heading.text = "DHAKA MARKET • SHOP & INVENTORY"
+ heading.add_theme_font_size_override("font_size", 24)
+ layout.add_child(heading)
+ shop_money_label = Label.new()
+ shop_money_label.add_theme_font_size_override("font_size", 19)
+ layout.add_child(shop_money_label)
+ shop_item_option = OptionButton.new()
+ shop_item_option.custom_minimum_size = Vector2(500, 48)
+ shop_item_option.add_theme_font_size_override("font_size", 17)
+ var system: Node = w.get("shop_system") as Node if is_instance_valid(w) else null
+ for item_id in ["water", "snack", "medkit", "ammo_box", "fuel"]:
+  if not is_instance_valid(system):
+   continue
+  var stock_data: Dictionary = system.get("stock")
+  if not stock_data.has(item_id):
+   continue
+  var record: Dictionary = stock_data[item_id]
+  var index := shop_item_option.get_item_count()
+  shop_item_option.add_item("%s • BUY ৳%d / SELL ৳%d" % [str(record.get("label", item_id)), int(record.get("price", 0)), int(record.get("sell_price", 0))])
+  shop_item_option.set_item_metadata(index, item_id)
+ layout.add_child(shop_item_option)
+ var actions := HBoxContainer.new()
+ actions.add_theme_constant_override("separation", 10)
+ layout.add_child(actions)
+ var buy_button := Button.new()
+ buy_button.text = "BUY 1"
+ buy_button.custom_minimum_size = Vector2(150, 52)
+ buy_button.pressed.connect(func(): _shop_action("buy"))
+ actions.add_child(buy_button)
+ var use_button := Button.new()
+ use_button.text = "USE"
+ use_button.custom_minimum_size = Vector2(150, 52)
+ use_button.pressed.connect(func(): _shop_action("use"))
+ actions.add_child(use_button)
+ var sell_button := Button.new()
+ sell_button.text = "SELL 1"
+ sell_button.custom_minimum_size = Vector2(150, 52)
+ sell_button.pressed.connect(func(): _shop_action("sell"))
+ actions.add_child(sell_button)
+ shop_inventory_label = Label.new()
+ shop_inventory_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ shop_inventory_label.custom_minimum_size = Vector2(500, 72)
+ shop_inventory_label.add_theme_font_size_override("font_size", 16)
+ layout.add_child(shop_inventory_label)
+ shop_status_label = Label.new()
+ shop_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ shop_status_label.custom_minimum_size = Vector2(500, 46)
+ shop_status_label.add_theme_font_size_override("font_size", 15)
+ layout.add_child(shop_status_label)
+ var close_button := Button.new()
+ close_button.text = "CLOSE SHOP"
+ close_button.custom_minimum_size = Vector2(180, 42)
+ close_button.pressed.connect(_close_shop_panel)
+ layout.add_child(close_button)
+ _refresh_shop_panel()
+
+
+func _open_shop_panel() -> void:
+ if not is_instance_valid(shop_panel):
+  return
+ _release_gameplay_inputs()
+ shop_panel.visible = true
+ get_tree().paused = true
+ _refresh_shop_panel()
+
+
+func _toggle_shop_panel() -> void:
+ if not is_instance_valid(shop_panel):
+  return
+ if shop_panel.visible:
+  _close_shop_panel()
+ else:
+  _open_shop_panel()
+
+
+func _close_shop_panel() -> void:
+ if is_instance_valid(shop_panel):
+  shop_panel.visible = false
+ get_tree().paused = is_instance_valid(lobby_overlay) and lobby_overlay.visible
+
+
+func _shop_action(action: String) -> void:
+ if not is_instance_valid(w) or not is_instance_valid(shop_item_option):
+  return
+ var index := shop_item_option.selected
+ if index < 0:
+  return
+ var item_id := str(shop_item_option.get_item_metadata(index))
+ var system: Node = w.get("shop_system") as Node
+ if not is_instance_valid(system):
+  return
+ match action:
+  "buy":
+   system.call("buy", w, item_id)
+  "use":
+   system.call("use", w, item_id)
+  "sell":
+   system.call("sell", w, item_id)
+ _refresh_shop_panel()
+
+
+func _refresh_shop_panel() -> void:
+ if not is_instance_valid(w) or not is_instance_valid(shop_panel):
+  return
+ var system: Node = w.get("shop_system") as Node
+ var bag: Node = w.get("inventory_system") as Node
+ if not is_instance_valid(system) or not is_instance_valid(bag):
+  return
+ if is_instance_valid(shop_money_label):
+  shop_money_label.text = "AVAILABLE CASH: ৳%d" % int(w.get("cash"))
+ if is_instance_valid(shop_inventory_label):
+  var entries: Array[String] = []
+  for item_id in ["water", "snack", "medkit", "ammo_box", "fuel"]:
+   var amount := int(bag.call("count", item_id))
+   if amount > 0:
+    var record: Dictionary = system.get("stock").get(item_id, {})
+    entries.append("%s ×%d" % [str(record.get("label", item_id)), amount])
+  shop_inventory_label.text = "YOUR BAG: " + (" • ".join(entries) if not entries.is_empty() else "EMPTY")
+ if is_instance_valid(shop_status_label):
+  shop_status_label.text = str(system.get("last_message"))
+
+
+func _build_round_controls() -> void:
+ mode_menu_button = Button.new()
+ mode_menu_button.name = "ModeMenuButton"
+ mode_menu_button.text = "MODES"
+ mode_menu_button.position = Vector2(1135, 18)
+ mode_menu_button.size = Vector2(110, 44)
+ mode_menu_button.add_theme_font_size_override("font_size", 16)
+ mode_menu_button.pressed.connect(_show_mode_lobby)
+ add_child(mode_menu_button)
+
+ replay_round_button = Button.new()
+ replay_round_button.name = "ReplayCombatRoundButton"
+ replay_round_button.text = "PLAY ANOTHER ROUND"
+ replay_round_button.position = Vector2(500, 610)
+ replay_round_button.size = Vector2(280, 52)
+ replay_round_button.add_theme_font_size_override("font_size", 19)
+ replay_round_button.visible = false
+ replay_round_button.pressed.connect(_replay_combat_round)
+ add_child(replay_round_button)
+
+func _freeze_player_for_lobby() -> void:
+ if not is_instance_valid(w) or not is_instance_valid(w.player):
+  return
+ var stopped_velocity: Vector3 = w.player.velocity
+ stopped_velocity.x = 0.0
+ stopped_velocity.z = 0.0
+ w.player.velocity = stopped_velocity
+
+
+func _release_gameplay_inputs() -> void:
+ # Opening menus during a multitouch gesture must not leave movement/fire held.
+ var actions := [
+  "move_left", "move_right", "move_forward", "move_back",
+  "sprint", "fire", "aim", "reload", "jump", "crouch", "interact"
  ]
- mode_buttons.clear()
- for mode in modes:
-  var card := Button.new()
-  card.text = ""
-  card.custom_minimum_size = Vector2(205, 170)
-  card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-  card.size_flags_vertical = Control.SIZE_EXPAND_FILL
-  var card_content := VBoxContainer.new()
-  card_content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-  card_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
-  card_content.add_theme_constant_override("separation", 6)
-  card.add_child(card_content)
-  var card_title := Label.new()
-  card_title.text = mode.title
-  card_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-  card_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-  card_title.add_theme_font_size_override("font_size", 17)
-  card_title.add_theme_color_override("font_color", Color("#f4f9ff"))
-  card_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-  card_content.add_child(card_title)
-  var card_subtitle := Label.new()
-  card_subtitle.text = mode.subtitle
-  card_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-  card_subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-  card_subtitle.add_theme_font_size_override("font_size", 11)
-  card_subtitle.add_theme_color_override("font_color", Color("#50d7e9"))
-  card_subtitle.mouse_filter = Control.MOUSE_FILTER_IGNORE
-  card_content.add_child(card_subtitle)
-  var card_desc := Label.new()
-  card_desc.text = mode.desc
-  card_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-  card_desc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-  card_desc.add_theme_font_size_override("font_size", 13)
-  card_desc.add_theme_color_override("font_color", Color("#c4d6e5"))
-  card_desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-  card_content.add_child(card_desc)
-  card.add_theme_color_override("font_hover_color", Color("#ffffff"))
-  card.add_theme_stylebox_override("normal", _lobby_style(Color("#10263a"), Color("#2b5268"), 1, 14))
-  card.add_theme_stylebox_override("hover", _lobby_style(Color("#153c52"), Color("#50d7e9"), 2, 14))
-  card.add_theme_stylebox_override("pressed", _lobby_style(Color("#14546a"), Color("#50d7e9"), 3, 14))
-  card.add_theme_stylebox_override("focus", _lobby_style(Color("#173c50"), Color("#8beafa"), 2, 14))
-  card.toggle_mode = true
-  card.button_pressed = mode.id == selected_mode
-  card.pressed.connect(_select_lobby_mode.bind(mode.id, card))
-  cards.add_child(card)
-  mode_buttons.append(card)
+ for action_name in actions:
+  Input.action_release(action_name)
+ for stick in get_tree().get_nodes_in_group("movement_stick"):
+  if is_instance_valid(stick) and stick.has_method("_release_stick"):
+   stick.call("_release_stick")
 
- var footer := HBoxContainer.new()
- footer.add_theme_constant_override("separation", 16)
- column.add_child(footer)
+func _show_mode_lobby() -> void:
+ if not is_instance_valid(lobby_overlay):
+  return
+ _ensure_lobby_showcase()
+ _release_gameplay_inputs()
+ _freeze_player_for_lobby()
+ if is_instance_valid(lobby_showcase):
+  lobby_showcase.call("set_enabled", true)
+ lobby_overlay.visible = true
+ _show_lobby_page("home")
+ get_tree().paused = true
 
- var note := Label.new()
- note.text = "ONLINE PLAY, REAL BANGLADESH MAPS AND FULL BATTLE ROYALE ARE future systems—not claimed as finished."
- note.size_flags_horizontal = Control.SIZE_EXPAND_FILL
- note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
- note.add_theme_color_override("font_color", Color("#a7bacb"))
- note.add_theme_font_size_override("font_size", 13)
- footer.add_child(note)
+func _replay_combat_round() -> void:
+ if not is_instance_valid(w):
+  return
+ var combat = w.get("combat_controller")
+ if not is_instance_valid(combat):
+  return
+ var mode_id := String(combat.get("active_mode"))
+ if mode_id not in ["survival", "arena_training", "street_skirmish"]:
+  return
+ _release_gameplay_inputs()
+ if is_instance_valid(lobby_showcase):
+  lobby_showcase.call("set_enabled", false)
+ selected_mode = mode_id
+ _shown_result_token = ""
+ w.set("game_mode", mode_id)
+ combat.call("start_mode", mode_id)
+ if is_instance_valid(lobby_overlay):
+  lobby_overlay.visible = false
+ get_tree().paused = false
+ if replay_round_button:
+  replay_round_button.visible = false
 
- var play := Button.new()
- play.text = "ENTER CITY  →"
- play.custom_minimum_size = Vector2(210, 58)
- play.add_theme_font_size_override("font_size", 20)
- play.add_theme_color_override("font_color", Color("#061724"))
- play.add_theme_stylebox_override("normal", _lobby_style(Color("#50d7e9"), Color("#50d7e9"), 1, 12))
- play.add_theme_stylebox_override("hover", _lobby_style(Color("#8beafa"), Color("#ffffff"), 2, 12))
- play.pressed.connect(_enter_selected_mode)
- footer.add_child(play)
+func _open_roadline_event() -> void:
+ if not is_instance_valid(w):
+  return
+ var director: Node = w.get_node_or_null("WorldActivityDirector")
+ if is_instance_valid(director) and director.has_method("open_race_menu"):
+  director.call("open_race_menu")
 
 
 func _update_interaction_prompt() -> void:
- if not w or not w.player or not interaction_button or not driving_status:
+ if not is_instance_valid(w) or not is_instance_valid(w.player) or not is_instance_valid(interaction_button) or not is_instance_valid(driving_status):
   return
+ var occupied_vehicle: Node3D = w.get("occupied_vehicle") as Node3D
+ if is_instance_valid(occupied_vehicle):
+  interaction_button.text = "EXIT VEHICLE"
+  roadline_event_button.visible = true
+  for drive_button in get_tree().get_nodes_in_group("vehicle_driving_controls"):
+   if is_instance_valid(drive_button):
+    drive_button.visible = true
+  for action_button in get_tree().get_nodes_in_group("touch_action_buttons"):
+   if not is_instance_valid(action_button):
+    continue
+   var action_name := String(action_button.get_meta("action_name",""))
+   if action_name in ["sprint","fire","aim","reload","jump","crouch","rain"]:
+    action_button.visible = false
+  var vehicle_speed := absf(float(occupied_vehicle.get("speed")))*3.6
+  var engine_rpm := int(occupied_vehicle.get("engine_rpm")) if occupied_vehicle.get("engine_rpm")!=null else 0
+  var current_gear := int(occupied_vehicle.get("current_gear")) if occupied_vehicle.get("current_gear")!=null else 1
+  driving_status.text = "DRIVING  %03d km/h  •  GEAR %d  •  %04d RPM\nJOYSTICK: STEER  •  THROTTLE / BRAKE" % [int(vehicle_speed),current_gear,engine_rpm]
+  driving_status.visible = true
+  return
+
+ roadline_event_button.visible = false
+ for drive_button in get_tree().get_nodes_in_group("vehicle_driving_controls"):
+  if is_instance_valid(drive_button):
+   drive_button.visible = false
+ for action_button in get_tree().get_nodes_in_group("touch_action_buttons"):
+  if not is_instance_valid(action_button):
+   continue
+  var action_name := String(action_button.get_meta("action_name",""))
+  if action_name in ["sprint","fire","aim","reload","jump","crouch","rain"]:
+   action_button.visible = true
+
+ var nearest_vehicle: Node3D = null
+ var nearest_distance := 4.0
+ for node in w.get_children():
+  if node is CharacterBody3D and node.has_method("enter_player") and not bool(node.get("occupied")) and not bool(node.get("is_police")):
+   var distance: float = w.player.global_position.distance_to(node.global_position)
+   if distance<nearest_distance:
+    nearest_distance = distance
+    nearest_vehicle = node as Node3D
+ if is_instance_valid(nearest_vehicle):
+  interaction_button.text = "DRIVE"
+  driving_status.visible = false
+  return
+
+ var activity_director: Node = w.get_node_or_null("WorldActivityDirector")
+ if is_instance_valid(activity_director) and activity_director.has_method("get_interaction_label"):
+  var activity_label: String = String(activity_director.call("get_interaction_label",w.player.global_position))
+  if not activity_label.is_empty():
+   interaction_button.text = activity_label
+   driving_status.visible = false
+   return
  if w.has_method("get_interior_interaction_label"):
   var interior_label: String = w.get_interior_interaction_label(w.player.global_position)
   if not interior_label.is_empty():
    interaction_button.text = interior_label
    driving_status.visible = false
    return
- var occupied_vehicle: Node3D = null
- var nearby_vehicle: Node3D = null
- var nearest_distance := 4.0
- for node in w.get_children():
-  if node is CharacterBody3D and node.has_method("enter_player"):
-   if bool(node.get("occupied")):
-    occupied_vehicle = node
-   elif not bool(node.get("is_police")):
-    var distance: float = w.player.global_position.distance_to(node.global_position)
-    if distance < nearest_distance:
-     nearest_distance = distance
-     nearby_vehicle = node
- if is_instance_valid(occupied_vehicle):
-  interaction_button.text = "EXIT VEHICLE"
-  var speed_mps := absf(float(occupied_vehicle.get("speed")))
-  driving_status.text = "DRIVING  %03d km/h\nJOYSTICK: STEER / ACCELERATE" % int(speed_mps * 3.6)
-  driving_status.visible = true
- elif is_instance_valid(nearby_vehicle):
-  interaction_button.text = "DRIVE"
-  driving_status.visible = false
- else:
-  interaction_button.text = "INTERACT"
-  driving_status.visible = false
+ interaction_button.text = "INTERACT"
+ driving_status.visible = false
+
 
 func _lobby_style(fill: Color, border_color: Color, border_width: int, corner_radius: int) -> StyleBoxFlat:
  var style := StyleBoxFlat.new()
@@ -530,9 +1641,73 @@ func _select_lobby_mode(mode_id: String, selected_button: Button) -> void:
   button.button_pressed = button == selected_button
 
 func _enter_selected_mode() -> void:
+ if _map_entry_in_progress:
+  return
+ if is_instance_valid(w) and bool(w.get("real_dhaka_loaded")):
+  var loader: Node = w.get("real_dhaka_loader") as Node
+  if is_instance_valid(loader) and loader.has_method("start_map_streaming"):
+   _map_entry_in_progress = true
+   if is_instance_valid(lobby_overlay):
+    lobby_overlay.visible = true
+   if is_instance_valid(lobby_loading_label):
+    lobby_loading_label.text = "STARTING SHARIATPUR • PREPARING THE NEAREST AREA"
+   if is_instance_valid(lobby_loading_progress):
+    lobby_loading_progress.value = 8
+   get_tree().paused = true
+   loader.call("start_map_streaming")
+   var started_ms := Time.get_ticks_msec()
+   while Time.get_ticks_msec() - started_ms < 90000:
+    await get_tree().process_frame
+    if not is_instance_valid(loader):
+     break
+    var diagnostics: Dictionary = {}
+    if loader.has_method("get_runtime_map_diagnostics"):
+     diagnostics = loader.call("get_runtime_map_diagnostics")
+    var loaded_count := int(diagnostics.get("loaded_tiles", 0))
+    var pending_count := int(diagnostics.get("pending_tile_loads", 0))
+    var activating_count := int(diagnostics.get("activating_tiles", 0))
+    var failed_count := int(diagnostics.get("failed_tile_loads", 0))
+    if loaded_count > 0 and bool(diagnostics.get("navigation_index_ready", false)):
+     if is_instance_valid(lobby_loading_label):
+      lobby_loading_label.text = "SHARIATPUR READY • ENTERING THE WORLD"
+     if is_instance_valid(lobby_loading_progress):
+      lobby_loading_progress.value = 100
+     await get_tree().process_frame
+     _map_entry_in_progress = false
+     _complete_enter_selected_mode()
+     return
+    if failed_count > 0 and loaded_count == 0 and pending_count == 0 and activating_count == 0:
+     if is_instance_valid(lobby_loading_label):
+      lobby_loading_label.text = "SHARIATPUR TILE FAILED TO LOAD • TAP ENTER TO RETRY"
+     if is_instance_valid(lobby_loading_progress):
+      lobby_loading_progress.value = 0
+     _map_entry_in_progress = false
+     return
+    if is_instance_valid(lobby_loading_progress):
+     if loaded_count > 0:
+      lobby_loading_progress.value = 65
+     elif pending_count > 0 or activating_count > 0:
+      lobby_loading_progress.value = 28
+     else:
+      lobby_loading_progress.value = 8
+   _map_entry_in_progress = false
+   if is_instance_valid(lobby_loading_label):
+    lobby_loading_label.text = "MAP STILL LOADING • TAP ENTER TO CHECK AGAIN"
+   return
+ _complete_enter_selected_mode()
+
+
+func _complete_enter_selected_mode() -> void:
+ if is_instance_valid(lobby_showcase):
+  lobby_showcase.call("set_enabled", false)
+ get_tree().paused = false
+ _release_gameplay_inputs()
  if w:
   w.game_mode = selected_mode
-  if selected_mode == "free_roam":
+  if selected_mode == "jibon_jatra":
+   w.mission_active = false
+   w.event_text = "JIBONJATRA • OPEN WORLD SESSION ACTIVE"
+  elif selected_mode == "free_roam":
    w.mission_active = false
    w.event_text = "FREE ROAM SELECTED"
   elif selected_mode == "deshi_story":
@@ -546,11 +1721,17 @@ func _enter_selected_mode() -> void:
    w.event_text = "STREET LIFE: MARKETS • TRANSPORT • CITY EVENTS"
   elif selected_mode == "survival":
    w.mission_active = false
-   w.event_text = "SOLO SURVIVAL PROTOTYPE • NO ONLINE PLAY"
+   w.event_text = "LAST STAND • OFFLINE AI MODE"
+  elif selected_mode == "street_skirmish":
+   w.mission_active = false
+   w.event_text = "STREET SKIRMISH • ELIMINATE 10 ENEMIES"
+  elif selected_mode == "district_explorer":
+   w.mission_active = true
+   w.event_text = "DISTRICT ATLAS: FOLLOW THE CITY MARKER"
   else:
    w.mission_active = false
-   w.event_text = "OFFLINE ARENA TRAINING • ONLINE MATCHES NOT AVAILABLE"
-  if w.combat_controller:
+   w.event_text = "COMBAT LAB • OFFLINE PRACTICE"
+  if w.combat_controller and selected_mode in ["survival","arena_training","street_skirmish"]:
    w.combat_controller.start_mode(selected_mode)
   w.event_time_left = 8.0
  if lobby_overlay:

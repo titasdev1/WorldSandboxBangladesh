@@ -20,11 +20,15 @@ func _ready() -> void:
 	queue_redraw()
 
 func _gui_input(event: InputEvent) -> void:
+	# Control._gui_input() provides event.position relative to this Control's
+	# origin. Applying a CanvasItem transform here would subtract the stick's
+	# screen offset a second time and make touch input miss the visible joystick.
 	if event is InputEventScreenTouch:
-		if event.pressed and _touch_index == -1 and Rect2(Vector2.ZERO, size).has_point(event.position):
+		var local_position: Vector2 = event.position
+		if event.pressed and _touch_index == -1 and Rect2(Vector2.ZERO, size).has_point(local_position):
 			_touch_index = event.index
 			_active = true
-			_update_stick(event.position)
+			_update_stick(local_position)
 			accept_event()
 		elif not event.pressed and event.index == _touch_index:
 			_release_stick()
@@ -33,16 +37,17 @@ func _gui_input(event: InputEvent) -> void:
 		_update_stick(event.position)
 		accept_event()
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed and _touch_index == -1 and Rect2(Vector2.ZERO, size).has_point(event.position):
+		var local_mouse := get_local_mouse_position()
+		if event.pressed and _touch_index == -1 and Rect2(Vector2.ZERO, size).has_point(local_mouse):
 			_touch_index = -2
 			_active = true
-			_update_stick(event.position)
+			_update_stick(local_mouse)
 			accept_event()
 		elif not event.pressed and _touch_index == -2:
 			_release_stick()
 			accept_event()
 	elif event is InputEventMouseMotion and _touch_index == -2:
-		_update_stick(event.position)
+		_update_stick(get_local_mouse_position())
 		accept_event()
 
 func _update_stick(local_point: Vector2) -> void:

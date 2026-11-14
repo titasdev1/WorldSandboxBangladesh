@@ -19,3 +19,16 @@ There is one canonical project and one canonical Android build pipeline. A succe
 See development_roadmap.md and development_state.json for persistent development state.
 
 Final delivery is one FINAL_GAME_PROJECT.zip generated from the complete current project directory. It must not contain nested ZIPs or meaningless filler data.
+
+
+## Current production continuity documents
+
+- [Unified dream-game master plan](DREAM_GAME_MASTER_PLAN.md)
+- [Dream-game acceptance matrix](DREAM_GAME_ACCEPTANCE_MATRIX.md)
+- [Production engineering directive](PRODUCTION_MASTER_DIRECTIVE.md)
+- [Map pipeline contract](MAP_PIPELINE.md)
+- [Competitive-reference and cinematic presentation blueprint](COMPETITIVE_REFERENCE_BLUEPRINT.md)
+- [Tools, plugins, open-source assets and credit registry](TOOLS_AND_PLATFORMS_REGISTRY.md)
+- [Durable A-Square session checkpoint / reconnect recovery](A_SQUARE_SESSION_CHECKPOINT.md)
+
+After a ChatGPT app reconnect or when starting a new conversation, read `A_SQUARE_SESSION_CHECKPOINT.md` first, then refresh the live branch, PR and workflow status before editing.
