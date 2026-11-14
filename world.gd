@@ -89,7 +89,7 @@ func _ready():
  combat_controller.name = "CombatModeController"
  add_child(combat_controller)
  combat_controller.configure(self)
- var activity_director := load("res://systems/activities/world_activity_director.gd").new()
+ var activity_director: Node = load("res://systems/activities/world_activity_director.gd").new()
  activity_director.name = "WorldActivityDirector"
  add_child(activity_director)
  activity_director.configure(self)

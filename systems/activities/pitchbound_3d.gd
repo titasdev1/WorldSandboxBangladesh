@@ -140,8 +140,8 @@ func _build_stadium() -> void:
         var seat_index := 0
         for row in range(8):
             for column in range(20):
-                var z := -FIELD_LENGTH*0.5+float(column)*FIELD_LENGTH/19.0
-                var x := side*(FIELD_WIDTH*0.5+3.2+float(row)*1.0)
+                var z: float = -FIELD_LENGTH*0.5+float(column)*FIELD_LENGTH/19.0
+                var x: float = side*(FIELD_WIDTH*0.5+3.2+float(row)*1.0)
                 seats_multi.set_instance_transform(seat_index,Transform3D(Basis.IDENTITY,Vector3(x,1.7+float(row)*0.9,z)))
                 seat_index += 1
         var seats := MultiMeshInstance3D.new()

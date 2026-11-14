@@ -382,13 +382,17 @@ func _drive_player_vehicle(delta: float) -> void:
 
 
 func refuel(amount: float) -> bool:
+    if occupied and is_instance_valid(_driving_body):
+        var did_refuel := bool(_driving_body.call("refuel",amount))
+        fuel = float(_driving_body.get("fuel"))
+        if did_refuel and is_instance_valid(world):
+            world.set("event_text","VEHICLE REFUELLED • %d%%" % roundi(fuel))
+            world.set("event_time_left",3.0)
+        return did_refuel
     if amount <= 0.0 or fuel >= 99.9:
         return false
-    fuel = minf(100.0, fuel + amount)
+    fuel = minf(100.0,fuel+amount)
     engine_empty_notified = false
-    if is_instance_valid(world) and occupied:
-        world.set("event_text", "VEHICLE REFUELLED • %d%%" % roundi(fuel))
-        world.set("event_time_left", 3.0)
     return true
 
 func on_hit() -> void:
@@ -432,6 +436,10 @@ func enter_player(p: CharacterBody3D) -> bool:
 func toggle_vehicle_camera_mode() -> String:
     if is_instance_valid(_driving_body):
         vehicle_camera_mode = String(_driving_body.call("toggle_vehicle_camera_mode"))
+    if vehicle_camera_mode == "first_person" and is_instance_valid(vehicle_first_person_camera):
+        vehicle_first_person_camera.make_current()
+    elif is_instance_valid(vehicle_camera):
+        vehicle_camera.make_current()
     return vehicle_camera_mode
 
 func _apply_vehicle_camera_mode() -> void:
@@ -473,19 +481,3 @@ func exit_player() -> void:
     speed = final_speed
     engine_empty_notified = false
 
-func refuel(amount: float) -> bool:
-    if occupied and is_instance_valid(_driving_body):
-        var did_refuel := bool(_driving_body.call("refuel",amount))
-        fuel = float(_driving_body.get("fuel"))
-        return did_refuel
-    if amount <= 0.0 or fuel >= 99.9:
-        return false
-    fuel = minf(100.0, fuel + amount)
-    engine_empty_notified = false
-    return true
-
-func on_hit() -> void:
-    if world:
-        world.cash += 20
-        if is_police:
-            world.wanted = mini(5, world.wanted + 2)
