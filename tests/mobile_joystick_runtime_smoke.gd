@@ -24,14 +24,15 @@ func _run_mobile_joystick_test() -> void:
 	canvas.add_child(stick)
 	await process_frame
 
-	# push_input() receives viewport/screen coordinates. Godot routes the event
-	# through the GUI and supplies Control._gui_input() with local coordinates.
+	# These event positions are already in viewport coordinates, so set
+	# in_local_coords=true. Godot then performs the viewport-to-Control-local
+	# conversion before calling Control._gui_input().
 	var viewport := root.get_viewport()
 	var center_touch := InputEventScreenTouch.new()
 	center_touch.index = 3
 	center_touch.pressed = true
 	center_touch.position = STICK_POSITION + STICK_CENTER
-	viewport.push_input(center_touch)
+	viewport.push_input(center_touch, true)
 	await process_frame
 	if not _assert_strength("move_right", 0.0, 0.02, "neutral center touch"):
 		return
@@ -39,7 +40,7 @@ func _run_mobile_joystick_test() -> void:
 	var right_drag := InputEventScreenDrag.new()
 	right_drag.index = 3
 	right_drag.position = STICK_POSITION + STICK_CENTER + Vector2(STICK_RADIUS, 0.0)
-	viewport.push_input(right_drag)
+	viewport.push_input(right_drag, true)
 	await process_frame
 	if not _assert_strength("move_right", 0.95, 1.0, "right drag"):
 		return
@@ -49,7 +50,7 @@ func _run_mobile_joystick_test() -> void:
 	var forward_drag := InputEventScreenDrag.new()
 	forward_drag.index = 3
 	forward_drag.position = STICK_POSITION + STICK_CENTER + Vector2(0.0, -STICK_RADIUS)
-	viewport.push_input(forward_drag)
+	viewport.push_input(forward_drag, true)
 	await process_frame
 	if not _assert_strength("move_forward", 0.95, 1.0, "forward drag"):
 		return
@@ -59,7 +60,7 @@ func _run_mobile_joystick_test() -> void:
 	var back_drag := InputEventScreenDrag.new()
 	back_drag.index = 3
 	back_drag.position = STICK_POSITION + STICK_CENTER + Vector2(0.0, STICK_RADIUS)
-	viewport.push_input(back_drag)
+	viewport.push_input(back_drag, true)
 	await process_frame
 	if not _assert_strength("move_back", 0.95, 1.0, "backward drag"):
 		return
@@ -68,7 +69,7 @@ func _run_mobile_joystick_test() -> void:
 	release.index = 3
 	release.pressed = false
 	release.position = STICK_POSITION + STICK_CENTER
-	viewport.push_input(release)
+	viewport.push_input(release, true)
 	await process_frame
 	for action in ["move_left", "move_right", "move_forward", "move_back"]:
 		if not _assert_strength(action, 0.0, 0.02, "touch release"):
