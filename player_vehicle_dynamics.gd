@@ -54,6 +54,17 @@ func configure(wrapper: Node3D,kind: String,dimensions: Vector3) -> void:
     box.size = Vector3(dimensions.x*0.90,maxf(0.46,dimensions.y*0.66),dimensions.z*0.88)
     collision.shape = box
     collision.position.y = dimensions.y*0.38
+    # The vehicle currently uses one chassis contact shape and applies engine
+    # force centrally. Default 1.0 chassis friction can pin that body to a
+    # high-friction road before the first gear's force overcomes static contact
+    # resistance. Use the lower of this low-friction chassis surface and the
+    # road surface; lateral grip is handled explicitly below by the vehicle
+    # dynamics, while rolling drag and brakes still control longitudinal speed.
+    var chassis_contact_material := PhysicsMaterial.new()
+    chassis_contact_material.friction = 0.05
+    chassis_contact_material.bounce = 0.0
+    chassis_contact_material.rough = false
+    collision.physics_material_override = chassis_contact_material
     add_child(collision)
     vehicle_camera = get_node_or_null("VehicleCamera") as Camera3D
     vehicle_first_person_camera = get_node_or_null("VehicleFirstPersonCamera") as Camera3D
