@@ -40,6 +40,8 @@ var _selected_authored_hero_path := ""
 var _authored_hero_source := ""
 var _authored_skeleton: Skeleton3D
 var _charactercreator_layer_skeletons: Array[Skeleton3D] = []
+var _charactercreator_layers: Dictionary = {}
+var _selected_operator_preset := "field_tactical"
 var _procedural_root: Node3D
 var _authored_hero: Node3D
 var _authored_animation_player: AnimationPlayer
@@ -314,6 +316,7 @@ func _build_authored_hero(packed: PackedScene) -> void:
             push_warning("CHARACTER_CREATOR_FALLBACK: one or more skinned clothing or hair layers failed to import.")
             return
         _tint_charactercreator_body()
+        apply_operator_preset(_selected_operator_preset)
     var hand_bone_name := ""
     for possible_hand in ["hand_r", "RightHand", "Hand_R", "hand.r", "hand_r_socket"]:
         if skeleton.find_bone(possible_hand) >= 0:
@@ -465,6 +468,7 @@ func _attach_charactercreator_layers() -> bool:
             return false
         layer_root.name = layer_path.get_file().get_basename()
         _authored_hero.add_child(layer_root)
+        _charactercreator_layers[layer_root.name] = layer_root
         var skeleton_nodes := layer_root.find_children("*", "Skeleton3D", true, false)
         if layer_root is Skeleton3D:
             _charactercreator_layer_skeletons.append(layer_root as Skeleton3D)
@@ -476,6 +480,114 @@ func _attach_charactercreator_layers() -> bool:
         _tint_charactercreator_layer(layer_root, layer_path.get_file().get_basename())
 
     return _charactercreator_layer_skeletons.size() == CHARACTER_CREATOR_LAYER_PATHS.size()
+
+
+func get_operator_preset_name() -> String:
+    match _selected_operator_preset:
+        "urban_patrol":
+            return "Urban Patrol"
+        "civilian_explorer":
+            return "Civilian Explorer"
+        _:
+            return "Field Tactical"
+
+
+func apply_operator_preset(preset_id: String) -> bool:
+    # Three usable appearance presets share the validated CharacterCreator rig.
+    # They change the actual skinned outfit meshes; they are not three different
+    # body-model downloads and are labelled that way in the lobby.
+    var skin_tint := Color("#956448")
+    var hair_tint := Color("#171615")
+    var shirt_tint := Color("#737c64")
+    var jacket_tint := Color("#657052")
+    var jeans_tint := Color("#414c43")
+    var boots_tint := Color("#252a25")
+    var jacket_visible := true
+
+    match preset_id:
+        "field_tactical":
+            pass
+        "urban_patrol":
+            skin_tint = Color("#9b6b4d")
+            hair_tint = Color("#211a17")
+            shirt_tint = Color("#283d52")
+            jacket_tint = Color("#3c5268")
+            jeans_tint = Color("#353d49")
+            boots_tint = Color("#171b22")
+        "civilian_explorer":
+            skin_tint = Color("#956448")
+            hair_tint = Color("#30251e")
+            shirt_tint = Color("#b08a5a")
+            jacket_visible = false
+            jeans_tint = Color("#565b66")
+            boots_tint = Color("#4b3828")
+        _:
+            return false
+
+    _selected_operator_preset = preset_id
+    skin_color = skin_tint
+    hair_color = hair_tint
+    outfit_color = shirt_tint
+
+    if _authored_hero_ready and is_instance_valid(_authored_hero):
+        for layer_name in _charactercreator_layers.keys():
+            var layer_root := _charactercreator_layers[layer_name] as Node3D
+            if not is_instance_valid(layer_root):
+                continue
+            layer_root.visible = not (String(layer_name) == "clothing_jacket" and not jacket_visible)
+            var layer_tint := shirt_tint
+            match String(layer_name):
+                "hair_short02":
+                    layer_tint = hair_tint
+                "clothing_jacket":
+                    layer_tint = jacket_tint
+                "clothing_jeans":
+                    layer_tint = jeans_tint
+                "clothing_boots":
+                    layer_tint = boots_tint
+                "clothing_tshirt":
+                    layer_tint = shirt_tint
+            _recolor_charactercreator_layer(layer_root, layer_tint)
+        _tint_charactercreator_body(skin_tint)
+    else:
+        _apply_procedural_operator_colors()
+    return true
+
+
+func _recolor_charactercreator_layer(layer_root: Node3D, tint: Color) -> void:
+    for candidate in layer_root.find_children("*", "MeshInstance3D", true, false):
+        var mesh_instance := candidate as MeshInstance3D
+        if mesh_instance == null or mesh_instance.mesh == null:
+            continue
+        for surface_index in range(mesh_instance.mesh.get_surface_count()):
+            var active_material := mesh_instance.get_active_material(surface_index) as BaseMaterial3D
+            if active_material == null:
+                continue
+            var material_copy := active_material.duplicate() as BaseMaterial3D
+            material_copy.albedo_color = tint
+            mesh_instance.set_surface_override_material(surface_index, material_copy)
+
+
+func _apply_procedural_operator_colors() -> void:
+    if not is_instance_valid(_procedural_root):
+        return
+    for candidate in _procedural_root.find_children("*", "MeshInstance3D", true, false):
+        var mesh_instance := candidate as MeshInstance3D
+        if mesh_instance == null or mesh_instance.mesh == null:
+            continue
+        var mesh_name := mesh_instance.name.to_lower()
+        var tint := outfit_color
+        if mesh_name.contains("head") or mesh_name.contains("hand") or mesh_name.contains("neck"):
+            tint = skin_color
+        elif mesh_name.contains("hair"):
+            tint = hair_color
+        for surface_index in range(mesh_instance.mesh.get_surface_count()):
+            var active_material := mesh_instance.get_active_material(surface_index) as BaseMaterial3D
+            if active_material == null:
+                continue
+            var material_copy := active_material.duplicate() as BaseMaterial3D
+            material_copy.albedo_color = tint
+            mesh_instance.set_surface_override_material(surface_index, material_copy)
 
 
 func _sync_charactercreator_layer_skeletons() -> void:
@@ -522,7 +634,7 @@ func _tint_charactercreator_layer(layer_root: Node3D, asset_name: String) -> voi
             mesh_instance.set_surface_override_material(surface_index, material_copy)
 
 
-func _tint_charactercreator_body() -> void:
+func _tint_charactercreator_body(tint: Color = Color("#956448")) -> void:
     # CharacterCreator ships a neutral/tintable skin texture; apply a warmer brown
     # base tint for the A-Square operator while retaining the texture detail.
     for candidate in _authored_hero.find_children("*", "MeshInstance3D", true, false):
@@ -538,7 +650,7 @@ func _tint_charactercreator_body() -> void:
             if not (mesh_name.contains("body") or mesh_name.contains("skin") or material_name.contains("skin")):
                 continue
             var material_copy := active_material.duplicate() as BaseMaterial3D
-            material_copy.albedo_color = Color("#956448")
+            material_copy.albedo_color = tint
             mesh_instance.set_surface_override_material(surface_index, material_copy)
 
 
