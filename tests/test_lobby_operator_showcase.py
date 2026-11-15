@@ -70,6 +70,19 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('nav_button.button_pressed = String(page_id) == page', page)
         self.assertIn('button.toggle_mode = true', self.hud)
 
+    def test_operator_page_exposes_live_appearance_presets_on_player_visual(self):
+        operator_page = function_block(self.hud, "_show_lobby_page")
+        selector = function_block(self.hud, "_select_operator_preset")
+        visual = read("character_visual.gd")
+        self.assertIn('elif page == "operator":', operator_page)
+        for preset in ("field_tactical", "urban_patrol", "civilian_explorer"):
+            self.assertIn(preset, operator_page)
+            self.assertIn(preset, visual)
+        self.assertIn('operator_visual.call("apply_operator_preset", preset_id)', selector)
+        self.assertIn('layer_root.visible = not (String(layer_name) == "clothing_jacket" and not jacket_visible)', visual)
+        self.assertIn('func get_operator_preset_name() -> String:', visual)
+        self.assertIn("Separate selectable body models", operator_page)
+
     def test_showcase_is_live_godot_geometry_not_a_baked_background(self):
         self.assertIn('CylinderMesh.new()', self.showcase)
         self.assertIn('TorusMesh.new()', self.showcase)
