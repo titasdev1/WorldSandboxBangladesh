@@ -316,7 +316,6 @@ func _build_authored_hero(packed: PackedScene) -> void:
             push_warning("CHARACTER_CREATOR_FALLBACK: one or more skinned clothing or hair layers failed to import.")
             return
         _tint_charactercreator_body()
-        apply_operator_preset(_selected_operator_preset)
     var hand_bone_name := ""
     for possible_hand in ["hand_r", "RightHand", "Hand_R", "hand.r", "hand_r_socket"]:
         if skeleton.find_bone(possible_hand) >= 0:
@@ -336,6 +335,8 @@ func _build_authored_hero(packed: PackedScene) -> void:
 
     _procedural_root.visible = false
     _authored_hero_ready = true
+    if is_character_creator:
+        apply_operator_preset(_selected_operator_preset)
     if is_player_character:
         if is_character_creator:
             _build_charactercreator_combat_gear(skeleton)
