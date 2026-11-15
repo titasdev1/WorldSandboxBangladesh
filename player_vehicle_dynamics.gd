@@ -21,6 +21,8 @@ var wheel_pivots: Array[Node3D] = []
 var _steering := 0.0
 var _empty_notice_sent := false
 var _last_speed := 0.0
+var debug_physics_tick_count := 0
+var debug_last_throttle := 0.0
 
 func configure(wrapper: Node3D,kind: String,dimensions: Vector3) -> void:
     vehicle_wrapper = wrapper
@@ -71,8 +73,10 @@ func _collect_wheels(node: Node) -> void:
         _collect_wheels(child)
 
 func _physics_process(delta: float) -> void:
+    debug_physics_tick_count += 1
     var steer := Input.get_axis("move_left","move_right")
     var throttle := Input.get_action_strength("vehicle_accelerate")
+    debug_last_throttle = throttle
     var brake_input := Input.get_action_strength("vehicle_brake")
     var reverse_input := Input.get_action_strength("vehicle_reverse")
     var handbrake := Input.get_action_strength("vehicle_handbrake")
