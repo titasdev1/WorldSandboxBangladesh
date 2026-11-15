@@ -1151,10 +1151,18 @@ func _show_lobby_page(page: String) -> void:
   _lobby_add_info("SERVICE RIFLE", "Equipped • %d / %d rounds" % [ammo, reserve])
   _lobby_add_info("WEAPON CONFIGURATION", "A single base rifle is available. Weapon attachments, skins and a multi-weapon inventory are not yet wired.")
  elif page == "operator":
-  _lobby_add_heading("OPERATOR", "Your field character is rendered in the 3D world behind this command panel.")
-  _lobby_add_info("ACTIVE OPERATOR", "Bangladesh field operator • third-person showcase")
-  _lobby_add_info("ANIMATION", "Imported rig and clips are loaded in stages. Clip count alone does not certify every animation or motion quality.")
-  _lobby_add_info("UNIFORM CUSTOMIZATION", "Country-specific outfit sets are not connected yet.")
+  _lobby_add_heading("OPERATOR", "Change the outfit shown by your live third-person character.")
+  var operator_visual: Node = w.player.get_node_or_null("HumanoidVisual") as Node if is_instance_valid(w) and is_instance_valid(w.player) else null
+  var selected_preset := String(operator_visual.call("get_operator_preset_name")) if is_instance_valid(operator_visual) and operator_visual.has_method("get_operator_preset_name") else "Field Tactical"
+  _lobby_add_section("ACTIVE OPERATOR")
+  _lobby_add_info("CURRENT APPEARANCE", selected_preset)
+  _lobby_add_info("CHARACTER RIG", "The modular CharacterCreator human, skinned clothing layers and imported movement clips are loaded into the live player when their asset gate succeeds.")
+  _lobby_add_section("APPEARANCE PRESETS")
+  _lobby_add_action("FIELD TACTICAL", "Olive field shirt, jacket, dark trousers and boots", Callable(self, "_select_operator_preset").bind("field_tactical"))
+  _lobby_add_action("URBAN PATROL", "Navy/blue uniform palette with jacket", Callable(self, "_select_operator_preset").bind("urban_patrol"))
+  _lobby_add_action("CIVILIAN EXPLORER", "Sand shirt, no jacket, neutral trousers and boots", Callable(self, "_select_operator_preset").bind("civilian_explorer"))
+  _lobby_add_info("MODEL CATALOGUE", "These are three live outfit presets on the same validated body rig. Separate selectable body models and country-specific character packs still need to be added.")
+  _lobby_add_info("ANIMATION", "Imported rig and clips drive the player in gameplay and the lobby showcase; visual quality still needs device review.")
  elif page == "events":
   _lobby_add_heading("DESHI JOBS", "Local mission catalogue and current chapter progress.")
   var factory: Node = w.get_node_or_null("MissionFactory") if is_instance_valid(w) else null
@@ -1182,6 +1190,20 @@ func _show_lobby_page(page: String) -> void:
  else:
   _lobby_add_heading("WORLD COMMAND", "Choose a section from the navigation rail.")
  _update_lobby_header()
+
+
+func _select_operator_preset(preset_id: String) -> void:
+ var player_node: Node = w.get("player") as Node if is_instance_valid(w) else null
+ var operator_visual: Node = player_node.get_node_or_null("HumanoidVisual") as Node if is_instance_valid(player_node) else null
+ if not is_instance_valid(operator_visual) or not operator_visual.has_method("apply_operator_preset"):
+  _set_save_feedback("OPERATOR APPEARANCE IS NOT READY", false)
+  return
+ var applied := bool(operator_visual.call("apply_operator_preset", preset_id))
+ if not applied:
+  _set_save_feedback("UNKNOWN OPERATOR PRESET", false)
+  return
+ _show_lobby_page("operator")
+ _set_save_feedback("OPERATOR UPDATED • " + String(operator_visual.call("get_operator_preset_name")).to_upper(), true)
 
 
 func _show_map_information() -> void:
