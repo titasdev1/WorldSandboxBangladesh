@@ -64,7 +64,7 @@ func configure(wrapper: Node3D,kind: String,dimensions: Vector3) -> void:
     chassis_contact_material.friction = 0.05
     chassis_contact_material.bounce = 0.0
     chassis_contact_material.rough = false
-    collision.physics_material_override = chassis_contact_material
+    physics_material_override = chassis_contact_material
     add_child(collision)
     vehicle_camera = get_node_or_null("VehicleCamera") as Camera3D
     vehicle_first_person_camera = get_node_or_null("VehicleFirstPersonCamera") as Camera3D
