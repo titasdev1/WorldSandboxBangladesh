@@ -32,11 +32,15 @@ func _run() -> void:
     for _frame in range(20):
         await physics_frame
 
+    print("VEHICLE_DIAGNOSTIC ready=%s processing=%s has_action=%s pre_strength=%.2f ticks=%d" % [str(body.is_inside_tree()),str(body.is_physics_processing()),str(InputMap.has_action("vehicle_accelerate")),Input.get_action_strength("vehicle_accelerate"),int(body.get("debug_physics_tick_count"))])
     Input.action_press("vehicle_accelerate",1.0)
+    await process_frame
+    print("VEHICLE_DIAGNOSTIC post_press_strength=%.2f last_throttle=%.2f ticks=%d" % [Input.get_action_strength("vehicle_accelerate"),float(body.get("debug_last_throttle")),int(body.get("debug_physics_tick_count"))])
     for _frame in range(110):
         await physics_frame
     Input.action_release("vehicle_accelerate")
     var accelerated_speed := body.linear_velocity.length()
+    print("VEHICLE_DIAGNOSTIC after_drive speed=%.3f ticks=%d throttle=%.2f position=%s" % [accelerated_speed,int(body.get("debug_physics_tick_count")),float(body.get("debug_last_throttle")),str(body.global_position)])
     if accelerated_speed<2.0:
         push_error("VEHICLE_PHYSICS_FAIL: rigid body did not accelerate; speed=%.2f m/s." % accelerated_speed)
         quit(1)
