@@ -924,6 +924,7 @@ func _update_authored_animation(body: CharacterBody3D, planar_speed: float) -> v
     var firing := Input.is_action_pressed("fire")
     var reloading := float(body.get("reload_time")) > 0.0
     var crouched := bool(body.get("_is_crouched"))
+    var first_person := String(body.get("camera_view_mode")) == "first_person"
     var state := "idle"
     if not body.is_on_floor():
         if body.velocity.y > 0.65 and not String(_authored_animation_lookup.get("jump", "")).is_empty():
@@ -936,10 +937,18 @@ func _update_authored_animation(body: CharacterBody3D, planar_speed: float) -> v
         state = "reload"
     elif firing and not String(_authored_animation_lookup.get("shoot", "")).is_empty():
         state = "shoot"
-    elif aiming:
-        state = "aim_walk" if planar_speed > 0.25 else "aim"
     elif crouched:
         state = "crouch_walk" if planar_speed > 0.25 else "crouch_idle"
+    elif first_person:
+        # First person must keep the rifle shouldered even when the ADS button
+        # is released; otherwise the 3rd-person idle clip drops both hands out
+        # of the camera. Sprint still uses the proper lowered-rifle transition.
+        if planar_speed >= 9.5 and not String(_authored_animation_lookup.get("sprint", "")).is_empty():
+            state = "sprint"
+        else:
+            state = "aim_walk" if planar_speed > 0.25 else "aim"
+    elif aiming:
+        state = "aim_walk" if planar_speed > 0.25 else "aim"
     elif planar_speed >= 9.5 and not String(_authored_animation_lookup.get("sprint", "")).is_empty():
         state = "sprint"
     elif planar_speed >= 5.0:
