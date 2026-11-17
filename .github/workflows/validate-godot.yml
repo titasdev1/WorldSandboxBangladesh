@@ -20,6 +20,11 @@ on:
       - "Main.tscn"
       - "Boot.tscn"
       - "boot.gd"
+      - "systems/login_backdrop.gd"
+      - "systems/login_backdrop_view.gd"
+      - "systems/login_operator_actor.gd"
+      - "tests/login_backdrop_runtime_smoke.gd"
+      - "tests/test_login_backdrop.py"
       - "project.godot"
       - "tests/test_dhaka_map_pipeline.py"
       - ".github/workflows/validate-godot.yml"
@@ -41,6 +46,11 @@ on:
       - "Main.tscn"
       - "Boot.tscn"
       - "boot.gd"
+      - "systems/login_backdrop.gd"
+      - "systems/login_backdrop_view.gd"
+      - "systems/login_operator_actor.gd"
+      - "tests/login_backdrop_runtime_smoke.gd"
+      - "tests/test_login_backdrop.py"
       - "project.godot"
       - "tests/test_dhaka_map_pipeline.py"
       - ".github/workflows/validate-godot.yml"
@@ -116,6 +126,21 @@ jobs:
           set -e
           cat "$RUNNER_TEMP/godot/import.log"
           if [ "$result" -ne 0 ] || grep -E "SCRIPT ERROR:|Parse Error|Failed to load script" "$RUNNER_TEMP/godot/import.log" || (grep -E "ERROR:" "$RUNNER_TEMP/godot/import.log" | grep -vF 'ERROR: Parameter "t" is null.'); then
+            exit 1
+          fi
+
+      - name: Exercise animated login backdrop in an isolated SubViewport
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+          set +e
+          timeout 40s "$GODOT" --headless --path . --script tests/login_backdrop_runtime_smoke.gd > "$RUNNER_TEMP/godot/login-backdrop.log" 2>&1
+          result=$?
+          set -e
+          cat "$RUNNER_TEMP/godot/login-backdrop.log"
+          if [ "$result" -ne 0 ] || ! grep -Fq "LOGIN_BACKDROP_RUNTIME_PASS" "$RUNNER_TEMP/godot/login-backdrop.log" || grep -E "SCRIPT ERROR:|Parse Error|Invalid call|Invalid get index|ERROR:" "$RUNNER_TEMP/godot/login-backdrop.log"; then
+            echo "Animated login backdrop runtime smoke failed."
             exit 1
           fi
 
