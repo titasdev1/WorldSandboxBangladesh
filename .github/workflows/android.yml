@@ -111,7 +111,7 @@ jobs:
 
       - name: Validate asset pipeline Python syntax
         shell: bash
-        run: python3 -m py_compile tools/convert_charactercreator_glbs.py tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/fetch_charactercreator_hero.py tools/kenney_pack_utils.py tools/verify_medium_stage_assets.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py tools/map_pack_build.py tools/verify_core_apk_contents.py tools/verify_final_distribution.py tools/ara3d/verify_ara_glb.py
+        run: python3 -m py_compile tools/convert_charactercreator_glbs.py tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/fetch_charactercreator_hero.py tools/kenney_pack_utils.py tools/fetch_battle_royale_aircraft.py tools/verify_medium_stage_assets.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py tools/map_pack_build.py tools/verify_core_apk_contents.py tools/verify_final_distribution.py tools/ara3d/verify_ara_glb.py
 
       - name: Run navigation-index unit tests
         shell: bash
@@ -758,6 +758,14 @@ jobs:
       - name: Fetch optional CC0 vehicle art
         shell: bash
         run: python3 tools/fetch_free_assets.py
+
+      - name: Fetch and verify CC0 cargo aircraft for solo BR deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/fetch_battle_royale_aircraft.py
+          python3 tools/fetch_battle_royale_aircraft.py
+          python3 -m unittest discover -s tests -p "test_battle_royale_aircraft_pipeline.py"
 
       - name: Fetch optional CC0 city building art
         shell: bash
