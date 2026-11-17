@@ -1,0 +1,72 @@
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def read(relative_path: str) -> str:
+    return (ROOT / relative_path).read_text(encoding="utf-8")
+
+
+def function_block(source: str, function_name: str) -> str:
+    lines = source.splitlines()
+    start = next((i for i, line in enumerate(lines) if line.startswith(f"func {function_name}(")), -1)
+    if start < 0:
+        raise AssertionError(f"Missing GDScript function: {function_name}")
+    end = start + 1
+    while end < len(lines) and not lines[end].startswith("func "):
+        end += 1
+    return "\n".join(lines[start:end])
+
+
+class LoginBackdropTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.boot = read("boot.gd")
+        cls.view = read("systems/login_backdrop_view.gd")
+        cls.backdrop = read("systems/login_backdrop.gd")
+        cls.actor = read("systems/login_operator_actor.gd")
+
+    def test_first_run_login_mounts_live_backdrop_before_shade_and_controls(self):
+        login = function_block(self.boot, "_show_guest_login_screen")
+        self.assertIn('backdrop.name = "LoginBackdrop"', login)
+        self.assertIn('load("res://systems/login_backdrop_view.gd")', login)
+        self.assertLess(login.index("login_overlay.add_child(backdrop)"), login.index("login_overlay.add_child(background)"))
+        self.assertLess(login.index("login_overlay.add_child(background)"), login.index("login_overlay.add_child(center)"))
+        self.assertIn('guest_button.pressed.connect(_continue_as_guest)', login)
+        self.assertIn('callsign_input.grab_focus()', login)
+
+    def test_backdrop_uses_a_bounded_realtime_subviewport(self):
+        self.assertIn("VIEWPORT_SIZE := Vector2i(960, 540)", self.view)
+        self.assertIn("viewport.own_world_3d = true", self.view)
+        self.assertIn("viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS", self.view)
+        self.assertIn("viewport.gui_disable_input = true", self.view)
+        self.assertIn("Control.MOUSE_FILTER_IGNORE", self.view)
+
+    def test_bangladesh_street_set_has_moving_cng_and_swaying_tree_leaves(self):
+        self.assertIn('vehicle.name = "MovingCNGAutoRickshaw"', self.backdrop)
+        self.assertIn('cng_label.text = "CNG"', self.backdrop)
+        process = function_block(self.backdrop, "_process")
+        self.assertIn("_vehicle_root.position.x = fposmod", process)
+        self.assertIn("branch.rotation.z = sin", process)
+        self.assertIn("branch.rotation.x = cos", process)
+        self.assertIn("viewport", self.view.lower())
+
+    def test_operator_reuses_the_existing_rigged_character_and_idle_state_machine(self):
+        self.assertIn('load("res://character_visual.gd")', self.backdrop)
+        self.assertIn('_operator_visual.set("is_player_character", true)', self.backdrop)
+        self.assertIn('actor.set_script(load("res://systems/login_operator_actor.gd"))', self.backdrop)
+        self.assertIn("var reload_time := 0.0", self.actor)
+        self.assertIn("var _is_crouched := false", self.actor)
+        self.assertIn("move_and_slide()", self.actor)
+        self.assertIn("_wind_cloth_pivot.rotation.z = sin", function_block(self.backdrop, "_process"))
+
+    def test_map_install_screen_remains_separate_from_the_animated_login_scene(self):
+        install = function_block(self.boot, "_show_map_install_screen")
+        self.assertNotIn("LoginBackdrop", install)
+        self.assertIn('entrance.tween_property(boot_content, "modulate:a", 1.0, 0.32)', install)
+        self.assertIn("_show_map_install_screen()", function_block(self.boot, "_continue_as_guest"))
+
+
+if __name__ == "__main__":
+    unittest.main()
