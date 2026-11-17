@@ -40,6 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m py_compile tools/map_pipeline/audit_kartaview_coverage.py
+          python -m unittest discover -s tests -p "test_kartaview_coverage.py"
           python tools/map_pipeline/audit_kartaview_coverage.py \
             --bbox 23.003880881,90.220512089,23.451613610,90.607763484 \
             --zoom 12 \
