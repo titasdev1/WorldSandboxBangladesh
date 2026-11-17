@@ -38,7 +38,7 @@ on:
       - "tools/verify_apk_contents.py"
       - "tools/map_pack_build.py"
       - "tools/verify_core_apk_contents.py"
-      - "tools/verify_final_distribution.py"
+      - "tools/verify_final_distribution.py tools/ara3d/verify_ara_glb.py"
       - "tests/mobile_joystick_runtime_smoke.gd"
       - "tests/test_jibonjatra_pitchbound.py"
       - "tests/pitchbound_runtime_smoke.gd"
@@ -71,6 +71,12 @@ on:
       - "tools/map_pack_build.py"
       - "tools/verify_core_apk_contents.py"
       - "tools/verify_final_distribution.py"
+      - "tools/ara3d/**"
+      - "tests/ara_operator_runtime_smoke.gd"
+      - "tests/test_ara3d_operator_integration.py"
+      - "tools/ara3d/**"
+      - "tests/ara_operator_runtime_smoke.gd"
+      - "tests/test_ara3d_operator_integration.py"
       - "tests/mobile_joystick_runtime_smoke.gd"
       - "virtual_stick.gd"
       - "tests/test_verify_final_distribution.py"
@@ -128,6 +134,10 @@ jobs:
       - name: Run modular CharacterCreator GLB validation tests
         shell: bash
         run: python3 -m unittest discover -s tests -p "test_charactercreator_hero.py"
+
+      - name: Run Ara 3D operator integration regression tests
+        shell: bash
+        run: python3 -m unittest discover -s tests -p "test_ara3d_operator_integration.py"
 
       - name: Run mobile interaction regression tests
         shell: bash
@@ -460,6 +470,128 @@ jobs:
           set -euo pipefail
           python3 tools/convert_charactercreator_glbs.py
 
+      - name: Resolve validated Ara operator build for the exact profile revision
+        id: ara-operator
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          PROFILE_COMMIT="$(git log -n 1 --format=%H -- tools/ara3d/asquare_operator.params.json)"
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          echo "Ara character profile commit: $PROFILE_COMMIT on $BRANCH"
+          RUN_ID=""
+          for attempt in $(seq 1 100); do
+            RUN_RECORD="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ara-operator-assets.yml/runs" \
+              -f branch="$BRANCH" -F per_page=100 \
+              --jq ".workflow_runs[] | select(.head_sha == \"$PROFILE_COMMIT\") | [.id, .status, (.conclusion // \"\")] | @tsv" \
+              | head -n 1 || true)"
+            if [[ -n "$RUN_RECORD" ]]; then
+              read -r CANDIDATE_ID STATUS CONCLUSION <<< "$RUN_RECORD"
+              echo "Ara run $CANDIDATE_ID: status=$STATUS conclusion=$CONCLUSION"
+              if [[ "$STATUS" == "completed" ]]; then
+                if [[ "$CONCLUSION" != "success" ]]; then
+                  echo "Ara profile-matched asset build failed: $CONCLUSION" >&2
+                  exit 1
+                fi
+                RUN_ID="$CANDIDATE_ID"
+                break
+              fi
+            else
+              echo "No Ara run found yet for $PROFILE_COMMIT."
+            fi
+            sleep 15
+          done
+          if [[ -z "$RUN_ID" ]]; then
+            echo "Timed out waiting for the Ara build matching $PROFILE_COMMIT." >&2
+            exit 1
+          fi
+          ARTIFACT_DIGEST="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$RUN_ID/artifacts" \
+            --jq '.artifacts[] | select(.name == "A-Square-Ara3D-Operator-Candidates" and .expired == false) | .digest' \
+            | head -n 1)"
+          if [[ -z "$ARTIFACT_DIGEST" ]]; then
+            echo "Ara build succeeded but did not upload the validated operator artifact." >&2
+            exit 1
+          fi
+          {
+            echo "run_id=$RUN_ID"
+            echo "profile_commit=$PROFILE_COMMIT"
+            echo "artifact_digest=$ARTIFACT_DIGEST"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download validated Ara operator LOD candidates
+        uses: actions/download-artifact@v4
+        with:
+          name: A-Square-Ara3D-Operator-Candidates
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.ara-operator.outputs.run_id }}
+          path: build/ara3d-operator-candidates
+
+      - name: Verify and install the high-detail Ara operator
+        shell: bash
+        env:
+          ARA_PROFILE_COMMIT: ${{ steps.ara-operator.outputs.profile_commit }}
+          ARA_WORKFLOW_RUN_ID: ${{ steps.ara-operator.outputs.run_id }}
+          ARA_ARTIFACT_DIGEST: ${{ steps.ara-operator.outputs.artifact_digest }}
+        run: |
+          set -euo pipefail
+          ROOT="build/ara3d-operator-candidates"
+          HIGH="$ROOT/high/a_square_bangladesh_operator.glb"
+          MEDIUM="$ROOT/medium/a_square_bangladesh_operator.glb"
+          LOW="$ROOT/low/a_square_bangladesh_operator.glb"
+          test -s "$HIGH" && test -s "$MEDIUM" && test -s "$LOW"
+          python3 tools/ara3d/verify_ara_glb.py \
+            --high "$HIGH" --medium "$MEDIUM" --low "$LOW" \
+            --out "$ROOT/verification.json"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import shutil
+          from pathlib import Path
+
+          root = Path("build/ara3d-operator-candidates")
+          high = root / "high" / "a_square_bangladesh_operator.glb"
+          report = json.loads((root / "verification.json").read_text(encoding="utf-8"))
+          if report.get("validation") != "PASS" or report.get("errors"):
+              raise SystemExit("ARA3D_ASSET_GATE: structural verification did not pass.")
+          high_report = report["variants"]["high"]
+          destination = Path("external_content/ara3d_operator")
+          high_dir = destination / "high"
+          high_dir.mkdir(parents=True, exist_ok=True)
+          installed = high_dir / high.name
+          shutil.copy2(high, installed)
+          manifest = {
+              "available": True,
+              "source": "Ara 3D Gen",
+              "source_repository": "https://github.com/olatunde85/3d-gen",
+              "source_commit": "4122e90633fda0384c6611115b64a15102e5463d",
+              "profile_commit": os.environ["ARA_PROFILE_COMMIT"],
+              "workflow_run_id": int(os.environ["ARA_WORKFLOW_RUN_ID"]),
+              "artifact_digest": os.environ["ARA_ARTIFACT_DIGEST"],
+              "file": installed.as_posix(),
+              "sha256": hashlib.sha256(installed.read_bytes()).hexdigest(),
+              "bytes": installed.stat().st_size,
+              "triangles": high_report["triangles"],
+              "materials": high_report["materials"],
+              "textures": high_report["textures"],
+              "joint_count": high_report["max_joint_count"],
+              "weapon_socket": high_report["weapon_socket"],
+              "facial_morph_targets": high_report["facial_morph_targets"],
+              "animation_count": high_report["animation_count"],
+              "required_animation_groups": high_report["required_animation_groups"],
+              "license": report["license"]
+          }
+          destination.mkdir(parents=True, exist_ok=True)
+          (destination / "ara_asset_manifest.json").write_text(
+              json.dumps(manifest, indent=2) + "\\n", encoding="utf-8"
+          )
+          shutil.copy2(root / "ASSET-LICENSES.txt", destination / "ASSET-LICENSES.txt")
+          print("ARA3D_OPERATOR_INSTALLED:", json.dumps(manifest, sort_keys=True))
+          PY
+
+
       - name: Restore Godot import cache for the pinned map assets
         uses: actions/cache@v4
         with:
@@ -467,7 +599,7 @@ jobs:
             .godot/imported
             .godot/editor
             .godot/uid_cache.bin
-          key: ${{ runner.os }}-godot-4.4.1-${{ hashFiles('project.godot', '**/*.import', 'assets/world/dhaka_tiles/**', 'external_content/quaternius_hero/**', 'external_content/asquare_charactercreator/**') }}
+          key: ${{ runner.os }}-godot-4.4.1-${{ hashFiles('project.godot', '**/*.import', 'assets/world/dhaka_tiles/**', 'external_content/quaternius_hero/**', 'external_content/asquare_charactercreator/**', 'external_content/ara3d_operator/**') }}
           restore-keys: |
             ${{ runner.os }}-godot-4.4.1-
 
@@ -555,14 +687,24 @@ jobs:
             exit 1
           fi
           # The compatibility Quaternius path emits AUTHORED_HERO_READY; the preferred modular path emits CHARACTER_CREATOR_HERO_READY.
-          if ! grep -Fq "CHARACTER_CREATOR_HERO_READY" "$GODOT_DIR/startup.log" && ! grep -Fq "AUTHORED_HERO_READY" "$GODOT_DIR/startup.log"; then
-            echo "ERROR: CharacterCreator GLB did not activate its rig, clips and modular outfit in Godot."
+          if ! grep -Fq "ARA3D_OPERATOR_READY" "$GODOT_DIR/startup.log" && ! grep -Fq "CHARACTER_CREATOR_HERO_READY" "$GODOT_DIR/startup.log" && ! grep -Fq "AUTHORED_HERO_READY" "$GODOT_DIR/startup.log"; then
+            echo "ERROR: no accepted authored operator (Ara3D/CharacterCreator/Quaternius) activated in Godot."
             exit 1
           fi
-          if ! grep -Fq "AUTHORED_HERO_GEAR_READY" "$GODOT_DIR/startup.log" && ! grep -Fq "CHARACTER_CREATOR_COMBAT_GEAR_READY" "$GODOT_DIR/startup.log"; then
-            echo "ERROR: runtime hero did not activate a rig-attached tactical gear layer."
+          if ! grep -Fq "ARA3D_OPERATOR_GEAR_READY" "$GODOT_DIR/startup.log" && ! grep -Fq "AUTHORED_HERO_GEAR_READY" "$GODOT_DIR/startup.log" && ! grep -Fq "CHARACTER_CREATOR_COMBAT_GEAR_READY" "$GODOT_DIR/startup.log"; then
+            echo "ERROR: runtime hero did not activate a rig-attached tactical gear layer or WeaponR socket."
             exit 1
           fi
+
+      - name: Exercise Ara 3D character rig, materials, rifle animation states and WeaponR socket
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot-validation/Godot_v4.4.1-stable_linux.x86_64"
+          test -x "$GODOT"
+          timeout 180s "$GODOT" --headless --path . --script res://tests/ara_operator_runtime_smoke.gd > "$RUNNER_TEMP/godot-validation/ara-operator.log" 2>&1
+          cat "$RUNNER_TEMP/godot-validation/ara-operator.log"
+          grep -Fq "ARA3D_RUNTIME_PASS" "$RUNNER_TEMP/godot-validation/ara-operator.log"
 
       - name: Exercise real player movement, sprint and jump physics
         shell: bash
