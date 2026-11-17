@@ -270,9 +270,9 @@ func _build_authored_hero(packed: PackedScene) -> void:
 
     var is_character_creator := _authored_hero_source == "CharacterCreator"
     var is_ara3d := _authored_hero_source == "Ara3D"
-    var idle_candidates: Array[String] = ["Rifle idle (low ready)", "Idle"] if is_ara3d else ["Idle_Loop", "idle", "Idle", "Pistol_Idle_Loop", "Standing_Idle", "Stand_Idle", "Neutral_Idle"]
-    var walk_candidates: Array[String] = ["Rifle walk (aiming)", "Walk"] if is_ara3d else ["Walk_Loop", "walk", "Walk_Formal_Loop", "Walk_Forward", "Walking", "Walk"]
-    var run_candidates: Array[String] = ["Rifle run", "Run"] if is_ara3d else ["Sprint_Loop", "Run_Loop", "run", "Run", "Jog_Fwd_Loop", "Jog_Loop", "Jog", "Fast_Walk"]
+    var idle_candidates: Array[String] = []
+    var walk_candidates: Array[String] = []
+    var run_candidates: Array[String] = []
     var idle_name := _find_authored_animation(idle_candidates)
     var walk_name := _find_authored_animation(walk_candidates)
     var run_name := _find_authored_animation(run_candidates)
@@ -283,8 +283,20 @@ func _build_authored_hero(packed: PackedScene) -> void:
         push_warning("AUTHORED_HERO_FALLBACK: imported clips do not contain idle, walk, and run/sprint.")
         return
 
-    var crouch_idle_candidates: Array[String] = ["Crouch aim idle", "Crouch idle"] if is_ara3d else ["Crouch_Idle_Loop", "Crouch_Idle"]
-    var crouch_walk_candidates: Array[String] = ["Crouch walk (aiming)", "Crouch walk"] if is_ara3d else ["Crouch_Fwd_Loop", "Crouch_Walk"]
+    var crouch_idle_candidates: Array[String] = []
+    var crouch_walk_candidates: Array[String] = []
+    if is_ara3d:
+        idle_candidates.assign(["Rifle idle (low ready)", "Idle"])
+        walk_candidates.assign(["Rifle walk (aiming)", "Walk"])
+        run_candidates.assign(["Rifle run", "Run"])
+        crouch_idle_candidates.assign(["Crouch aim idle", "Crouch idle"])
+        crouch_walk_candidates.assign(["Crouch walk (aiming)", "Crouch walk"])
+    else:
+        idle_candidates.assign(["Idle_Loop", "idle", "Idle", "Pistol_Idle_Loop", "Standing_Idle", "Stand_Idle", "Neutral_Idle"])
+        walk_candidates.assign(["Walk_Loop", "walk", "Walk_Formal_Loop", "Walk_Forward", "Walking", "Walk"])
+        run_candidates.assign(["Sprint_Loop", "Run_Loop", "run", "Run", "Jog_Fwd_Loop", "Jog_Loop", "Jog", "Fast_Walk"])
+        crouch_idle_candidates.assign(["Crouch_Idle_Loop", "Crouch_Idle"])
+        crouch_walk_candidates.assign(["Crouch_Fwd_Loop", "Crouch_Walk"])
     var jump_name := _find_authored_animation(["Jump", "Jump_Start", "jump"]) if is_ara3d else _find_authored_animation(["Jump_Loop", "Jump_Start", "jump", "Jump"])
     var fall_name := _find_authored_animation(["Fall", "fall"])
     var land_name := _find_authored_animation(["Jump land", "Jump_Land", "land", "Land"])
