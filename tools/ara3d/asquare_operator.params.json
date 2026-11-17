@@ -1,6 +1,6 @@
 {
-  "name": "a_square_bangladesh_operator",
-  "seed": 20261113,
+  "name": "a_square_bangladesh_operator_candidate_20261117",
+  "seed": 20261117,
   "gender": 1,
   "age": 0.56,
   "muscle": 0.82,
@@ -24,7 +24,11 @@
   "top": "fatigue_shirt",
   "bottom": "fatigue_pants",
   "shoes": "combat_boots",
-  "accessories": ["tactical_vest", "helmet", "belt"],
+  "accessories": [
+    "tactical_vest",
+    "helmet",
+    "belt"
+  ],
   "garmentStyles": {
     "fatigue_shirt": {
       "pattern": "camo",
