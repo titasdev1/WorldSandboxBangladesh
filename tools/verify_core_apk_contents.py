@@ -16,6 +16,7 @@ REQUIRED_CORE_ASSETS = (
     "assets/external_content/kenney_city_kit_suburban/asset_manifest.json",
     "assets/external_content/polyhaven_pbr/asset_manifest.json",
     "assets/external_content/quaternius_hero/asset_manifest.json",
+    "assets/external_content/ara3d_operator/ara_asset_manifest.json",
 )
 
 
