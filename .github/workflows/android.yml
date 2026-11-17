@@ -565,7 +565,7 @@ jobs:
           destination = Path("external_content/ara3d_operator")
           high_dir = destination / "high"
           high_dir.mkdir(parents=True, exist_ok=True)
-          installed = high_dir / high.name
+          installed = high_dir / "a_square_bangladesh_operator.glb"
           shutil.copy2(high, installed)
           manifest = {
               "available": True,
@@ -691,13 +691,14 @@ jobs:
             echo "ERROR: pinned modular CharacterCreator assets are missing from the medium-stage candidate."
             exit 1
           fi
-          # The compatibility Quaternius path emits AUTHORED_HERO_READY; the preferred modular path emits CHARACTER_CREATOR_HERO_READY.
-          if ! grep -Fq "ARA3D_OPERATOR_READY" "$GODOT_DIR/startup.log" && ! grep -Fq "CHARACTER_CREATOR_HERO_READY" "$GODOT_DIR/startup.log" && ! grep -Fq "AUTHORED_HERO_READY" "$GODOT_DIR/startup.log"; then
-            echo "ERROR: no accepted authored operator (Ara3D/CharacterCreator/Quaternius) activated in Godot."
+          # A profile-matched Ara asset is mandatory for this Android candidate.
+          # Do not let a legacy CharacterCreator fallback conceal a missing/broken Ara install.
+          if ! grep -Fq "ARA3D_OPERATOR_READY" "$GODOT_DIR/startup.log"; then
+            echo "ERROR: installed Ara 3D operator did not activate; refusing legacy fallback APK."
             exit 1
           fi
-          if ! grep -Fq "ARA3D_OPERATOR_GEAR_READY" "$GODOT_DIR/startup.log" && ! grep -Fq "AUTHORED_HERO_GEAR_READY" "$GODOT_DIR/startup.log" && ! grep -Fq "CHARACTER_CREATOR_COMBAT_GEAR_READY" "$GODOT_DIR/startup.log"; then
-            echo "ERROR: runtime hero did not activate a rig-attached tactical gear layer or WeaponR socket."
+          if ! grep -Fq "ARA3D_OPERATOR_GEAR_READY" "$GODOT_DIR/startup.log"; then
+            echo "ERROR: Ara 3D operator did not activate its authored gear and WeaponR socket."
             exit 1
           fi
 
@@ -707,9 +708,20 @@ jobs:
           set -euo pipefail
           GODOT="$RUNNER_TEMP/godot-validation/Godot_v4.4.1-stable_linux.x86_64"
           test -x "$GODOT"
-          timeout 180s "$GODOT" --headless --path . --script res://tests/ara_operator_runtime_smoke.gd > "$RUNNER_TEMP/godot-validation/ara-operator.log" 2>&1
-          cat "$RUNNER_TEMP/godot-validation/ara-operator.log"
-          grep -Fq "ARA3D_RUNTIME_PASS" "$RUNNER_TEMP/godot-validation/ara-operator.log"
+          ARA_LOG="$RUNNER_TEMP/godot-validation/ara-operator.log"
+          set +e
+          timeout 180s "$GODOT" --headless --path . --script res://tests/ara_operator_runtime_smoke.gd > "$ARA_LOG" 2>&1
+          ARA_STATUS=$?
+          set -e
+          cat "$ARA_LOG"
+          if [ "$ARA_STATUS" -ne 0 ]; then
+            echo "Ara 3D runtime smoke exited with status $ARA_STATUS."
+            exit "$ARA_STATUS"
+          fi
+          if ! grep -Fq "ARA3D_RUNTIME_PASS" "$ARA_LOG"; then
+            echo "Ara 3D runtime smoke did not emit its pass marker."
+            exit 1
+          fi
 
       - name: Exercise real player movement, sprint and jump physics
         shell: bash
