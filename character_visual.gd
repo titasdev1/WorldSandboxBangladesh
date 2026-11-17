@@ -23,6 +23,7 @@ var _muzzle_light: OmniLight3D
 var _muzzle_flash_timer := 0.0
 var _weapon_recoil_offset := 0.0
 
+const ARA_HERO_PATH := "res://external_content/ara3d_operator/high/a_square_bangladesh_operator.glb"
 const AUTHORED_HERO_PATH := "res://external_content/quaternius_hero/Project_A_Square_Hero.glb"
 const CHARACTER_CREATOR_HERO_PATH := "res://external_content/asquare_charactercreator/base_body_anim.glb"
 const CHARACTER_CREATOR_LAYER_PATHS := [
@@ -48,6 +49,7 @@ var _authored_animation_player: AnimationPlayer
 var _authored_current_animation := ""
 var _authored_animation_lookup: Dictionary = {}
 var _authored_weapon_attachment: BoneAttachment3D
+var _ara_base_surface_materials: Array[Dictionary] = []
 var _authored_hero_ready := false
 var _authored_hero_load_pending := false
 
@@ -96,9 +98,13 @@ func _find_authored_animation(candidates: Array[String]) -> String:
 
 
 func _try_load_authored_hero() -> void:
-    # Prefer the new modular, morph-capable human rig. Keep the previous rig as a
-    # safe fallback until the full body, hair and clothing layers pass import checks.
-    if ResourceLoader.exists(CHARACTER_CREATOR_HERO_PATH):
+    # Prefer the validated Ara 3D Gen operator: one textured, skinned GLB carries
+    # the full tactical outfit, weapon socket, facial shapes and 216 animation clips.
+    # CharacterCreator and Quaternius remain intact as compatibility fallbacks.
+    if ResourceLoader.exists(ARA_HERO_PATH):
+        _selected_authored_hero_path = ARA_HERO_PATH
+        _authored_hero_source = "Ara3D"
+    if _selected_authored_hero_path.is_empty() and ResourceLoader.exists(CHARACTER_CREATOR_HERO_PATH):
         var layers_available := true
         for layer_path in CHARACTER_CREATOR_LAYER_PATHS:
             if not ResourceLoader.exists(layer_path):
@@ -115,6 +121,7 @@ func _try_load_authored_hero() -> void:
     if _selected_authored_hero_path.is_empty():
         push_warning("AUTHORED_HERO_FALLBACK: no rigged hero package is available; keeping procedural hero.")
         return
+    print("AUTHORED_HERO_SELECTED • source=%s • path=%s" % [_authored_hero_source, _selected_authored_hero_path])
     # Keep the tested fallback visible while the first district and hero are staged.
     call_deferred("_begin_staged_authored_hero_load")
 
@@ -262,9 +269,13 @@ func _build_authored_hero(packed: PackedScene) -> void:
     _authored_hero.position = Vector3(0.0, -min_y * fit_scale, 0.0)
 
     var is_character_creator := _authored_hero_source == "CharacterCreator"
-    var idle_name := _find_authored_animation(["Idle_Loop", "idle", "Idle", "Pistol_Idle_Loop", "Standing_Idle", "Stand_Idle", "Neutral_Idle"])
-    var walk_name := _find_authored_animation(["Walk_Loop", "walk", "Walk_Formal_Loop", "Walk_Forward", "Walking", "Walk"])
-    var run_name := _find_authored_animation(["Sprint_Loop", "Run_Loop", "run", "Run", "Jog_Fwd_Loop", "Jog_Loop", "Jog", "Fast_Walk"])
+    var is_ara3d := _authored_hero_source == "Ara3D"
+    var idle_candidates: Array[String] = ["Rifle idle (low ready)", "Idle"] if is_ara3d else ["Idle_Loop", "idle", "Idle", "Pistol_Idle_Loop", "Standing_Idle", "Stand_Idle", "Neutral_Idle"]
+    var walk_candidates: Array[String] = ["Rifle walk (aiming)", "Walk"] if is_ara3d else ["Walk_Loop", "walk", "Walk_Formal_Loop", "Walk_Forward", "Walking", "Walk"]
+    var run_candidates: Array[String] = ["Rifle run", "Run"] if is_ara3d else ["Sprint_Loop", "Run_Loop", "run", "Run", "Jog_Fwd_Loop", "Jog_Loop", "Jog", "Fast_Walk"]
+    var idle_name := _find_authored_animation(idle_candidates)
+    var walk_name := _find_authored_animation(walk_candidates)
+    var run_name := _find_authored_animation(run_candidates)
     if idle_name.is_empty() or walk_name.is_empty() or run_name.is_empty():
         _authored_hero.queue_free()
         _authored_hero = null
@@ -272,29 +283,41 @@ func _build_authored_hero(packed: PackedScene) -> void:
         push_warning("AUTHORED_HERO_FALLBACK: imported clips do not contain idle, walk, and run/sprint.")
         return
 
-    var crouch_idle_name := _find_authored_animation(["Crouch_Idle_Loop", "Crouch_Idle"])
-    var crouch_walk_name := _find_authored_animation(["Crouch_Fwd_Loop", "Crouch_Walk"])
-    var jump_name := _find_authored_animation(["Jump_Loop", "Jump_Start", "jump", "Jump"])
-    var fall_name := _find_authored_animation(["fall", "Fall"])
-    var land_name := _find_authored_animation(["Jump_Land", "land", "Land"])
+    var crouch_idle_candidates: Array[String] = ["Crouch aim idle", "Crouch idle"] if is_ara3d else ["Crouch_Idle_Loop", "Crouch_Idle"]
+    var crouch_walk_candidates: Array[String] = ["Crouch walk (aiming)", "Crouch walk"] if is_ara3d else ["Crouch_Fwd_Loop", "Crouch_Walk"]
+    var jump_name := _find_authored_animation(["Jump", "Jump_Start", "jump"]) if is_ara3d else _find_authored_animation(["Jump_Loop", "Jump_Start", "jump", "Jump"])
+    var fall_name := _find_authored_animation(["Fall", "fall"])
+    var land_name := _find_authored_animation(["Jump land", "Jump_Land", "land", "Land"])
     _authored_animation_lookup = {
         "idle": idle_name,
         "walk": walk_name,
         "run": run_name,
-        "crouch_idle": crouch_idle_name if not crouch_idle_name.is_empty() else idle_name,
-        "crouch_walk": crouch_walk_name if not crouch_walk_name.is_empty() else walk_name,
+        "sprint": _find_authored_animation(["Rifle sprint", "Pistol sprint", "Sprint"]) if is_ara3d else run_name,
+        "crouch_idle": _find_authored_animation(crouch_idle_candidates) if not _find_authored_animation(crouch_idle_candidates).is_empty() else idle_name,
+        "crouch_walk": _find_authored_animation(crouch_walk_candidates) if not _find_authored_animation(crouch_walk_candidates).is_empty() else walk_name,
         "jump": jump_name,
         "fall": fall_name,
-        "aim": _find_authored_animation(["Pistol_Aim_Forward_Loop", "Pistol_Aim", "Pistol_Idle_Loop"]),
-        "shoot": _find_authored_animation(["Pistol_Shoot", "Shoot", "Fire"]),
-        "reload": _find_authored_animation(["Pistol_Reload", "Reload"]),
         "land": land_name,
-        "idle_look": _find_authored_animation(["idle_look", "Idle_Look"]),
-        "idle_breathe": _find_authored_animation(["idle_breathe", "Idle_Breathe"]),
-        "idle_fidget": _find_authored_animation(["idle_fidget", "Idle_Fidget"]),
+        "aim": _find_authored_animation(["Rifle aim idle", "Pistol aim", "Pistol idle (low ready)", "Pistol_Aim_Forward_Loop"]),
+        "aim_walk": _find_authored_animation(["Rifle walk (aiming)", "Pistol walk", "Walk"]),
+        "shoot": _find_authored_animation(["Rifle fire (full auto)", "Rifle fire (single)", "Pistol fire", "Pistol_Shoot", "Shoot", "Fire"]),
+        "reload": _find_authored_animation(["Rifle reload", "Pistol reload", "Pistol_Reload", "Reload"]),
+        "strafe_left": _find_authored_animation(["Rifle strafe left (aiming)", "Pistol strafe left", "Strafe left"]),
+        "strafe_right": _find_authored_animation(["Rifle strafe right (aiming)", "Pistol strafe right", "Strafe right"]),
+        "walk_back": _find_authored_animation(["Rifle walk back (aiming)", "Walk backwards"]),
+        "cover_idle": _find_authored_animation(["Cover idle"]),
+        "cover_fire": _find_authored_animation(["Cover fire (pop up)"]),
+        "open_door": _find_authored_animation(["Open door"]),
+        "pickup": _find_authored_animation(["Pick up (ground)"]),
+        "death": _find_authored_animation(["Rifle death (fall forward)", "Death (fall forward)"]),
+        "get_up": _find_authored_animation(["Get up (from front)", "Get up (from back)"]),
+        "idle_look": _find_authored_animation(["Look around", "idle_look", "Idle_Look"]),
+        "idle_breathe": _find_authored_animation(["Idle breathing", "idle_breathe", "Idle_Breathe"]),
+        "idle_fidget": _find_authored_animation(["Idle fidget", "idle_fidget", "Idle_Fidget"]),
     }
+    _configure_authored_animation_loops()
     var hero_clip_count := _authored_animation_player.get_animation_list().size()
-    var minimum_clip_count := 10 if is_character_creator else 30
+    var minimum_clip_count := 180 if is_ara3d else (10 if is_character_creator else 30)
     var has_air_motion := not jump_name.is_empty() and not fall_name.is_empty() and not land_name.is_empty()
     if hero_clip_count < minimum_clip_count or (is_character_creator and not has_air_motion):
         _authored_hero.queue_free()
@@ -307,6 +330,8 @@ func _build_authored_hero(packed: PackedScene) -> void:
     # bone only after the imported skeleton/animations have passed the validation gate.
     var skeleton := skeletons[0] as Skeleton3D
     _authored_skeleton = skeleton
+    if is_ara3d:
+        _cache_ara_operator_materials(mesh_nodes)
     if is_character_creator:
         if not await _attach_charactercreator_layers():
             _authored_hero.queue_free()
@@ -316,38 +341,58 @@ func _build_authored_hero(packed: PackedScene) -> void:
             push_warning("CHARACTER_CREATOR_FALLBACK: one or more skinned clothing or hair layers failed to import.")
             return
         _tint_charactercreator_body()
-    var hand_bone_name := ""
-    for possible_hand in ["hand_r", "RightHand", "Hand_R", "hand.r", "hand_r_socket"]:
-        if skeleton.find_bone(possible_hand) >= 0:
-            hand_bone_name = possible_hand
-            break
-    if is_instance_valid(_weapon_root) and not hand_bone_name.is_empty():
-        _authored_weapon_attachment = BoneAttachment3D.new()
-        _authored_weapon_attachment.name = "ProjectASquareRifleHandAttachment"
-        _authored_weapon_attachment.bone_name = hand_bone_name
-        skeleton.add_child(_authored_weapon_attachment)
-        var old_weapon_parent := _weapon_root.get_parent()
-        if is_instance_valid(old_weapon_parent):
-            old_weapon_parent.remove_child(_weapon_root)
-        _authored_weapon_attachment.add_child(_weapon_root)
-        _weapon_root.position = Vector3(0.0, -0.02, 0.0)
-        _weapon_root.rotation = Vector3.ZERO
+
+    var weapon_socket_attached := false
+    if is_ara3d and is_instance_valid(_weapon_root):
+        var authored_socket := _authored_hero.find_child("WeaponR", true, false) as Node3D
+        if is_instance_valid(authored_socket):
+            var old_weapon_parent := _weapon_root.get_parent()
+            if is_instance_valid(old_weapon_parent):
+                old_weapon_parent.remove_child(_weapon_root)
+            authored_socket.add_child(_weapon_root)
+            _weapon_root.position = Vector3.ZERO
+            _weapon_root.rotation = Vector3.ZERO
+            _weapon_root.scale = Vector3.ONE
+            weapon_socket_attached = true
+
+    if not weapon_socket_attached:
+        var hand_bone_name := ""
+        for possible_hand in ["hand_r", "RightHand", "Hand_R", "hand.r", "hand_r_socket"]:
+            if skeleton.find_bone(possible_hand) >= 0:
+                hand_bone_name = possible_hand
+                break
+        if is_instance_valid(_weapon_root) and not hand_bone_name.is_empty():
+            _authored_weapon_attachment = BoneAttachment3D.new()
+            _authored_weapon_attachment.name = "ProjectASquareRifleHandAttachment"
+            _authored_weapon_attachment.bone_name = hand_bone_name
+            skeleton.add_child(_authored_weapon_attachment)
+            var old_weapon_parent := _weapon_root.get_parent()
+            if is_instance_valid(old_weapon_parent):
+                old_weapon_parent.remove_child(_weapon_root)
+            _authored_weapon_attachment.add_child(_weapon_root)
+            _weapon_root.position = Vector3(0.0, -0.02, 0.0)
+            _weapon_root.rotation = Vector3.ZERO
 
     _procedural_root.visible = false
     _authored_hero_ready = true
-    if is_character_creator:
+    if is_character_creator or is_ara3d:
         apply_operator_preset(_selected_operator_preset)
-    if is_player_character:
-        if is_character_creator:
-            _build_charactercreator_combat_gear(skeleton)
-        else:
-            _build_authored_combat_gear()
+    if is_player_character and is_character_creator:
+        _build_charactercreator_combat_gear(skeleton)
+    elif is_player_character and not is_ara3d:
+        _build_authored_combat_gear()
     _play_authored_animation("idle")
+
     if is_character_creator:
         _sync_charactercreator_layer_skeletons()
         print("CHARACTER_CREATOR_HERO_READY • height=1.8m • bones=%d • clips=%d • modular_layers=%d • source_commit=852e48f316b90a0937234886630e4fb4cdfd1f78" % [
             skeleton.get_bone_count(), hero_clip_count, _charactercreator_layer_skeletons.size()
         ])
+    elif is_ara3d:
+        print("ARA3D_OPERATOR_READY • height=1.8m • bones=%d • clips=%d • materials=%d • full_tactical_mesh=true" % [
+            skeleton.get_bone_count(), hero_clip_count, _ara_base_surface_materials.size()
+        ])
+        print("ARA3D_OPERATOR_GEAR_READY • integrated_vest+helmet+belt+boots • WeaponR_socket=%s" % str(weapon_socket_attached))
     else:
         print("AUTHORED_HERO_READY • height=1.8m • clips=%d • source=Quaternius-fallback" % hero_clip_count)
 
@@ -531,28 +576,98 @@ func apply_operator_preset(preset_id: String) -> bool:
     outfit_color = shirt_tint
 
     if _authored_hero_ready and is_instance_valid(_authored_hero):
-        for layer_name in _charactercreator_layers.keys():
-            var layer_root := _charactercreator_layers[layer_name] as Node3D
-            if not is_instance_valid(layer_root):
-                continue
-            layer_root.visible = not (String(layer_name) == "clothing_jacket" and not jacket_visible)
-            var layer_tint := shirt_tint
-            match String(layer_name):
-                "hair_short02":
-                    layer_tint = hair_tint
-                "clothing_jacket":
-                    layer_tint = jacket_tint
-                "clothing_jeans":
-                    layer_tint = jeans_tint
-                "clothing_boots":
-                    layer_tint = boots_tint
-                "clothing_tshirt":
-                    layer_tint = shirt_tint
-            _recolor_charactercreator_layer(layer_root, layer_tint)
-        _tint_charactercreator_body(skin_tint)
+        if _authored_hero_source == "Ara3D":
+            _apply_ara_operator_preset(preset_id)
+        else:
+            for layer_name in _charactercreator_layers.keys():
+                var layer_root := _charactercreator_layers[layer_name] as Node3D
+                if not is_instance_valid(layer_root):
+                    continue
+                layer_root.visible = not (String(layer_name) == "clothing_jacket" and not jacket_visible)
+                var layer_tint := shirt_tint
+                match String(layer_name):
+                    "hair_short02":
+                        layer_tint = hair_tint
+                    "clothing_jacket":
+                        layer_tint = jacket_tint
+                    "clothing_jeans":
+                        layer_tint = jeans_tint
+                    "clothing_boots":
+                        layer_tint = boots_tint
+                    "clothing_tshirt":
+                        layer_tint = shirt_tint
+                _recolor_charactercreator_layer(layer_root, layer_tint)
+            _tint_charactercreator_body(skin_tint)
     else:
         _apply_procedural_operator_colors()
     return true
+
+
+func _cache_ara_operator_materials(mesh_nodes: Array) -> void:
+    _ara_base_surface_materials.clear()
+    for candidate in mesh_nodes:
+        var mesh_instance := candidate as MeshInstance3D
+        if mesh_instance == null or mesh_instance.mesh == null:
+            continue
+        for surface_index in range(mesh_instance.mesh.get_surface_count()):
+            var active_material := mesh_instance.get_active_material(surface_index) as BaseMaterial3D
+            if active_material == null:
+                continue
+            _ara_base_surface_materials.append({
+                "mesh": mesh_instance,
+                "surface": surface_index,
+                "base": active_material.duplicate()
+            })
+
+
+func _apply_ara_operator_preset(preset_id: String) -> void:
+    # Ara exports the complete textured outfit as one skinned mesh. Presets
+    # recolour the original PBR materials instead of stacking primitive gear.
+    var shirt := Color("#3f4d32")
+    var pants := Color("#3d4931")
+    var vest := Color("#384333")
+    var helmet := Color("#454d35")
+    var belt := Color("#29271e")
+    var boots := Color("#252a25")
+    match preset_id:
+        "field_tactical":
+            pass
+        "urban_patrol":
+            shirt = Color("#34485d")
+            pants = Color("#303c4a")
+            vest = Color("#3a4f5e")
+            helmet = Color("#283746")
+            belt = Color("#1c2731")
+            boots = Color("#171d24")
+        "civilian_explorer":
+            shirt = Color("#b08a5a")
+            pants = Color("#565b66")
+            vest = Color("#716b58")
+            helmet = Color("#887b61")
+            belt = Color("#4b3828")
+            boots = Color("#4b3828")
+
+    for entry in _ara_base_surface_materials:
+        var mesh_instance := entry.get("mesh") as MeshInstance3D
+        var surface_index := int(entry.get("surface", -1))
+        var original := entry.get("base") as BaseMaterial3D
+        if not is_instance_valid(mesh_instance) or surface_index < 0 or original == null:
+            continue
+        var material_copy := original.duplicate() as BaseMaterial3D
+        var material_name := original.resource_name.to_lower()
+        if material_name.contains("fatigue shirt"):
+            material_copy.albedo_color = shirt
+        elif material_name.contains("fatigue pants"):
+            material_copy.albedo_color = pants
+        elif material_name.contains("tactical vest"):
+            material_copy.albedo_color = vest
+        elif material_name.contains("helmet"):
+            material_copy.albedo_color = helmet
+        elif material_name.contains("belt"):
+            material_copy.albedo_color = belt
+        elif material_name.contains("shoes") or material_name.contains("boot"):
+            material_copy.albedo_color = boots
+        mesh_instance.set_surface_override_material(surface_index, material_copy)
 
 
 func _recolor_charactercreator_layer(layer_root: Node3D, tint: Color) -> void:
@@ -761,6 +876,18 @@ func _build_charactercreator_combat_gear(skeleton: Skeleton3D) -> void:
 
 
 
+func _configure_authored_animation_loops() -> void:
+    if not is_instance_valid(_authored_animation_player):
+        return
+    for state in ["idle", "walk", "run", "sprint", "crouch_idle", "crouch_walk", "aim", "cover_idle"]:
+        var animation_name := String(_authored_animation_lookup.get(state, ""))
+        if animation_name.is_empty():
+            continue
+        var clip := _authored_animation_player.get_animation(animation_name)
+        if clip != null:
+            clip.loop_mode = Animation.LOOP_LINEAR
+
+
 func _play_authored_animation(state: String) -> void:
     var animation_name := String(_authored_animation_lookup.get(state, ""))
     if animation_name.is_empty() or not is_instance_valid(_authored_animation_player):
@@ -793,10 +920,12 @@ func _update_authored_animation(body: CharacterBody3D, planar_speed: float) -> v
     elif firing and not String(_authored_animation_lookup.get("shoot", "")).is_empty():
         state = "shoot"
     elif aiming:
-        state = "aim"
+        state = "aim_walk" if planar_speed > 0.25 else "aim"
     elif crouched:
         state = "crouch_walk" if planar_speed > 0.25 else "crouch_idle"
-    elif planar_speed >= 8.0:
+    elif planar_speed >= 9.5 and not String(_authored_animation_lookup.get("sprint", "")).is_empty():
+        state = "sprint"
+    elif planar_speed >= 5.0:
         state = "run"
     elif planar_speed > 0.25:
         state = "walk"
