@@ -45,8 +45,11 @@ func queue_jump() -> void:
 func set_camera_view_mode(mode: String) -> void:
  camera_view_mode = "first_person" if mode == "first_person" else "third_person"
  var visual := get_node_or_null("HumanoidVisual")
- if visual:
-  visual.visible = camera_view_mode != "first_person"
+ if is_instance_valid(visual):
+  # Keep the real rig visible in first person. The camera is moved just beyond
+  # the operator's face so the head remains behind the near plane while the
+  # animated shoulders, forearms, hands and attached rifle stay in view.
+  visual.visible = true
  _update_camera()
 
 func toggle_camera_view_mode() -> String:
@@ -93,10 +96,15 @@ func _update_camera():
  var pitch := deg_to_rad(effective_pitch)
  var target := global_position + Vector3(0, 1.0, 0)
  if camera_view_mode == "first_person":
-  # In first-person, positive recoil rotates the view a few degrees upward.
-  var eye := global_position + Vector3(0, 1.58, 0)
-  camera.global_position = eye
-  camera.fov = 50.0 if Input.is_action_pressed("aim") else 68.0
+  # Place the camera just in front of the face, along its current look direction.
+  # This keeps the head/helmet behind the near clip plane but leaves the actual
+  # rigged arms, hands and WeaponR-attached rifle visible at the bottom of frame.
+  var crouched := _is_crouched
+  var eye_height := 1.13 if crouched else 1.68
+  var look_forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
+  camera.global_position = global_position + Vector3(0.0, eye_height, 0.0) + look_forward * 0.24
+  camera.fov = 50.0 if Input.is_action_pressed("aim") else 70.0
+  camera.near = 0.06
   camera.global_rotation = Vector3(deg_to_rad(first_person_pitch + camera_recoil_pitch), yaw, 0.0)
   return
  var camera_distance := 4.4 if Input.is_action_pressed("aim") else 6.2
