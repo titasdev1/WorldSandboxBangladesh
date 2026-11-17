@@ -331,6 +331,22 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
             "buildings_with_source_floor_count": 22,
             "buildings_with_independently_verified_floor_count": 0,
         }}
+        ara_resource = "external_content/ara3d_operator/high/a_square_bangladesh_operator.glb"
+        ara_bytes = b"glTF-A-Square-Ara3D-operator-fixture"
+        ara_source = apk_path.parent / ara_resource
+        ara_source.parent.mkdir(parents=True, exist_ok=True)
+        ara_source.write_bytes(ara_bytes)
+        ara_manifest = {
+            "available": True,
+            "file": ara_resource,
+            "sha256": hashlib.sha256(ara_bytes).hexdigest(),
+            "joint_count": 72,
+            "animation_count": 216,
+            "weapon_socket": True,
+        }
+        ara_import_path = "assets/" + ara_resource + ".import"
+        ara_scene_name = "a_square_bangladesh_operator.glb-test.scn"
+        ara_scene_path = "assets/.godot/imported/" + ara_scene_name
         map_root = "assets/assets/world/dhaka_tiles/"
         with zipfile.ZipFile(apk_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             archive.writestr(map_root + "map_tiles_manifest.json", json.dumps(manifest))
@@ -403,6 +419,15 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
                 "assets/external_content/quaternius_hero/asset_manifest.json",
                 json.dumps({"available": False, "license": "CC0-1.0", "animation_count": 0}),
             )
+            archive.writestr(
+                "assets/external_content/ara3d_operator/ara_asset_manifest.json",
+                json.dumps(ara_manifest),
+            )
+            archive.writestr(
+                ara_import_path,
+                ('[remap]\\npath="res://.godot/imported/' + ara_scene_name + '"\\n'),
+            )
+            archive.writestr(ara_scene_path, b"imported-ara-operator-scene")
 
     def test_android_export_and_apk_verifier_keep_per_tile_geojson_road_data(self):
         preset = (self.ROOT / "export_presets.cfg").read_text(encoding="utf-8")
