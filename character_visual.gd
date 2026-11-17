@@ -273,18 +273,11 @@ func _build_authored_hero(packed: PackedScene) -> void:
     var idle_candidates: Array[String] = []
     var walk_candidates: Array[String] = []
     var run_candidates: Array[String] = []
-    var idle_name := _find_authored_animation(idle_candidates)
-    var walk_name := _find_authored_animation(walk_candidates)
-    var run_name := _find_authored_animation(run_candidates)
-    if idle_name.is_empty() or walk_name.is_empty() or run_name.is_empty():
-        _authored_hero.queue_free()
-        _authored_hero = null
-        _authored_animation_player = null
-        push_warning("AUTHORED_HERO_FALLBACK: imported clips do not contain idle, walk, and run/sprint.")
-        return
-
     var crouch_idle_candidates: Array[String] = []
     var crouch_walk_candidates: Array[String] = []
+
+    # Populate candidates before searching them; keep the fallback's broad
+    # label matching while selecting rifle-specific clips for Ara.
     if is_ara3d:
         idle_candidates.assign(["Rifle idle (low ready)", "Idle"])
         walk_candidates.assign(["Rifle walk (aiming)", "Walk"])
@@ -297,6 +290,18 @@ func _build_authored_hero(packed: PackedScene) -> void:
         run_candidates.assign(["Sprint_Loop", "Run_Loop", "run", "Run", "Jog_Fwd_Loop", "Jog_Loop", "Jog", "Fast_Walk"])
         crouch_idle_candidates.assign(["Crouch_Idle_Loop", "Crouch_Idle"])
         crouch_walk_candidates.assign(["Crouch_Fwd_Loop", "Crouch_Walk"])
+
+    var idle_name := _find_authored_animation(idle_candidates)
+    var walk_name := _find_authored_animation(walk_candidates)
+    var run_name := _find_authored_animation(run_candidates)
+    if idle_name.is_empty() or walk_name.is_empty() or run_name.is_empty():
+        print("AUTHORED_HERO_CLIP_NAMES • " + str(_authored_animation_player.get_animation_list()))
+        _authored_hero.queue_free()
+        _authored_hero = null
+        _authored_animation_player = null
+        push_warning("AUTHORED_HERO_FALLBACK: imported clips do not contain idle, walk, and run/sprint.")
+        return
+
     var jump_name := _find_authored_animation(["Jump", "Jump_Start", "jump"]) if is_ara3d else _find_authored_animation(["Jump_Loop", "Jump_Start", "jump", "Jump"])
     var fall_name := _find_authored_animation(["Fall", "fall"])
     var land_name := _find_authored_animation(["Jump land", "Jump_Land", "land", "Land"])
