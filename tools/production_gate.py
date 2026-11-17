@@ -138,8 +138,12 @@ hero_android_workflow_text = (ROOT / ".github" / "workflows" / "android.yml").re
 if "external_content/quaternius_hero/**" not in hero_android_workflow_text or "Fetch and validate the CC0 rigged player hero" not in hero_android_workflow_text:
     raise SystemExit("PRODUCTION GATE FAILED: canonical Android export does not fetch/import the rigged CC0 hero before Godot export")
 hero_validation_workflow_text = (ROOT / ".github" / "workflows" / "validate-godot.yml").read_text(encoding="utf-8")
-if "AUTHORED_HERO_GEAR_READY" not in hero_android_workflow_text or "AUTHORED_HERO_GEAR_READY" not in hero_validation_workflow_text:
-    raise SystemExit("PRODUCTION GATE FAILED: runtime validation does not verify the playable hero's attached gear layer.")
+if "ARA3D_OPERATOR_GEAR_READY" not in hero_android_workflow_text:
+    raise SystemExit("PRODUCTION GATE FAILED: canonical Android runtime validation does not require the Ara operator's attached gear/WeaponR socket.")
+if "AUTHORED_HERO_GEAR_READY" not in hero_validation_workflow_text:
+    raise SystemExit("PRODUCTION GATE FAILED: compatibility runtime validation no longer verifies the legacy authored hero's attached gear layer.")
+if 'installed = high_dir / "a_square_bangladesh_operator.glb"' not in hero_android_workflow_text:
+    raise SystemExit("PRODUCTION GATE FAILED: Ara operator is not installed at the canonical runtime loader path.")
 if "AUTHORED_HERO_READY" not in hero_android_workflow_text or "Project_A_Square_Hero.glb" not in (ROOT / "tools" / "verify_apk_contents.py").read_text(encoding="utf-8"):
     raise SystemExit("PRODUCTION GATE FAILED: authored hero activation/package verification is disconnected")
 
