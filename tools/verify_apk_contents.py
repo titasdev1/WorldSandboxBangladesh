@@ -481,7 +481,20 @@ def main() -> int:
             except (KeyError, UnicodeDecodeError) as exc:
                 raise SystemExit("APK CONTENT GATE FAILED: Ara 3D operator import remap is unreadable.") from exc
             ara_remap_match = re.search(
-                r'(?m)^path="res://\\.godot/imported/([^"/]+\\.scn)"\\s*            # The current player candidate uses a modular CharacterCreator base
+                r'(?m)^path="res://\.godot/imported/([^"/]+\.scn)"\s*$',
+                ara_remap,
+            )
+            if not ara_remap_match:
+                raise SystemExit("APK CONTENT GATE FAILED: Ara 3D operator import remap does not reference an imported scene.")
+            ara_scene_name = ara_remap_match.group(1)
+            if not ara_scene_name.startswith("a_square_bangladesh_operator.glb-"):
+                raise SystemExit("APK CONTENT GATE FAILED: Ara 3D operator remap points to an unexpected imported resource.")
+            ara_scene_path = IMPORTED_ROOT + ara_scene_name
+            if ara_scene_path not in names or not apk.read(ara_scene_path):
+                raise SystemExit("APK CONTENT GATE FAILED: Ara 3D operator imported scene is absent or empty.")
+            ara_imported_scene_count = 1
+
+            # The current player candidate uses a modular CharacterCreator base
             # body plus rig-compatible hair and clothing. Check every source GLB,
             # its pinned checksum, Godot remap and actual imported scene in the APK.
             creator_manifest_path = "assets/external_content/asquare_charactercreator/asset_manifest.json"
