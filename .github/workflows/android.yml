@@ -484,7 +484,7 @@ jobs:
             # token contexts. The repository-wide Actions list is readable with
             # the existing actions:read permission and is filtered by workflow ID,
             # exact profile commit and branch to avoid stale candidate artifacts.
-            RUN_RECORD="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?per_page=100" \
+            RUN_RECORD="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=$PROFILE_COMMIT&per_page=100" \
               --jq ".workflow_runs | map(select(.workflow_id == 417330351 and .head_sha == \"$PROFILE_COMMIT\" and .head_branch == \"$BRANCH\")) | sort_by(.created_at) | last // empty | [.id, .status, (.conclusion // \"\")] | @tsv" \
               || true)"
             if [[ -n "$RUN_RECORD" ]]; then
