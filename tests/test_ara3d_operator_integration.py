@@ -42,7 +42,9 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         self.assertIn("weapon_socket_attached", self.visual)
 
     def test_android_pipeline_fetches_the_validated_artifact_for_current_parameter_revision(self):
-        self.assertIn("ara-operator-assets.yml", self.android)
+        self.assertIn("workflow_id == 417330351", self.android)
+        self.assertIn("actions/runs?per_page=100", self.android)
+        self.assertNotIn("actions/workflows/ara-operator-assets.yml/runs", self.android)
         self.assertIn("actions/download-artifact@v4", self.android)
         self.assertIn("A-Square-Ara3D-Operator-Candidates", self.android)
         self.assertIn("tools/ara3d/asquare_operator.params.json", self.android)
