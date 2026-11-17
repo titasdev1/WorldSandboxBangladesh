@@ -19,6 +19,8 @@ class AraOperatorIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.visual = read("character_visual.gd")
+        cls.apk_verifier = read("tools/verify_apk_contents.py")
+        cls.core_verifier = read("tools/verify_core_apk_contents.py")
         cls.android = read(".github/workflows/android.yml")
         cls.smoke = read("tests/ara_operator_runtime_smoke.gd")
         cls.profile = json.loads(read("tools/ara3d/asquare_operator.params.json"))
@@ -51,6 +53,17 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         self.assertIn("tools/ara3d/asquare_operator.params.json", self.android)
         self.assertIn("ara_operator_runtime_smoke.gd", self.android)
         self.assertIn("ARA_STATUS=$?", self.android)
+
+    def test_android_apk_requires_the_canonical_ara_glb_and_imported_scene(self):
+        for marker in (
+            "assets/external_content/ara3d_operator/ara_asset_manifest.json",
+            "external_content/ara3d_operator/high/a_square_bangladesh_operator.glb",
+            "ara_manifest.get(\"weapon_socket\") is not True",
+            "a_square_bangladesh_operator.glb-",
+            "Ara 3D operator imported scene is absent or empty",
+        ):
+            self.assertIn(marker, self.apk_verifier)
+        self.assertIn("assets/external_content/ara3d_operator/ara_asset_manifest.json", self.core_verifier)
 
     def test_runtime_smoke_covers_rig_textures_weapon_and_real_animation(self):
         for marker in ("ARA3D_RUNTIME_PASS", "RightHand", "WeaponR", "textured_surface_count", "LOOP_LINEAR"):
