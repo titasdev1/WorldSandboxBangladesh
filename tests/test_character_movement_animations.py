@@ -37,6 +37,32 @@ class CharacterMovementAnimationTests(unittest.TestCase):
         self.assertIn('ResourceLoader.load_threaded_request(_selected_authored_hero_path, "PackedScene")', block)
         self.assertNotIn("while is_inside_tree():", block)
 
+    def test_first_person_keeps_the_real_operator_arms_and_rifle_visible(self):
+        player = (ROOT / "player.gd").read_text(encoding="utf-8")
+        visual_start = player.index("func set_camera_view_mode(")
+        visual_end = player.index("\nfunc toggle_camera_view_mode", visual_start)
+        view_block = player[visual_start:visual_end]
+        self.assertIn('camera_view_mode = "first_person" if mode == "first_person"', view_block)
+        self.assertIn("visual.visible = true", view_block)
+        self.assertNotIn("visual.visible = camera_view_mode !=", view_block)
+
+        camera_start = player.index("func _update_camera():")
+        camera_end = player.index("\nfunc _physics_process(", camera_start)
+        camera_block = player[camera_start:camera_end]
+        self.assertIn('if camera_view_mode == "first_person":', camera_block)
+        self.assertIn("look_forward * 0.24", camera_block)
+        self.assertIn("camera.near = 0.06", camera_block)
+
+    def test_first_person_idle_uses_rifle_ready_pose_not_relaxed_idle(self):
+        source = (ROOT / "character_visual.gd").read_text(encoding="utf-8")
+        start = source.index("func _update_authored_animation(")
+        end = source.index("\nfunc _material(", start)
+        block = source[start:end]
+        self.assertIn('var first_person := String(body.get("camera_view_mode")) == "first_person"', block)
+        self.assertIn('state = "aim_walk" if planar_speed > 0.25 else "aim"', block)
+        self.assertIn('state = "sprint"', block)
+
+
     def test_jump_has_a_short_buffer_and_coyote_window(self):
         source = (ROOT / "player.gd").read_text(encoding="utf-8")
         self.assertIn("var _jump_buffer_time := 0.0", source)
