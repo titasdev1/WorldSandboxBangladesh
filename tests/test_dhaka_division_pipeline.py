@@ -425,7 +425,7 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
             )
             archive.writestr(
                 ara_import_path,
-                ('[remap]\npath="res://.godot/imported/' + ara_scene_name + '"\n'
+                "[remap]\npath=\"res://.godot/imported/" + ara_scene_name + "\"\n",
             )
             archive.writestr(ara_scene_path, b"imported-ara-operator-scene")
 
