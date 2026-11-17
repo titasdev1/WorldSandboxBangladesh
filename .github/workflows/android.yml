@@ -538,14 +538,18 @@ jobs:
         run: |
           set -euo pipefail
           ROOT="build/ara3d-operator-candidates"
-          HIGH="$ROOT/high/a_square_bangladesh_operator.glb"
-          MEDIUM="$ROOT/medium/a_square_bangladesh_operator.glb"
-          LOW="$ROOT/low/a_square_bangladesh_operator.glb"
-          test -s "$HIGH" && test -s "$MEDIUM" && test -s "$LOW"
+          echo "Downloaded Ara candidate files:"
+          find "$ROOT" -maxdepth 3 -type f -printf '%P %s bytes\n' | sort
+          # The generator derives the filename from the profile's name field.
+          # Resolve the exact file from this run instead of guessing a stale basename.
+          HIGH="$(find "$ROOT/high" -maxdepth 1 -type f -name '*.glb' -print -quit)"
+          MEDIUM="$(find "$ROOT/medium" -maxdepth 1 -type f -name '*.glb' -print -quit)"
+          LOW="$(find "$ROOT/low" -maxdepth 1 -type f -name '*.glb' -print -quit)"
+          test -n "$HIGH" && test -s "$HIGH" && test -n "$MEDIUM" && test -s "$MEDIUM" && test -n "$LOW" && test -s "$LOW"
           python3 tools/ara3d/verify_ara_glb.py \
             --high "$HIGH" --medium "$MEDIUM" --low "$LOW" \
             --out "$ROOT/verification.json"
-          python3 - <<'PY'
+          ARA_HIGH_GLB="$HIGH" python3 - <<'PY'
           import hashlib
           import json
           import os
@@ -553,7 +557,7 @@ jobs:
           from pathlib import Path
 
           root = Path("build/ara3d-operator-candidates")
-          high = root / "high" / "a_square_bangladesh_operator.glb"
+          high = Path(os.environ["ARA_HIGH_GLB"])
           report = json.loads((root / "verification.json").read_text(encoding="utf-8"))
           if report.get("validation") != "PASS" or report.get("errors"):
               raise SystemExit("ARA3D_ASSET_GATE: structural verification did not pass.")
