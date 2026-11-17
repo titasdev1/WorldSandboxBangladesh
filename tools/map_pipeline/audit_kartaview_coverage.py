@@ -18,8 +18,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-API_ROOT = "https://api.openstreetcam.org/2.0/sequence/tiles"
-PHOTO_API_ROOT = "https://api.openstreetcam.org/2.0/photo/"
+API_ROOT = "https://api.kartaview.org/2.0/sequence/tiles"
+PHOTO_API_ROOT = "https://api.kartaview.org/2.0/photo/"
 DATASET_ATTRIBUTION = "KartaView / GrabMaps 360 Imagery Dataset and contributing photographers"
 DATASET_LICENSE = "CC BY-SA 4.0"
 USER_AGENT = "WorldSandboxBangladesh/1.0 (KartaView coverage audit; open-data attribution preserved)"
@@ -495,6 +495,18 @@ def audit_coverage(
     }
 
 
+def audit_succeeded(report: dict[str, Any]) -> bool:
+    """A completed audit requires every coverage and photo metadata request to work.
+
+    Zero imagery candidates can be a genuine coverage result; failed requests
+    are unknown coverage and must never be reported as a successful audit.
+    """
+    return (
+        int(report.get("failed_tile_count", 0)) == 0
+        and not report.get("photo_query_failures", [])
+    )
+
+
 def bbox_from_manifest(path: Path) -> tuple[float, float, float, float]:
     manifest = json.loads(path.read_text(encoding="utf-8"))
     raw = manifest.get("region_south_west_north_east")
@@ -517,7 +529,6 @@ def main() -> int:
     parser.add_argument("--photo-grid", type=int, default=0, help="optional grid size for nearby 360-photo probes")
     parser.add_argument("--photo-max-queries", type=int, default=0, help="maximum photo endpoint queries; shares the request cap")
     parser.add_argument("--photo-radius-m", type=int, default=500, help="nearby-photo query radius (1-500 m)")
-    parser.add_argument("--allow-partial", action="store_true", help="exit 0 if some tiles fail and failures are recorded")
     args = parser.parse_args()
     try:
         if args.manifest:
@@ -567,7 +578,7 @@ def main() -> int:
         "report": str(args.out / "kartaview_coverage_report.json"),
         "photo_candidates": str(args.out / "kartaview_360_photo_candidates.json"),
     }, ensure_ascii=False))
-    return 0 if args.allow_partial or (report["failed_tile_count"] == 0 and not report["photo_query_failures"]) else 1
+    return 0 if audit_succeeded(report) else 1
 
 
 if __name__ == "__main__":
