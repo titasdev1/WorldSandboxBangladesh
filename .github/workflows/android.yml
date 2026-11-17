@@ -48,6 +48,7 @@ on:
       - "tools/production_gate.py"
       - "tests/test_map_pack_build.py"
       - "tests/test_mobile_interaction_flow.py"
+      - "tests/test_login_backdrop.py"
       - "tools/map_pipeline/shariatpur_facade_images.json"
       - "development_state.json"
       - ".github/workflows/android.yml"
@@ -76,6 +77,7 @@ on:
       - "tools/production_gate.py"
       - "tests/test_map_pack_build.py"
       - "tests/test_mobile_interaction_flow.py"
+      - "tests/test_login_backdrop.py"
       - "tools/map_pipeline/shariatpur_facade_images.json"
       - "development_state.json"
 
@@ -134,6 +136,10 @@ jobs:
       - name: Run lobby operator showcase regression tests
         shell: bash
         run: python3 -m unittest discover -s tests -p "test_lobby_operator_showcase.py"
+
+      - name: Run animated login backdrop regression tests
+        shell: bash
+        run: python3 -m unittest discover -s tests -p "test_login_backdrop.py"
 
       - name: Run JibonJatra, Roadline and Pitchbound regression tests
         shell: bash
