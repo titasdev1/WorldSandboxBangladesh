@@ -161,8 +161,23 @@ func _show_guest_login_screen() -> void:
 	login_overlay.modulate.a = 0.0
 	add_child(login_overlay)
 
+	# The first-run login is a live, low-cost 3D scene rather than a static card
+	# over a flat colour. Keep it behind the existing UI and ignore all pointer
+	# input so callsign entry and the guest button retain their normal behavior.
+	var backdrop := SubViewportContainer.new()
+	backdrop.name = "LoginBackdrop"
+	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	backdrop.stretch = true
+	var backdrop_script := load("res://systems/login_backdrop_view.gd") as Script
+	if backdrop_script != null:
+		backdrop.set_script(backdrop_script)
+	login_overlay.add_child(backdrop)
+
 	var background := ColorRect.new()
+	background.name = "LoginBackdropShade"
 	background.color = Color("#06111f")
+	background.color.a = 0.48
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	login_overlay.add_child(background)
