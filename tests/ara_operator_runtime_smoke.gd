@@ -9,6 +9,11 @@ func _initialize() -> void:
 	call_deferred("_run_smoke")
 
 
+class TestWorld extends Node3D:
+	var real_dhaka_loader: Node = null
+	var real_dhaka_loaded := false
+
+
 func _run_smoke() -> void:
 	if not ResourceLoader.exists(ARA_OPERATOR_PATH):
 		push_error("ARA3D_RUNTIME_FAIL: validated high-detail operator GLB is missing.")
@@ -28,10 +33,14 @@ func _run_smoke() -> void:
 	visual.set_script(load(VISUAL_SCRIPT))
 	visual.set("is_player_character", true)
 	actor.add_child(visual)
-	root.add_child(actor)
+	var world := TestWorld.new()
+	world.name = "AraOperatorSmokeWorld"
+	root.add_child(world)
+	world.add_child(actor)
 
 	var ready := false
-	for _frame in range(900):
+	var load_deadline := Time.get_ticks_msec() + 90000
+	while Time.get_ticks_msec() < load_deadline:
 		await process_frame
 		if bool(visual.get("_authored_hero_ready")):
 			ready = true
