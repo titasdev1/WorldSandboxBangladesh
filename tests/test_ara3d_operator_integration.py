@@ -47,8 +47,10 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         self.assertNotIn("actions/workflows/ara-operator-assets.yml/runs", self.android)
         self.assertIn("actions/download-artifact@v4", self.android)
         self.assertIn("A-Square-Ara3D-Operator-Candidates", self.android)
+        self.assertIn('installed = high_dir / "a_square_bangladesh_operator.glb"', self.android)
         self.assertIn("tools/ara3d/asquare_operator.params.json", self.android)
         self.assertIn("ara_operator_runtime_smoke.gd", self.android)
+        self.assertIn("ARA_STATUS=$?", self.android)
 
     def test_runtime_smoke_covers_rig_textures_weapon_and_real_animation(self):
         for marker in ("ARA3D_RUNTIME_PASS", "RightHand", "WeaponR", "textured_surface_count", "LOOP_LINEAR"):
