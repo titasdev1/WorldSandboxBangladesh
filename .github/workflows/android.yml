@@ -585,7 +585,7 @@ jobs:
           }
           destination.mkdir(parents=True, exist_ok=True)
           (destination / "ara_asset_manifest.json").write_text(
-              json.dumps(manifest, indent=2) + "\\n", encoding="utf-8"
+              json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
           )
           shutil.copy2(root / "ASSET-LICENSES.txt", destination / "ASSET-LICENSES.txt")
           print("ARA3D_OPERATOR_INSTALLED:", json.dumps(manifest, sort_keys=True))
