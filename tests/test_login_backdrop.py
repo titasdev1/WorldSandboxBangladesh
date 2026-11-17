@@ -44,7 +44,7 @@ class LoginBackdropTests(unittest.TestCase):
         self.assertIn("Control.MOUSE_FILTER_IGNORE", self.view)
 
     def test_bangladesh_street_set_has_moving_cng_and_swaying_tree_leaves(self):
-        self.assertIn('vehicle.name = "MovingCNGAutoRickshaw"', self.backdrop)
+        self.assertIn('_vehicle_root.name = "MovingCNGAutoRickshaw"', self.backdrop)
         self.assertIn('cng_label.text = "CNG"', self.backdrop)
         process = function_block(self.backdrop, "_process")
         self.assertIn("_vehicle_root.position.x = fposmod", process)
