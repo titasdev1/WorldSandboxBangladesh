@@ -482,13 +482,16 @@ jobs:
           echo "Ara character profile commit: $PROFILE_COMMIT on $BRANCH"
           RUN_ID=""
           for attempt in $(seq 1 100); do
-            RUN_RECORD="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ara-operator-assets.yml/runs" \
-              -f branch="$BRANCH" -F per_page=100 \
-              --jq ".workflow_runs[] | select(.head_sha == \"$PROFILE_COMMIT\") | [.id, .status, (.conclusion // \"\")] | @tsv" \
-              | head -n 1 || true)"
+            # The workflow-specific endpoint can return 404 on some GitHub CLI
+            # token contexts. The repository-wide Actions list is readable with
+            # the existing actions:read permission and is filtered by workflow ID,
+            # exact profile commit and branch to avoid stale candidate artifacts.
+            RUN_RECORD="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?per_page=100" \
+              --jq ".workflow_runs | map(select(.workflow_id == 417330351 and .head_sha == \"$PROFILE_COMMIT\" and .head_branch == \"$BRANCH\")) | sort_by(.created_at) | last // empty | [.id, .status, (.conclusion // \"\")] | @tsv" \
+              || true)"
             if [[ -n "$RUN_RECORD" ]]; then
               read -r CANDIDATE_ID STATUS CONCLUSION <<< "$RUN_RECORD"
-              echo "Ara run $CANDIDATE_ID: status=$STATUS conclusion=$CONCLUSION"
+              echo "Profile-matched Ara run $CANDIDATE_ID: status=$STATUS conclusion=$CONCLUSION"
               if [[ "$STATUS" == "completed" ]]; then
                 if [[ "$CONCLUSION" != "success" ]]; then
                   echo "Ara profile-matched asset build failed: $CONCLUSION" >&2
@@ -498,7 +501,7 @@ jobs:
                 break
               fi
             else
-              echo "No Ara run found yet for $PROFILE_COMMIT."
+              echo "Waiting for Ara workflow 417330351 on profile commit $PROFILE_COMMIT (branch $BRANCH)."
             fi
             sleep 15
           done
