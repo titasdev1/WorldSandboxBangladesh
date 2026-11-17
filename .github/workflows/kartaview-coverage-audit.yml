@@ -48,7 +48,6 @@ jobs:
             --photo-grid 6 \
             --photo-max-queries 30 \
             --photo-radius-m 500 \
-            --allow-partial \
             --out build/kartaview-coverage | tee build-kartaview-summary.json
           python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json
