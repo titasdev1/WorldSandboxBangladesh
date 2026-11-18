@@ -42,6 +42,7 @@ on:
       - "tools/verify_final_distribution.py"
       - "tools/ara3d/**"
       - "tests/mobile_joystick_runtime_smoke.gd"
+      - "tests/npc_simulation_lod_smoke.gd"
       - "tests/test_jibonjatra_pitchbound.py"
       - "tests/pitchbound_runtime_smoke.gd"
       - "tests/player_vehicle_physics_smoke.gd"
@@ -771,6 +772,14 @@ jobs:
           GODOT="$RUNNER_TEMP/godot-validation/Godot_v4.4.1-stable_linux.x86_64"
           test -x "$GODOT"
           "$GODOT" --headless --path . --script res://tests/mobile_joystick_runtime_smoke.gd
+
+      - name: Verify mobile NPC distance-simulation LOD
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot-validation/Godot_v4.4.1-stable_linux.x86_64"
+          test -x "$GODOT"
+          "$GODOT" --headless --path . --script res://tests/npc_simulation_lod_smoke.gd
 
       - name: Exercise player car rigid-body acceleration and braking
         shell: bash

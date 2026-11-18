@@ -7,10 +7,52 @@ var wait_time := 0.0
 var health := 100
 var roam_limit := 75.0
 
+var _simulation_tier := 0
+var _simulation_delta_accumulator := 0.0
+var _distance_hidden := false
+var _collision_shape: CollisionShape3D
+
+const NEAR_SIMULATION_DISTANCE_M := 55.0
+const MID_SIMULATION_DISTANCE_M := 145.0
+const HIDE_DISTANCE_M := 175.0
+const REVEAL_DISTANCE_M := 150.0
+const MID_SIMULATION_INTERVAL_S := 0.12
+
 func _ready():
  # Inner-city residents stay in the core; outer residents can use outer districts.
  roam_limit = 285.0 if max(abs(global_position.x), abs(global_position.z)) > 100.0 else 75.0
+ _collision_shape = get_node_or_null("CollisionShape3D") as CollisionShape3D
  pick_target()
+ var player_node := world.get("player") as Node3D if is_instance_valid(world) else null
+ if is_instance_valid(player_node):
+  set_distance_lod(global_position.distance_to(player_node.global_position))
+
+
+# Nearby civilians retain full behavior. Mid-distance civilians use reduced-rate
+# physics, and far civilians stop simulation/collision until the player returns.
+func set_distance_lod(distance_m: float) -> void:
+ var next_tier := 0
+ if distance_m > MID_SIMULATION_DISTANCE_M:
+  next_tier = 2
+ elif distance_m > NEAR_SIMULATION_DISTANCE_M:
+  next_tier = 1
+
+ if not _distance_hidden and distance_m >= HIDE_DISTANCE_M:
+  _distance_hidden = true
+ elif _distance_hidden and distance_m <= REVEAL_DISTANCE_M:
+  _distance_hidden = false
+
+ if next_tier != _simulation_tier:
+  _simulation_tier = next_tier
+  _simulation_delta_accumulator = 0.0
+  set_physics_process(_simulation_tier < 2)
+  var visual := get_node_or_null("HumanoidVisual")
+  if is_instance_valid(visual):
+   visual.set_process(_simulation_tier < 2)
+
+ visible = not _distance_hidden
+ if is_instance_valid(_collision_shape):
+  _collision_shape.disabled = _distance_hidden or _simulation_tier == 2
 
 func pick_target():
  target = global_position + Vector3(randf_range(-14, 14), 0, randf_range(-14, 14))
@@ -19,10 +61,18 @@ func pick_target():
  wait_time = randf_range(1.0, 4.0)
 
 func _physics_process(delta):
+ var simulation_delta := delta
+ if _simulation_tier == 1:
+  _simulation_delta_accumulator += delta
+  if _simulation_delta_accumulator < MID_SIMULATION_INTERVAL_S:
+   return
+  simulation_delta = _simulation_delta_accumulator
+  _simulation_delta_accumulator = 0.0
+
  if wait_time > 0:
-  wait_time -= delta
-  velocity.x = move_toward(velocity.x, 0, 4 * delta)
-  velocity.z = move_toward(velocity.z, 0, 4 * delta)
+  wait_time -= simulation_delta
+  velocity.x = move_toward(velocity.x, 0, 4 * simulation_delta)
+  velocity.z = move_toward(velocity.z, 0, 4 * simulation_delta)
  else:
   var dir = global_position.direction_to(target)
   dir.y = 0
@@ -31,7 +81,7 @@ func _physics_process(delta):
   if global_position.distance_to(target) < 1.5:
    pick_target()
  if not is_on_floor():
-  velocity.y -= 18.0 * delta
+  velocity.y -= 18.0 * simulation_delta
  else:
   velocity.y = -0.5
  move_and_slide()

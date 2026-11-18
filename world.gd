@@ -32,6 +32,7 @@ var last_combat_result := ""
 var interior_factory
 var real_dhaka_loader
 var real_dhaka_loaded := false
+var npc_simulation_lod_manager: Node
 var save_location_status := ""
 var inventory_system: Node
 var shop_system: Node
@@ -82,6 +83,10 @@ func _ready():
  spawn_player()
  spawn_traffic()
  spawn_npcs()
+ npc_simulation_lod_manager = load("res://systems/npc_simulation_lod_manager.gd").new()
+ npc_simulation_lod_manager.name = "NpcSimulationLODManager"
+ add_child(npc_simulation_lod_manager)
+ npc_simulation_lod_manager.call("configure", self)
  _configure_real_missions()
  spawn_police()
  create_mission_marker()
@@ -502,6 +507,7 @@ func spawn_npcs():
   npc.name = "NPC_%02d" % i
   npc.set_script(load("res://npc.gd"))
   npc.world = self
+  npc.add_to_group("world_npc")
   if not mapped_routes.is_empty():
    var route: Array = mapped_routes[rng.randi_range(0, mapped_routes.size() - 1)]
    var route_index: int = rng.randi_range(0, route.size() - 1)
