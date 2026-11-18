@@ -183,6 +183,9 @@ func _run_smoke() -> void:
 		quit(1)
 		return
 
+	# Inject a conflicting one-shot action to prove the authoritative BR
+	# deployment phase cannot be masked by the stale skydiving action.
+	player.set_meta("character_action_state", "idle_look")
 	visual.call("_update_authored_animation", player, 0.0)
 
 	var animation_player := visual.get("_authored_animation_player") as AnimationPlayer
