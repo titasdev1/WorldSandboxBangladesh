@@ -1713,7 +1713,7 @@ func _update_br_deployment_ui() -> void:
   return
 
  var phase := str(deployment.call("get_phase"))
- var in_drop_sequence := phase in ["flight", "freefall", "gliding", "landing"]
+ var in_drop_sequence := phase in ["flight", "freefall", "deploying", "gliding", "landing"]
  var action_label := str(deployment.call("get_action_label"))
  if is_instance_valid(br_deployment_button):
   br_deployment_button.visible = not action_label.is_empty()
