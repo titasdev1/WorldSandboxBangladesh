@@ -125,10 +125,10 @@ func _update_camera():
  camera.look_at(target, Vector3.UP)
 
 func _physics_process(delta):
-	var br_state := str(get_meta("br_deployment_state", ""))
-	if br_state == "freefall" or br_state == "gliding":
-		_process_br_descent(delta, br_state)
-		return
+ var br_state := str(get_meta("br_deployment_state", ""))
+ if br_state == "freefall" or br_state == "gliding":
+  _process_br_descent(delta, br_state)
+  return
  if reload_time > 0.0:
   reload_time -= delta
   if reload_time <= 0.0:
@@ -231,32 +231,32 @@ func _physics_process(delta):
   interact()
 
 func _process_br_descent(delta: float, state: String) -> void:
-	# BR flight uses a dedicated fall/glide envelope. The normal walk/jump
-	# controller resumes automatically as soon as the landing controller clears
-	# the BR state metadata.
-	var input_vec := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	var yaw := deg_to_rad(camera_yaw)
-	var forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
-	var right := Vector3(cos(yaw), 0.0, -sin(yaw))
-	var direction := (right * input_vec.x + forward * -input_vec.y).normalized()
-	var horizontal_speed := 21.0 if state == "freefall" else 9.5
-	var horizontal_acceleration := 12.0 if state == "freefall" else 7.0
-	velocity.x = move_toward(velocity.x, direction.x * horizontal_speed, horizontal_acceleration * delta)
-	velocity.z = move_toward(velocity.z, direction.z * horizontal_speed, horizontal_acceleration * delta)
-	if state == "freefall":
-		velocity.y = maxf(velocity.y - 26.0 * delta, -48.0)
-	else:
-		velocity.y = move_toward(velocity.y, -7.6, 10.0 * delta)
-	if direction.length_squared() > 0.001:
-		rotation.y = lerp_angle(rotation.y, atan2(-direction.x, -direction.z), minf(1.0, delta * 4.5))
-	move_and_slide()
-	set_meta("just_landed", false)
-	_update_camera()
-	if is_on_floor() or global_position.y <= 1.1:
-		if is_instance_valid(world):
-			var deployment: Node = world.get("battle_royale_controller") as Node
-			if is_instance_valid(deployment) and deployment.has_method("notify_player_landed"):
-				deployment.call("notify_player_landed")
+ # BR flight uses a dedicated fall/glide envelope. The normal walk/jump
+ # controller resumes automatically as soon as the landing controller clears
+ # the BR state metadata.
+ var input_vec := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+ var yaw := deg_to_rad(camera_yaw)
+ var forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
+ var right := Vector3(cos(yaw), 0.0, -sin(yaw))
+ var direction := (right * input_vec.x + forward * -input_vec.y).normalized()
+ var horizontal_speed := 21.0 if state == "freefall" else 9.5
+ var horizontal_acceleration := 12.0 if state == "freefall" else 7.0
+ velocity.x = move_toward(velocity.x, direction.x * horizontal_speed, horizontal_acceleration * delta)
+ velocity.z = move_toward(velocity.z, direction.z * horizontal_speed, horizontal_acceleration * delta)
+ if state == "freefall":
+  velocity.y = maxf(velocity.y - 26.0 * delta, -48.0)
+ else:
+  velocity.y = move_toward(velocity.y, -7.6, 10.0 * delta)
+ if direction.length_squared() > 0.001:
+  rotation.y = lerp_angle(rotation.y, atan2(-direction.x, -direction.z), minf(1.0, delta * 4.5))
+ move_and_slide()
+ set_meta("just_landed", false)
+ _update_camera()
+ if is_on_floor() or global_position.y <= 1.1:
+  if is_instance_valid(world):
+   var deployment: Node = world.get("battle_royale_controller") as Node
+   if is_instance_valid(deployment) and deployment.has_method("notify_player_landed"):
+    deployment.call("notify_player_landed")
 
 
 func _apply_weapon_recoil() -> void:
