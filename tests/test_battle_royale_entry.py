@@ -47,6 +47,34 @@ class BattleRoyaleEntryTests(unittest.TestCase):
         for marker in ("BR_DEPLOYMENT_RUNTIME_PASS", "aircraft=true", "overview_camera=true", "freefall=true", "canopy_inflation=true", "canopy_glide=true", "landing=true"):
             self.assertIn(marker, self.runtime_smoke)
 
+    def test_first_person_body_and_rifle_rig_are_checked_before_drop(self):
+        for marker in (
+            "FIRST_PERSON_BODY_RUNTIME_PASS",
+            'skeleton.find_bone("LeftHand")',
+            'skeleton.find_bone("RightHand")',
+            'skeleton.find_bone("WeaponR")',
+            'player.call("set_camera_view_mode", "first_person")',
+            'weapon_attachment.bone_name != "WeaponR"',
+        ):
+            self.assertIn(marker, self.runtime_smoke)
+        self.assertIn("func _apply_first_person_pose", read("character_visual.gd"))
+        self.assertIn('skeleton.find_bone("WeaponR")', read("character_visual.gd"))
+
+    def test_br_freefall_uses_elevated_district_camera_and_canopy_glide_widens_view(self):
+        self.assertIn("func _update_br_aerial_camera", self.player)
+        self.assertIn('br_state in ["freefall", "deploying", "gliding"]', self.player)
+        for marker in ("BR_AERIAL_CAMERA_RUNTIME_PASS", "freefall_camera_distance < 15.0", "camera_height = 8.0", "trailing_distance = 25.0"):
+            self.assertIn(marker, self.runtime_smoke + self.player)
+
+    def test_landed_br_starts_twelve_ai_operators_and_shrinking_safe_zone(self):
+        self.assertIn("BR_GROUND_MATCH_RUNTIME_PASS", self.runtime_smoke)
+        self.assertIn('combat.call("start_mode", "battle_royale_solo")', self.runtime_smoke)
+        self.assertIn('combat.call("update", 0.016)', self.runtime_smoke)
+        self.assertIn('int(combat.get("alive_enemies")) != 12', self.runtime_smoke)
+        self.assertIn('world.get_node_or_null("BR_SafeZone_Ring")', self.runtime_smoke)
+        self.assertIn('zone_radius >= 260.0 or zone_radius <= 48.0', self.runtime_smoke)
+        self.assertIn("tests/br_smoke_combat_controller.gd", read("tests/battle_royale_deployment_runtime_smoke.gd"))
+
 
 if __name__ == "__main__":
     unittest.main()
