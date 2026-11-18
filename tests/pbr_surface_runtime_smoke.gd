@@ -32,7 +32,7 @@ func _initialize() -> void:
         var entry: Dictionary = surfaces[surface_id]
         var maps: Dictionary = entry.get("maps", {})
         var fallback := StandardMaterial3D.new()
-        fallback.albedo_color = Color("0.76,0.76,0.76")
+        fallback.albedo_color = Color(0.76, 0.76, 0.76)
         fallback.roughness = 0.82
         fallback.metallic = 0.0
 
