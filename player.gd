@@ -85,11 +85,17 @@ func _unhandled_input(event):
  # dragging FIRE/AIM/RELOAD must not accidentally move the view.
  if event is InputEventScreenDrag:
   if event.position.x > get_viewport().get_visible_rect().size.x * 0.42:
-   camera_yaw -= event.relative.x * camera_sensitivity
+   if camera_view_mode == "first_person" and bool(get_meta("vehicle_cockpit_active", false)):
+    set_meta("vehicle_cockpit_yaw_offset", float(get_meta("vehicle_cockpit_yaw_offset", 0.0)) - event.relative.x * camera_sensitivity)
+   else:
+    camera_yaw -= event.relative.x * camera_sensitivity
    camera_pitch = clamp(camera_pitch - event.relative.y * camera_sensitivity, -55.0, 15.0)
    first_person_pitch = clampf(first_person_pitch - event.relative.y * camera_sensitivity, -65.0, 65.0)
  elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
-  camera_yaw -= event.relative.x * camera_sensitivity
+  if camera_view_mode == "first_person" and bool(get_meta("vehicle_cockpit_active", false)):
+   set_meta("vehicle_cockpit_yaw_offset", float(get_meta("vehicle_cockpit_yaw_offset", 0.0)) - event.relative.x * camera_sensitivity)
+  else:
+   camera_yaw -= event.relative.x * camera_sensitivity
   camera_pitch = clamp(camera_pitch - event.relative.y * camera_sensitivity, -55.0, 15.0)
   first_person_pitch = clampf(first_person_pitch - event.relative.y * camera_sensitivity, -65.0, 65.0)
 
@@ -107,10 +113,12 @@ func _update_camera():
   var look_forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
   if bool(get_meta("vehicle_cockpit_active", false)):
    var cockpit_eye_height := clampf(float(get_meta("vehicle_cockpit_eye_height", 1.0)), 0.72, 1.55)
-   camera.global_position = global_position + Vector3(0.0, cockpit_eye_height, 0.0) + look_forward * 0.12
+   var cockpit_yaw := global_rotation.y + deg_to_rad(float(get_meta("vehicle_cockpit_yaw_offset", 0.0)))
+   var cockpit_forward := Vector3(-sin(cockpit_yaw), 0.0, -cos(cockpit_yaw))
+   camera.global_position = global_position + Vector3(0.0, cockpit_eye_height, 0.0) + cockpit_forward * 0.12
    camera.fov = 78.0
    camera.near = 0.035
-   camera.global_rotation = Vector3(deg_to_rad(first_person_pitch + camera_recoil_pitch), yaw, 0.0)
+   camera.global_rotation = Vector3(deg_to_rad(first_person_pitch + camera_recoil_pitch), cockpit_yaw, 0.0)
    return
   # Place the camera just in front of the face, along its current look direction.
   # This keeps the head/helmet behind the near clip plane but leaves the actual
