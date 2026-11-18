@@ -186,3 +186,23 @@ This file is a quality-control ledger, not a claim that listed features are comp
 
 ### H.2 Packaging requirement clarification (2026-11-19)
 The present workflow's final upload path is modular: the compact APK excludes district-map data and the selected Shariatpur map is downloaded separately on first launch. The earlier temporary full-map APK passes a content check but is not the final canonical artifact. Treat “one installable APK + separately downloadable map pack” and “one APK with map already embedded” as different deliverables. Do not claim the latter until the uploaded APK itself passes an embedded-map content check.
+
+
+### H.3 Android candidate #1102 — terminal CI and artifact evidence (2026-11-19)
+
+**Workflow result: SUCCESS** — run 44354975442, head 149e6b8314325f3e036787f58eaad4945ea83d82. All 77 main workflow steps completed; no failed step was reported. The BR aircraft/freefall/parachute/landing runtime smoke passed. Godot Android export, full-map content inspection, map-pack validation, modular-core export, APK integrity/signature verification, distribution reconciliation, asset-size report, canonical APK assembly, artifact upload, direct Shariatpur release publication and verification-report upload all succeeded.
+
+**Exact released candidate:**
+- Direct APK: https://github.com/titasdev1/WorldSandboxBangladesh/releases/download/shariatpur-review-candidate/world_sandbox_bangladesh.apk
+- APK size: 321,119,583 bytes.
+- APK SHA-256: 4e8907179a2856da7febb3b3b21cc0fef029b7e978d3acfa471d79b5378c4030.
+- APK ZIP structure: PASS; APK Signature Scheme v2 and v3: PASS.
+- Signing identity: CN=World Sandbox Development, O=World Sandbox, C=BD; this matches the workflow's generated debug-fallback signer, not a stable production keystore. Upgrade-install compatibility with an older APK signed by another key is not established.
+- Actions artifact Project-A-Square-Shariatpur-APK, ID 14457820794, is a ZIP container of 316,210,871 bytes containing the APK. The direct release asset above avoids that ZIP wrapper.
+- Verification-report artifact ID 14457481076 contains the APK checksum, signature report, full-map and modular-core content reports, asset report, and map manifest.
+
+**Map delivery:** the temporary full-map APK was 1,816,125,286 bytes and passed the full-map content gate: 60/60 source GeoJSON road files, 60/60 tile records/imported GLB scenes, 584 named places, 248 named roads, 25 buildings with source floor counts, 0 independently verified floor counts, 3 licensed facade panels and 1 linked interior reference photo. It was not retained as the final canonical APK. The final 321 MB core APK intentionally contains zero district-map scenes. The Shariatpur map pack is a separately downloaded 2,451,147,626-byte PCK, split into 10 assets on the Shariatpur review release; each part's byte count and SHA-256 passed, and parts sum to the manifest total. The game downloads the parts, verifies/reassembles the PCK and mounts it on the next launch. This is one installable game APK plus a separate first-run map download—not a single offline-ready embedded-map APK.
+
+**Included art/content evidence:** the final modular APK contains 964 asset files with 7 Poly Haven PBR surfaces / 35 PBR maps, the Ara operator, CharacterCreator modular layers, CC0 Quaternius hero, 50 Kenney car-kit models, 41 commercial city-kit models, 37 industrial models, 40 suburban models, aircraft and ram-air parachute. Structural import/asset checks passed; CODM/eFootball visual quality, full animation deformation and phone performance are not thereby proven.
+
+**Unverified:** no physical Android install/launch, touch, gameplay, frame-time/FPS, RAM, thermal or end-to-end first-run map-download QA was performed by CI. The map remains REVIEW_REQUIRED. Do not call this the final dream game or a production-signed release.
