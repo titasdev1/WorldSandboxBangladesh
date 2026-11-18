@@ -78,7 +78,7 @@ class BattleRoyaleParachuteArtifactTests(unittest.TestCase):
             root = Path(temp)
             glb, licence = root / "canopy.glb", root / "LICENSE.txt"
             glb.write_bytes(b"not a glb" * 500)
-            licence.write_text("CC0")
+            licence.write_text("A-Square Ram-Air Canopy and Harness\\nCC0 1.0 Universal", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "invalid GLB"):
                 verify_asset(glb, licence)
             glb.write_bytes(make_glb())
