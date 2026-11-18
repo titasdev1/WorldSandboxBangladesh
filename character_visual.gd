@@ -49,6 +49,7 @@ var _authored_animation_player: AnimationPlayer
 var _authored_current_animation := ""
 var _authored_animation_lookup: Dictionary = {}
 var _authored_weapon_attachment: BoneAttachment3D
+var _vehicle_weapon_previous_visibility := true
 var _ara_base_surface_materials: Array[Dictionary] = []
 var _first_person_requested := false
 var _first_person_head_pose_backup: Dictionary = {}
@@ -967,6 +968,46 @@ func play_action(action_name: String) -> bool:
     if is_instance_valid(body):
         body.set_meta("character_action_state", action_name)
     _play_authored_animation(action_name)
+    return true
+
+
+func set_vehicle_driver_pose(enabled: bool, kind: String = "Car") -> bool:
+    if not is_instance_valid(_authored_animation_player) or not _authored_hero_ready:
+        return false
+    var body := get_parent()
+    if not is_instance_valid(body):
+        return false
+
+    if enabled:
+        var action_name := "drive_car"
+        var normalized_kind := kind.to_lower()
+        if normalized_kind.contains("sports"):
+            action_name = "drive_sports_car"
+        elif normalized_kind.contains("suv"):
+            action_name = "drive_suv"
+        var animation_name := String(_authored_animation_lookup.get(action_name, ""))
+        if animation_name.is_empty():
+            action_name = "drive_car"
+            animation_name = String(_authored_animation_lookup.get(action_name, ""))
+        if animation_name.is_empty():
+            return false
+        var clip := _authored_animation_player.get_animation(animation_name)
+        if clip == null:
+            return false
+        clip.loop_mode = Animation.LOOP_LINEAR
+        if is_instance_valid(_weapon_root):
+            _vehicle_weapon_previous_visibility = _weapon_root.visible
+            _weapon_root.visible = false
+        body.set_meta("character_action_state", action_name)
+        _play_authored_animation(action_name)
+        return true
+
+    var active_action := str(body.get_meta("character_action_state", ""))
+    if active_action in ["drive_car", "drive_sports_car", "drive_suv", "pilot_jet"]:
+        body.remove_meta("character_action_state")
+    if is_instance_valid(_weapon_root):
+        _weapon_root.visible = _vehicle_weapon_previous_visibility
+    _play_authored_animation("idle")
     return true
 
 
