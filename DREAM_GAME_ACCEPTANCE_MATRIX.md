@@ -95,7 +95,7 @@ This file is a quality-control ledger, not a claim that listed features are comp
 | Materials | PBR maps imported correctly, no pink/black/missing textures, memory budget respected | Resolution-budget test exists; actual device appearance/performance pending |
 | Streaming | Nearby tiles load first; no major hitches; old tiles unload without deleting needed assets | Two-tile-per-stream-tick logic carried forward; profiling pending |
 | Asset manifest | APK report lists exact included map tile count, GLB bytes, textures, models, audio and unused payload | Reporting step exists; inspect report from exact candidate before comparing size |
-| Single combined APK | One APK includes the canonical game and selected Shariatpur map package, with manifest and checksum | Latest run produced an artifact ZIP; it did not publish a direct APK because release steps were skipped |
+| Single combined APK | One downloadable APK contains the canonical game and selected Shariatpur map, verified by embedded-map manifest/hash and usable offline after install | Current workflow validates a temporary full-map export, then discards it and produces a compact core APK that intentionally excludes the map; Shariatpur is delivered as a separate first-run PCK download. User's single embedded-map APK target is NOT met |
 | Correct map provenance | APK identifies the exact map artifact/run/manifest hash used | Must verify and record for next candidate |
 | Signing | Stable signing identity for upgrade installs; debug fallback clearly labelled | Latest PR build uses debug fallback when release secrets are absent; do not call it production-signed |
 | Install/update | Installs on target Redmi device, launches, updates safely, saves remain valid | Not yet physically verified |
@@ -182,3 +182,7 @@ This file is a quality-control ledger, not a claim that listed features are comp
 - Separate PBR run 44354592447 passed on the same commit. It is not an Android APK pass.
 - PR #78 and PR #77 remain open draft PRs. Neither is merged. Do not substitute an older APK for this head.
 - Do not ask the user to test this candidate before export/content/signature/artifact gates pass and the agreed medium-stage threshold is met.
+
+
+### H.2 Packaging requirement clarification (2026-11-19)
+The present workflow's final upload path is modular: the compact APK excludes district-map data and the selected Shariatpur map is downloaded separately on first launch. The earlier temporary full-map APK passes a content check but is not the final canonical artifact. Treat “one installable APK + separately downloadable map pack” and “one APK with map already embedded” as different deliverables. Do not claim the latter until the uploaded APK itself passes an embedded-map content check.
