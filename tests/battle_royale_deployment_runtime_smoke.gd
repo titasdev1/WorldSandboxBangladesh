@@ -96,12 +96,25 @@ func _run_smoke() -> void:
 	var head_scale := skeleton.get_bone_pose_scale(head_index)
 	var weapon := visual.get("_weapon_root") as Node3D
 	var weapon_attachment := visual.get("_authored_weapon_attachment") as BoneAttachment3D
-	var body_meshes := hero.find_children("*", "MeshInstance3D", true, false)
+	var body_mesh_count := 0
+	var body_surface_count := 0
+	for body_node in hero.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := body_node as MeshInstance3D
+		if mesh_instance == null or mesh_instance.mesh == null:
+			continue
+		body_mesh_count += 1
+		body_surface_count += mesh_instance.mesh.get_surface_count()
+	var right_hand_scale := skeleton.get_bone_pose_scale(right_hand_index)
+	var left_hand_scale := skeleton.get_bone_pose_scale(left_hand_index)
 	if not visual.visible or head_scale.x > 0.01 or head_scale.y > 0.01 or head_scale.z > 0.01:
 		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: first-person view did not hide the head while retaining the authored body.")
 		quit(1)
 		return
-	if weapon == null or weapon_attachment == null or weapon_attachment.bone_name != "WeaponR" or weapon.get_parent() != weapon_attachment or body_meshes.size() < 15:
+	if right_hand_scale.length() < 1.0 or left_hand_scale.length() < 1.0:
+		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: one or both hand joints are collapsed in first-person view.")
+		quit(1)
+		return
+	if weapon == null or weapon_attachment == null or weapon_attachment.bone_name != "WeaponR" or weapon.get_parent() != weapon_attachment or body_mesh_count < 1 or body_surface_count < 15:
 		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: first-person hands/body/weapon are not attached to the live operator rig.")
 		quit(1)
 		return
@@ -110,7 +123,7 @@ func _run_smoke() -> void:
 		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: first-person eye camera is not in the expected operator position.")
 		quit(1)
 		return
-	print("FIRST_PERSON_BODY_RUNTIME_PASS • head_hidden=true • left_hand=true • right_hand=true • weapon_socket=true • visible_meshes=%d" % body_meshes.size())
+	print("FIRST_PERSON_BODY_RUNTIME_PASS • head_hidden=true • left_hand=true • right_hand=true • weapon_socket=true • visible_meshes=%d • surfaces=%d" % [body_mesh_count, body_surface_count])
 	player.call("set_camera_view_mode", "third_person")
 
 	var deployment := Node.new()
