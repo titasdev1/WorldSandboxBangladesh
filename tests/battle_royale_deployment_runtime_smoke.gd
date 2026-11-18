@@ -145,6 +145,16 @@ func _run_smoke() -> void:
 		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: player follow camera was not restored after jumping.")
 		quit(1)
 		return
+	for _camera_frame in range(12):
+		player.call("_update_camera")
+	var freefall_camera_distance := player.camera.global_position.distance_to(player.global_position)
+	if freefall_camera_distance < 15.0 or player.camera.global_position.y < player.global_position.y + 5.0 or player.camera.fov < 74.0:
+		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: freefall camera did not transition to the elevated district overview.")
+		quit(1)
+		return
+	print("BR_AERIAL_CAMERA_RUNTIME_PASS • distance=%.1fm • vertical_clearance=%.1fm • fov=%.1f" % [
+		freefall_camera_distance, player.camera.global_position.y - player.global_position.y, player.camera.fov
+	])
 
 	if not bool(deployment.call("deploy_parachute")):
 		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: parachute could not be deployed.")
