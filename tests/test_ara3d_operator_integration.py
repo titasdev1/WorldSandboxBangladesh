@@ -38,10 +38,24 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         self.assertIn('"aim_walk"', self.visual)
         self.assertIn('"sprint"', self.visual)
 
-    def test_weapon_uses_authored_right_hand_socket_when_ara_is_active(self):
-        self.assertIn('find_child("WeaponR", true, false)', self.visual)
-        self.assertIn('authored_socket.add_child(_weapon_root)', self.visual)
+    def test_weapon_uses_the_authored_weaponr_skeleton_bone(self):
+        self.assertIn('skeleton.find_bone("WeaponR")', self.visual)
+        self.assertIn('_authored_weapon_attachment.bone_name = "WeaponR"', self.visual)
+        self.assertIn('_authored_weapon_attachment.add_child(_weapon_root)', self.visual)
         self.assertIn("weapon_socket_attached", self.visual)
+
+    def test_first_person_hides_only_head_and_restores_it_for_third_person(self):
+        self.assertIn('func set_first_person_view(enabled: bool)', self.visual)
+        self.assertIn('find_bone("Head")', self.visual)
+        self.assertIn('set_bone_pose_scale(head_index, Vector3(0.001, 0.001, 0.001))', self.visual)
+        self.assertIn('visual.call("set_first_person_view", camera_view_mode == "first_person")', read("player.gd"))
+        self.assertIn("first_person_body=true", self.smoke)
+
+    def test_battle_royale_parachute_animation_states_are_bound_and_smoked(self):
+        for clip in ("Skydive (free fall)", "Activate parachute (deploy)", "Use parachute (glide)", "Land parachute"):
+            self.assertIn(clip, self.visual)
+        for phase in ("freefall", "deploying", "gliding", "landing"):
+            self.assertIn(f'"{phase}"', self.smoke)
 
     def test_android_pipeline_fetches_the_validated_artifact_for_current_parameter_revision(self):
         self.assertIn("workflow_id == 417330351", self.android)
@@ -66,7 +80,7 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         self.assertIn("assets/external_content/ara3d_operator/ara_asset_manifest.json", self.core_verifier)
 
     def test_runtime_smoke_covers_rig_textures_weapon_and_real_animation(self):
-        for marker in ("ARA3D_RUNTIME_PASS", "RightHand", "WeaponR", "textured_surface_count", "LOOP_LINEAR"):
+        for marker in ("ARA3D_RUNTIME_PASS", "RightHand", "WeaponR", "textured_surface_count", "LOOP_LINEAR", "first_person_body=true", "BR_parachute_states=true"):
             self.assertIn(marker, self.smoke)
         self.assertTrue(self.profile["animations"])
         self.assertEqual(self.profile["detail"], "high")
