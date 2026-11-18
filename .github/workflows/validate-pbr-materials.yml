@@ -1,0 +1,111 @@
+name: Validate Godot PBR materials
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/lobby-operator-showcase
+    paths:
+      - "pbr_surface_factory.gd"
+      - "tools/fetch_polyhaven_pbr.py"
+      - "tests/test_pbr_resolution_budget.py"
+      - "tests/pbr_surface_runtime_smoke.gd"
+      - ".github/workflows/validate-pbr-materials.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "pbr_surface_factory.gd"
+      - "tools/fetch_polyhaven_pbr.py"
+      - "tests/test_pbr_resolution_budget.py"
+      - "tests/pbr_surface_runtime_smoke.gd"
+      - ".github/workflows/validate-pbr-materials.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pbr-material-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-pbr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v5
+
+      - name: Validate PBR map channel detection and mobile resolution budgets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/fetch_polyhaven_pbr.py
+          python3 -m unittest discover -s tests -p "test_pbr_resolution_budget.py" -v
+
+      - name: Fetch original CC0 Poly Haven PBR surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_polyhaven_pbr.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("external_content/polyhaven_pbr/asset_manifest.json")
+          manifest = json.loads(path.read_text(encoding="utf-8"))
+          surfaces = manifest.get("surfaces", {})
+          if not manifest.get("available") or not surfaces:
+              raise SystemExit("No usable Poly Haven CC0 PBR surfaces were downloaded")
+          if manifest.get("license") != "CC0-1.0":
+              raise SystemExit("PBR surface manifest has unexpected licensing")
+          if any("albedo" not in entry.get("maps", {}) for entry in surfaces.values()):
+              raise SystemExit("A PBR material entry is missing its required albedo map")
+          print("PBR_MANIFEST_PASS:", json.dumps({
+              "surface_count": len(surfaces),
+              "channels": sorted({channel for entry in surfaces.values() for channel in entry.get("maps", {})}),
+              "surfaces": sorted(surfaces),
+              "license": manifest["license"],
+          }, sort_keys=True))
+          PY
+
+      - name: Install pinned Godot 4.4.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT_DIR="$RUNNER_TEMP/godot-pbr"
+          mkdir -p "$GODOT_DIR"
+          curl -L --fail --silent --show-error \
+            "https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip" \
+            -o "$GODOT_DIR/godot.zip"
+          unzip -q "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
+          chmod +x "$GODOT_DIR/Godot_v4.4.1-stable_linux.x86_64"
+          "$GODOT_DIR/Godot_v4.4.1-stable_linux.x86_64" --headless --version
+
+      - name: Import PBR textures into Godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot-pbr/Godot_v4.4.1-stable_linux.x86_64"
+          LOG="$RUNNER_TEMP/godot-pbr/import.log"
+          set +e
+          timeout 600s "$GODOT" --headless --editor --path . --import --quit > "$LOG" 2>&1
+          STATUS=$?
+          set -e
+          cat "$LOG"
+          if [ "$STATUS" -ne 0 ] \
+            || grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|Failed loading resource" "$LOG" \
+            || (grep -E "ERROR:" "$LOG" | grep -vF 'ERROR: Parameter "t" is null.'); then
+            echo "Godot PBR texture import failed."
+            exit 1
+          fi
+
+      - name: Exercise PBR material texture binding and mobile parallax policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot-pbr/Godot_v4.4.1-stable_linux.x86_64"
+          LOG="$RUNNER_TEMP/godot-pbr/pbr-runtime.log"
+          timeout 90s "$GODOT" --headless --path . --script res://tests/pbr_surface_runtime_smoke.gd > "$LOG" 2>&1
+          cat "$LOG"
+          grep -Fq "PBR_SURFACE_RUNTIME_PASS:" "$LOG"
