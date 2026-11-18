@@ -37,6 +37,9 @@ class BattleRoyaleParachuteAssetTests(unittest.TestCase):
         self.assertIn('"model_count": 1', self.source)
         self.assertIn('"license": "CC0-1.0"', self.source)
         self.assertIn('"asset_manifest.json"', self.source)
+        self.assertIn('"model_count": 1', self.source)
+        self.assertIn('"license": "CC0-1.0"', self.source)
+        self.assertIn('"asset_manifest.json"', self.source)
 
 
 if __name__ == "__main__":
