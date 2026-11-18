@@ -106,6 +106,31 @@ func _run_smoke() -> void:
 		push_error("ARA3D_RUNTIME_FAIL: first-person mode did not collapse the Head bone.")
 		quit(1)
 		return
+
+	# A hidden head alone is not proof of a usable first-person body. Verify
+	# that the actual Ara skeleton keeps the torso, shoulders, forearms, hands,
+	# hips and legs at their authored scale, and that the rigged rifle remains
+	# attached and visible in the camera's first-person view.
+	var first_person_required_bones := [
+		"Spine2", "LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand",
+		"RightShoulder", "RightArm", "RightForeArm", "RightHand",
+		"Hips", "LeftUpLeg", "LeftLeg", "RightUpLeg", "RightLeg"
+	]
+	for bone_name in first_person_required_bones:
+		var bone_index := skeleton.find_bone(bone_name)
+		if bone_index < 0:
+			push_error("ARA3D_RUNTIME_FAIL: first-person body bone is missing: " + bone_name)
+			quit(1)
+			return
+		if skeleton.get_bone_pose_scale(bone_index).length() < 0.9:
+			push_error("ARA3D_RUNTIME_FAIL: first-person body bone was hidden or collapsed: " + bone_name)
+			quit(1)
+			return
+	if not visual.visible or not hero.visible or not is_instance_valid(weapon) or not weapon.visible:
+		push_error("ARA3D_RUNTIME_FAIL: first-person operator body or WeaponR rifle is not visible.")
+		quit(1)
+		return
+
 	visual.call("set_first_person_view", false)
 	await process_frame
 	if skeleton.get_bone_pose_scale(head_index).length() < 0.9:
