@@ -62,11 +62,13 @@ func pick_target():
 
 func _physics_process(delta):
  var simulation_delta := delta
+ var movement_scale := 1.0
  if _simulation_tier == 1:
   _simulation_delta_accumulator += delta
   if _simulation_delta_accumulator < MID_SIMULATION_INTERVAL_S:
    return
   simulation_delta = _simulation_delta_accumulator
+  movement_scale = simulation_delta / maxf(delta, 0.001)
   _simulation_delta_accumulator = 0.0
 
  if wait_time > 0:
@@ -84,7 +86,11 @@ func _physics_process(delta):
   velocity.y -= 18.0 * simulation_delta
  else:
   velocity.y = -0.5
+ if movement_scale > 1.0:
+  velocity *= movement_scale
  move_and_slide()
+ if movement_scale > 1.0:
+  velocity /= movement_scale
 
 func on_hit():
  health -= 50
