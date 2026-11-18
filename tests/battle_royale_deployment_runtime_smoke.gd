@@ -6,6 +6,7 @@ class SmokeWorld extends Node3D:
 	var combat_controller: Node
 	var career_profile: Node
 	var cash := 850
+	var wanted := 0
 	var last_combat_result := ""
 	var real_dhaka_loaded := false
 	var real_dhaka_loader: Node
