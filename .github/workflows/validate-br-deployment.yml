@@ -1,0 +1,239 @@
+name: Validate A-Square Battle Royale deployment
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/lobby-operator-showcase
+    paths:
+      - "character_visual.gd"
+      - "player.gd"
+      - "systems/battle_royale_deployment.gd"
+      - "tests/battle_royale_deployment_runtime_smoke.gd"
+      - "tools/fetch_battle_royale_aircraft.py"
+      - "tools/build_battle_royale_parachute.py"
+      - "tools/verify_battle_royale_parachute.py"
+      - ".github/workflows/validate-br-deployment.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "character_visual.gd"
+      - "player.gd"
+      - "systems/battle_royale_deployment.gd"
+      - "tests/battle_royale_deployment_runtime_smoke.gd"
+      - "tools/fetch_battle_royale_aircraft.py"
+      - "tools/build_battle_royale_parachute.py"
+      - "tools/verify_battle_royale_parachute.py"
+      - ".github/workflows/validate-br-deployment.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: br-deployment-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-br-deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v5
+
+      - name: Resolve exact-profile Ara 3D operator artifact
+        id: ara-operator
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          PROFILE_COMMIT="$(gh api "repos/${GITHUB_REPOSITORY}/commits?path=tools/ara3d/asquare_operator.params.json&sha=${BRANCH}&per_page=1" --jq '.[0].sha // empty')"
+          if [[ -z "${PROFILE_COMMIT}" ]]; then
+            echo "Could not resolve the latest Ara character profile commit from GitHub history." >&2
+            exit 1
+          fi
+          RUN_RECORD="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${PROFILE_COMMIT}&per_page=100" \
+            --jq ".workflow_runs | map(select(.workflow_id == 417330351 and .head_sha == \"${PROFILE_COMMIT}\" and .head_branch == \"${BRANCH}\")) | sort_by(.created_at) | last // empty | [.id, .status, (.conclusion // \"\")] | @tsv")"
+          if [[ -z "${RUN_RECORD}" ]]; then
+            echo "No Ara operator build exists for profile ${PROFILE_COMMIT} on ${BRANCH}." >&2
+            exit 1
+          fi
+          read -r RUN_ID STATUS CONCLUSION <<< "${RUN_RECORD}"
+          if [[ "${STATUS}" != "completed" || "${CONCLUSION}" != "success" ]]; then
+            echo "Profile-matched Ara build is not successful: run=${RUN_ID} status=${STATUS} conclusion=${CONCLUSION}." >&2
+            exit 1
+          fi
+          ARTIFACT_DIGEST="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}/artifacts" \
+            --jq '.artifacts[] | select(.name == "A-Square-Ara3D-Operator-Candidates" and .expired == false) | .digest' | head -n 1)"
+          if [[ -z "${ARTIFACT_DIGEST}" ]]; then
+            echo "Ara build did not publish validated LOD candidates." >&2
+            exit 1
+          fi
+          {
+            echo "run_id=${RUN_ID}"
+            echo "profile_commit=${PROFILE_COMMIT}"
+            echo "artifact_digest=${ARTIFACT_DIGEST}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Matched exact Ara profile ${PROFILE_COMMIT} to successful run ${RUN_ID}."
+
+      - name: Download Ara operator LOD candidates
+        uses: actions/download-artifact@v4
+        with:
+          name: A-Square-Ara3D-Operator-Candidates
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.ara-operator.outputs.run_id }}
+          path: build/ara3d-operator-candidates
+
+      - name: Verify and install high-detail Ara operator for BR runtime
+        shell: bash
+        env:
+          ARA_PROFILE_COMMIT: ${{ steps.ara-operator.outputs.profile_commit }}
+          ARA_WORKFLOW_RUN_ID: ${{ steps.ara-operator.outputs.run_id }}
+          ARA_ARTIFACT_DIGEST: ${{ steps.ara-operator.outputs.artifact_digest }}
+        run: |
+          set -euo pipefail
+          ROOT="build/ara3d-operator-candidates"
+          HIGH="$(find "$ROOT/high" -maxdepth 1 -type f -name '*.glb' -print -quit)"
+          MEDIUM="$(find "$ROOT/medium" -maxdepth 1 -type f -name '*.glb' -print -quit)"
+          LOW="$(find "$ROOT/low" -maxdepth 1 -type f -name '*.glb' -print -quit)"
+          test -n "$HIGH" && test -s "$HIGH" && test -n "$MEDIUM" && test -s "$MEDIUM" && test -n "$LOW" && test -s "$LOW"
+          python3 tools/ara3d/verify_ara_glb.py --high "$HIGH" --medium "$MEDIUM" --low "$LOW" --out "$ROOT/verification.json"
+          ARA_HIGH_GLB="$HIGH" python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import shutil
+          from pathlib import Path
+
+          root = Path("build/ara3d-operator-candidates")
+          high = Path(os.environ["ARA_HIGH_GLB"])
+          report = json.loads((root / "verification.json").read_text(encoding="utf-8"))
+          if report.get("validation") != "PASS" or report.get("errors"):
+              raise SystemExit("ARA3D_ASSET_GATE: structural verification did not pass.")
+          data = report["variants"]["high"]
+          destination = Path("external_content/ara3d_operator")
+          high_dir = destination / "high"
+          high_dir.mkdir(parents=True, exist_ok=True)
+          installed = high_dir / "a_square_bangladesh_operator.glb"
+          shutil.copy2(high, installed)
+          manifest = {
+              "available": True,
+              "source": "Ara 3D Gen",
+              "source_repository": "https://github.com/olatunde85/3d-gen",
+              "source_commit": report["generator_commit"],
+              "profile_commit": os.environ["ARA_PROFILE_COMMIT"],
+              "workflow_run_id": int(os.environ["ARA_WORKFLOW_RUN_ID"]),
+              "artifact_digest": os.environ["ARA_ARTIFACT_DIGEST"],
+              "file": installed.as_posix(),
+              "sha256": hashlib.sha256(installed.read_bytes()).hexdigest(),
+              "bytes": installed.stat().st_size,
+              "triangles": data["triangles"],
+              "materials": data["materials"],
+              "textures": data["textures"],
+              "joint_count": data["max_joint_count"],
+              "weapon_socket": data["weapon_socket"],
+              "facial_morph_targets": data["facial_morph_targets"],
+              "animation_count": data["animation_count"],
+              "required_animation_groups": data["required_animation_groups"],
+              "license": report["license"],
+          }
+          (destination / "ara_asset_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+          shutil.copy2(root / "ASSET-LICENSES.txt", destination / "ASSET-LICENSES.txt")
+          print("ARA3D_OPERATOR_INSTALLED:", json.dumps(manifest, sort_keys=True))
+          PY
+
+      - name: Fetch and validate CC0 cargo aircraft
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/fetch_battle_royale_aircraft.py
+          python3 tools/fetch_battle_royale_aircraft.py
+          python3 -m unittest discover -s tests -p "test_battle_royale_aircraft_pipeline.py" -v
+
+      - name: Install Blender for authored ram-air parachute
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y blender python3-numpy
+          blender --version
+
+      - name: Build and structurally verify CC0 ram-air parachute
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/battle-royale
+          OUT="external_content/battle_royale_parachute/a_square_ram_air_canopy.glb"
+          python3 -m py_compile tools/build_battle_royale_parachute.py tools/smoke_battle_royale_parachute_blender_api.py
+          blender --background --factory-startup --python tools/smoke_battle_royale_parachute_blender_api.py
+          blender --background --factory-startup --python tools/build_battle_royale_parachute.py -- --out "$OUT" > build/battle-royale/parachute-authoring.log 2>&1
+          cat build/battle-royale/parachute-authoring.log
+          grep -Fq "A2_PARACHUTE_ASSET_READY:" build/battle-royale/parachute-authoring.log
+          python3 tools/verify_battle_royale_parachute.py --glb "$OUT" --license external_content/battle_royale_parachute/LICENSE.txt --out build/battle-royale/parachute-verification.json
+          test -s external_content/battle_royale_parachute/asset_manifest.json
+          python3 -m unittest discover -s tests -p "test_battle_royale_parachute_artifact.py" -v
+
+      - name: Install pinned Godot 4.4.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT_DIR="$RUNNER_TEMP/godot-br"
+          mkdir -p "$GODOT_DIR"
+          curl -L --fail --silent --show-error \
+            "https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip" \
+            -o "$GODOT_DIR/godot.zip"
+          unzip -q "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
+          chmod +x "$GODOT_DIR/Godot_v4.4.1-stable_linux.x86_64"
+          "$GODOT_DIR/Godot_v4.4.1-stable_linux.x86_64" --headless --version
+
+      - name: Import project scripts and BR GLBs
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot-br/Godot_v4.4.1-stable_linux.x86_64"
+          LOG="$RUNNER_TEMP/godot-br/import.log"
+          set +e
+          timeout 600s "$GODOT" --headless --editor --path . --import --quit > "$LOG" 2>&1
+          STATUS=$?
+          set -e
+          cat "$LOG"
+          if [ "$STATUS" -ne 0 ] \
+            || grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|Failed loading resource" "$LOG" \
+            || (grep -E "ERROR:" "$LOG" | grep -vF 'ERROR: Parameter "t" is null.'); then
+            echo "Godot import failed before BR runtime smoke."
+            exit 1
+          fi
+
+      - name: Exercise cargo flight, freefall, canopy inflation, glide and landing
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot-br/Godot_v4.4.1-stable_linux.x86_64"
+          LOG="$RUNNER_TEMP/godot-br/br-runtime.log"
+          set +e
+          timeout 240s "$GODOT" --headless --path . --script res://tests/battle_royale_deployment_runtime_smoke.gd > "$LOG" 2>&1
+          STATUS=$?
+          set -e
+          cat "$LOG"
+          if [ "$STATUS" -ne 0 ] || ! grep -Fq "BR_DEPLOYMENT_RUNTIME_PASS" "$LOG" \
+            || grep -E "SCRIPT ERROR:|Parse Error|Invalid call|Invalid get index|ERROR:" "$LOG"; then
+            echo "BR deployment runtime smoke failed."
+            exit 1
+          fi
+
+      - name: Upload BR runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: A-Square-BR-Deployment-Validation-Logs
+          path: |
+            ${{ runner.temp }}/godot-br/*.log
+            build/battle-royale/*.log
+            build/battle-royale/*verification.json
+          if-no-files-found: ignore
+          retention-days: 14
