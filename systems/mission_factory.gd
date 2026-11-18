@@ -55,6 +55,10 @@ var cooldown := 0.0
 var missions: Array[Dictionary] = []
 var target_positions: Array[Vector3] = []
 var target_step := 0
+var completed_mission_count := 0
+var completed_mission_ids: Array[int] = []
+var hub_created := false
+var hub_retry_clock := 0.0
 
 func _ready() -> void:
     call_deferred("_bootstrap")
@@ -68,10 +72,15 @@ func _bootstrap() -> void:
     rng.seed = 918273
     _generate_catalogue()
     _create_hub()
-    set_meta("mission_factory_status", "live")
+    set_meta("mission_factory_status", "live" if hub_created else "waiting_for_mapped_road_for_job_board")
     set_meta("mission_count", missions.size())
     set_meta("mission_catalogue_kind", "procedural_deshi_side_jobs")
     set_meta("mission_catalogue_combinations", "10 clients × 10 job types × 10 place archetypes × 4 story beats")
+    if has_meta("pending_mission_restore"):
+        var pending_state: Variant = get_meta("pending_mission_restore")
+        remove_meta("pending_mission_restore")
+        if pending_state is Dictionary:
+            restore_persistence_state(pending_state)
 
 func _generate_catalogue() -> void:
     missions.clear()
@@ -121,6 +130,41 @@ func _generate_catalogue() -> void:
         ])
 
 func _create_hub() -> void:
+    if hub_created or not is_instance_valid(world):
+        return
+    var hub_position := Vector3(6, 0.2, -12)
+    if bool(world.get("real_dhaka_loaded")):
+        # A real Shariatpur build has no fictional-city coordinate origin for
+        # a job board. Place this gameplay kiosk beside an actual mapped road.
+        var loader: Node = world.get("real_dhaka_loader") as Node
+        if not is_instance_valid(loader) or not loader.has_method("get_road_routes") or not is_instance_valid(player):
+            set_meta("mission_board_status", "waiting_for_mapped_road")
+            return
+        var best_point := Vector3.ZERO
+        var best_distance := INF
+        var best_direction := Vector3.ZERO
+        for route in loader.call("get_road_routes"):
+            if not (route is Array) or route.size() < 2:
+                continue
+            for point_index in range(route.size()):
+                var road_point: Vector3 = route[point_index]
+                var distance := Vector2(road_point.x - player.global_position.x, road_point.z - player.global_position.z).length()
+                if distance >= best_distance:
+                    continue
+                var before: Vector3 = route[maxi(0, point_index - 1)]
+                var after: Vector3 = route[mini(route.size() - 1, point_index + 1)]
+                var direction := Vector3(after.x - before.x, 0.0, after.z - before.z).normalized()
+                if direction.length_squared() < 0.001:
+                    continue
+                best_distance = distance
+                best_point = road_point
+                best_direction = direction
+        if best_distance > 60.0 or best_direction.length_squared() < 0.001:
+            set_meta("mission_board_status", "waiting_for_mapped_road")
+            return
+        var sidewalk_side := Vector3(-best_direction.z, 0.0, best_direction.x)
+        hub_position = best_point + sidewalk_side * 8.0 + Vector3(0.0, 0.2, 0.0)
+
     var hub := Area3D.new()
     hub.name = "MissionBoard"
     var shape := CollisionShape3D.new()
@@ -128,12 +172,12 @@ func _create_hub() -> void:
     sphere.radius = 4.0
     shape.shape = sphere
     hub.add_child(shape)
-    hub.position = Vector3(6, 0.2, -12)
+    hub.position = hub_position
     hub.body_entered.connect(_on_hub_entered)
     add_child(hub)
 
-    # A visible, original job-board kiosk makes the mission system discoverable
-    # instead of relying on an invisible trigger or debug-only interaction.
+    # This small gameplay kiosk is deliberately beside the road; it is not
+    # represented as a surveyed real-world building or facade replacement.
     var board := MeshInstance3D.new()
     board.name = "DeshiJobBoardVisual"
     var board_mesh := BoxMesh.new()
@@ -165,6 +209,8 @@ func _create_hub() -> void:
     add_child(subtitle)
 
     marker_node = _marker(hub.position, Color("#ffd34e"), Vector3(1.8, 1.0, 1.8))
+    hub_created = true
+    set_meta("mission_board_status", "mapped_roadside_kiosk" if bool(world.get("real_dhaka_loaded")) else "starter_city_kiosk")
 
 func _on_hub_entered(body: Node3D) -> void:
     if body != player or cooldown > 0.0 or active_index >= 0:
@@ -180,6 +226,17 @@ func _start_mission() -> void:
     if is_instance_valid(active_target):
         active_target.queue_free()
     target_positions = _make_target_positions(m)
+    var required_stops := 3 if String(m.get("kind", "")) in ["rescue", "escort"] else 2
+    if target_positions.size() < required_stops:
+        active_index = -1
+        active_target = null
+        target_positions.clear()
+        _clear_mission_navigation()
+        if world.has_method("refresh_active_world_navigation"):
+            world.refresh_active_world_navigation()
+        world.set("event_text", "JOB BOARD: Not enough mapped road nodes are loaded nearby yet. Move into a mapped area and try again.")
+        world.set("event_time_left", 7.0)
+        return
     target_step = 0
     active_target = _create_target_area()
     active_target.position = target_positions[0]
@@ -190,6 +247,31 @@ func _start_mission() -> void:
         m.title, _objective_for_step(m, target_step), m.brief
     ])
     world.set("event_time_left", 10.0)
+    _update_mission_navigation()
+
+
+func _update_mission_navigation() -> void:
+    if not is_instance_valid(world):
+        return
+    var loader: Node = world.get("real_dhaka_loader") as Node
+    if not bool(world.get("real_dhaka_loaded")) or not is_instance_valid(loader):
+        _clear_mission_navigation()
+        return
+    if not is_instance_valid(player) or not is_instance_valid(active_target) or not loader.has_method("navigate_to_world_position"):
+        _clear_mission_navigation()
+        return
+    var result: Dictionary = await loader.call("navigate_to_world_position", active_target.global_position, player)
+    if not bool(result.get("ok", false)):
+        _clear_mission_navigation()
+
+
+func _clear_mission_navigation() -> void:
+    if not is_instance_valid(world):
+        return
+    var loader: Node = world.get("real_dhaka_loader") as Node
+    if is_instance_valid(loader) and loader.has_method("clear_navigation_route"):
+        loader.call("clear_navigation_route")
+
 
 func _create_target_area() -> Area3D:
     var target := Area3D.new()
@@ -257,6 +339,28 @@ func _make_target_positions(mission: Dictionary) -> Array[Vector3]:
                 if positions.size() >= count:
                     break
 
+    if bool(world.get("real_dhaka_loaded")) and positions.size() < count:
+        var graph_loader: Node = world.get("real_dhaka_loader") as Node
+        if is_instance_valid(graph_loader) and graph_loader.has_method("get_nearby_road_points"):
+            var graph_points: Array = graph_loader.call("get_nearby_road_points", player_position, TARGET_RADIUS_MIN, 900.0)
+            graph_points.shuffle()
+            for point in graph_points:
+                if not (point is Vector3):
+                    continue
+                var separated := true
+                for existing in positions:
+                    if Vector2(existing.x - point.x, existing.z - point.z).length() < 35.0:
+                        separated = false
+                        break
+                if separated:
+                    positions.append(point)
+                if positions.size() >= count:
+                    break
+    # A real map mission must remain grounded in the mapped road graph. Never
+    # invent free-floating target coordinates if mapped coverage is insufficient.
+    if bool(world.get("real_dhaka_loaded")) and positions.size() < count:
+        return positions
+
     while positions.size() < count:
         var angle := rng.randf_range(0.0, TAU)
         var radius := rng.randf_range(TARGET_RADIUS_MIN, TARGET_RADIUS_MAX)
@@ -303,7 +407,13 @@ func _on_target_entered(body: Node3D) -> void:
             _objective_for_step(m, target_step)
         ])
         world.set("event_time_left", 6.0)
+        _update_mission_navigation()
         return
+    completed_mission_count += 1
+    var completed_id := int(m.id)
+    if not completed_mission_ids.has(completed_id):
+        completed_mission_ids.append(completed_id)
+        completed_mission_ids.sort()
     var cash := int(world.get("cash"))
     world.set("cash", cash + int(m.reward))
     world.set("event_text", "%s COMPLETE • +৳%d • JOB %04d/4000" % [
@@ -320,6 +430,110 @@ func _on_target_entered(body: Node3D) -> void:
         active_target.queue_free()
         active_target = null
     _set_marker(Vector3(0, 0.2, -12), Color("#ffd34e"))
+    _clear_mission_navigation()
+    if world.has_method("refresh_active_world_navigation"):
+        world.refresh_active_world_navigation()
+
+func get_persistence_state() -> Dictionary:
+    var saved_positions: Array[Dictionary] = []
+    var loader: Node = null
+    if is_instance_valid(world):
+        loader = world.get("real_dhaka_loader") as Node
+    var geo_mode := is_instance_valid(world) and bool(world.get("real_dhaka_loaded")) and is_instance_valid(loader) and loader.has_method("world_to_lat_lon")
+    for point in target_positions:
+        if geo_mode:
+            var ll: Variant = loader.call("world_to_lat_lon", point)
+            if ll is Vector2:
+                saved_positions.append({"coordinates": "wgs84", "latitude": ll.x, "longitude": ll.y, "height": point.y})
+        else:
+            saved_positions.append({"coordinates": "world", "position": [point.x, point.y, point.z]})
+    return {
+        "schema_version": 1, "active_index": active_index,
+        "next_mission_index": next_mission_index, "target_step": target_step,
+        "target_positions": saved_positions,
+        "completed_mission_count": completed_mission_count,
+        "completed_mission_ids": completed_mission_ids.duplicate()
+    }
+
+
+func restore_persistence_state(state: Dictionary) -> void:
+    if missions.is_empty():
+        set_meta("pending_mission_restore", state.duplicate(true))
+        return
+    if is_instance_valid(active_target):
+        active_target.queue_free()
+    active_target = null
+    target_positions.clear()
+    active_index = -1
+    target_step = 0
+    completed_mission_count = clampi(int(state.get("completed_mission_count", 0)), 0, 1000000)
+    completed_mission_ids.clear()
+    var saved_ids: Variant = state.get("completed_mission_ids", [])
+    if saved_ids is Array:
+        for raw_id in saved_ids:
+            if typeof(raw_id) not in [TYPE_INT, TYPE_FLOAT]:
+                continue
+            var mission_id := int(raw_id)
+            if mission_id >= 0 and mission_id < MISSIONS_PER_CATALOGUE and not completed_mission_ids.has(mission_id):
+                completed_mission_ids.append(mission_id)
+                if completed_mission_ids.size() >= MISSIONS_PER_CATALOGUE:
+                    break
+    completed_mission_ids.sort()
+    next_mission_index = posmod(int(state.get("next_mission_index", 0)), missions.size())
+    var requested_active := int(state.get("active_index", -1))
+    if requested_active < 0 or requested_active >= missions.size():
+        _set_marker(Vector3(0, 0.2, -12), Color("#ffd34e"))
+        return
+
+    active_index = requested_active
+    var saved_positions: Variant = state.get("target_positions", [])
+    var restored_positions: Array[Vector3] = []
+    var loader: Node = null
+    if is_instance_valid(world):
+        loader = world.get("real_dhaka_loader") as Node
+    var real_map := is_instance_valid(world) and bool(world.get("real_dhaka_loaded")) and is_instance_valid(loader)
+    var bounds: Variant = loader.get("_region_bounds_lat_lon") if real_map else []
+    if saved_positions is Array:
+        for item in saved_positions:
+            if not (item is Dictionary):
+                continue
+            if str(item.get("coordinates", "")) == "wgs84" and real_map and loader.has_method("lat_lon_to_world"):
+                var lat := float(item.get("latitude", 1000.0))
+                var lon := float(item.get("longitude", 1000.0))
+                if lat < -90.0 or lat > 90.0 or lon < -180.0 or lon > 180.0:
+                    continue
+                if not (bounds is Array and bounds.size() == 4 and lat >= float(bounds[0]) and lat <= float(bounds[2]) and lon >= float(bounds[1]) and lon <= float(bounds[3])):
+                    continue
+                var point: Vector3 = loader.call("lat_lon_to_world", lat, lon)
+                point.y = float(item.get("height", 0.0))
+                restored_positions.append(point)
+            elif str(item.get("coordinates", "")) == "world" and not real_map:
+                var raw_position: Variant = item.get("position", [])
+                if raw_position is Array and raw_position.size() == 3:
+                    restored_positions.append(Vector3(float(raw_position[0]), float(raw_position[1]), float(raw_position[2])))
+    var expected_count := 3 if String(missions[active_index].get("kind", "")) in ["rescue", "escort"] else 2
+    if restored_positions.size() == expected_count:
+        target_positions = restored_positions
+    else:
+        target_positions = _make_target_positions(missions[active_index])
+    if target_positions.is_empty():
+        active_index = -1
+        return
+    target_step = clampi(int(state.get("target_step", 0)), 0, target_positions.size() - 1)
+    active_target = _create_target_area()
+    active_target.position = target_positions[target_step]
+    active_target.body_entered.connect(_on_target_entered)
+    add_child(active_target)
+    _set_marker(active_target.position, Color("#4de3ff"))
+    _update_mission_navigation()
+    if is_instance_valid(world):
+        var active_mission: Dictionary = missions[active_index]
+        world.set("event_text", "%s RESUMED • STOP %d/%d: %s" % [
+            active_mission.title, target_step + 1, target_positions.size(),
+            _objective_for_step(active_mission, target_step)
+        ])
+        world.set("event_time_left", 7.0)
+
 
 func get_active_mission() -> Dictionary:
     if active_index < 0 or active_index >= missions.size():
@@ -330,6 +544,11 @@ func _process(delta: float) -> void:
     cooldown = max(0.0, cooldown - delta)
     if not is_instance_valid(player) and is_instance_valid(world):
         player = world.get("player")
+    if not hub_created and is_instance_valid(world) and bool(world.get("real_dhaka_loaded")):
+        hub_retry_clock += delta
+        if hub_retry_clock >= 2.0:
+            hub_retry_clock = 0.0
+            _create_hub()
 
 func _marker(pos: Vector3, color: Color, scale: Vector3) -> MeshInstance3D:
     var mesh := MeshInstance3D.new()

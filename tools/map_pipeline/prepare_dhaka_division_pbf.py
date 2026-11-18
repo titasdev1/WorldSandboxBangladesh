@@ -26,7 +26,7 @@ from tools.map_pipeline.build_dhaka_division import PBF_URL, download, load_dhak
 # preserve tagged nodes/ways/relations; osmium tags-filter also retains nodes
 # referenced by selected ways unless the -R option is explicitly supplied.
 FEATURE_KEYS = (
-    "building", "highway", "shop", "amenity", "tourism", "historic",
+    "building", "building:part", "entrance", "door", "highway", "shop", "amenity", "tourism", "historic",
     "leisure", "office", "healthcare", "public_transport", "landuse",
     "natural", "waterway", "railway", "man_made", "power",
 )

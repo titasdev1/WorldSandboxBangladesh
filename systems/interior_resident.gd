@@ -16,7 +16,7 @@ func configure(target_world: Node, root: Node3D, local_points: Array[Vector3]) -
     room_root = root
     roam_points.clear()
     for point in local_points:
-        roam_points.append(root.global_position + point)
+        roam_points.append(root.to_global(point))
     target_index = 0
     wait_time = 1.0
 
