@@ -20,7 +20,7 @@ func configure(_world: Node) -> void:
     set_meta("pbr_surface_count", surfaces.size())
 
 
-func material_for(surface_id: String, fallback: StandardMaterial3D, enable_parallax := false) -> StandardMaterial3D:
+func material_for(surface_id: String, fallback: StandardMaterial3D, enable_parallax := false, use_triplanar := false) -> StandardMaterial3D:
     if not surfaces.has(surface_id):
         return fallback
     var cache_key := "%s:%s:rough=%.4f:metal=%.4f:pom=%s" % [
@@ -28,7 +28,8 @@ func material_for(surface_id: String, fallback: StandardMaterial3D, enable_paral
         fallback.albedo_color.to_html(true),
         fallback.roughness,
         fallback.metallic,
-        str(enable_parallax)
+        str(enable_parallax),
+        str(use_triplanar)
     ]
     if material_cache.has(cache_key):
         return material_cache[cache_key]
@@ -79,7 +80,16 @@ func material_for(surface_id: String, fallback: StandardMaterial3D, enable_paral
         material.heightmap_scale = 1.5
         material.heightmap_deep_parallax = false
 
-    material.uv1_scale = Vector3(2.0, 2.0, 2.0)
+    material.uv1_scale = Vector3(0.55, 0.55, 0.55) if use_triplanar else Vector3(2.0, 2.0, 2.0)
+    if use_triplanar:
+        # OSM tile meshes are batched with vertex-colour material groups and do
+        # not carry authored UVs. Triplanar projection makes the real-world PBR
+        # textures visible without inventing UVs; vertex colour keeps mapped
+        # facade/roof colour cues from the source data.
+        material.uv1_triplanar = true
+        material.vertex_color_use_as_albedo = true
+        material.heightmap_enabled = false
+        material.heightmap_deep_parallax = false
     material.set_meta("asset_source", String(entry.get("source_url", "Poly Haven CC0")))
     material.set_meta("pbr_maps", maps.keys())
     material_cache[cache_key] = material
@@ -87,4 +97,12 @@ func material_for(surface_id: String, fallback: StandardMaterial3D, enable_paral
 
 
 func material_for_closeup(surface_id: String, fallback: StandardMaterial3D) -> StandardMaterial3D:
-    return material_for(surface_id, fallback, true)
+    return material_for(surface_id, fallback, true, false)
+
+
+func material_for_tile(surface_id: String, fallback: StandardMaterial3D) -> StandardMaterial3D:
+    # World-coordinate projection works on the streamed OSM/Overture meshes,
+    # which are generated without UVs. POM is deliberately disabled for these
+    # repeated mobile surfaces; only close-up, explicitly requested materials
+    # may use shallow height mapping.
+    return material_for(surface_id, fallback, false, true)
