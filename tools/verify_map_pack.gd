@@ -37,7 +37,7 @@ func _initialize() -> void:
 		return
 	if build_stage == "shariatpur_review":
 		var district_count := int(manifest.get("tile_count_intersecting_boundary", tiles.size()))
-		if tiles.size() != 60 or district_count != tiles.size() or not bool(manifest.get("complete_district_map", false)):
+		if tiles.size() != 60 or district_count != tiles.size() or not (manifest.get("complete_district_map", false) == true):
 			_fail("MAP PACK GATE FAILED: Shariatpur package is incomplete (records=%d, boundary_tiles=%d, complete=%s)." % [tiles.size(), district_count, str(manifest.get("complete_district_map", false))])
 			return
 	var checked_geojson := 0

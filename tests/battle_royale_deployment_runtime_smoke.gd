@@ -61,7 +61,7 @@ func _run_smoke() -> void:
 	var deadline := Time.get_ticks_msec() + 90000
 	while Time.get_ticks_msec() < deadline:
 		await process_frame
-		if bool(visual.get("_authored_hero_ready")):
+		if (visual.get("_authored_hero_ready") == true):
 			rig_ready = true
 			break
 	if not rig_ready:
@@ -133,11 +133,11 @@ func _run_smoke() -> void:
 	world.battle_royale_controller = deployment
 	deployment.call("configure", world)
 
-	if not bool(deployment.call("can_start_solo_deployment")):
+	if not (deployment.call("can_start_solo_deployment") == true):
 		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: asset gate rejected the installed aircraft/canopy.")
 		quit(1)
 		return
-	if not bool(deployment.call("start_solo_deployment")):
+	if not (deployment.call("start_solo_deployment") == true):
 		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: cargo plane insertion did not start.")
 		quit(1)
 		return
@@ -149,7 +149,7 @@ func _run_smoke() -> void:
 		quit(1)
 		return
 
-	if not bool(deployment.call("jump_from_plane")):
+	if not (deployment.call("jump_from_plane") == true):
 		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: plane jump action was rejected.")
 		quit(1)
 		return
@@ -173,7 +173,7 @@ func _run_smoke() -> void:
 		freefall_camera_distance, player.camera.global_position.y - player.global_position.y, player.camera.fov
 	])
 
-	if not bool(deployment.call("deploy_parachute")):
+	if not (deployment.call("deploy_parachute") == true):
 		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: parachute could not be deployed.")
 		quit(1)
 		return
@@ -242,7 +242,7 @@ func _run_smoke() -> void:
 	world.combat_controller = combat
 	combat.call("configure", world)
 	combat.call("start_mode", "battle_royale_solo")
-	if not bool(combat.get("active")) or int(combat.get("target_goal")) != 12:
+	if not (combat.get("active") == true) or int(combat.get("target_goal")) != 12:
 		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: solo BR did not initialise a 12-operator match.")
 		quit(1)
 		return
@@ -250,7 +250,7 @@ func _run_smoke() -> void:
 	await process_frame
 	var live_bots := get_nodes_in_group("combat_enemy")
 	var safe_zone := world.get_node_or_null("BR_SafeZone_Ring") as MeshInstance3D
-	if not bool(combat.get("br_bots_spawned")) or int(combat.get("alive_enemies")) != 12 or live_bots.size() != 12 or safe_zone == null:
+	if not (combat.get("br_bots_spawned") == true) or int(combat.get("alive_enemies")) != 12 or live_bots.size() != 12 or safe_zone == null:
 		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: landing did not spawn 12 AI operators and the safe-zone ring.")
 		quit(1)
 		return

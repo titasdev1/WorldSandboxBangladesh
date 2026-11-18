@@ -46,11 +46,11 @@ func _run() -> void:
 	await process_frame
 	await physics_frame
 
-	if not bool(vehicle.call("enter_player", player)):
+	if not (vehicle.call("enter_player", player) == true):
 		push_error("VEHICLE_ACTION_RUNTIME_FAIL: enter_player rejected a nearby player.")
 		quit(1)
 		return
-	if not bool(vehicle.get("_vehicle_transitioning")) or bool(player.is_physics_processing()):
+	if not (vehicle.get("_vehicle_transitioning") == true) or (player.is_physics_processing() == true):
 		push_error("VEHICLE_ACTION_RUNTIME_FAIL: board animation phase did not begin or player input was not locked.")
 		quit(1)
 		return
@@ -62,18 +62,18 @@ func _run() -> void:
 		return
 
 	# Repeated interaction during the board transition must not create a second body.
-	if bool(vehicle.call("enter_player", player)):
+	if (vehicle.call("enter_player", player) == true):
 		push_error("VEHICLE_ACTION_RUNTIME_FAIL: duplicate board input was accepted during transition.")
 		quit(1)
 		return
 
 	await create_timer(0.68).timeout
 	var driving_body := vehicle.get("_driving_body") as RigidBody3D
-	if not bool(vehicle.get("occupied")) or not bool(player.visible) or not is_instance_valid(test_world.occupied_vehicle):
+	if not (vehicle.get("occupied") == true) or not (player.visible == true) or not is_instance_valid(test_world.occupied_vehicle):
 		push_error("VEHICLE_ACTION_RUNTIME_FAIL: board transition did not keep the seated operator inside the rigid-body vehicle.")
 		quit(1)
 		return
-	if driving_body == null or player.get_parent() != driving_body or not bool(player.get_meta("vehicle_cockpit_active", false)):
+	if driving_body == null or player.get_parent() != driving_body or not (player.get_meta("vehicle_cockpit_active", false) == true):
 		push_error("VEHICLE_ACTION_RUNTIME_FAIL: player rig was not parented to the cockpit body.")
 		quit(1)
 		return
@@ -91,7 +91,7 @@ func _run() -> void:
 		return
 
 	vehicle.call("exit_player")
-	if not bool(vehicle.get("_vehicle_transitioning")) or not bool(player.visible):
+	if not (vehicle.get("_vehicle_transitioning") == true) or not (player.visible == true):
 		push_error("VEHICLE_ACTION_RUNTIME_FAIL: alight animation phase did not show the player.")
 		quit(1)
 		return
@@ -101,7 +101,7 @@ func _run() -> void:
 		quit(1)
 		return
 	await create_timer(0.72).timeout
-	if bool(vehicle.get("occupied")) or bool(vehicle.get("_vehicle_transitioning")) or not bool(player.is_physics_processing()):
+	if (vehicle.get("occupied") == true) or (vehicle.get("_vehicle_transitioning") == true) or not (player.is_physics_processing() == true):
 		push_error("VEHICLE_ACTION_RUNTIME_FAIL: alight transition did not restore player control.")
 		quit(1)
 		return

@@ -283,7 +283,7 @@ func _draw() -> void:
         var team_color := Color("#ce4b42") if int(actor["team"])==0 else Color("#4c86d2")
         draw_circle(position_value,14.0,Color("#061018"))
         draw_circle(position_value,11.0,team_color)
-        if bool(actor["human"]):
+        if (actor["human"] == true):
             draw_arc(position_value,19.0,0.0,TAU,32,Color("#f3d37a"),3.0,true)
         draw_string(ThemeDB.fallback_font,position_value+Vector2(-4,4),str(actor["number"]),HORIZONTAL_ALIGNMENT_LEFT,18,11,Color("#ffffff"))
     draw_circle(ball_position,9.0,Color("#f5f3e8"))

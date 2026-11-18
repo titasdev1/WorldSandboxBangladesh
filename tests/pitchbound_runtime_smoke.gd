@@ -18,7 +18,7 @@ func _run() -> void:
         return
     var human_count := 0
     for actor in actors:
-        if bool(actor.get("controlled_by_user")):
+        if (actor.get("controlled_by_user") == true):
             human_count += 1
     if human_count!=1:
         push_error("PITCHBOUND_RUNTIME_FAIL: expected one controlled player, got %d." % human_count)

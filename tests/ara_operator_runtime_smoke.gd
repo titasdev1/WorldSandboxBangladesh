@@ -42,7 +42,7 @@ func _run_smoke() -> void:
 	var load_deadline := Time.get_ticks_msec() + 90000
 	while Time.get_ticks_msec() < load_deadline:
 		await process_frame
-		if bool(visual.get("_authored_hero_ready")):
+		if (visual.get("_authored_hero_ready") == true):
 			ready = true
 			break
 
@@ -154,7 +154,7 @@ func _run_smoke() -> void:
 		quit(1)
 		return
 
-	if not bool(visual.call("apply_operator_preset", "urban_patrol")):
+	if not (visual.call("apply_operator_preset", "urban_patrol") == true):
 		push_error("ARA3D_RUNTIME_FAIL: urban patrol material preset could not be applied.")
 		quit(1)
 	visual.call("apply_operator_preset", "field_tactical")

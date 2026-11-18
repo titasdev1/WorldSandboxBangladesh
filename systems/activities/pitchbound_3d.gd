@@ -391,7 +391,7 @@ func try_kick(candidate: Node3D) -> void:
     var target_z := GOAL_Z-2.0 if team==0 else -GOAL_Z+2.0
     var target := Vector3(clampf(-candidate.global_position.x*0.12,-12.0,12.0),0.0,target_z)
     var direction := (target-ball.global_position).normalized()
-    var shot_power := 10.5 if bool(candidate.get("controlled_by_user")) else 8.2
+    var shot_power := 10.5 if (candidate.get("controlled_by_user") == true) else 8.2
     ball.apply_central_impulse(direction*shot_power+Vector3.UP*1.45)
     status_label.text = "SHOT" if absf(direction.z)>0.75 else "PASS"
 

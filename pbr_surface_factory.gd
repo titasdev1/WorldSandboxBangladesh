@@ -10,7 +10,7 @@ func configure(_world: Node) -> void:
     if not FileAccess.file_exists(MANIFEST_PATH):
         return
     var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(MANIFEST_PATH))
-    if not parsed is Dictionary or not bool(parsed.get("available", false)):
+    if not parsed is Dictionary or not (parsed.get("available", false) == true):
         return
     var entries = parsed.get("surfaces", {})
     if not entries is Dictionary:

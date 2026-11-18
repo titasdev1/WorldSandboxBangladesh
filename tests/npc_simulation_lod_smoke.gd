@@ -73,7 +73,7 @@ func _run_smoke() -> void:
 
  npc.global_position = Vector3(190.0, 0.0, 0.0)
  manager.call("refresh_now")
- if not _expect(not npc.visible and bool(npc.get("_distance_hidden")), "very distant civilians must be culled from rendering."):
+ if not _expect(not npc.visible and (npc.get("_distance_hidden") == true), "very distant civilians must be culled from rendering."):
   return
 
  npc.global_position = Vector3(160.0, 0.0, 0.0)

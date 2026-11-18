@@ -6,6 +6,9 @@ on:
     branches:
       - main
     paths:
+      - "**.gd"
+      - "tools/check_gdscript_bool_casts.py"
+      - "tests/test_gdscript_bool_cast_checker.py"
       - "world.gd"
       - "character_visual.gd"
       - "npc.gd"
@@ -46,6 +49,9 @@ on:
     branches:
       - main
     paths:
+      - "**.gd"
+      - "tools/check_gdscript_bool_casts.py"
+      - "tests/test_gdscript_bool_cast_checker.py"
       - "world.gd"
       - "character_visual.gd"
       - "external_content/**"

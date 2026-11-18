@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "037_GDSCRIPT_BOOL_CAST_COMPATIBILITY_REPAIR",
+  "current_milestone": "038_PROJECT_WIDE_BOOL_CAST_REPAIR_HEADLESS_VALIDATION_PENDING",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -40,7 +40,7 @@
     "030_FIRST_PERSON_BODY_AND_WEAPON_VISIBILITY_ASSERTIONS",
     "031_NPC_DISTANCE_SIMULATION_LOD_HEADLESS_PASS_DEVICE_PROFILE_PENDING"
   ],
-  "next_priority": "Run a whole-project lexical scanner for invalid bool(...) calls and lightweight exact-PR Godot validation. The previous exact PR validator found repeated invalid bool constructor runtime errors in player.gd and player_vehicle_dynamics.gd during vehicle simulation. These are being corrected project-wide. No Android build until static scan, Godot import, NPC LOD, movement, joystick, vehicle physics, vehicle entry/exit, login backdrop, Pitchbound and startup all pass.",
+  "next_priority": "Run project-wide bool-constructor scanner before assets/Godot, then exact-PR Godot import, NPC LOD, player movement/jump, joystick, vehicle physics, vehicle boarding/alighting, Pitchbound, login backdrop and startup. The previous exact-PR validator run 44254756816 caught 30 remaining bool(...) calls after the first 100 were fixed; all 30 additional matches have now been replaced. Keep Android export disabled until this full lightweight gate is clean.",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -83,9 +83,10 @@
     "2026-11-18: Follow-up NPC LOD review found that scaling the entire velocity vector during reduced-rate move_and_slide would also scale vertical gravity/floor-contact motion. Commit 84739da91089405ac22d0f5f2b5e4945ce17aa76 now compensates horizontal X/Z travel only and leaves vertical velocity unchanged. This correction is newer than Android run 44248497437 and still needs exact-head validation.",
     "2026-11-18: Lightweight Godot validation run 44251945680 on workbench commit 0824316629d89cfbf22706f555704fdfe7dd696b proved the project scripts import successfully, but the NPC LOD smoke failed its initial near-tier processing-state assertion. The transition-only process toggles skipped initial tier 0; patched to explicitly set physics/visual processing on every distance refresh and enriched test diagnostics. No Android build was launched from this workbench result.",
     "2026-11-18: NPC distance-simulation LOD fix and regression test passed the dedicated Godot 4.4.1 workflow on workbench commit 0acbdc6f9716340340adcc4cf78ce4ccf414f561: project import, NPC LOD near/mid/far/hysteresis/re-entry smoke, and headless game startup all passed. This is CI/headless evidence only; the target Redmi device has not been profiled.",
-    "2026-11-18: Exact PR validator run 44252942235: Godot import and login backdrop passed; vehicle boarding/alighting reached PASS marker but emitted repeated `Invalid call. Nonexistent 'bool' constructor` from player.gd:265 and player_vehicle_dynamics.gd:160. Other bool(...) calls across map, mission, HUD, save and character scripts are being removed in the same compatibility repair. New static scanner will block such calls across every .gd file."
+    "2026-11-18: Exact PR validator run 44252942235: Godot import and login backdrop passed; vehicle boarding/alighting reached PASS marker but emitted repeated `Invalid call. Nonexistent 'bool' constructor` from player.gd:265 and player_vehicle_dynamics.gd:160. Other bool(...) calls across map, mission, HUD, save and character scripts are being removed in the same compatibility repair. New static scanner will block such calls across every .gd file.",
+    "2026-11-18: Lightweight scanner run 44254756816 found 30 additional invalid bool(...) constructor calls in city/PBR, Pitchbound, Ara/BR/NPC/vehicle tests, and map-pack validation. All 30 additional matches were replaced with explicit boolean comparisons. Static scan and full runtime validation pending."
   ],
-  "build_status": "PROJECT_WIDE_GDSCRIPT_BOOL_CAST_REPAIR_COMMITTED_PENDING_LIGHTWEIGHT_VALIDATION; ANDROID_BUILDS_HELD; SHARIATPUR_REVIEW_REQUIRED",
+  "build_status": "130_KNOWN_BOOL_CONSTRUCTOR_CALLS_REPLACED; STATIC_SCAN_BLOCKING_VALIDATION_PENDING; NO_ANDROID_EXPORT; SHARIATPUR_REVIEW_REQUIRED",
   "latest_verified_run": 38892036942,
   "latest_verified_commit": "7d62ad457907a72094a6cbdc072ebbdd152d0066",
   "latest_build_artifact": {
@@ -346,13 +347,24 @@
       ],
       "integrated": false
     },
-    "bool_constructor_repair": "PROJECT_WIDE_REPLACEMENT_IN_PROGRESS",
+    "bool_constructor_repair": {
+      "known_calls_replaced": 130,
+      "latest_scan_run": 44254756816,
+      "status": "ALL_130_KNOWN_MATCHES_REPLACED_PENDING_REPEAT_STATIC_SCAN"
+    },
     "last_exact_pr_validation": {
       "id": 44252942235,
       "status": "FAILED_VEHICLE_RUNTIME_BOOL_CONSTRUCTOR",
       "commit": "6368108abd70b92a50fe9a1745ecc4c67b55e834"
     },
-    "android_build_policy": "No Android export until full lightweight Godot validator is green"
+    "android_build_policy": "No Android export until full lightweight Godot validator is green",
+    "android_export": "DISABLED_UNTIL_LIGHTWEIGHT_GODOT_VALIDATOR_GREEN",
+    "exact_pr_validation_run_44254756816": {
+      "status": "STATIC_SCAN_FAILED_EARLY",
+      "source_sha": "24febac9fe63d5b3be0e1688c7548e50f9fe7693",
+      "remaining_matches": 30,
+      "apk_built": false
+    }
   },
   "latest_checkpoint_commit": "79a2bb385292e151e3208b0cd86021c1f0cc81b6"
 }

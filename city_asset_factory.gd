@@ -27,7 +27,7 @@ func _load_manifests() -> void:
         if file == null:
             continue
         var parsed = JSON.parse_string(file.get_as_text())
-        if not parsed is Dictionary or not bool(parsed.get("available", false)):
+        if not parsed is Dictionary or not (parsed.get("available", false) == true):
             continue
         for item in parsed.get("models", []):
             if not item is Dictionary:

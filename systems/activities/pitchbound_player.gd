@@ -38,7 +38,7 @@ func _ready() -> void:
     add_child(visual)
 
 func _physics_process(delta: float) -> void:
-    if not is_instance_valid(manager) or bool(manager.get("match_finished")):
+    if not is_instance_valid(manager) or (manager.get("match_finished") == true):
         velocity.x = move_toward(velocity.x,0.0,delta*9.0)
         velocity.z = move_toward(velocity.z,0.0,delta*9.0)
         velocity.y -= 18.0*delta
@@ -73,7 +73,7 @@ func _ai_direction() -> Vector3:
     if not is_instance_valid(ball):
         return Vector3.ZERO
     var target := home_position
-    if bool(manager.call("is_primary_chaser",self)):
+    if (manager.call("is_primary_chaser",self) == true):
         target = ball.global_position
     else:
         var attack_sign := 1.0 if team_id==0 else -1.0
