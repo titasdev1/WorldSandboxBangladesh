@@ -770,7 +770,7 @@ for token in (
     "if is_player_character or has_combat_weapon:",
     "if has_combat_weapon:",
     "EnemyTacticalVest",
-    'var ai_shot_pending: bool = bool(body.get("_shot_pending"))',
+    'var ai_shot_pending: bool = (body.get("_shot_pending") == true)',
 ):
     if token not in character_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: enemy rifle rig/pose is missing {token}")
