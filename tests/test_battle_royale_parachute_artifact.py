@@ -13,7 +13,7 @@ from tools.verify_battle_royale_parachute import (
 )
 
 
-def make_glb(*, omit_animation: bool = False, omit_node: str = "") -> bytes:
+def make_glb(*, omit_animation: bool = False, omit_node: str = "", binary_payload_size: int = 8192) -> bytes:
     nodes = [{"name": name} for name in REQUIRED_NODES if name != omit_node]
     nodes.extend([
         {"name": f"Suspension_Line_{i:02d}_{j}"}
@@ -21,7 +21,7 @@ def make_glb(*, omit_animation: bool = False, omit_node: str = "") -> bytes:
     ])
     nodes.extend([{"name": f"Riser_Carabiner_{side}"} for side in ("L", "R")])
     meshes = [{"name": f"AssemblyMesh_{i}", "primitives": []} for i in range(24)]
-    binary_payload = b"\0" * 8192
+    binary_payload = b"\0" * binary_payload_size
     document = {
         "asset": {"version": "2.0", "generator": "A-Square test fixture"},
         "scene": 0,
@@ -54,6 +54,19 @@ class BattleRoyaleParachuteArtifactTests(unittest.TestCase):
             self.assertEqual(report["validation"], "PASS")
             self.assertEqual(report["license"], "CC0-1.0")
             self.assertEqual(report["animation_names"], [EXPECTED_ANIMATION])
+
+    def test_accepts_compact_structurally_valid_glb_without_arbitrary_size_floor(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            glb, licence = root / "canopy.glb", root / "LICENSE.txt"
+            glb.write_bytes(make_glb(binary_payload_size=128))
+            licence.write_text(
+                "A-Square Ram-Air Canopy and Harness\nCC0 1.0 Universal",
+                encoding="utf-8",
+            )
+            report = verify_asset(glb, licence)
+            self.assertEqual(report["validation"], "PASS")
+            self.assertLess(report["bytes"], 4096)
 
     def test_rejects_missing_inflation_animation(self):
         with tempfile.TemporaryDirectory() as temp:
