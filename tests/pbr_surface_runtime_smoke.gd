@@ -1,4 +1,9 @@
 extends SceneTree
+
+class TilePbrSmokeWorld extends Node3D:
+    var pbr_surface_factory: Node
+
+
 ## Runtime test for imported Poly Haven PBR textures and material-channel bindings.
 ## Run after the editor import pass:
 ## godot --headless --path . --script res://tests/pbr_surface_runtime_smoke.gd
@@ -95,6 +100,89 @@ func _initialize() -> void:
             "tile_heightmap_disabled": tile_material == null or not tile_material.heightmap_enabled,
             "mobile_deep_parallax": material.heightmap_deep_parallax,
         })
+
+    # Exercise the exact streamed-tile helper against the same mesh-name
+    # families produced by tools/map_pipeline/build_dhaka_map.py.
+    var tile_world := TilePbrSmokeWorld.new()
+    tile_world.name = "PBRStreamedTileSmokeWorld"
+    root.add_child(tile_world)
+    var tile_factory: Node = factory_script.new()
+    tile_factory.name = "PBRSurfaceFactory"
+    tile_world.add_child(tile_factory)
+    tile_world.pbr_surface_factory = tile_factory
+    tile_factory.call("configure", null)
+
+    var loader_script := load("res://real_dhaka_tile_loader.gd") as Script
+    if loader_script == null:
+        failures.append("real_dhaka_tile_loader.gd did not load for tile material integration test")
+    else:
+        var tile_loader: Node = loader_script.new()
+        tile_world.add_child(tile_loader)
+        tile_loader.set("_world", tile_world)
+        var tile_root := Node3D.new()
+        tile_root.name = "SyntheticShariatpurTile"
+        tile_world.add_child(tile_root)
+
+        var expected_groups := [
+            {"node": "terrain_base_0", "surface": "ground"},
+            {"node": "road_123_0_0", "surface": "road"},
+            {"node": "mapped_buildings_180_180_180_255", "surface": "plaster"},
+            {"node": "mapped_roofs_120_120_120_255", "surface": "concrete"},
+            {"node": "facade_doors_110_80_60_255", "surface": "wood"},
+            {"node": "facade_balconies_160_160_160_255", "surface": "metal"},
+        ]
+        var synthetic_meshes: Dictionary = {}
+        for spec in expected_groups:
+            var mesh_instance := MeshInstance3D.new()
+            mesh_instance.name = String(spec["node"])
+            mesh_instance.mesh = BoxMesh.new()
+            var source_material := StandardMaterial3D.new()
+            source_material.albedo_color = Color(0.63, 0.59, 0.52)
+            mesh_instance.material_override = source_material
+            tile_root.add_child(mesh_instance)
+            synthetic_meshes[String(spec["node"])] = mesh_instance
+
+        var preserved_material := StandardMaterial3D.new()
+        preserved_material.albedo_color = Color(0.2, 0.4, 0.7)
+        var photo_panel := MeshInstance3D.new()
+        photo_panel.name = "licensed_facade_photo_reviewed_123"
+        photo_panel.mesh = BoxMesh.new()
+        photo_panel.material_override = preserved_material
+        tile_root.add_child(photo_panel)
+        var window_panel := MeshInstance3D.new()
+        window_panel.name = "facade_windows_glass_123"
+        window_panel.mesh = BoxMesh.new()
+        window_panel.material_override = preserved_material
+        tile_root.add_child(window_panel)
+
+        tile_loader.call("_apply_tile_pbr_materials", tile_root)
+        var applied_counts: Dictionary = tile_root.get_meta("pbr_surface_counts", {})
+        for spec in expected_groups:
+            var node_name := String(spec["node"])
+            var surface_id := String(spec["surface"])
+            var target := synthetic_meshes[node_name] as MeshInstance3D
+            var mapped := target.material_override as StandardMaterial3D
+            if mapped == null or not mapped.uv1_triplanar:
+                failures.append("%s: streamed tile mesh did not receive its %s triplanar PBR material" % [node_name, surface_id])
+            if mapped != null and not mapped.vertex_color_use_as_albedo:
+                failures.append("%s: streamed tile lost mapped vertex-colour data" % node_name)
+            if mapped != null and mapped.heightmap_enabled:
+                failures.append("%s: streamed tile unexpectedly enabled expensive height mapping" % node_name)
+            if int(applied_counts.get(surface_id, 0)) < 1:
+                failures.append("%s: material assignment count did not include the real tile mesh group" % surface_id)
+
+        if photo_panel.material_override != preserved_material:
+            failures.append("licensed exterior photo panel was overwritten by generic PBR material")
+        if window_panel.material_override != preserved_material:
+            failures.append("authored facade window/glass material was overwritten by generic PBR material")
+
+        report.append({
+            "streamed_tile_mesh_groups": applied_counts,
+            "licensed_photo_panel_preserved": photo_panel.material_override == preserved_material,
+            "window_material_preserved": window_panel.material_override == preserved_material,
+        })
+        tile_world.queue_free()
+        await process_frame
 
     factory.queue_free()
     await process_frame
