@@ -263,5 +263,5 @@ func _run_smoke() -> void:
 		return
 	print("BR_GROUND_MATCH_RUNTIME_PASS • ai_operators=%d • safe_zone=true • radius=%.1fm • combat_active=true" % [live_bots.size(), zone_radius])
 
-		print("BR_DEPLOYMENT_RUNTIME_PASS • aircraft=true • overview_camera=true • freefall=true • canopy_inflation=true • canopy_glide=true • landing=true")
+	print("BR_DEPLOYMENT_RUNTIME_PASS • aircraft=true • overview_camera=true • freefall=true • canopy_inflation=true • canopy_glide=true • landing=true")
 	quit(0)
