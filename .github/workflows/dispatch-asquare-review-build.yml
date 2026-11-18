@@ -51,14 +51,26 @@ jobs:
             exit 0
           fi
 
-          if [[ "${COMMENT_BODY}" =~ ^[[:space:]]*/asquare-validate[[:space:]]+workbench/godot-lod-validation[[:space:]]*$ ]]; then
-            validation_ref="workbench/godot-lod-validation"
-            branch_json="$(gh api "repos/${REPOSITORY}/branches/workbench%2Fgodot-lod-validation")"
+          if [[ "${COMMENT_BODY}" =~ ^[[:space:]]*/asquare-validate[[:space:]]+(workbench/godot-lod-validation|feature/lobby-operator-showcase)[[:space:]]*$ ]]; then
+            validation_ref="${BASH_REMATCH[1]}"
+            encoded_ref="${validation_ref//\//%2F}"
+            branch_json="$(gh api "repos/${REPOSITORY}/branches/${encoded_ref}")"
             validation_sha="$(jq -r '.commit.sha // empty' <<<"${branch_json}")"
             if [[ -z "${validation_sha}" ]]; then
               echo "Validation branch ref could not be resolved." >&2
               exit 1
             fi
+
+            if [[ "${validation_ref}" == "feature/lobby-operator-showcase" ]]; then
+              pr_json="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"
+              pr_head_ref="$(jq -r '.head.ref // empty' <<<"${pr_json}")"
+              pr_head_sha="$(jq -r '.head.sha // empty' <<<"${pr_json}")"
+              if [[ "${pr_head_ref}" != "${validation_ref}" || "${pr_head_sha}" != "${validation_sha}" ]]; then
+                echo "The validation branch does not match the current PR head; refusing a stale validation." >&2
+                exit 1
+              fi
+            fi
+
             echo "Dispatching lightweight Godot validation from ${validation_ref} at ${validation_sha}."
             gh workflow run validate-godot.yml --repo "${REPOSITORY}" --ref "${validation_ref}"
             exit 0
