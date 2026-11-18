@@ -19,7 +19,7 @@ class BattleRoyaleEntryTests(unittest.TestCase):
 
     def test_solo_battle_royale_entry_starts_the_actual_plane_deployment(self):
         start = self.hud.index('elif selected_mode == "battle_royale_solo":')
-        end = self.hud.index("w.event_time_left = 8.0", start)
+        end = self.hud.index('elif selected_mode == "district_explorer":', start)
         entry = self.hud[start:end]
         self.assertIn('combat.call("start_mode", "battle_royale_solo")', entry)
         self.assertIn('deployment.call("start_solo_deployment")', entry)
