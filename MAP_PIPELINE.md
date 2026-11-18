@@ -45,6 +45,18 @@ The Bangladesh-wide OSM PBF is reduced to a reusable rectangular extract of the 
 
 **Shariatpur is a hard quality gate, not merely a priority label.** The default `shariatpur_review` stage emits only tiles intersecting Shariatpur, clips the GLB ground and mapped features to the actual district polygon, and truncates the final batch at the district boundary. It then assembles a standalone `Project-A-Square-Shariatpur-Review-Map-<sequence>` package and stops. Do not start `full_division` until the Shariatpur package has passed exterior-quality review, source/coverage audit, per-building interior review, and an Android integration/performance gate. The full-division stage must be explicitly selected after that review. A generated district package is still not a polished photorealistic replica: licensed façade imagery, visual review, and device integration are separate acceptance gates. The existing game's map remains unchanged until a complete, verified replacement package is intentionally promoted.
 
+## Enforced Shariatpur release gate
+
+The `full_division` stage is now fail-closed in `tools/map_pipeline/build_dhaka_division.py`. It checks `tools/map_pipeline/shariatpur_release_approval.json` before downloading or building any later tiles. The checked-in approval record is deliberately `BLOCKED` until a reviewer documents all of these outcomes:
+
+- Every Shariatpur tile has renderable mapped features; no ground-only tile remains.
+- Every mapped building has an independently verified floor count supported by a valid evidence-registry record.
+- Licensed facade imagery has been matched to the correct mapped building and passed visual review.
+- Named-place search, coordinate teleport, turn instructions, route rendering, and the player-following minimap pass integrated QA.
+- The canonical Android build passes physical-device integration and performance checks.
+
+An APK export, estimated heights, downloaded-but-unmatched photographs, or 100% tile bookkeeping cannot approve the district. Approval must include a reviewer, date, and HTTPS link to evidence for the exact package and revision. Until then, later Dhaka Division tiles are intentionally blocked to preserve the Shariatpur-first requirement.
+
 ## Automatic full-division continuation
 
 Normal push and pull-request events build only two tiles as bounded validation; they never start a second automatic sequence. To deliberately start a fresh Shariatpur review sequence without manually dispatching the workflow, make a change to a tracked map path with a commit message containing `[build-shariatpur-review]`. That opt-in sequence uses eight tiles per batch, retries a failed batch, clips the ground and mapped features to Shariatpur District, and stops at the district boundary. It assembles `Project-A-Square-Shariatpur-Review-Map-<sequence>` with `quality_gate_report.json`; the report remains `REVIEW_REQUIRED` until visual review, licensed façade imagery, and Android integration are validated. Do not start `full_division` until that gate passes. Every map-building run is limited to 300 minutes; each assembly job is limited to 50 minutes.
@@ -63,3 +75,62 @@ Where OSM tags exist, natural=tree, power=pole / power=tower, man_made=utility_p
 ## 2026-10-16 sequence-label correction
 
 The final Shariatpur review artifact name now resolves its sequence ID from the explicit workflow input first, the build job output second, and the current workflow run ID as a safe fallback. This prevents an empty suffix when assembling an already completed sequence without rebuilding tiles. The next fresh Shariatpur-only sequence will verify the artifact naming fix and regenerate the review package from the merged geometry/collision pipeline. The quality report remains review-required until its coverage, geometry, licensed visual reference, and Android integration checks pass.
+
+## Real-world navigation and building-evidence index (2026-10)
+
+The new `tools/map_pipeline/build_real_world_navigation_index.py` builds a machine-readable index from source GeoJSON. It preserves mapped road names (including `name:bn` and `ref`), source road class, approximate WGS84 feature coordinates, building names/types, tagged `building:levels`, roof levels, height evidence, and per-building facade-reference status. It explicitly marks roads unnamed in source, buildings without floor evidence, and facades without a verified licensed reference. It never fabricates names or floor counts.
+
+Example after extracting a map package:
+
+```bash
+python3 tools/map_pipeline/build_real_world_navigation_index.py \
+  --source build/selected-map \
+  --out build/selected-map/real_world_navigation_index.json
+```
+
+Important: the coordinate is a geometry-vertex mean, not a surveyed entrance or guaranteed navigable destination. The output is an auditable metadata foundation; it is **not yet proof of runtime road labels, teleport-to-coordinate, or floor-aware GLB rendering**. Those require game integration and tests against the real map loader.
+
+### Required fidelity gates
+
+1. **Road labels:** show mapped `name`, `name:bn`, and `ref` from OSM in world labels, minimap, search, and directions. Keep unknown roads explicitly unnamed; never infer official names from nearby labels.
+2. **Coordinates and teleport:** retain each tile's WGS84 origin/bounds and a consistent WGS84-to-local transform. Teleport accepts latitude/longitude or a selected named place, resolves the nearest valid walkable road/sidewalk position, rejects points outside loaded/available coverage, and displays the destination. Never teleport to a raw map centroid if it is inside a building/water.
+3. **Floor count before height:** use `building:levels` as primary source, `roof:levels` separately, and `height` only as secondary evidence. Preserve source and confidence per building. If no tagged count exists, mark it missing and research only from permitted references; do not convert a generic estimated height into a claimed real floor count.
+4. **Facade identity:** keep a building-specific imagery-reference record with source URL, license/terms, attribution, capture date where available, and review status. A reference photo is not automatically licensed for texture use. Google Maps may be consulted only within its terms; do not scrape, extract, or redistribute its imagery/3D tiles. Prefer owner-provided/commissioned photos, open-licensed images with compatible terms, or a licensed runtime provider.
+5. **Minimap/navigation:** player marker and heading, north orientation, scale, road names, nearby named landmarks, destination marker, route line, and teleport/search controls must be integrated into the same canonical HUD and verified on Android.
+6. **Ground-only recovery:** the three Shariatpur ground-only tiles must be investigated against fresh OSM/authorized data. Empty-source tiles must not be populated with invented roads/buildings merely to make the coverage statistic look better.
+7. **Acceptance:** run offline tests, regenerate the Shariatpur package from a pinned source revision, inspect road-name/floor-count coverage, compare representative blocks against lawful references, then run Android export and physical-device visual/performance/touch QA. The map stays review-required until these gates pass.
+
+
+
+## Named-place search and offline route graph
+
+The navigation index now retains source road polylines as WGS84 coordinate paths and indexes named POIs with English/Bangla names and category tags. The Android workflow rebuilds this index from the selected package's GeoJSON so an older pinned map can still gain search/routing metadata without silently changing its geometry. Runtime search and Dijkstra route planning use only indexed road segments; route endpoints and building points are approximate geometry-derived locations, not surveyed entrances. If source GeoJSON is absent, the build emits a warning and named search/route guidance remains unavailable rather than fabricating data.
+
+Turn instructions are generated from road-name changes and geometry bends. This is an offline mapped-road route, not a live traffic-aware service; one-way restrictions, access restrictions, sidewalk continuity, bridges, ferries, and pedestrian-safe crossings still require validation before claiming full turn-by-turn navigation is production-ready.
+
+
+## Evidence-driven building floors and landmark photo panels
+
+The assembled package carries `building_floor_evidence.json`. A floor count is marked independently verified only when a record identifies an exact OSM feature, an HTTPS source, an approved evidence type, a human reviewer, a real review date, and evidence notes. The current Shariatpur registry is intentionally empty, so independently verified floor counts remain **0** until building-specific evidence is reviewed; OSM-tagged levels and height-derived estimates stay separate.
+
+The optional Shariatpur landmark photo pipeline downloads only the allowlisted Wikimedia Commons references in `shariatpur_facade_images.json`, retains author/license attribution, and applies a textured photo panel only on an exact building-name alias match. It is not photogrammetry, does not reconstruct every facade, and does not mark a building as visually verified. A full map build reports how many panels were actually embedded; zero is a valid outcome if imagery cannot be downloaded or no exact mapped name match exists.
+
+
+## Source-pinned Shariatpur rebuild trigger
+
+A feature-branch review bake is triggered only by an explicit commit message containing `[build-shariatpur-review]`. The first batch pins that exact commit SHA; continuation batches use the same source commit and assemble a full 60-tile Shariatpur review package. This trigger does not promote the package: it remains `REVIEW_REQUIRED` until visual exterior review, floor evidence, attribution checks, and Android/device QA pass.
+
+
+The source-pinned continuation now dispatches on the same branch as the initial review build, so the same Pillow dependency, licensed-image fetch step, and map-pipeline code are used by every batch. A failed continuation from an older workflow revision is not considered a completed Shariatpur build.
+
+
+## Street-level 360° imagery coverage and facade matching
+
+The optional KartaView audit in `tools/map_pipeline/audit_kartaview_coverage.py` reads public coverage-track tiles and can probe a small grid for 360-photo metadata. It writes `kartaview_coverage.geojson`, `kartaview_360_photo_candidates.geojson` / `.json`, a request/failure report, and dataset attribution. By default it uses zoom 12; coverage and photo queries share a hard cap of 90 requests per run to stay below the public endpoint's documented 100-requests/hour unauthenticated limit. Lower zoom, reduce photo-grid queries, or split the district rather than bypassing that limit.
+
+A coverage line is not a photo and is not evidence that a specific facade is identifiable. The next imagery-ingestion stage must match candidate photo GPS, heading/FOV, capture time and contributor permalink to the exact target building; preserve a per-image CC BY-SA 4.0 attribution record; visually verify facade orientation; and bake only verified, rights-cleared images. Do not map a 360 panorama onto a flat building wall without extracting the correct view direction and validating scale/perspective.
+
+Google Street View / Google Maps Platform imagery is deliberately excluded from the offline-bake pipeline: current policies generally prohibit prefetching, caching, bulk downloading, or creating derived map/building content from that imagery. Use Google imagery only through a compliant interactive integration if its terms, billing, attribution and runtime connectivity fit the game; do not scrape it into bundled assets.
+
+
+Sparse photo probes are only discovery hints: a returned 360-degree image must still be checked against the exact building, the camera heading, capture date and visual evidence before it can be baked onto a façade. The current audit does not download image bytes or claim that candidates identify a target structure.

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "purpose": "Human-reviewed evidence only. Never populate floor_count from a generic height estimate. Each record must identify the exact OSM feature and provide a stable HTTPS source, evidence type, reviewer, date, and explanation.",
+  "allowed_evidence_source_types": [
+    "official_plan",
+    "official_building_profile",
+    "licensed_street_imagery",
+    "owner_photograph",
+    "field_survey",
+    "building_documentation"
+  ],
+  "verification_requirements": [
+    "Use osm_id exactly as indexed, such as way/12345.",
+    "Count visible storeys carefully; record roof levels separately when evidence supports it.",
+    "Use an official plan/profile, licensed imagery with a clear full-building view, owner-provided documentation, or field survey.",
+    "Do not use estimated height alone as independent floor evidence.",
+    "Do not mark a building verified if the image hides storeys or the image-to-building match is uncertain.",
+    "Keep evidence source, license, attribution, reviewer and review date with each accepted record."
+  ],
+  "records": []
+}

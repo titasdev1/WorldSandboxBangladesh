@@ -1,0 +1,82 @@
+name: KartaView 360 Coverage Audit
+
+on:
+  pull_request:
+    paths:
+      - "tools/map_pipeline/audit_kartaview_coverage.py"
+      - ".github/workflows/kartaview-coverage-audit.yml"
+      - "MAP_PIPELINE.md"
+  push:
+    branches: [main, "feature/real-world-navigation-floor-fidelity-verified"]
+    paths:
+      - "tools/map_pipeline/audit_kartaview_coverage.py"
+      - ".github/workflows/kartaview-coverage-audit.yml"
+      - "MAP_PIPELINE.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kartaview-coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage-audit:
+    # Run one bounded live coverage audit on main or the active development branch.
+    # PRs still use offline mocked tests and do not consume public API quota.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/real-world-navigation-floor-fidelity-verified'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout map code
+        uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Audit public 360 street-level coverage around Shariatpur
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile tools/map_pipeline/audit_kartaview_coverage.py
+          python tools/map_pipeline/audit_kartaview_coverage.py \
+            --bbox 23.003880881,90.220512089,23.451613610,90.607763484 \
+            --zoom 12 \
+            --max-requests 90 \
+            --photo-grid 6 \
+            --photo-max-queries 30 \
+            --photo-radius-m 500 \
+            --allow-partial \
+            --out build/kartaview-coverage | tee build-kartaview-summary.json
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          report = json.loads(Path("build/kartaview-coverage/kartaview_coverage_report.json").read_text())
+          print("# KartaView 360 coverage results")
+          print(f"- Coverage tiles requested: {report['tile_count']}")
+          print(f"- Tiles with street-level tracks: {report['tiles_with_coverage_tracks']}")
+          print(f"- Coverage track lines: {report['coverage_track_count']}")
+          print(f"- Tracks matched to OSM: {report['matched_to_osm_track_count']}")
+          print(f"- Failed coverage tiles: {report['failed_tile_count']}")
+          print(f"- Photo metadata queries: {report['photo_query_count']} (expanded district sampling grid)")
+          print(f"- 360 photo candidates inside district bbox: {report['unique_360_photo_candidates_inside_bbox']}")
+          print(f"- Failed photo queries: {len(report['photo_query_failures'])}")
+          print("- Licence: CC BY-SA 4.0; this run fetches metadata only, not panorama bytes.")
+          for failure in report['failed_tiles'][:10]:
+              print(f"  - Failed tile z={failure['zoom']} x={failure['x']} y={failure['y']}: {failure['error']}")
+          print("\nA coverage line is not proof that a particular building facade is visible or identified.")
+          PY
+      - name: Upload coverage and gap report
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project-A-Square-Shariatpur-KartaView-360-Coverage
+          path: |
+            build/kartaview-coverage/kartaview_coverage.geojson
+            build/kartaview-coverage/kartaview_coverage_report.json
+            build/kartaview-coverage/KARTAVIEW_ATTRIBUTION.txt
+            build/kartaview-coverage/kartaview_360_photo_candidates.json
+            build/kartaview-coverage/kartaview_360_photo_candidates.geojson
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6

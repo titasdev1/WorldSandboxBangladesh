@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "status": "BLOCKED",
+  "reviewed_at": "",
+  "reviewer": "",
+  "review_evidence_url": "",
+  "checks": {
+    "all_tiles_have_renderable_osm_features": false,
+    "all_building_floor_counts_independently_verified": false,
+    "licensed_facade_imagery_visual_review_complete": false,
+    "named_place_search_and_turn_navigation_qa_passed": false,
+    "physical_android_integration_and_performance_passed": false
+  },
+  "current_blockers": [
+    "Three Shariatpur tiles have no renderable OpenStreetMap features.",
+    "The current review package has zero independently verified building floor counts.",
+    "The current review package has zero embedded licensed facade photo panels and no completed facade visual review.",
+    "Named-place search, turn-by-turn navigation, and the minimap need integrated gameplay QA.",
+    "Physical Android integration and performance have not been verified."
+  ],
+  "instructions": "Do not set status to APPROVED until every check is true and the review evidence URL documents the exact reviewed package, source revision, and device QA. Estimated heights, downloaded-but-unmatched photos, a successful APK export, or 100% tile bookkeeping do not satisfy these checks."
+}
