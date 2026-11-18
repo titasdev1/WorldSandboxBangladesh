@@ -40,7 +40,7 @@
     "030_FIRST_PERSON_BODY_AND_WEAPON_VISIBILITY_ASSERTIONS",
     "031_NPC_DISTANCE_SIMULATION_LOD_HEADLESS_PASS_DEVICE_PROFILE_PENDING"
   ],
-  "next_priority": "Run the exact PR lightweight validator after explicit bool type annotations in world.gd, character_visual.gd, hud.gd, district_map_display.gd, systems/mission_factory.gd and vehicle.gd. Do not start Android export until project import, NPC LOD, player movement/jump, mobile joystick, vehicle physics, vehicle boarding/alighting, Pitchbound, login backdrop and headless startup all pass on the exact same PR head. After the gate passes, reconcile all latest project branches/assets and make one reviewed Android export.",
+  "next_priority": "Resolve/access existing run 44354975442 and inspect steps 42-45 on exact SHA 149e6b8314325f3e036787f58eaad4945ea83d82. Do not start another full Android build or change PR #78 head while this run is unresolved. Then inspect APK export, included map/assets, signing, checksums and artifact before sharing. Shariatpur stays REVIEW_REQUIRED; physical-device QA remains pending.",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -85,7 +85,14 @@
     "2026-11-18: NPC distance-simulation LOD fix and regression test passed the dedicated Godot 4.4.1 workflow on workbench commit 0acbdc6f9716340340adcc4cf78ce4ccf414f561: project import, NPC LOD near/mid/far/hysteresis/re-entry smoke, and headless game startup all passed. This is CI/headless evidence only; the target Redmi device has not been profiled.",
     "2026-11-18: Exact PR validator run 44252942235: Godot import and login backdrop passed; vehicle boarding/alighting reached PASS marker but emitted repeated `Invalid call. Nonexistent 'bool' constructor` from player.gd:265 and player_vehicle_dynamics.gd:160. Other bool(...) calls across map, mission, HUD, save and character scripts are being removed in the same compatibility repair. New static scanner will block such calls across every .gd file.",
     "2026-11-18: Lightweight scanner run 44254756816 found 30 additional invalid bool(...) constructor calls in city/PBR, Pitchbound, Ara/BR/NPC/vehicle tests, and map-pack validation. All 30 additional matches were replaced with explicit boolean comparisons. Static scan and full runtime validation pending.",
-    "2026-11-18: Exact-PR validator run 44255132454 on head 1701c9d5aec31915e126ee441a9b6685ebbbbad3 passed the project-wide invalid bool(...) constructor scan but failed Godot import because explicit Variant comparisons with == true were used in inferred := declarations. Added explicit bool annotations to affected declarations (world one_way/is_oneway, character_visual crouched, HUD streaming_started/installed/br_assets_ready/applied, district map real_map/overview_map, mission factory geo_mode/real_map, vehicle did_refuel). Re-run exact-PR Godot validator before any Android export."
+    "2026-11-18: Exact-PR validator run 44255132454 on head 1701c9d5aec31915e126ee441a9b6685ebbbbad3 passed the project-wide invalid bool(...) constructor scan but failed Godot import because explicit Variant comparisons with == true were used in inferred := declarations. Added explicit bool annotations to affected declarations (world one_way/is_oneway, character_visual crouched, HUD streaming_started/installed/br_assets_ready/applied, district map real_map/overview_map, mission factory geo_mode/real_map, vehicle did_refuel). Re-run exact-PR Godot validator before any Android export.",
+    "2026-11-19: Android run #1102 (44354975442, head 149e6b8314325f3e036787f58eaad4945ea83d82) remains reported in_progress at step 42 after 40 successful completed steps. The workflow timeout is 330 minutes; job-log download returned BlobNotFound; no artifact exists. Cancellation was not performed because authenticated GitHub browser access was unavailable. Do not start a replacement full build before resolving the existing run.",
+    "2026-11-19: PBR validation run 44354592447 passed on current head; it is not an Android export or phone-render pass.",
+    "2026-11-19: Pitchbound 3D runtime smoke currently proves 22 player bodies, one human-controlled player and a rigid-body ball only. Simple AI and low-detail procedural stadium are not eFootball acceptance.",
+    "2026-11-19: Roadline source provides sprint/time-attack/drift prototypes; sprint uses six checkpoints and three simple AI racers. Forza-level garage, tuning, car fleet, event variety and AI remain unimplemented.",
+    "2026-11-19: ENet private-room code has local host/join and ~10 Hz player/vehicle transform replication, but no physical two-device test or complete mode-state synchronization.",
+    "2026-11-19: Greenwake: The Monsoon Relic exists in the experience registry as planned only; no playable level or loop is evidenced.",
+    "2026-11-19: Combat AI has basic line-of-sight, approach/retreat and timed attacks; strategic ranked squad AI tiers are not implemented."
   ],
   "build_status": "INVALID_BOOL_CONSTRUCTORS_REPLACED_AND_STATIC_SCAN_PASS; GODOT_IMPORT_FOUND_VARIANT_BOOL_INFERENCE_ERRORS; EXPLICIT_BOOL_ANNOTATIONS_APPLIED; EXACT_PR_RUNTIME_VALIDATION_PENDING; NO_ANDROID_EXPORT",
   "latest_verified_run": 38892036942,
@@ -375,5 +382,45 @@
     },
     "fixes_applied": "explicit bool annotations to all inference sites reported by Godot import"
   },
-  "latest_checkpoint_commit": "79a2bb385292e151e3208b0cd86021c1f0cc81b6"
+  "latest_checkpoint_commit": "79a2bb385292e151e3208b0cd86021c1f0cc81b6",
+  "last_audited_branch": "feature/lobby-operator-showcase",
+  "last_audited_head": "149e6b8314325f3e036787f58eaad4945ea83d82",
+  "active_pull_requests": [
+    {
+      "number": 78,
+      "branch": "feature/lobby-operator-showcase",
+      "head": "149e6b8314325f3e036787f58eaad4945ea83d82",
+      "state": "open",
+      "draft": true
+    },
+    {
+      "number": 77,
+      "branch": "feature/medium-stage-integration",
+      "head": "4a8e832bf294e2543d6abc8a47dd1b5976604347",
+      "state": "open",
+      "draft": true
+    }
+  ],
+  "latest_android_run": {
+    "run_id": 44354975442,
+    "run_number": 1102,
+    "head": "149e6b8314325f3e036787f58eaad4945ea83d82",
+    "status": "in_progress",
+    "successful_completed_steps": 40,
+    "current_step": 42,
+    "current_step_name": "Install Blender for original BR parachute asset authoring",
+    "timeout_minutes": 330,
+    "android_export_started": false,
+    "artifact_available": false,
+    "log_download": "BlobNotFound",
+    "cancellation": "not performed; authenticated GitHub browser access unavailable"
+  },
+  "latest_pbr_validation_run": {
+    "run_id": 44354592447,
+    "run_number": 8,
+    "head": "149e6b8314325f3e036787f58eaad4945ea83d82",
+    "conclusion": "success"
+  },
+  "current_build_status": "ANDROID_RUN_1102_REPORTED_IN_PROGRESS_AT_STEP_42; 40_COMPLETED_STEPS_SUCCESS; BR_RUNTIME_STEP_45_PENDING; CURRENT_HEAD_PBR_PASS; NO_ANDROID_EXPORT; NO_APK_ARTIFACT",
+  "new_requirements_recorded": "2026-11-19: Expanded mode families (JibonJatra, Roadline, Pitchbound, Strikefront, Greenwake), offline AI strategy tiers, local Wi-Fi/hotspot synchronization, whole-Earth land-and-water map target and country-aware content added to master plan/acceptance matrix on documentation branch docs/expanded-a-square-experiences. These are design/acceptance requirements, not implemented gameplay."
 }
