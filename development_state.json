@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "035_NPC_DISTANCE_SIMULATION_LOD_PENDING_ANDROID_RUNTIME",
+  "current_milestone": "035_NPC_DISTANCE_SIMULATION_LOD_RUNTIME_REPAIR",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -40,7 +40,7 @@
     "030_FIRST_PERSON_BODY_AND_WEAPON_VISIBILITY_ASSERTIONS",
     "031_NPC_DISTANCE_SIMULATION_LOD_PENDING_ANDROID_RUNTIME"
   ],
-  "next_priority": "Allow Android run 44248497437 (source 6074df4fec0dc600c3e6a1f79cb6adaaa07ce421) to finish; it is at Godot import/startup and has 30 successful steps with no failures. It does NOT include the later NPC X/Z-only timestep correction commit 84739da91089405ac22d0f5f2b5e4945ce17aa76. If it passes, run the newly added NPC LOD smoke in that older source, then build the newer head once to validate X/Z-only correction before sharing an APK. Do not start additional map workflows; current APK still selects an older Shariatpur pack.",
+  "next_priority": "Fix initial near-tier process-state enable bug in npc.gd and add explicit diagnostics to the LOD smoke. Re-run the lightweight workbench Godot validator only. Require Godot import, LOD smoke, and headless startup to all pass before syncing to PR #78 or starting any Android export. No APK artifact exists for the current PR source.",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -80,9 +80,10 @@
     "2026-11-18: Login street and lobby showcase remain primitive/low-detail real-time 3D prototypes, not photoreal cinematic media or a CODM-quality lobby. Real login handshake, online matchmaking and human-player modes are not implemented/verified.",
     "2026-11-18: Added NPC distance-simulation LOD in commit 833a0605a83e6dddfa6223cc5ad1c9a18c7c98ef, with a follow-up movement timestep compensation fix in 72309f955cbc478d1b83624fd42c5c5cf2079008. Nearby civilians stay fully active, mid-distance physics is throttled to ~8Hz with velocity compensation, far simulation/collision/animation is paused, and distant visibility uses 175m hide / 150m re-entry hysteresis. A new Godot runtime smoke is wired into the existing canonical Android workflow; no CI pass or device performance measurement yet.",
     "2026-11-18: Godot 4.4 import of the BR deployment runtime smoke exposed additional static typing and identifier defects: camera position/distance and bank-angle locals needed explicit Vector3/float types, and the canopy steering assertions referenced `parachute` instead of the actual local `canopy`. These were corrected in the current BR smoke source; awaiting exact-head Godot validation.",
-    "2026-11-18: Follow-up NPC LOD review found that scaling the entire velocity vector during reduced-rate move_and_slide would also scale vertical gravity/floor-contact motion. Commit 84739da91089405ac22d0f5f2b5e4945ce17aa76 now compensates horizontal X/Z travel only and leaves vertical velocity unchanged. This correction is newer than Android run 44248497437 and still needs exact-head validation."
+    "2026-11-18: Follow-up NPC LOD review found that scaling the entire velocity vector during reduced-rate move_and_slide would also scale vertical gravity/floor-contact motion. Commit 84739da91089405ac22d0f5f2b5e4945ce17aa76 now compensates horizontal X/Z travel only and leaves vertical velocity unchanged. This correction is newer than Android run 44248497437 and still needs exact-head validation.",
+    "2026-11-18: Lightweight Godot validation run 44251945680 on workbench commit 0824316629d89cfbf22706f555704fdfe7dd696b proved the project scripts import successfully, but the NPC LOD smoke failed its initial near-tier processing-state assertion. The transition-only process toggles skipped initial tier 0; patched to explicitly set physics/visual processing on every distance refresh and enriched test diagnostics. No Android build was launched from this workbench result."
   ],
-  "build_status": "RUN_44248497437_GODOT_IMPORT_STARTUP_PENDING_ON_COMMIT_6074DF4; NPC_LOD_XZ_TIMESTEP_CORRECTION_COMMITTED_AT_84739DA; NEWEST_COMMIT_NOT_YET_VALIDATED; SHARIATPUR_REVIEW_REQUIRED",
+  "build_status": "GODOT_IMPORT_PASS_ON_WORKBENCH_08243166; NPC_LOD_RUNTIME_SMOKE_FAILED_NEAR_TIER_PROCESS_FLAGS; FULL_ANDROID_BUILDS_HELD",
   "latest_verified_run": 38892036942,
   "latest_verified_commit": "7d62ad457907a72094a6cbdc072ebbdd152d0066",
   "latest_build_artifact": {
@@ -307,7 +308,17 @@
       "mixamo_animation_source": "RESEARCHED_NOT_INTEGRATED",
       "rokoko_vision_create": "RESEARCHED_NOT_INTEGRATED",
       "freeclipmocap": "RESEARCHED_NOT_INTEGRATED"
-    }
+    },
+    "lightweight_godot_run": {
+      "id": 44251945680,
+      "branch": "workbench/godot-lod-validation",
+      "sha": "0824316629d89cfbf22706f555704fdfe7dd696b",
+      "import": "PASS",
+      "npc_lod_smoke": "FAIL_NEAR_TIER_PROCESS_FLAGS",
+      "startup": "SKIPPED",
+      "apk": "NOT_BUILT"
+    },
+    "next_gate": "re-run lightweight Godot validation after initial near-tier processing fix"
   },
   "latest_checkpoint_commit": "53206f43ee73575103c98f67ce1728feec3d1f74"
 }
