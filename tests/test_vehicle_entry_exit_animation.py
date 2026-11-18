@@ -57,6 +57,8 @@ class VehicleEntryExitAnimationTests(unittest.TestCase):
         self.assertIn("func set_vehicle_driver_pose(", read("character_visual.gd"))
         self.assertIn("clip.loop_mode = Animation.LOOP_LINEAR", read("character_visual.gd"))
         self.assertIn("vehicle_cockpit_yaw_offset", read("player.gd"))
+        self.assertIn("func _process(_delta: float)", read("player.gd"))
+        self.assertIn("Keep the cockpit first-person camera attached to vehicle yaw", read("player.gd"))
 
     def test_runtime_smoke_exercises_both_transitions_and_camera_restore(self):
         for marker in ("VEHICLE_ENTRY_EXIT_ANIMATION_PASS", "board_vehicle", "drive_car_loop=true", "alight_vehicle", "first_person", "duplicate board input"):
