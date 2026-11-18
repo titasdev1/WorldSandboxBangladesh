@@ -31,7 +31,7 @@ This file is a quality-control ledger, not a claim that listed features are comp
 | Collision and ground | Player never falls through terrain, floats, gets trapped, or spawns outside a walkable surface | Known historical issue; exact candidate needs device/scene regression |
 | HUD and touch layout | No clipped/overlapping controls on phone aspect ratios; usable one-handed/two-thumb layout; scalable UI | UI exists; real-device layout test pending |
 | Accessibility/settings | Sensitivity, graphics, FPS, audio, touch size and control options persist across relaunch | Some settings exist; persistence and each option need verification |
-| Performance | Record FPS/frame-time, RAM, load hitches, heat and battery on target phones; no invented 120 FPS claim | Physical-device profile not recorded |
+| Performance | Record FPS/frame-time, RAM, load hitches, heat and battery on target phones; no invented 120 FPS claim | Physical-device profile not recorded. NPC distance-simulation LOD committed in 72309f9 (near full simulation, mid ~8Hz physics, far paused/collision-disabled, distant visibility cull); dedicated Godot smoke is wired into canonical Android CI but has not passed yet. No FPS/RAM/thermal gains claimed |
 | Stability | 20-minute roam plus repeated mode/map transitions without crash, runaway memory or broken input | Not evidenced |
 
 ## B. World, modes, replayability and mission loop
@@ -58,7 +58,7 @@ This file is a quality-control ledger, not a claim that listed features are comp
 | Local vehicles | Rickshaw, CNG, bus, car, motorcycle are distinct, recognizable 3D models with correct scale and collision | 50 CC0 car-kit models are packaged; CNG/rickshaw remain project-authored, and final distinct local models, live-world use, collision and on-device appearance are not verified |
 | Driving | Enter/exit vehicle, steering, acceleration/braking, camera, collision and safe recovery | Partial code; full driving loop not verified |
 | Fare negotiation | Contextual origin/destination, fare estimate, negotiation choices and clear outcome | Partial fare/economy code; end-to-end QA pending |
-| NPCs | Visible local pedestrians, varied movement, collision avoidance, schedules and responsive interaction | Procedural NPC movement carried forward; full behaviors/variety not proven |
+| NPCs | Visible local pedestrians, varied movement, collision avoidance, schedules and responsive interaction | Procedural movement with new distance-simulation LOD committed (near 0–55m, mid 55–145m at ~8Hz physics, far paused over 145m, render cull over 175m / re-entry under 150m). Runtime test is pending; schedules, rich behaviors, collision avoidance and visual variety remain partial |
 | Shops and markets | Distinct stalls/shops, readable Bangla signs, usable buy/sell UI, stock, price and inventory feedback | Shop/economy code exists; visual and interaction QA pending |
 | Economy | Money changes correctly from jobs, sales, purchases, fares and mission rewards; no duplication exploit | Partial; transaction/save regression needed |
 | Police/wanted system | Wanted escalation, pursuit/search, arrest/escape and reset behavior | Partial system listed in project state; playable loop not proven |
