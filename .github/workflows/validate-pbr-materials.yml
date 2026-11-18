@@ -7,6 +7,7 @@ on:
       - feature/lobby-operator-showcase
     paths:
       - "pbr_surface_factory.gd"
+      - "real_dhaka_tile_loader.gd"
       - "tools/fetch_polyhaven_pbr.py"
       - "tests/test_pbr_resolution_budget.py"
       - "tests/pbr_surface_runtime_smoke.gd"
@@ -16,6 +17,7 @@ on:
       - main
     paths:
       - "pbr_surface_factory.gd"
+      - "real_dhaka_tile_loader.gd"
       - "tools/fetch_polyhaven_pbr.py"
       - "tests/test_pbr_resolution_budget.py"
       - "tests/pbr_surface_runtime_smoke.gd"
