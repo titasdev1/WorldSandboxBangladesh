@@ -63,6 +63,10 @@ func material_for(surface_id: String, fallback: StandardMaterial3D, enable_paral
     var metallic = load(String(maps.get("metallic", ""))) if maps.has("metallic") else null
     if metallic is Texture2D:
         material.metallic_texture = metallic
+    elif surface_id == "metal":
+        # Poly Haven's selected metal plate has no separate metalness image.
+        # Its material class is known, so use a physically plausible fallback.
+        material.metallic = maxf(material.metallic, 0.85)
 
     # Ambient occlusion restores small creases and contact detail in materials.
     var ao = load(String(maps.get("ao", ""))) if maps.has("ao") else null
