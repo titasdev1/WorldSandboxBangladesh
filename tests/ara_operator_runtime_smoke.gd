@@ -179,6 +179,11 @@ func _run_smoke() -> void:
 		quit(1)
 		return
 
+	# The public walk action is a persistent requested action, so clear the
+	# smoke's explicit locomotion override before exercising deployment phases.
+	# In-game one-shot actions clear their metadata when their clip finishes.
+	actor.remove_meta("character_action_state")
+
 	# Verify that actual BR deployment phases select the authored parachute clips.
 	var br_states := {
 		"freefall": "skydive",
@@ -191,7 +196,14 @@ func _run_smoke() -> void:
 		visual.call("_update_authored_animation", actor, 0.0)
 		await process_frame
 		var expected_clip := String(lookup[br_states[phase]])
-		if player.current_animation != expected_clip:
+		if player.current_animation != expected_clip or not player.is_playing():
+			print("ARA3D_BR_DIAGNOSTIC • phase=%s • expected=%s • current=%s • active_action=%s • player=%s" % [
+				str(phase),
+				expected_clip,
+				String(player.current_animation),
+				str(actor.get_meta("character_action_state", "")),
+				str(player.is_playing())
+			])
 			push_error("ARA3D_RUNTIME_FAIL: BR phase did not select clip " + br_states[phase])
 			quit(1)
 			return
