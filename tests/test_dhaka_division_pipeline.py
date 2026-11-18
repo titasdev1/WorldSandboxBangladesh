@@ -134,7 +134,7 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
 
     def test_real_map_missions_do_not_invent_off_road_fallback_targets(self):
         missions = (self.ROOT / "systems" / "mission_factory.gd").read_text(encoding="utf-8")
-        guard = 'if bool(world.get("real_dhaka_loaded")) and positions.size() < count:\n        return positions'
+        guard = 'if (world.get("real_dhaka_loaded") == true) and positions.size() < count:\n        return positions'
         self.assertIn(guard, missions)
         self.assertIn("Not enough mapped road nodes are loaded nearby yet", missions)
 
@@ -145,7 +145,7 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("func _refresh_navigation_if_needed(", loader)
         self.assertIn("_navigation_target_active", loader)
         self.assertIn("navigate_to_world_position(destination, player, true)", loader)
-        self.assertIn('if not bool(result.get("ok", false)):', loader)
+        self.assertIn('if not (result.get("ok", false) == true):', loader)
         self.assertIn("_navigation_recalc_clock = 0.0", loader)
         self.assertIn("leave the last valid route visible", loader)
 
@@ -159,7 +159,7 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         self.assertIn("func _expand_ground() -> void:", factory)
         self.assertIn('mesh_box(Vector3(0, -0.04, 0), Vector3(CITY_RADIUS * 2.0, 0.08, CITY_RADIUS * 2.0), Color("#526b49"), true)', factory)
         bootstrap_start = factory.index("func _bootstrap()")
-        real_map_guard = factory.index('if bool(world.get("real_dhaka_loaded")):', bootstrap_start)
+        real_map_guard = factory.index('if (world.get("real_dhaka_loaded") == true):', bootstrap_start)
         ground_call = factory.index("_expand_ground()", bootstrap_start)
         self.assertLess(real_map_guard, ground_call)
 
@@ -199,11 +199,11 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         hub_start = missions.index("func _create_hub()")
         hub_end = missions.index("func _on_hub_entered", hub_start)
         hub_code = missions[hub_start:hub_end]
-        self.assertIn('if bool(world.get("real_dhaka_loaded")):', hub_code)
+        self.assertIn('if (world.get("real_dhaka_loaded") == true):', hub_code)
         self.assertIn('loader.call("get_road_routes")', hub_code)
         self.assertIn("hub_position = best_point + sidewalk_side * 8.0", hub_code)
         self.assertIn("hub_created = true", hub_code)
-        self.assertIn('if not hub_created and is_instance_valid(world) and bool(world.get("real_dhaka_loaded")):', missions)
+        self.assertIn('if not hub_created and is_instance_valid(world) and (world.get("real_dhaka_loaded") == true):', missions)
         self.assertIn("if real_dhaka_loaded and mapped_routes.is_empty():", world)
         self.assertIn('npc.add_to_group("mapped_road_npc")', world)
         self.assertIn('get_tree().get_nodes_in_group("mapped_road_npc").size()', world)
@@ -220,7 +220,7 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
         interact_start = player.index("func interact():")
         interact_end = player.index("func take_damage(", interact_start)
         code = player[interact_start:interact_end]
-        map_guard = code.index('if not bool(world.get("real_dhaka_loaded")):')
+        map_guard = code.index('if not (world.get("real_dhaka_loaded") == true):')
         starter_bargain = code.index("Vector3(42, 0, 42)")
         starter_reward = code.index("Vector3(30, 0, -30)")
         self.assertLess(map_guard, starter_bargain)
@@ -241,7 +241,7 @@ class RuntimeMapIntegrationWiringTests(unittest.TestCase):
             with self.subTest(factory=relative_path):
                 source = (self.ROOT / relative_path).read_text(encoding="utf-8")
                 bootstrap_start = source.index("func _bootstrap()")
-                map_guard = source.index('if bool(world.get("real_dhaka_loaded")):', bootstrap_start)
+                map_guard = source.index('if (world.get("real_dhaka_loaded") == true):', bootstrap_start)
                 fictional_generator = source.index(generator_call, bootstrap_start)
                 self.assertLess(map_guard, fictional_generator)
                 self.assertIn('set_meta("real_map_overlay_suppressed", true)', source)
