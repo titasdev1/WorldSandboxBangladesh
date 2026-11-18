@@ -264,5 +264,36 @@ func _run_smoke() -> void:
 		return
 	print("BR_GROUND_MATCH_RUNTIME_PASS • ai_operators=%d • safe_zone=true • radius=%.1fm • combat_active=true" % [live_bots.size(), zone_radius])
 
+	# Run the production solo-BR controller after the landing transition.
+	# The test subclass replaces only expensive operator visuals with lightweight
+	# nodes; route selection, bot counts, safe-zone setup and shrinking are real.
+	var combat := Node.new()
+	combat.name = "CombatModeController"
+	combat.set_script(load("res://tests/br_smoke_combat_controller.gd"))
+	world.add_child(combat)
+	world.combat_controller = combat
+	combat.call("configure", world)
+	combat.call("start_mode", "battle_royale_solo")
+	if not bool(combat.get("active")) or int(combat.get("target_goal")) != 12:
+		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: solo BR did not initialise a 12-operator match.")
+		quit(1)
+		return
+	combat.call("update", 0.016)
+	await process_frame
+	var live_bots := get_nodes_in_group("combat_enemy")
+	var safe_zone := world.get_node_or_null("BR_SafeZone_Ring") as MeshInstance3D
+	if not bool(combat.get("br_bots_spawned")) or int(combat.get("alive_enemies")) != 12 or live_bots.size() != 12 or safe_zone == null:
+		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: landing did not spawn 12 AI operators and the safe-zone ring.")
+		quit(1)
+		return
+	combat.set("br_zone_elapsed", 60.0)
+	combat.call("update", 0.016)
+	var zone_radius := float(combat.get("br_zone_radius"))
+	if zone_radius >= 260.0 or zone_radius <= 48.0:
+		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: BR safe zone did not shrink after landing.")
+		quit(1)
+		return
+	print("BR_GROUND_MATCH_RUNTIME_PASS • ai_operators=%d • safe_zone=true • radius=%.1fm • combat_active=true" % [live_bots.size(), zone_radius])
+
 	print("BR_DEPLOYMENT_RUNTIME_PASS • aircraft=true • overview_camera=true • freefall=true • canopy_inflation=true • canopy_glide=true • landing=true")
 	quit(0)
