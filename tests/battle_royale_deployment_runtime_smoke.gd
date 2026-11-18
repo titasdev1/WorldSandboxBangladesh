@@ -184,7 +184,7 @@ func _run_smoke() -> void:
 		return
 
 	visual.call("_update_authored_animation", player, 0.0)
-	var lookup: Dictionary = visual.get("_authored_animation_lookup")
+
 	var animation_player := visual.get("_authored_animation_player") as AnimationPlayer
 	if animation_player == null or animation_player.current_animation != String(lookup.get("parachute_deploy", "")):
 		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: deployment animation was not selected during canopy inflation.")
