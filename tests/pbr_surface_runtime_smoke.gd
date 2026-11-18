@@ -65,6 +65,16 @@ func _initialize() -> void:
         if rough_material == material:
             failures.append("%s: material cache ignored changed roughness input" % surface_id)
 
+        var tile_material: StandardMaterial3D = factory.call("material_for_tile", surface_id, fallback) as StandardMaterial3D
+        if tile_material == null or not tile_material.uv1_triplanar:
+            failures.append("%s: real-map tile material did not enable triplanar UV projection" % surface_id)
+        if tile_material != null and not tile_material.vertex_color_use_as_albedo:
+            failures.append("%s: mapped vertex-colour variation was not preserved" % surface_id)
+        if tile_material != null and tile_material.heightmap_enabled:
+            failures.append("%s: streamed mobile tile material unexpectedly enabled parallax" % surface_id)
+        if surface_id == "metal" and tile_material != null and tile_material.metallic_texture == null and tile_material.metallic < 0.8:
+            failures.append("metal: missing metallic texture and fallback metallic response")
+
         var closeup: StandardMaterial3D = factory.call("material_for_closeup", surface_id, fallback) as StandardMaterial3D
         if maps.has("height"):
             if not closeup.heightmap_enabled or closeup.heightmap_texture == null:
@@ -80,6 +90,9 @@ func _initialize() -> void:
             "metallic_bound": material.metallic_texture != null,
             "ao_bound": material.ao_enabled and material.ao_texture != null,
             "heightmap_opt_in": closeup.heightmap_enabled,
+            "tile_triplanar": tile_material != null and tile_material.uv1_triplanar,
+            "tile_vertex_color_preserved": tile_material != null and tile_material.vertex_color_use_as_albedo,
+            "tile_heightmap_disabled": tile_material == null or not tile_material.heightmap_enabled,
             "mobile_deep_parallax": material.heightmap_deep_parallax,
         })
 
