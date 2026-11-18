@@ -79,6 +79,13 @@ func _ready():
  add_child(camera)
  camera.make_current()
 
+func _process(_delta: float) -> void:
+    # The player physics loop is paused while seated in a rigid-body vehicle.
+    # Keep the cockpit first-person camera attached to vehicle yaw and look input.
+    if camera_view_mode == "first_person" and bool(get_meta("vehicle_cockpit_active", false)):
+        _update_camera()
+
+
 func _unhandled_input(event):
  # Let on-screen HUD controls consume their own touch gestures first. Only
  # unhandled drags on the open right-hand look area should rotate the camera;
