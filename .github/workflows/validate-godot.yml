@@ -25,13 +25,31 @@ on:
       - "world.gd"
       - "player.gd"
       - "vehicle.gd"
+      - "npc.gd"
+      - "virtual_stick.gd"
+      - "player_vehicle_dynamics.gd"
+      - "character_visual.gd"
+      - "systems/npc_simulation_lod_manager.gd"
+      - "systems/activities/pitchbound_3d.gd"
+      - "systems/activities/pitchbound_3d.tscn"
+      - "systems/login_backdrop.gd"
+      - "systems/login_backdrop_view.gd"
       - "hud.gd"
       - "district_map_display.gd"
       - "real_dhaka_tile_loader.gd"
       - "Main.tscn"
       - "project.godot"
+      - "tests/npc_simulation_lod_smoke.gd"
+      - "tests/player_input_runtime_smoke.gd"
+      - "tests/mobile_joystick_runtime_smoke.gd"
+      - "tests/player_vehicle_physics_smoke.gd"
+      - "tests/player_vehicle_physics_world_stub.gd"
+      - "tests/vehicle_entry_exit_animation_smoke.gd"
+      - "tests/vehicle_entry_exit_visual_stub.gd"
+      - "tests/vehicle_entry_exit_world_stub.gd"
+      - "tests/pitchbound_runtime_smoke.gd"
+      - "tests/login_backdrop_runtime_smoke.gd"
       - "tests/test_dhaka_map_pipeline.py"
-      - ".github/workflows/validate-godot.yml"
 
 permissions:
   contents: read
@@ -79,6 +97,56 @@ jobs:
           set -euo pipefail
           GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
           "$GODOT" --headless --path . --script res://tests/npc_simulation_lod_smoke.gd
+
+      - name: Run player movement and jump runtime smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+          "$GODOT" --headless --path . --script res://tests/player_input_runtime_smoke.gd
+
+      - name: Run mobile joystick runtime smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+          "$GODOT" --headless --path . --script res://tests/mobile_joystick_runtime_smoke.gd
+
+      - name: Run vehicle physics runtime smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+          "$GODOT" --headless --path . --script res://tests/player_vehicle_physics_smoke.gd
+
+      - name: Run vehicle boarding and alighting runtime smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+          LOG="$RUNNER_TEMP/godot/vehicle-entry-exit.log"
+          set +e
+          timeout 90s "$GODOT" --headless --path . --script res://tests/vehicle_entry_exit_animation_smoke.gd > "$LOG" 2>&1
+          result=$?
+          set -e
+          cat "$LOG"
+          if [ "$result" -ne 0 ] || ! grep -Fq "VEHICLE_ENTRY_EXIT_ANIMATION_PASS" "$LOG"; then
+            exit 1
+          fi
+
+      - name: Run Pitchbound 3D runtime smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+          "$GODOT" --headless --path . --script res://tests/pitchbound_runtime_smoke.gd
+
+      - name: Run animated login backdrop runtime smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+          "$GODOT" --headless --path . --script res://tests/login_backdrop_runtime_smoke.gd
 
       - name: Run headless game startup
         shell: bash
