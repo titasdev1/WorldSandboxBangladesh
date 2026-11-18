@@ -320,7 +320,7 @@ def animate_wing(root: bpy.types.Object, wing: bpy.types.Object) -> None:
         wing.rotation_euler.y = angle
         wing.rotation_euler.x = roll
         wing.keyframe_insert(data_path="rotation_euler", frame=frame, group="Canopy_Wind_Sway")
-    action = bpy.context.object.animation_data.action if bpy.context.object and bpy.context.object.animation_data else None
+    action = wing.animation_data.action if wing.animation_data else None
     if action:
         action.name = "A2_Parachute_Canopy_Wind_Sway"
         for fcurve in action.fcurves:
@@ -364,7 +364,6 @@ def build_asset(output_path: pathlib.Path) -> dict:
     animate_wing(root, wing_root)
 
     scene = bpy.context.scene
-    scene.render.engine = "BLENDER_EEVEE_NEXT"
     scene.view_settings.view_transform = "AgX"
     scene.render.resolution_x = 1024
     scene.render.resolution_y = 1024
