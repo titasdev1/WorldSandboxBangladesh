@@ -19,6 +19,7 @@ on:
     branches: [ main ]
     paths:
       - "**.gd"
+      - "vehicle.gd"
       - "**.tscn"
       - "project.godot"
       - "content/**"
