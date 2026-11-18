@@ -87,10 +87,15 @@ func _physics_process(delta):
  else:
   velocity.y = -0.5
  if movement_scale > 1.0:
-  velocity *= movement_scale
+  # move_and_slide() consumes one fixed physics frame even though this civilian
+  # is intentionally called less often. Compensate horizontal travel only;
+  # gravity and floor contact must not be multiplied by the frame-skipping factor.
+  velocity.x *= movement_scale
+  velocity.z *= movement_scale
  move_and_slide()
  if movement_scale > 1.0:
-  velocity /= movement_scale
+  velocity.x /= movement_scale
+  velocity.z /= movement_scale
 
 func on_hit():
  health -= 50
