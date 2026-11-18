@@ -44,7 +44,11 @@ class MobileInteractionFlowTests(unittest.TestCase):
         enter = function_block(self.world, "try_interior_interaction")
         self.assertIn('get_node_or_null("DoorHinge")', open_door)
         self.assertIn('set_meta("door_open", true)', open_door)
-        self.assertIn('bool(entry.get_meta("door_open", false))', enter)
+        # Accept either explicit bool coercion or an equivalent typed comparison.
+        self.assertTrue(
+            'bool(entry.get_meta("door_open", false))' in enter
+            or 'entry.get_meta("door_open", false) == true' in enter
+        )
         self.assertIn('tween_property(hinge, "rotation:y"', open_door)
 
     def test_streamer_builds_a_visible_door_at_each_interaction_anchor(self):
