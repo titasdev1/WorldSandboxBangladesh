@@ -46,11 +46,16 @@ func set_camera_view_mode(mode: String) -> void:
  camera_view_mode = "first_person" if mode == "first_person" else "third_person"
  var visual := get_node_or_null("HumanoidVisual")
  if is_instance_valid(visual):
-  # Keep the real rig visible in first person. The camera is moved just beyond
-  # the operator's face so the head remains behind the near plane while the
-  # animated shoulders, forearms, hands and attached rifle stay in view.
   visual.visible = true
+  if visual.has_method("set_first_person_view"):
+   visual.call("set_first_person_view", camera_view_mode == "first_person")
  _update_camera()
+
+
+func _play_visual_action(action_name: String) -> void:
+ var visual := get_node_or_null("HumanoidVisual")
+ if is_instance_valid(visual) and visual.has_method("play_action"):
+  visual.call("play_action", action_name)
 
 func toggle_camera_view_mode() -> String:
  set_camera_view_mode("first_person" if camera_view_mode == "third_person" else "third_person")
@@ -259,6 +264,7 @@ func interact():
  if world.has_method("try_street_vendor") and world.try_street_vendor(global_position):
   return
  if world.has_method("try_open_interior_door") and world.try_open_interior_door(global_position):
+  _play_visual_action("open_door")
   return
  if world.has_method("try_interior_interaction") and world.try_interior_interaction(global_position):
   return
@@ -279,7 +285,10 @@ func take_damage(amount: int):
  if health <= 0:
   return
  health = maxi(0, health - amount)
+ if health > 0:
+  _play_visual_action("hit_reaction")
  if health <= 0 and world:
+  _play_visual_action("death")
   var combat = world.get("combat_controller")
   if is_instance_valid(combat) and bool(combat.get("active")) and not bool(combat.get("run_over")):
    combat.call("on_player_defeated")
