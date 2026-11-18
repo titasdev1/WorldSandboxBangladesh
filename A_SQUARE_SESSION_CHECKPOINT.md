@@ -217,3 +217,8 @@ Use `TOOLS_AND_PLATFORMS_REGISTRY.md` as the durable directory. Snapshot 2026-11
 8. Record the exact commit, run, job, artifact, and unresolved failure in this checkpoint after each meaningful validation.
 
 **Continuity rule:** Never start by re-fetching the old Instagram/KartaView/Three.js/Ara audits. Refresh the live branch head and act on the newest unfinished subsystem. A committed source change is not complete until the exact current commit passes its intended runtime/build tests.
+
+
+### Metadata-only follow-up
+- After the above checkpoint entry, development_state.json was refreshed in commit e540c69a0a88ff8a543a1d440db532401e785219. It records the BR/FPP runtime gates, current KartaView coverage result, Google imagery restrictions, and the fact that current-head CI is pending.
+- This metadata-only follow-up does not change game source or create a new APK. The last code head recorded above remains the source baseline for the next validation refresh.
