@@ -30,6 +30,8 @@ MAP_WORDS = {
     "normal": ("nor_gl", "normal", "normalgl", "normal_dx"),
     "roughness": ("rough",),
     "metallic": ("metal",),
+    "ao": ("ambient_occlusion", "ambient occlusion"),
+    "height": ("displacement", "disp", "height"),
 }
 
 def get_json(url: str):
@@ -76,15 +78,23 @@ def leaves(node, path=()):
 
 def map_kind(path) -> str | None:
     joined = "/".join(path).lower()
+    tokens = set(re.findall(r"[a-z0-9]+", joined))
+    # AO is commonly a standalone channel name; matching the substring "ao"
+    # would also misclassify unrelated filenames.
+    if "ao" in tokens or "occlusion" in tokens or "ambientocclusion" in joined:
+        return "ao"
     for kind, words in MAP_WORDS.items():
+        if kind == "ao":
+            continue
         if any(word in joined for word in words):
             return kind
     return None
 
-def resolution_score(path, surface: str) -> int:
-    """Rank only mobile-budget maps; never fall back to an oversized 8K texture."""
+
+def resolution_score(path, surface: str, kind: str | None = None) -> int:
+    """Rank mobile-budget maps; only road base-colour may use the 4K tier."""
     joined = "/".join(path).lower()
-    allowed = ("4k", "2k", "1k", "512") if surface == "road" else ("2k", "1k", "512")
+    allowed = ("4k", "2k", "1k", "512") if surface == "road" and kind in (None, "albedo") else ("2k", "1k", "512")
     for rank, resolution in enumerate(allowed):
         if resolution in joined:
             return rank
@@ -98,7 +108,7 @@ def write_manifest(surfaces: dict, note: str = "") -> None:
         "api": API,
         "license": "CC0-1.0",
         "attribution_required_for_downloaded_assets": False,
-        "resolution_policy": "Mobile bundle: road maps up to 4K; other surfaces up to 2K; fall back to 1K/512. 8K maps are excluded from the bundled Android payload.",
+        "resolution_policy": "Mobile bundle: road albedo up to 4K; all other channels and surfaces up to 2K, with 1K/512 fallback. 8K maps are excluded.",
         "surfaces": surfaces,
         "note": note,
     }, indent=2) + "\n", encoding="utf-8")
@@ -121,7 +131,7 @@ def main() -> int:
                     suffix = pathlib.PurePosixPath(urllib.parse.urlparse(url).path).suffix.lower()
                     if suffix not in {".jpg", ".jpeg", ".png", ".webp"}:
                         continue
-                    score = resolution_score(path, surface)
+                    score = resolution_score(path, surface, kind)
                     if score < 99:
                         candidates.setdefault(kind, []).append((score, path, url, suffix))
                 maps = {}
@@ -149,7 +159,7 @@ def main() -> int:
                     print(f"Prepared {surface}: {asset_id} ({', '.join(sorted(maps))})")
             except Exception as exc:
                 print(f"WARNING: could not prepare {surface} texture: {exc}")
-        write_manifest(surfaces, "Only downloaded CC0 files are included; road maps are capped at 4K and other maps at 2K, with 1K/512 fallback; missing maps use procedural fallbacks.")
+        write_manifest(surfaces, "Only downloaded CC0 files are included; road albedo is capped at 4K, all other channels at 2K, with 1K/512 fallback; missing maps use procedural fallbacks.")
         print(f"Poly Haven CC0 PBR surfaces prepared: {len(surfaces)}")
         return 0
     except Exception as exc:
