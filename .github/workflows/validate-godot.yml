@@ -76,6 +76,7 @@ on:
       - ".github/workflows/validate-godot.yml"
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -132,6 +133,106 @@ jobs:
           set -euo pipefail
           python3 tools/convert_charactercreator_glbs.py
 
+      - name: Resolve profile-matched Ara 3D operator asset
+        id: ara-operator
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          PROFILE_COMMIT="$(git log -n 1 --format=%H -- tools/ara3d/asquare_operator.params.json)"
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          RUN_RECORD="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${PROFILE_COMMIT}&per_page=100" \
+            --jq ".workflow_runs | map(select(.workflow_id == 417330351 and .head_sha == \"${PROFILE_COMMIT}\" and .head_branch == \"${BRANCH}\")) | sort_by(.created_at) | last // empty | [.id, .status, (.conclusion // \"\")] | @tsv")"
+          if [[ -z "${RUN_RECORD}" ]]; then
+            echo "No Ara operator build exists for profile ${PROFILE_COMMIT} on ${BRANCH}." >&2
+            exit 1
+          fi
+          read -r RUN_ID STATUS CONCLUSION <<< "${RUN_RECORD}"
+          if [[ "${STATUS}" != "completed" || "${CONCLUSION}" != "success" ]]; then
+            echo "Profile-matched Ara build is not successful: run=${RUN_ID} status=${STATUS} conclusion=${CONCLUSION}." >&2
+            exit 1
+          fi
+          ARTIFACT_DIGEST="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}/artifacts" \
+            --jq '.artifacts[] | select(.name == "A-Square-Ara3D-Operator-Candidates" and .expired == false) | .digest' | head -n 1)"
+          if [[ -z "${ARTIFACT_DIGEST}" ]]; then
+            echo "Ara build did not publish its validated LOD candidate artifact." >&2
+            exit 1
+          fi
+          echo "Matched Ara profile=${PROFILE_COMMIT}; run=${RUN_ID}; artifact digest=${ARTIFACT_DIGEST}."
+          {
+            echo "run_id=${RUN_ID}"
+            echo "profile_commit=${PROFILE_COMMIT}"
+            echo "artifact_digest=${ARTIFACT_DIGEST}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download profile-matched Ara operator LOD candidates
+        uses: actions/download-artifact@v4
+        with:
+          name: A-Square-Ara3D-Operator-Candidates
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.ara-operator.outputs.run_id }}
+          path: build/ara3d-operator-candidates
+
+      - name: Verify and install high-detail Ara operator for runtime smoke
+        shell: bash
+        env:
+          ARA_PROFILE_COMMIT: ${{ steps.ara-operator.outputs.profile_commit }}
+          ARA_WORKFLOW_RUN_ID: ${{ steps.ara-operator.outputs.run_id }}
+          ARA_ARTIFACT_DIGEST: ${{ steps.ara-operator.outputs.artifact_digest }}
+        run: |
+          set -euo pipefail
+          ROOT="build/ara3d-operator-candidates"
+          HIGH="$(find "$ROOT/high" -maxdepth 1 -type f -name '*.glb' -print -quit)"
+          MEDIUM="$(find "$ROOT/medium" -maxdepth 1 -type f -name '*.glb' -print -quit)"
+          LOW="$(find "$ROOT/low" -maxdepth 1 -type f -name '*.glb' -print -quit)"
+          test -n "$HIGH" && test -s "$HIGH" && test -n "$MEDIUM" && test -s "$MEDIUM" && test -n "$LOW" && test -s "$LOW"
+          python3 tools/ara3d/verify_ara_glb.py --high "$HIGH" --medium "$MEDIUM" --low "$LOW" --out "$ROOT/verification.json"
+          ARA_HIGH_GLB="$HIGH" python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import shutil
+          from pathlib import Path
+
+          root = Path("build/ara3d-operator-candidates")
+          high = Path(os.environ["ARA_HIGH_GLB"])
+          report = json.loads((root / "verification.json").read_text(encoding="utf-8"))
+          if report.get("validation") != "PASS" or report.get("errors"):
+              raise SystemExit("ARA3D_ASSET_GATE: structural verification did not pass.")
+          data = report["variants"]["high"]
+          destination = Path("external_content/ara3d_operator")
+          high_dir = destination / "high"
+          high_dir.mkdir(parents=True, exist_ok=True)
+          installed = high_dir / "a_square_bangladesh_operator.glb"
+          shutil.copy2(high, installed)
+          manifest = {
+              "available": True,
+              "source": "Ara 3D Gen",
+              "source_repository": "https://github.com/olatunde85/3d-gen",
+              "source_commit": report["generator_commit"],
+              "profile_commit": os.environ["ARA_PROFILE_COMMIT"],
+              "workflow_run_id": int(os.environ["ARA_WORKFLOW_RUN_ID"]),
+              "artifact_digest": os.environ["ARA_ARTIFACT_DIGEST"],
+              "file": installed.as_posix(),
+              "sha256": hashlib.sha256(installed.read_bytes()).hexdigest(),
+              "bytes": installed.stat().st_size,
+              "triangles": data["triangles"],
+              "materials": data["materials"],
+              "textures": data["textures"],
+              "joint_count": data["max_joint_count"],
+              "weapon_socket": data["weapon_socket"],
+              "facial_morph_targets": data["facial_morph_targets"],
+              "animation_count": data["animation_count"],
+              "required_animation_groups": data["required_animation_groups"],
+              "license": report["license"]
+          }
+          (destination / "ara_asset_manifest.json").write_text(json.dumps(manifest, indent=2) + "\\n", encoding="utf-8")
+          shutil.copy2(root / "ASSET-LICENSES.txt", destination / "ASSET-LICENSES.txt")
+          print("ARA3D_OPERATOR_INSTALLED:", json.dumps(manifest, sort_keys=True))
+          PY
+
       - name: Download Godot
         shell: bash
         run: |
@@ -154,6 +255,22 @@ jobs:
           set -e
           cat "$RUNNER_TEMP/godot/import.log"
           if [ "$result" -ne 0 ] || grep -E "SCRIPT ERROR:|Parse Error|Failed to load script" "$RUNNER_TEMP/godot/import.log" || (grep -E "ERROR:" "$RUNNER_TEMP/godot/import.log" | grep -vF 'ERROR: Parameter "t" is null.'); then
+            exit 1
+          fi
+
+      - name: Exercise Ara operator rig, locomotion, first-person body, weapon socket and BR parachute animations
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+          LOG="$RUNNER_TEMP/godot/ara-operator.log"
+          set +e
+          timeout 120s "$GODOT" --headless --path . --script tests/ara_operator_runtime_smoke.gd > "$LOG" 2>&1
+          result=$?
+          set -e
+          cat "$LOG"
+          if [ "$result" -ne 0 ] || ! grep -Fq "ARA3D_RUNTIME_PASS" "$LOG" || grep -E "SCRIPT ERROR:|Parse Error|Invalid call|Invalid get index|ERROR:" "$LOG"; then
+            echo "Ara operator runtime smoke failed."
             exit 1
           fi
 
@@ -241,7 +358,16 @@ jobs:
             exit 1
           fi
 
-          if python3 -c 'import json,pathlib; p=pathlib.Path("external_content/asquare_charactercreator/asset_manifest.json"); raise SystemExit(0 if p.exists() and json.loads(p.read_text(encoding="utf-8")).get("available") is True else 1)'; then
+          if python3 -c 'import json,pathlib; p=pathlib.Path("external_content/ara3d_operator/ara_asset_manifest.json"); raise SystemExit(0 if p.exists() and json.loads(p.read_text(encoding="utf-8")).get("available") is True else 1)'; then
+            grep -Fq "ARA3D_OPERATOR_READY" "$RUNNER_TEMP/godot/startup.log" || {
+              echo "Ara 3D operator artifact is installed but was not activated at runtime." >&2
+              exit 1
+            }
+            grep -Fq "ARA3D_OPERATOR_GEAR_READY" "$RUNNER_TEMP/godot/startup.log" || {
+              echo "Ara 3D operator activated but its bone-attached gear was not created." >&2
+              exit 1
+            }
+          elif python3 -c 'import json,pathlib; p=pathlib.Path("external_content/asquare_charactercreator/asset_manifest.json"); raise SystemExit(0 if p.exists() and json.loads(p.read_text(encoding="utf-8")).get("available") is True else 1)'; then
             # The preferred modular human is selected before the Quaternius
             # compatibility fallback. Validate only the path actually selected.
             grep -Fq "CHARACTER_CREATOR_HERO_READY" "$RUNNER_TEMP/godot/startup.log" || {
