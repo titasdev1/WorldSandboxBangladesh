@@ -11,6 +11,9 @@ const MAP_PACK_DIR := "user://map_packs"
 const GAME_ORIGIN_LAT := 23.8103
 const GAME_ORIGIN_LON := 90.4125
 const STREAM_INTERVAL := 0.5
+# Avoid instantiating several large GLBs in one frame on mobile; load nearest
+# missing tiles first, with a small per-tick budget to smooth camera/player hitches.
+const MAX_TILE_LOADS_PER_STREAM_TICK := 2
 const MAX_INTERIOR_ANCHORS_PER_TILE := 24
 const MAX_BUILDING_COLLISIONS_PER_TILE := 96
 const INTERIOR_ANCHOR_RADIUS_M := 220.0
@@ -221,9 +224,27 @@ func _stream_tiles(player_position: Vector3) -> void:
 					anchor.queue_free()
 			_loaded.erase(key)
 			_road_routes_by_tile.erase(key)
+	# Sort newly needed tiles by distance so the spawn/forward neighbourhood is
+	# available first, then cap work per tick instead of importing every nearby GLB
+	# synchronously in one frame.
+	var pending_keys: Array[String] = []
 	for key in desired.keys():
-		if _loaded.has(key):
-			continue
+		var tile_key := str(key)
+		if not _loaded.has(tile_key):
+			pending_keys.append(tile_key)
+	pending_keys.sort_custom(func(a: String, b: String) -> bool:
+		var a_record: Dictionary = desired[a]
+		var b_record: Dictionary = desired[b]
+		var a_position: Vector3 = a_record["world_position"]
+		var b_position: Vector3 = b_record["world_position"]
+		var a_distance := Vector2(player_position.x - a_position.x, player_position.z - a_position.z).length_squared()
+		var b_distance := Vector2(player_position.x - b_position.x, player_position.z - b_position.z).length_squared()
+		return a_distance < b_distance
+	)
+	var loaded_this_tick := 0
+	for key in pending_keys:
+		if loaded_this_tick >= MAX_TILE_LOADS_PER_STREAM_TICK:
+			break
 		var record: Dictionary = desired[key]
 		var packed := load(str(record["full_path"])) as PackedScene
 		if packed == null:
@@ -240,6 +261,7 @@ func _stream_tiles(player_position: Vector3) -> void:
 		record["interior_anchors"] = _load_interior_anchors(record, player_position)
 		record["instance"] = instance
 		_loaded[key] = record
+		loaded_this_tick += 1
 
 func get_world_bounds() -> Dictionary:
 	return _world_bounds.duplicate(true)
