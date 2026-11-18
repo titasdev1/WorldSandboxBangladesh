@@ -11,6 +11,12 @@ var intermission := 0.0
 var run_over := false
 var reward_paid := false
 var profile_recorded := false
+var br_zone_center := Vector3.ZERO
+var br_zone_radius := 260.0
+var br_zone_elapsed := 0.0
+var br_zone_shrink_seconds := 240.0
+var br_zone_visual: MeshInstance3D
+var br_zone_damage_accumulator := 0.0
 
 func configure(w) -> void:
     world = w
@@ -18,7 +24,7 @@ func configure(w) -> void:
 func start_mode(mode_id: String) -> void:
     _clear_combat_entities()
     active_mode = mode_id
-    active = mode_id in ["survival", "arena_training", "street_skirmish"]
+    active = mode_id in ["survival", "arena_training", "street_skirmish", "battle_royale_solo"]
     wave = 0
     kills = 0
     target_goal = 0
@@ -27,6 +33,12 @@ func start_mode(mode_id: String) -> void:
     run_over = false
     reward_paid = false
     profile_recorded = false
+    br_zone_elapsed = 0.0
+    br_zone_damage_accumulator = 0.0
+    br_zone_radius = 260.0
+    if is_instance_valid(br_zone_visual):
+        br_zone_visual.queue_free()
+    br_zone_visual = null
     if is_instance_valid(world):
         world.last_combat_result = ""
     if is_instance_valid(world) and is_instance_valid(world.player):
@@ -54,6 +66,8 @@ func start_mode(mode_id: String) -> void:
             var offset := Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
             _spawn_enemy(world.player.global_position + offset, false)
         world.event_text = "STREET SKIRMISH: ELIMINATE 10 ENEMIES"
+    elif mode_id == "battle_royale_solo":
+        _start_solo_battle_royale()
     else:
         wave = 1
         _spawn_wave()
@@ -67,6 +81,110 @@ func _finish_match(result: String) -> void:
         if not profile_recorded and is_instance_valid(world.career_profile):
             world.career_profile.call("record_match", result, active_mode)
             profile_recorded = true
+
+
+func _start_solo_battle_royale() -> void:
+    if not is_instance_valid(world) or not is_instance_valid(world.player):
+        active = false
+        return
+    br_zone_center = world.player.global_position
+    br_zone_radius = 260.0
+    br_zone_elapsed = 0.0
+    br_zone_damage_accumulator = 0.0
+    var spawn_points: Array[Vector3] = []
+    if bool(world.get("real_dhaka_loaded")):
+        var loader: Node = world.get("real_dhaka_loader") as Node
+        if is_instance_valid(loader) and loader.has_method("get_road_routes"):
+            for route in loader.get_road_routes():
+                if not route is Array:
+                    continue
+                for value in route:
+                    if not value is Vector3:
+                        continue
+                    var point: Vector3 = value
+                    var distance := Vector2(point.x - br_zone_center.x, point.z - br_zone_center.z).length()
+                    if distance < 85.0 or distance > 235.0:
+                        continue
+                    var separated := true
+                    for existing in spawn_points:
+                        if Vector2(existing.x - point.x, existing.z - point.z).length() < 28.0:
+                            separated = false
+                            break
+                    if separated:
+                        spawn_points.append(point)
+        if spawn_points.size() < 6:
+            active = false
+            target_goal = 0
+            alive_enemies = 0
+            world.event_text = "SOLO BR UNAVAILABLE • NOT ENOUGH LOADED ROAD SPAWN POINTS"
+            world.event_time_left = 9.0
+            return
+        spawn_points.shuffle()
+    else:
+        # The fictional starter map is only a local development fallback.
+        for i in range(12):
+            var angle := TAU * (float(i) + 0.33) / 12.0
+            var radius := 105.0 + float(i % 4) * 22.0
+            spawn_points.append(br_zone_center + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius))
+    target_goal = mini(12, spawn_points.size())
+    alive_enemies = target_goal
+    for index in range(target_goal):
+        _spawn_enemy(spawn_points[index], false)
+    _create_br_safe_zone()
+    world.event_text = "BATTLE ROYALE SOLO • 1 OPERATOR VS %d BOTS • DROP FROM THE CARGO PLANE" % target_goal
+    world.event_time_left = 9.0
+
+
+func _create_br_safe_zone() -> void:
+    if is_instance_valid(br_zone_visual):
+        br_zone_visual.queue_free()
+    br_zone_visual = MeshInstance3D.new()
+    br_zone_visual.name = "BR_SafeZone_Ring"
+    var ring := TorusMesh.new()
+    ring.inner_radius = br_zone_radius - 1.8
+    ring.outer_radius = br_zone_radius + 1.8
+    ring.rings = 8
+    ring.ring_segments = 160
+    br_zone_visual.mesh = ring
+    var material := StandardMaterial3D.new()
+    material.albedo_color = Color(0.12, 0.68, 1.0, 0.72)
+    material.emission_enabled = true
+    material.emission = Color(0.04, 0.32, 0.85)
+    material.emission_energy_multiplier = 0.7
+    material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    material.no_depth_test = false
+    br_zone_visual.material_override = material
+    world.add_child(br_zone_visual)
+    br_zone_visual.global_position = br_zone_center + Vector3(0.0, 0.16, 0.0)
+
+
+func _update_battle_royale(delta: float) -> void:
+    if not is_instance_valid(world) or not is_instance_valid(world.player):
+        return
+    var deployment: Node = world.get("battle_royale_controller") as Node
+    if not is_instance_valid(deployment) or String(deployment.call("get_phase")) != "landed":
+        return
+    br_zone_elapsed += delta
+    var blend := clampf(br_zone_elapsed / br_zone_shrink_seconds, 0.0, 1.0)
+    var previous_radius := br_zone_radius
+    br_zone_radius = lerpf(260.0, 48.0, blend)
+    if is_instance_valid(br_zone_visual):
+        br_zone_visual.scale = Vector3(br_zone_radius / 260.0, 1.0, br_zone_radius / 260.0)
+        if absf(previous_radius - br_zone_radius) > 0.65:
+            world.event_text = "SAFE ZONE CLOSING • %dm" % int(br_zone_radius)
+            world.event_time_left = 2.0
+    var player_position: Vector3 = world.player.global_position
+    var distance := Vector2(player_position.x - br_zone_center.x, player_position.z - br_zone_center.z).length()
+    if distance > br_zone_radius:
+        br_zone_damage_accumulator += delta
+        if br_zone_damage_accumulator >= 1.0:
+            br_zone_damage_accumulator -= 1.0
+            world.player.take_damage(5)
+            world.event_text = "OUTSIDE SAFE ZONE • RETURN TO THE BLUE RING"
+            world.event_time_left = 1.4
+    else:
+        br_zone_damage_accumulator = 0.0
 
 
 func on_player_defeated() -> void:
@@ -156,6 +274,18 @@ func enemy_defeated(enemy: Node) -> void:
         else:
             world.event_text = "SKIRMISH • %d/%d • %d ENEMIES LEFT" % [kills, target_goal, alive_enemies]
             world.event_time_left = 2.0
+    elif active_mode == "battle_royale_solo":
+        alive_enemies = maxi(0, alive_enemies - 1)
+        if alive_enemies == 0:
+            _finish_match("VICTORY")
+            if not reward_paid:
+                world.cash += 1000
+                reward_paid = true
+            world.event_text = "BATTLE ROYALE CHAMPION • 12/12 • +৳1000"
+            world.event_time_left = 12.0
+        else:
+            world.event_text = "BR ELIMINATION • %d/%d • %d OPERATORS REMAIN" % [kills, target_goal, alive_enemies + 1]
+            world.event_time_left = 2.0
     elif active_mode == "survival":
         alive_enemies = maxi(0, alive_enemies - 1)
         if alive_enemies == 0:
@@ -174,7 +304,12 @@ func enemy_defeated(enemy: Node) -> void:
         world.notify_gameplay_event("COMBAT_KILL", 1)
 
 func update(delta: float) -> void:
-    if not active or active_mode != "survival" or run_over:
+    if not active or run_over:
+        return
+    if active_mode == "battle_royale_solo":
+        _update_battle_royale(delta)
+        return
+    if active_mode != "survival":
         return
     if alive_enemies <= 0:
         intermission -= delta
@@ -183,6 +318,12 @@ func update(delta: float) -> void:
             _spawn_wave()
 
 func get_status_text() -> String:
+    if active_mode == "battle_royale_solo":
+        if run_over and world.last_combat_result == "VICTORY":
+            return "BATTLE ROYALE • CHAMPION • %d ELIMINATIONS" % kills
+        if run_over:
+            return "BATTLE ROYALE • DEFEAT • %d ELIMINATIONS" % kills
+        return "BR SOLO • %d ELIMINATIONS • %d BOTS LEFT • ZONE %dm" % [kills, alive_enemies, int(br_zone_radius)]
     if active_mode == "arena_training":
         return ("COMBAT LAB • COMPLETE • %d/%d" % [kills, target_goal]) if run_over else ("COMBAT LAB • %d/%d • %d LEFT" % [kills, target_goal, alive_enemies])
     if active_mode == "street_skirmish":
