@@ -20,30 +20,38 @@ func _ready() -> void:
 	queue_redraw()
 
 func _gui_input(event: InputEvent) -> void:
+	# Screen touch positions are in viewport coordinates, not this Control's
+	# local circle. Convert them before testing the hit rectangle or moving the knob.
 	if event is InputEventScreenTouch:
-		if event.pressed and _touch_index == -1 and Rect2(Vector2.ZERO, size).has_point(event.position):
+		var local_position := _viewport_to_local(event.position)
+		if event.pressed and _touch_index == -1 and Rect2(Vector2.ZERO, size).has_point(local_position):
 			_touch_index = event.index
 			_active = true
-			_update_stick(event.position)
+			_update_stick(local_position)
 			accept_event()
 		elif not event.pressed and event.index == _touch_index:
 			_release_stick()
 			accept_event()
 	elif event is InputEventScreenDrag and event.index == _touch_index:
-		_update_stick(event.position)
+		_update_stick(_viewport_to_local(event.position))
 		accept_event()
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed and _touch_index == -1 and Rect2(Vector2.ZERO, size).has_point(event.position):
+		var local_mouse := get_local_mouse_position()
+		if event.pressed and _touch_index == -1 and Rect2(Vector2.ZERO, size).has_point(local_mouse):
 			_touch_index = -2
 			_active = true
-			_update_stick(event.position)
+			_update_stick(local_mouse)
 			accept_event()
 		elif not event.pressed and _touch_index == -2:
 			_release_stick()
 			accept_event()
 	elif event is InputEventMouseMotion and _touch_index == -2:
-		_update_stick(event.position)
+		_update_stick(get_local_mouse_position())
 		accept_event()
+
+
+func _viewport_to_local(viewport_position: Vector2) -> Vector2:
+	return get_global_transform_with_canvas().affine_inverse() * viewport_position
 
 func _update_stick(local_point: Vector2) -> void:
 	var offset := local_point - _center

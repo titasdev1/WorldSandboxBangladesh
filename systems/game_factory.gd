@@ -19,10 +19,19 @@ func _bootstrap() -> void:
     world = get_parent()
     if not is_instance_valid(world):
         return
+    # The georeferenced map owns its terrain, roads, buildings and landmarks.
+    # Never paste the fictional 600 m procedural grid over a real district.
+    if bool(world.get("real_dhaka_loaded")):
+        generated = false
+        set_meta("factory_status", "real_map_mode_fictional_grid_suppressed")
+        set_meta("real_map_overlay_suppressed", true)
+        set_meta("generated_buildings", 0)
+        set_meta("generated_props", 0)
+        return
     rng.seed = 20261007
     _expand_ground()
     _generate_outer_arterials()
-    _generate_sectors()
+    await _generate_sectors()
     _generate_transport_hubs()
     _generate_public_spaces()
     generated = true
@@ -63,9 +72,10 @@ func mesh_box(pos: Vector3, size: Vector3, color: Color, collision := false, sur
     return node
 
 func _expand_ground() -> void:
-    # The original 180m floor remains untouched; this creates the scalable
-    # outer playable terrain around it.
-    mesh_box(Vector3(0, -0.56, 0), Vector3(CITY_RADIUS * 2.0, 0.08, CITY_RADIUS * 2.0), Color("#526b49"), true)
+    # One continuous ground plane for the fictional fallback city. Its top is
+    # exactly y=0, aligned with building bases and the decorative road surface.
+    # Real-map mode returns before this function is called.
+    mesh_box(Vector3(0, -0.04, 0), Vector3(CITY_RADIUS * 2.0, 0.08, CITY_RADIUS * 2.0), Color("#526b49"), true)
 
 func _generate_outer_arterials() -> void:
     # Extend the proven six-by-six city road axes into the 600m world.
@@ -84,6 +94,8 @@ func _generate_sectors() -> void:
         var angle := float(sector) / float(SECTOR_COUNT) * TAU
         var center := Vector3(cos(angle) * 210.0, 0.0, sin(angle) * 210.0)
         _generate_sector(sector, center, angle)
+        # Yield once per sector so phones can present frames during fallback generation.
+        await get_tree().process_frame
 
 func _generate_sector(index: int, center: Vector3, angle: float) -> void:
     var kinds := ["residential", "commercial", "industrial", "school", "market", "riverfront"]
