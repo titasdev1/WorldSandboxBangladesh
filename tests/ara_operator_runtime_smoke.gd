@@ -85,10 +85,31 @@ func _run_smoke() -> void:
 			quit(1)
 			return
 
-	var socket := hero.find_child("WeaponR", true, false) as Node3D
+	var weapon_socket_index := skeleton.find_bone("WeaponR")
 	var weapon := visual.get("_weapon_root") as Node3D
-	if socket == null or weapon == null or weapon.get_parent() != socket:
-		push_error("ARA3D_RUNTIME_FAIL: gameplay weapon is not attached to the authored WeaponR socket.")
+	var weapon_attachment := weapon.get_parent() as BoneAttachment3D if is_instance_valid(weapon) else null
+	if weapon_socket_index < 0 or weapon_attachment == null or weapon_attachment.bone_name != "WeaponR":
+		push_error("ARA3D_RUNTIME_FAIL: gameplay weapon is not attached to the authored WeaponR skeleton bone.")
+		quit(1)
+		return
+
+	# FPP must retain the real torso/arms and weapon while removing head clipping.
+	var head_index := skeleton.find_bone("Head")
+	if head_index < 0:
+		push_error("ARA3D_RUNTIME_FAIL: character Head bone is missing.")
+		quit(1)
+		return
+	visual.call("set_first_person_view", true)
+	await process_frame
+	var hidden_head_scale := skeleton.get_bone_pose_scale(head_index)
+	if hidden_head_scale.length() > 0.01:
+		push_error("ARA3D_RUNTIME_FAIL: first-person mode did not collapse the Head bone.")
+		quit(1)
+		return
+	visual.call("set_first_person_view", false)
+	await process_frame
+	if skeleton.get_bone_pose_scale(head_index).length() < 0.9:
+		push_error("ARA3D_RUNTIME_FAIL: third-person mode did not restore the Head bone.")
 		quit(1)
 		return
 
@@ -119,7 +140,27 @@ func _run_smoke() -> void:
 		quit(1)
 		return
 
-	print("ARA3D_RUNTIME_PASS • bones=%d • clips=%d • textured_surfaces=%d/%d • WeaponR=true • rifle_states=true • lod=high" % [
+	# Verify that actual BR deployment phases select the authored parachute clips.
+	var br_states := {
+		"freefall": "skydive",
+		"deploying": "parachute_deploy",
+		"gliding": "parachute_glide",
+		"landing": "parachute_land"
+	}
+	for phase in br_states.keys():
+		actor.set_meta("br_deployment_state", phase)
+		visual.call("_update_authored_animation", actor, 0.0)
+		await process_frame
+		var expected_clip := String(lookup[br_states[phase]])
+		if player.current_animation != expected_clip:
+			push_error("ARA3D_RUNTIME_FAIL: BR phase did not select clip " + br_states[phase])
+			quit(1)
+			return
+	actor.remove_meta("br_deployment_state")
+	visual.call("_play_authored_animation", "walk")
+	await process_frame
+
+	print("ARA3D_RUNTIME_PASS • bones=%d • clips=%d • textured_surfaces=%d/%d • WeaponR=true • first_person_body=true • BR_parachute_states=true • rifle_states=true • lod=high" % [
 		skeleton.get_bone_count(), player.get_animation_list().size(), textured_surface_count, surface_count
 	])
 	quit(0)
