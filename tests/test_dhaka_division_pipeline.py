@@ -1,5 +1,7 @@
 import hashlib
+import io
 import os
+import urllib.error
 import json
 import subprocess
 import sys
@@ -16,6 +18,7 @@ from tools.map_pipeline.build_dhaka_division import (
     build_boundary_for_stage, SHARIATPUR_PRIORITY_LAT_LON, has_feature,
     boundary_attribution_for_stage, tile_status_from_counts, pipeline_commit_sha,
     validate_shariatpur_release_approval, add_curated_manasha_footprint, add_curated_heritage_photo_footprints,
+    open_url_with_retry,
 )
 from tools.map_pipeline.build_dhaka_map import build_map
 
@@ -675,6 +678,63 @@ class ShariatpurReleaseGateTests(unittest.TestCase):
             }), encoding="utf-8")
             result = validate_shariatpur_release_approval(approval)
             self.assertEqual(result["status"], "APPROVED")
+
+
+
+
+class MapSourceRetryTests(unittest.TestCase):
+    def test_boundary_source_retries_transient_timeout_then_succeeds(self):
+        attempts = []
+        delays = []
+        response = io.BytesIO(b'{"features": []}')
+
+        def opener(request, timeout):
+            attempts.append(timeout)
+            if len(attempts) < 3:
+                raise urllib.error.URLError("temporary boundary source timeout")
+            return response
+
+        result = open_url_with_retry(
+            "https://example.invalid/boundary.json",
+            timeout=90,
+            attempts=4,
+            opener=opener,
+            sleeper=delays.append,
+        )
+        self.assertIs(result, response)
+        self.assertEqual(attempts, [90, 90, 90])
+        self.assertEqual(delays, [3, 6])
+
+    def test_boundary_source_retries_http_503_but_not_http_404(self):
+        attempts = []
+
+        def transient_then_ok(request, timeout):
+            attempts.append(timeout)
+            if len(attempts) == 1:
+                raise urllib.error.HTTPError(str(request), 503, "Service unavailable", {}, None)
+            return io.BytesIO(b"ok")
+
+        response = open_url_with_retry(
+            "https://example.invalid/boundary.json",
+            timeout=90,
+            attempts=3,
+            opener=transient_then_ok,
+            sleeper=lambda _seconds: None,
+        )
+        self.assertEqual(response.read(), b"ok")
+        self.assertEqual(len(attempts), 2)
+
+        def permanent_404(request, timeout):
+            raise urllib.error.HTTPError(str(request), 404, "Not found", {}, None)
+
+        with self.assertRaises(urllib.error.HTTPError):
+            open_url_with_retry(
+                "https://example.invalid/missing.json",
+                timeout=90,
+                attempts=4,
+                opener=permanent_404,
+                sleeper=lambda _seconds: self.fail("404 must not be retried"),
+            )
 
 
 class DhakaDivisionPipelineTests(unittest.TestCase):

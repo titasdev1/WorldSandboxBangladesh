@@ -14,6 +14,8 @@ import os
 import pathlib
 import shutil
 import sys
+import time
+import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from typing import Any
@@ -48,6 +50,48 @@ RENDERED_FEATURE_KEYS = {
     "landuse_areas", "railway_ways", "mapped_trees", "mapped_utility_poles",
     "mapped_street_lamps", "named_or_tagged_interaction_seeds",
 }
+
+
+
+
+def open_url_with_retry(
+    request: urllib.request.Request,
+    *,
+    timeout: int,
+    attempts: int = 4,
+    opener: Any = None,
+    sleeper: Any = None,
+) -> Any:
+    """Open a data-source URL with bounded retries for transient network failures.
+
+    Permanent HTTP errors (for example, 404) fail immediately. Timeouts, connection
+    failures, 408/425/429 and 5xx responses are retried with short exponential
+    backoff so a temporary boundary-service outage does not discard a whole map run.
+    """
+    if attempts < 1:
+        raise ValueError("attempts must be at least one")
+    open_fn = opener or urllib.request.urlopen
+    sleep_fn = sleeper or time.sleep
+    url = getattr(request, "full_url", str(request))
+    for attempt_index in range(attempts):
+        try:
+            return open_fn(request, timeout=timeout)
+        except urllib.error.HTTPError as exc:
+            retryable = exc.code in {408, 425, 429} or 500 <= exc.code <= 599
+            if not retryable:
+                raise
+            error = exc
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
+            error = exc
+        if attempt_index + 1 >= attempts:
+            raise error
+        delay = min(3 * (2 ** attempt_index), 24)
+        print(
+            f"Transient map source request failure ({attempt_index + 1}/{attempts}) "
+            f"for {url}: {error}; retrying in {delay}s.",
+            flush=True,
+        )
+        sleep_fn(delay)
 
 
 def tile_status_from_counts(counts: dict[str, Any]) -> str:
@@ -123,7 +167,7 @@ def download(url: str, path: pathlib.Path, min_bytes: int = 1000) -> None:
         return
     temp = path.with_suffix(path.suffix + ".part")
     request = urllib.request.Request(url, headers={"User-Agent": "Project-A-Square-MapPipeline/1.0"})
-    with urllib.request.urlopen(request, timeout=240) as response, temp.open("wb") as out:
+    with open_url_with_retry(request, timeout=240, attempts=4) as response, temp.open("wb") as out:
         shutil.copyfileobj(response, out)
     if temp.stat().st_size < min_bytes:
         temp.unlink(missing_ok=True)
@@ -133,7 +177,7 @@ def download(url: str, path: pathlib.Path, min_bytes: int = 1000) -> None:
 
 def load_dhaka_boundary(path: pathlib.Path) -> tuple[Any, dict[str, Any]]:
     request = urllib.request.Request(BOUNDARY_API, headers={"User-Agent": "Project-A-Square-MapPipeline/1.0"})
-    with urllib.request.urlopen(request, timeout=60) as response:
+    with open_url_with_retry(request, timeout=90, attempts=4) as response:
         metadata = json.loads(response.read().decode("utf-8"))
     if isinstance(metadata, list):
         record = next((r for r in metadata if r.get("boundaryISO") == "BGD" and r.get("boundaryType") == "ADM1"), None)
@@ -178,7 +222,7 @@ def load_shariatpur_boundary(path: pathlib.Path) -> tuple[Any, dict[str, Any]]:
         DISTRICT_BOUNDARY_API,
         headers={"User-Agent": "Project-A-Square-MapPipeline/1.0"},
     )
-    with urllib.request.urlopen(request, timeout=60) as response:
+    with open_url_with_retry(request, timeout=90, attempts=4) as response:
         metadata = json.loads(response.read().decode("utf-8"))
     if isinstance(metadata, list):
         record = next((r for r in metadata if r.get("boundaryISO") == "BGD" and r.get("boundaryType") == "ADM2"), None)

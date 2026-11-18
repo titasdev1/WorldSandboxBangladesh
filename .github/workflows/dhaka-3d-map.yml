@@ -309,14 +309,25 @@ jobs:
           TILE_DEGREES: ${{ inputs.tile_degrees || '0.05' }}
           TILE_OFFSET: ${{ inputs.tile_offset || '0' }}
           MAX_TILES: ${{ inputs.max_tiles || '8' }}
-          SEQUENCE_ID: ${{ inputs.sequence_id || github.run_id }}
-          SOURCE_COMMIT: ${{ inputs.source_commit || github.sha }}
+          INPUT_SEQUENCE_ID: ${{ inputs.sequence_id }}
+          INPUT_SOURCE_COMMIT: ${{ inputs.source_commit }}
           RETRY_COUNT: ${{ inputs.retry_count || '0' }}
           CONTINUE_FULL: ${{ inputs.continue_full_division || (github.event_name == 'push' && contains(github.event.head_commit.message, '[build-shariatpur-review]')) }}
           BUILD_STAGE: ${{ inputs.build_stage || 'shariatpur_review' }}
         run: |
           set -euo pipefail
           NEXT_RETRY_COUNT=$((RETRY_COUNT + 1))
+          RETRY_SEQUENCE_ID="${INPUT_SEQUENCE_ID:-}"
+          RETRY_SOURCE_COMMIT="${INPUT_SOURCE_COMMIT:-}"
+          if [[ -z "${INPUT_SEQUENCE_ID}" && -z "${INPUT_SOURCE_COMMIT}" ]]; then
+            echo "The failed run was the root batch; retrying as a new root sequence with its own run ID and source SHA."
+          else
+            if [[ -z "${INPUT_SEQUENCE_ID}" || -z "${INPUT_SOURCE_COMMIT}" ]]; then
+              echo "Cannot retry a partially pinned map sequence." >&2
+              exit 1
+            fi
+            echo "Retrying continuation batch in pinned sequence ${INPUT_SEQUENCE_ID} at ${INPUT_SOURCE_COMMIT}."
+          fi
           gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/dhaka-3d-map.yml/dispatches" --input - <<EOF
           {
             "ref": "${GITHUB_REF_NAME}",
@@ -326,8 +337,8 @@ jobs:
               "max_tiles": "${MAX_TILES}",
               "continue_full_division": "${CONTINUE_FULL}",
               "build_stage": "${BUILD_STAGE}",
-              "sequence_id": "${SEQUENCE_ID}",
-              "source_commit": "${SOURCE_COMMIT}",
+              "sequence_id": "${RETRY_SEQUENCE_ID}",
+              "source_commit": "${RETRY_SOURCE_COMMIT}",
               "retry_count": "${NEXT_RETRY_COUNT}"
             }
           }
