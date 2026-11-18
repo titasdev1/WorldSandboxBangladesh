@@ -241,7 +241,7 @@ if map_interact_guard < 0:
     raise SystemExit("PRODUCTION GATE FAILED: player interaction lacks a real-map guard for starter-city interactions")
 # Starter-city coordinate transactions must stay strictly inside the fallback
 # branch, while the real-world map branch must return without applying them.
-map_interact_fallback_end = player_interact_text.find("\\n else:\\n  return", map_interact_guard)
+map_interact_fallback_end = player_interact_text.find("\n else:\n  return", map_interact_guard)
 if map_interact_fallback_end < 0:
     raise SystemExit("PRODUCTION GATE FAILED: real-map player interaction must exit without starter-city transactions")
 for marker in ("Vector3(42, 0, 42)", "Vector3(30, 0, -30)"):
