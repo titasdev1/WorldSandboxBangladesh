@@ -334,7 +334,7 @@ for relative_path, fictional_call, expected_status in factory_specs:
     boot_start = factory_text.find("func _bootstrap()")
     map_guard = _find_first_pattern(factory_text, real_map_true_guard_patterns, boot_start)
     generator_call = factory_text.find(fictional_call, boot_start)
-    guard_return = factory_text.find("\\n        return", map_guard) if map_guard >= 0 else -1
+    guard_return = factory_text.find(chr(10) + "        return", map_guard) if map_guard >= 0 else -1
     if (
         boot_start < 0
         or map_guard < 0
@@ -406,7 +406,7 @@ if 'Vector3(0, -0.04, 0), Vector3(CITY_RADIUS * 2.0, 0.08, CITY_RADIUS * 2.0)' n
 ground_boot = fallback_factory_text.find("func _bootstrap()")
 ground_guard = _find_first_pattern(fallback_factory_text, real_map_true_guard_patterns, ground_boot)
 ground_call = fallback_factory_text.find("_expand_ground()", ground_boot)
-ground_guard_return = fallback_factory_text.find("\\n        return", ground_guard) if ground_guard >= 0 else -1
+ground_guard_return = fallback_factory_text.find(chr(10) + "        return", ground_guard) if ground_guard >= 0 else -1
 if (
     ground_guard < 0
     or ground_call < 0
