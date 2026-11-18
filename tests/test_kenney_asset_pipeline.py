@@ -123,10 +123,11 @@ class KenneyAssetPipelineTests(unittest.TestCase):
         self.assertEqual(set(REQUIRED), {
             "kenney_car_kit", "kenney_city_kit_commercial",
             "kenney_city_kit_industrial", "kenney_city_kit_suburban",
-            "battle_royale_aircraft"
+            "battle_royale_aircraft", "battle_royale_parachute"
         })
         self.assertEqual(REQUIRED["kenney_car_kit"], 30)
         self.assertEqual(REQUIRED["battle_royale_aircraft"], 2)
+        self.assertEqual(REQUIRED["battle_royale_parachute"], 1)
 
 
 if __name__ == "__main__":
