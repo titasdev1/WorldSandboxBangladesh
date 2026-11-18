@@ -13,14 +13,45 @@ from tools.verify_battle_royale_parachute import (
 )
 
 
-def make_glb(*, omit_animation: bool = False, omit_node: str = "", binary_payload_size: int = 8192) -> bytes:
+def make_glb(
+    *,
+    omit_animation: bool = False,
+    omit_animation_channel: bool = False,
+    wrong_animation_target: bool = False,
+    omit_node: str = "",
+    binary_payload_size: int = 8192,
+    triangle_count: int = 30_000,
+) -> bytes:
     nodes = [{"name": name} for name in REQUIRED_NODES if name != omit_node]
     nodes.extend([
         {"name": f"Suspension_Line_{i:02d}_{j}"}
         for i in range(9) for j in range(4)
     ])
     nodes.extend([{"name": f"Riser_Carabiner_{side}"} for side in ("L", "R")])
-    meshes = [{"name": f"AssemblyMesh_{i}", "primitives": []} for i in range(24)]
+    canopy_node = next(
+        (i for i, node in enumerate(nodes) if node["name"] == "Canopy_Wind_Sway_Root"),
+        0,
+    )
+    animation_target = 0 if wrong_animation_target else canopy_node
+    primitives = [{
+        "attributes": {"POSITION": 0},
+        "indices": 1,
+        "mode": 4,
+    }]
+    meshes = [
+        {"name": "Canopy_HighDetail_Surface", "primitives": primitives},
+        *[{"name": f"AssemblyMesh_{i}", "primitives": []} for i in range(23)],
+    ]
+    animations = []
+    if not omit_animation:
+        animations = [{
+            "name": EXPECTED_ANIMATION,
+            "samplers": [{"input": 2, "output": 3, "interpolation": "LINEAR"}],
+            "channels": [] if omit_animation_channel else [{
+                "sampler": 0,
+                "target": {"node": animation_target, "path": "rotation"},
+            }],
+        }]
     binary_payload = b"\0" * binary_payload_size
     document = {
         "asset": {"version": "2.0", "generator": "A-Square test fixture"},
@@ -29,8 +60,14 @@ def make_glb(*, omit_animation: bool = False, omit_node: str = "", binary_payloa
         "nodes": nodes,
         "meshes": meshes,
         "materials": [{"name": "A2_Fabric_Olive"}],
+        "accessors": [
+            {"count": triangle_count * 3, "type": "VEC3"},
+            {"count": triangle_count * 3, "type": "SCALAR"},
+            {"count": 5, "type": "SCALAR"},
+            {"count": 5, "type": "VEC4"},
+        ],
         "buffers": [{"byteLength": len(binary_payload)}],
-        "animations": [] if omit_animation else [{"name": EXPECTED_ANIMATION}],
+        "animations": animations,
     }
     payload = json.dumps(document, separators=(",", ":")).encode("utf-8")
     payload += b" " * ((4 - len(payload) % 4) % 4)
@@ -75,6 +112,42 @@ class BattleRoyaleParachuteArtifactTests(unittest.TestCase):
             glb.write_bytes(make_glb(omit_animation=True))
             licence.write_text("A-Square Ram-Air Canopy and Harness\nCC0 1.0 Universal")
             with self.assertRaisesRegex(ValueError, "missing animation"):
+                verify_asset(glb, licence)
+
+    def test_rejects_missing_canopy_rotation_animation_channel(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            glb, licence = root / "canopy.glb", root / "LICENSE.txt"
+            glb.write_bytes(make_glb(omit_animation_channel=True))
+            licence.write_text(
+                "A-Square Ram-Air Canopy and Harness\\nCC0 1.0 Universal",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "no canopy rotation animation channel"):
+                verify_asset(glb, licence)
+
+    def test_rejects_animation_not_targeting_the_canopy_wing(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            glb, licence = root / "canopy.glb", root / "LICENSE.txt"
+            glb.write_bytes(make_glb(wrong_animation_target=True))
+            licence.write_text(
+                "A-Square Ram-Air Canopy and Harness\\nCC0 1.0 Universal",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "no canopy rotation animation channel"):
+                verify_asset(glb, licence)
+
+    def test_rejects_low_triangle_density_placeholder_geometry(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            glb, licence = root / "canopy.glb", root / "LICENSE.txt"
+            glb.write_bytes(make_glb(triangle_count=24_999))
+            licence.write_text(
+                "A-Square Ram-Air Canopy and Harness\\nCC0 1.0 Universal",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "too few render triangles"):
                 verify_asset(glb, licence)
 
     def test_rejects_missing_riser_harness_or_canopy_node(self):
