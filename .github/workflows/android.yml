@@ -50,6 +50,14 @@ on:
       - "tests/test_map_pack_build.py"
       - "tests/test_mobile_interaction_flow.py"
       - "tests/test_login_backdrop.py"
+      - "tests/test_battle_royale_entry.py"
+      - "tests/test_battle_royale_aircraft_pipeline.py"
+      - "tests/test_battle_royale_parachute_pipeline.py"
+      - "tests/test_battle_royale_parachute_artifact.py"
+      - "tests/battle_royale_deployment_runtime_smoke.gd"
+      - "tools/build_battle_royale_parachute.py"
+      - "tools/verify_battle_royale_parachute.py"
+      - "systems/battle_royale_deployment.gd"
       - "tools/map_pipeline/shariatpur_facade_images.json"
       - "development_state.json"
       - ".github/workflows/android.yml"
@@ -111,7 +119,7 @@ jobs:
 
       - name: Validate asset pipeline Python syntax
         shell: bash
-        run: python3 -m py_compile tools/convert_charactercreator_glbs.py tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/fetch_charactercreator_hero.py tools/kenney_pack_utils.py tools/fetch_battle_royale_aircraft.py tools/verify_medium_stage_assets.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py tools/map_pack_build.py tools/verify_core_apk_contents.py tools/verify_final_distribution.py tools/ara3d/verify_ara_glb.py
+        run: python3 -m py_compile tools/convert_charactercreator_glbs.py tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/fetch_charactercreator_hero.py tools/kenney_pack_utils.py tools/fetch_battle_royale_aircraft.py tools/verify_medium_stage_assets.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py tools/map_pack_build.py tools/verify_core_apk_contents.py tools/verify_final_distribution.py tools/ara3d/verify_ara_glb.py tools/build_battle_royale_parachute.py tools/verify_battle_royale_parachute.py
 
       - name: Run navigation-index unit tests
         shell: bash
@@ -136,6 +144,15 @@ jobs:
       - name: Run Ara 3D operator integration regression tests
         shell: bash
         run: python3 -m unittest discover -s tests -p "test_ara3d_operator_integration.py"
+
+      - name: Run Battle Royale entry and parachute pipeline regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p "test_battle_royale_entry.py"
+          python3 -m unittest discover -s tests -p "test_battle_royale_aircraft_pipeline.py"
+          python3 -m unittest discover -s tests -p "test_battle_royale_parachute_pipeline.py"
+          python3 -m unittest discover -s tests -p "test_battle_royale_parachute_artifact.py"
 
       - name: Run mobile interaction regression tests
         shell: bash
@@ -766,6 +783,59 @@ jobs:
           python3 -m py_compile tools/fetch_battle_royale_aircraft.py
           python3 tools/fetch_battle_royale_aircraft.py
           python3 -m unittest discover -s tests -p "test_battle_royale_aircraft_pipeline.py"
+
+      - name: Install Blender for original BR parachute asset authoring
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y blender
+          blender --version
+
+      - name: Build and structurally verify the original CC0 ram-air parachute
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/battle-royale
+          OUT="external_content/battle_royale_parachute/a_square_ram_air_canopy.glb"
+          blender --background --factory-startup --python tools/build_battle_royale_parachute.py -- --out "$OUT" > build/battle-royale/parachute-authoring.log 2>&1
+          cat build/battle-royale/parachute-authoring.log
+          grep -Fq "A2_PARACHUTE_ASSET_READY:" build/battle-royale/parachute-authoring.log
+          python3 tools/verify_battle_royale_parachute.py \
+            --glb "$OUT" \
+            --license external_content/battle_royale_parachute/LICENSE.txt \
+            --out build/battle-royale/parachute-verification.json
+          test -s external_content/battle_royale_parachute/asset_manifest.json
+          python3 -m unittest discover -s tests -p "test_battle_royale_parachute_artifact.py"
+
+      - name: Import aircraft and parachute GLBs into Godot before runtime test
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot-validation/Godot_v4.4.1-stable_linux.x86_64"
+          test -x "$GODOT"
+          timeout 240s "$GODOT" --headless --editor --path . --import --quit > "$RUNNER_TEMP/godot-validation/br-asset-import.log" 2>&1
+          cat "$RUNNER_TEMP/godot-validation/br-asset-import.log"
+          if grep -E "SCRIPT ERROR:|Parse Error|Failed loading resource|ERROR:" "$RUNNER_TEMP/godot-validation/br-asset-import.log"; then
+            echo "Godot failed to import the BR aircraft or parachute assets."
+            exit 1
+          fi
+
+      - name: Exercise full Battle Royale cargo flight, freefall, canopy inflation and landing
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot-validation/Godot_v4.4.1-stable_linux.x86_64"
+          LOG="$RUNNER_TEMP/godot-validation/br-deployment.log"
+          set +e
+          timeout 240s "$GODOT" --headless --path . --script res://tests/battle_royale_deployment_runtime_smoke.gd > "$LOG" 2>&1
+          STATUS=$?
+          set -e
+          cat "$LOG"
+          if [ "$STATUS" -ne 0 ] || ! grep -Fq "BR_DEPLOYMENT_RUNTIME_PASS" "$LOG"; then
+            echo "Battle Royale deployment runtime smoke failed with status $STATUS."
+            exit 1
+          fi
 
       - name: Fetch optional CC0 city building art
         shell: bash
