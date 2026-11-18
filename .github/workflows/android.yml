@@ -10,20 +10,6 @@ on:
         options:
           - greater_dhaka
           - shariatpur_review
-  pull_request:
-    branches: [ main ]
-    paths:
-      - "**.gd"
-      - "**.tscn"
-      - "project.godot"
-      - "content/**"
-      - "assets/**"
-      - "external_content/**"
-      - "tools/fetch_*.py"
-      - "tools/report_build_assets.py"
-      - "tools/production_gate.py"
-      - "development_state.json"
-      - ".github/workflows/android.yml"
   push:
     branches: [ main ]
     paths:
