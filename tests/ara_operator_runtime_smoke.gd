@@ -158,10 +158,24 @@ func _run_smoke() -> void:
 		push_error("ARA3D_RUNTIME_FAIL: urban patrol material preset could not be applied.")
 		quit(1)
 	visual.call("apply_operator_preset", "field_tactical")
-	visual.call("_play_authored_animation", "walk")
+	# Exercise the public gameplay action entry point. Calling the private player
+	# method directly is immediately superseded by _process() when the smoke actor
+	# has zero velocity; play_action() sets the same state metadata used in-game.
+	var walk_action_started: bool = (visual.call("play_action", "walk") == true)
+	if not walk_action_started:
+		push_error("ARA3D_RUNTIME_FAIL: public play_action rejected the mapped walk state.")
+		quit(1)
+		return
 	await process_frame
-	if player.current_animation != String(lookup["walk"]):
-		push_error("ARA3D_RUNTIME_FAIL: walk state did not start the mapped rifle locomotion clip.")
+	var expected_walk_clip := String(lookup["walk"])
+	if player.current_animation != expected_walk_clip or not player.is_playing():
+		print("ARA3D_WALK_DIAGNOSTIC • expected=%s • current=%s • player=%s • active_action=%s" % [
+			expected_walk_clip,
+			String(player.current_animation),
+			str(player.is_playing()),
+			str(actor.get_meta("character_action_state", ""))
+		])
+		push_error("ARA3D_RUNTIME_FAIL: gameplay walk action did not preserve the mapped rifle locomotion clip.")
 		quit(1)
 		return
 
