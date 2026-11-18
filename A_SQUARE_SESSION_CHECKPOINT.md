@@ -257,3 +257,39 @@ Use `TOOLS_AND_PLATFORMS_REGISTRY.md` as the durable directory. Snapshot 2026-11
 - Reel Dc_fhuDy4p- includes promotional text about Higgsfield Games 2.0 and promptable real-time worlds. Treat the post's strongest claims as marketing, not proof of full AAA game generation or online multiplayer. Official Higgsfield information about Games 2.0 is documented in public sources; it remains a creative prototyping option, not a replacement for the deterministic game code, server authority, maps and performance QA.
 - Carousel posts DfkIGT_GTns and Df0B76nCNsY expose captions/metadata about Claude Fable 5.2 and AI-generated 3D/game scenes, but carousel visuals were not fully inspected and captions alone do not validate model capabilities or production quality. The Df0B76 content substantially repeats the Abyssal Garden example.
 - Production lesson for A-Square: create a deliberate Blender previs/camera/vehicle path and deterministic object choreography for the login/loading cinematics; keep the live lobby character, vehicle models, HUD, text and map assets native and interactive in Godot. Build original photoreal materials/meshes from licensed/user-owned references; use procedurally authored shaders and instancing for environment density, not as a shortcut around verified real-world building evidence.
+
+
+### 2026-11-19 continuation — exact candidate refresh and expanded experience audit
+
+#### Current GitHub build
+- Repository: titasdev1/WorldSandboxBangladesh.
+- Game branch: feature/lobby-operator-showcase.
+- Exact PR #78 head: 149e6b8314325f3e036787f58eaad4945ea83d82. PR #78 remains open/draft/not merged. PR #77 remains open/draft/not merged.
+- Canonical Android workflow #1102, run ID 44354975442, started 2026-11-18 17:06:56 UTC on that exact head. The last GitHub API poll still reports in_progress.
+- Last job summary: 40 completed steps succeeded. Step 42, Install Blender for original BR parachute asset authoring, remained in_progress. Parachute GLB authoring/verification (43), import (44), full BR flight/freefall/canopy/landing smoke (45), optional city/PBR fetch (46–47), medium-stage asset gate (48), Android export (54), map/package/content checks, signing, canonical APK assembly and upload (65–71) remained pending.
+- Workflow declares timeout-minutes 330. No artifact was listed for run #1102; Android export has not started and no new APK exists.
+- Job log download returned Azure BlobNotFound. Browser inspection showed GitHub sign-in required for detailed logs and cancellation controls. No authenticated browser profile was available; no cancellation was performed. Do not claim cancellation or start a replacement full build without first resolving this run.
+- Current-head PBR validation run 44354592447 completed success. This validates PBR tests only, not Android export or phone rendering.
+- Current run had passed the Shariatpur package/install and navigation index steps, operator, player movement/jump, joystick, NPC LOD, vehicle physics/boarding, Pitchbound runtime, login/lobby and other checks through step 41. It has not yet passed BR deployment runtime step 45.
+- Earlier Android run #1101 failed at BR deployment animation selection. The current source gives BR deployment state priority over stale skydive action metadata; #1102 is intended to retest it. Do not claim repaired until step 45 passes.
+- Keep PR #78 game-source head unchanged while the run is unresolved. A separate documentation branch, docs/expanded-a-square-experiences, was created from this exact head to record the expanded requirements without invalidating the running build.
+
+#### Systems audit
+- Pitchbound: systems/activities/pitchbound_3d.gd creates 22 player bodies (11v11), one user-controlled player and a rigid-body ball. Android step 39 reported runtime smoke success. Current AI performs simple formation adjustment/ball chasing and occasional kicks; stadium stands are generated low-detail geometry/MultiMesh. Not eFootball-grade play, animation, stadium or multiplayer.
+- Roadline: systems/activities/world_activity_director.gd contains same-district road sprint, time attack and drift. Sprint uses six checkpoints and three simple route-following AI cars. No Forza-level garage, vehicle collection/tuning, authored race circuits, advanced driving AI or device QA.
+- Private room: same activity director uses ENet host/join, local IPv4, room code ASQ1|IP|PORT, port 24567, configured capacity eight and approximately 10 Hz position/yaw/vehicle-type replication. It does not synchronize full world, combat, football, BR, mission, inventory or economy state. No two-Android-device test found.
+- Strikefront/BR: offline combat prototypes exist. Solo BR source includes aircraft, freefall, parachute inflation/glide/steering, landing, 12 AI operators and safe-zone logic. Step 45 runtime validation is still pending. Loot, spectating/revive, ranked and real-player matchmaking remain unaccepted.
+- Greenwake: The Monsoon Relic is in systems/experience_registry.gd as a planned original jungle/adventure experience. No playable level or complete loop is evidenced.
+- AI: combat_enemy.gd has basic LOS, approach/retreat, attack wind-up and short detour behavior. NPC simulation LOD exists. Ranked strategic squad AI, team tactics and fair mode-specific difficulty tiers remain future work.
+- Visuals: current-head PBR test passed, but Android appearance is unverified. Ara operator GLB candidate has structural detail (159,168 triangles, 69 joints, 19 material surfaces, 22 embedded images, 216 clips); Godot render, animation deformation, APK inclusion and phone memory/frame-time QA remain unverified. Login/lobby/stadium visuals remain prototypes.
+
+#### Expanded requirements now recorded in the master plan
+- Keep separate but connected families: JibonJatra open world; Roadline driving/racing; Pitchbound 3D football; Strikefront competitive combat/BR/Zombies/specials; Greenwake jungle mystery/adventure; future tactical/MOBA systems.
+- Build fair mode-specific offline AI tiers and NPC roles; higher ranks improve decisions/coordination rather than cheating stats.
+- Prove two-phone local Wi-Fi/hotspot rooms before scaling; synchronize complete selected-mode state and test disconnect/rejoin. Hosted online services are later.
+- Expand geography beyond national borders/city centres to the whole Earth, including rural/remote land, borders, islands, coasts, rivers, lakes, seas, oceans and offshore/open-water sectors; country-aware vehicles/signage/language/clothing are a long-term content objective.
+- Preserve mobile LOD/streaming/material/performance budgets. Triangle counts and resolution labels are not quality acceptance.
+
+#### Map status and next action
+- Shariatpur remains REVIEW_REQUIRED. Previous quality report: 60 tile records, 3 ground-only tiles, 0 independently verified floor counts. Sampled KartaView audit: one OSM-matched track and zero qualifying 360-degree photos.
+- Immediate next task: resolve or obtain authenticated access to run #1102; inspect steps 42–45, then the same candidate's export, included contents, signing, checksums and APK artifact. No current-head APK is available.
