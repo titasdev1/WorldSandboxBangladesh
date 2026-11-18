@@ -230,6 +230,8 @@ func _finish_landing() -> void:
 	parachute = null
 	if is_instance_valid(player):
 		player.remove_meta("br_deployment_state")
+		# Clear the one-shot skydive/idle action so normal locomotion resumes.
+		player.remove_meta("character_action_state")
 		player.global_position.y = maxf(player.global_position.y, 0.25)
 		player.velocity = Vector3.ZERO
 		player.set_physics_process(true)
