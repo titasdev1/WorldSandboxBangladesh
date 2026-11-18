@@ -225,11 +225,28 @@ for token in (
 player_interact_start = player_interact_source.find("func interact():")
 player_interact_end = player_interact_source.find("func take_damage(", player_interact_start)
 player_interact_text = player_interact_source[player_interact_start:player_interact_end]
-map_interact_guard = player_interact_text.find('if not bool(world.get("real_dhaka_loaded")):')
+# The runtime uses an explicit Variant-to-bool comparison. Accept it alongside
+# the equivalent bool(...) spelling; do not force a gameplay rewrite merely to
+# satisfy a brittle source-text match.
+map_interact_guard_patterns = (
+    'if not bool(world.get("real_dhaka_loaded")):',
+    'if not (world.get("real_dhaka_loaded") == true):',
+)
+map_interact_guard = next(
+    (player_interact_text.find(pattern) for pattern in map_interact_guard_patterns
+     if player_interact_text.find(pattern) >= 0),
+    -1,
+)
 if map_interact_guard < 0:
     raise SystemExit("PRODUCTION GATE FAILED: player interaction lacks a real-map guard for starter-city interactions")
+# Starter-city coordinate transactions must stay strictly inside the fallback
+# branch, while the real-world map branch must return without applying them.
+map_interact_fallback_end = player_interact_text.find("\\n else:\\n  return", map_interact_guard)
+if map_interact_fallback_end < 0:
+    raise SystemExit("PRODUCTION GATE FAILED: real-map player interaction must exit without starter-city transactions")
 for marker in ("Vector3(42, 0, 42)", "Vector3(30, 0, -30)"):
-    if player_interact_text.find(marker) < map_interact_guard:
+    marker_position = player_interact_text.find(marker)
+    if not (map_interact_guard < marker_position < map_interact_fallback_end):
         raise SystemExit(f"PRODUCTION GATE FAILED: fictional starter-city money marker is not confined to fallback mode: {marker}")
 
 # Load the HUD source before any responsive-layout assertions reference it.
