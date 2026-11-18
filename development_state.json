@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "035_NPC_DISTANCE_SIMULATION_LOD_PENDING_ANDROID_RUNTIME",
+  "current_milestone": "036_NPC_DISTANCE_SIMULATION_LOD_HEADLESS_PASS",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -38,9 +38,9 @@
     "028_ANIMATED_LOGIN_AND_LOADING_ART_DIRECTION",
     "029_BR_PARACHUTE_ARTIFACT_REGRESSION_REPAIR",
     "030_FIRST_PERSON_BODY_AND_WEAPON_VISIBILITY_ASSERTIONS",
-    "031_NPC_DISTANCE_SIMULATION_LOD_PENDING_ANDROID_RUNTIME"
+    "031_NPC_DISTANCE_SIMULATION_LOD_HEADLESS_PASS_DEVICE_PROFILE_PENDING"
   ],
-  "next_priority": "Allow Android run 44248497437 (source 6074df4fec0dc600c3e6a1f79cb6adaaa07ce421) to finish; it is at Godot import/startup and has 30 successful steps with no failures. It does NOT include the later NPC X/Z-only timestep correction commit 84739da91089405ac22d0f5f2b5e4945ce17aa76. If it passes, run the newly added NPC LOD smoke in that older source, then build the newer head once to validate X/Z-only correction before sharing an APK. Do not start additional map workflows; current APK still selects an older Shariatpur pack.",
+  "next_priority": "With NPC distance LOD now passing in Godot 4.4.1 import, its dedicated runtime smoke and headless game startup (workbench run 44252230180), integrate the exact tested source into PR #78. Keep automatic pull-request Android exports disabled; the lightweight Godot validator is the first gate. Next, add more core non-asset-dependent runtime smoke tests before any manual Android build. For animation, use Quaternius Universal Animation Library 1 and 2 (CC0) with AnimStudio's retarget/foot-contact/root-motion tools; verify exports on the existing Ara operator rig and wire each gameplay action. Mimic is optional for user-owned reference clips only and has known in-place/finger/foot-lock limits. No current APK exists for the updated PR. Shariatpur still uses an older review package and remains REVIEW_REQUIRED.",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -80,9 +80,11 @@
     "2026-11-18: Login street and lobby showcase remain primitive/low-detail real-time 3D prototypes, not photoreal cinematic media or a CODM-quality lobby. Real login handshake, online matchmaking and human-player modes are not implemented/verified.",
     "2026-11-18: Added NPC distance-simulation LOD in commit 833a0605a83e6dddfa6223cc5ad1c9a18c7c98ef, with a follow-up movement timestep compensation fix in 72309f955cbc478d1b83624fd42c5c5cf2079008. Nearby civilians stay fully active, mid-distance physics is throttled to ~8Hz with velocity compensation, far simulation/collision/animation is paused, and distant visibility uses 175m hide / 150m re-entry hysteresis. A new Godot runtime smoke is wired into the existing canonical Android workflow; no CI pass or device performance measurement yet.",
     "2026-11-18: Godot 4.4 import of the BR deployment runtime smoke exposed additional static typing and identifier defects: camera position/distance and bank-angle locals needed explicit Vector3/float types, and the canopy steering assertions referenced `parachute` instead of the actual local `canopy`. These were corrected in the current BR smoke source; awaiting exact-head Godot validation.",
-    "2026-11-18: Follow-up NPC LOD review found that scaling the entire velocity vector during reduced-rate move_and_slide would also scale vertical gravity/floor-contact motion. Commit 84739da91089405ac22d0f5f2b5e4945ce17aa76 now compensates horizontal X/Z travel only and leaves vertical velocity unchanged. This correction is newer than Android run 44248497437 and still needs exact-head validation."
+    "2026-11-18: Follow-up NPC LOD review found that scaling the entire velocity vector during reduced-rate move_and_slide would also scale vertical gravity/floor-contact motion. Commit 84739da91089405ac22d0f5f2b5e4945ce17aa76 now compensates horizontal X/Z travel only and leaves vertical velocity unchanged. This correction is newer than Android run 44248497437 and still needs exact-head validation.",
+    "2026-11-18: Lightweight Godot validation run 44251945680 on workbench commit 0824316629d89cfbf22706f555704fdfe7dd696b proved the project scripts import successfully, but the NPC LOD smoke failed its initial near-tier processing-state assertion. The transition-only process toggles skipped initial tier 0; patched to explicitly set physics/visual processing on every distance refresh and enriched test diagnostics. No Android build was launched from this workbench result.",
+    "2026-11-18: NPC distance-simulation LOD fix and regression test passed the dedicated Godot 4.4.1 workflow on workbench commit 0acbdc6f9716340340adcc4cf78ce4ccf414f561: project import, NPC LOD near/mid/far/hysteresis/re-entry smoke, and headless game startup all passed. This is CI/headless evidence only; the target Redmi device has not been profiled."
   ],
-  "build_status": "RUN_44248497437_GODOT_IMPORT_STARTUP_PENDING_ON_COMMIT_6074DF4; NPC_LOD_XZ_TIMESTEP_CORRECTION_COMMITTED_AT_84739DA; NEWEST_COMMIT_NOT_YET_VALIDATED; SHARIATPUR_REVIEW_REQUIRED",
+  "build_status": "NPC_LOD_GODOT_4_4_1_IMPORT_SMOKE_AND_HEADLESS_STARTUP_PASS_ON_WORKBENCH_0ACBDC6; SOURCE_SYNCING_TO_PR; NO_NEW_APK; DEVICE_PERFORMANCE_UNMEASURED; SHARIATPUR_REVIEW_REQUIRED",
   "latest_verified_run": 38892036942,
   "latest_verified_commit": "7d62ad457907a72094a6cbdc072ebbdd152d0066",
   "latest_build_artifact": {
@@ -194,7 +196,7 @@
       ]
     }
   },
-  "latest_development_commit": "84739da91089405ac22d0f5f2b5e4945ce17aa76",
+  "latest_development_commit": "79a2bb385292e151e3208b0cd86021c1f0cc81b6",
   "latest_development_branch": "feature/lobby-operator-showcase",
   "session_checkpoint": "A_SQUARE_SESSION_CHECKPOINT.md",
   "competitive_reference_blueprint": "COMPETITIVE_REFERENCE_BLUEPRINT.md",
@@ -307,7 +309,42 @@
       "mixamo_animation_source": "RESEARCHED_NOT_INTEGRATED",
       "rokoko_vision_create": "RESEARCHED_NOT_INTEGRATED",
       "freeclipmocap": "RESEARCHED_NOT_INTEGRATED"
+    },
+    "lightweight_godot_run": {
+      "id": 44251945680,
+      "branch": "workbench/godot-lod-validation",
+      "sha": "0824316629d89cfbf22706f555704fdfe7dd696b",
+      "import": "PASS",
+      "npc_lod_smoke": "FAIL_NEAR_TIER_PROCESS_FLAGS",
+      "startup": "SKIPPED",
+      "apk": "NOT_BUILT"
+    },
+    "next_gate": "re-run lightweight Godot validation after initial near-tier processing fix",
+    "npc_lod_validation": {
+      "run_id": 44252230180,
+      "commit": "0acbdc6f9716340340adcc4cf78ce4ccf414f561",
+      "status": "SUCCESS",
+      "checks": [
+        "Godot 4.4.1 project import",
+        "NPC distance LOD regression",
+        "headless game startup"
+      ],
+      "apk_built": false,
+      "physical_device_profile": false
+    },
+    "android_auto_pr_builds": "DISABLED_ON_MAIN_ANDROID_WORKFLOW; manual /asquare-build only",
+    "animation_pipeline_research": {
+      "preferred": [
+        "Quaternius Universal Animation Library 1 (CC0, 120+)",
+        "Quaternius Universal Animation Library 2 (CC0, 130+)",
+        "AnimStudio (AGPL-3.0 tool, not bundled in APK)"
+      ],
+      "optional": [
+        "Mimic (MIT video-to-GLB/BVH; in-place, no foot-lock/root travel; separate model licence)",
+        "video2mocap (GPU-heavy, separate backend licences)"
+      ],
+      "integrated": false
     }
   },
-  "latest_checkpoint_commit": "53206f43ee73575103c98f67ce1728feec3d1f74"
+  "latest_checkpoint_commit": "79a2bb385292e151e3208b0cd86021c1f0cc81b6"
 }

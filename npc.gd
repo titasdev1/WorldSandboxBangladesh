@@ -45,10 +45,14 @@ func set_distance_lod(distance_m: float) -> void:
  if next_tier != _simulation_tier:
   _simulation_tier = next_tier
   _simulation_delta_accumulator = 0.0
-  set_physics_process(_simulation_tier < 2)
-  var visual := get_node_or_null("HumanoidVisual")
-  if is_instance_valid(visual):
-   visual.set_process(_simulation_tier < 2)
+ # Establish the processing state even when the initial tier is already 0.
+ # A newly added civilian starts at tier 0, so transition-only toggles would
+ # otherwise skip the first enable call.
+ var should_simulate: bool = _simulation_tier < 2
+ set_physics_process(should_simulate)
+ var visual := get_node_or_null("HumanoidVisual")
+ if is_instance_valid(visual):
+  visual.set_process(should_simulate)
 
  visible = not _distance_hidden
  if is_instance_valid(_collision_shape):
@@ -60,9 +64,9 @@ func pick_target():
  target.z = clamp(target.z, -roam_limit, roam_limit)
  wait_time = randf_range(1.0, 4.0)
 
-func _physics_process(delta):
- var simulation_delta := delta
- var movement_scale := 1.0
+func _physics_process(delta: float) -> void:
+ var simulation_delta: float = delta
+ var movement_scale: float = 1.0
  if _simulation_tier == 1:
   _simulation_delta_accumulator += delta
   if _simulation_delta_accumulator < MID_SIMULATION_INTERVAL_S:

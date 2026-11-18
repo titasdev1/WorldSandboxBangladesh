@@ -1,6 +1,6 @@
 # A-Square — tools, platforms and asset-source registry
 
-**Last checked:** 13 November 2026.  
+**Last checked:** 18 November 2026.  
 **Purpose:** persistent routing map so the team does not forget useful free/open-source tools or accidentally spend limited generation credits. This is a working registry, not a promise that every service is free, unlimited or enabled forever.
 
 ## 1. Canonical production tools
@@ -12,6 +12,10 @@
 | Blender | Rigging, retopology, UVs, materials, animation cleanup, asset LODs, batch conversion and headless automation | Open-source desktop software; can run in hosted CI | Use actual source files; inspect blend/GLB export; store provenance/licences |
 | Ara 3D Gen | Rigged human generation with body/skin/clothing, morphs, Mixamo-style skeleton, animation library and GLB export | Open-source, self-hostable; no generation credits in pipeline | Current pinned candidate pipeline exists at `tools/ara3d/`; generated operator needs visual/runtime QA before game integration |
 | Quaternius | CC0 rigged/game-ready characters and animation base assets | Existing optional asset pipeline | Technical foundation only; inspect final art and license before calling it production character |
+| Quaternius Universal Animation Library 1 + 2 | Retarget-friendly humanoid gameplay motion: locomotion, combat/gun, parkour, melee, interactions, swimming and zombie moves | Official packs are CC0; 120+ clips in UAL1 and 130+ in UAL2 | High-priority source for the Ara operator. Download exact Godot GLB exports, record source hashes/licence, retarget using AnimStudio, then validate foot contact, root motion, weapon grip and in-game state transitions. Packs are not yet proven integrated in A-Square |
+| AnimStudio (`Sheggyb/AnimStudio`) | Open-source GLB/FBX/BVH retargeting and motion editing; layered clips, IK, foot planting, root-motion export, procedural gait generation and clip analysis | AGPL-3.0 tool; Node.js 18+; AI/MCP control expects the studio app running | Use as an external authoring/retarget tool, not as code bundled into the Android APK. It supports GLB export for Godot and has headless Node tests. Bring only separately licensed animation assets; don't redistribute restricted source packs |
+| Mimic (`Abadli-Badro/Mimic`) | Convert one person's reference MP4 into an in-place GLB animation or BVH skeleton with a local Python CLI | MIT code; separate pose-model and input-video terms still apply | Optional for bespoke Deshi gestures/interactions from user-owned footage. Not final combat motion: no root travel/foot locking, fingers stay at rest and limb/spine motion is approximate |
+| video2mocap (`freddysae0/video2mocap`) | Advanced video-to-motion backend with 77-joint hand/face capable outputs | Apache-2.0 core; individual backends/weights have separate terms; primary GEM-X path expects a Linux NVIDIA GPU with 8GB+ VRAM | Optional high-end capture lane only; do not make the Android or standard GitHub Actions pipeline depend on a paid or unavailable GPU |
 | Kenney | CC0 prototype/UI/vehicle/city/environment assets | Existing optional downloads | Useful for blockout and selected stylized assets; not an automatic substitute for realistic authored art |
 | Poly Haven | CC0 PBR surface materials and HDRIs | Existing optional fetcher | Verify source/resolution, Android texture memory, import/render and attribution; high-resolution source should be streamed/LODed |
 | OpenStreetMap / geoBoundaries | Road/building footprints, names, tags, waterways and administrative boundaries | Public datasets, conditions/attribution apply | Geometry does not equal photorealism; preserve attribution and exact provenance |
@@ -53,6 +57,11 @@ These are point-in-time account observations. Re-check balance/status before any
 - Ara 3D Gen — https://github.com/olatunde85/3d-gen — MIT generator code; MakeHuman data CC0; CMU motion capture has separate terms. Pin commits, inspect licence and export GLBs.
 - MakeHuman — https://github.com/makehumancommunity/makehuman — source body/anatomy assets used by Ara; check exact asset notices.
 - Quaternius — https://quaternius.com/ — CC0 packs, verify pack-specific notices.
+- Quaternius Universal Animation Library 1 — https://quaternius.itch.io/universal-animation-library — 120+ CC0 humanoid clips; save the exact download version, license notice and SHA-256 with the imported pack.
+- Quaternius Universal Animation Library 2 — https://quaternius.itch.io/universal-animation-library-2 — 130+ CC0 follow-up clips (melee/armed combos, parkour, farming/fishing, zombie locomotion); verify the official pack file and license at download time.
+- AnimStudio — https://github.com/Sheggyb/AnimStudio — AGPL-3.0 authoring/retarget tool; do not package its program code with A-Square. Use for separately licensed GLB/FBX/BVH motion and validated GLB exports.
+- Mimic — https://github.com/Abadli-Badro/Mimic — MIT video-to-GLB/BVH animation CLI; model weights and source footage keep their own terms.
+- video2mocap — https://github.com/freddysae0/video2mocap — advanced capture tooling; separately audit each backend/weight licence and GPU requirement.
 - Kenney — https://kenney.nl/assets — CC0 assets, check collection notice.
 - Poly Haven — https://polyhaven.com/ — CC0 materials/HDRIs; verify exact download provenance.
 - Blender — https://www.blender.org/ — open-source 3D suite, automate in GitHub Actions where feasible.

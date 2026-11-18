@@ -51,7 +51,14 @@ func _run_smoke() -> void:
  player.global_position = Vector3.ZERO
  npc.global_position = Vector3(30.0, 0.0, 0.0)
  manager.call("refresh_now")
- if not _expect(int(npc.get("_simulation_tier")) == 0 and npc.is_physics_processing() and visual.is_processing() and not collision.disabled and npc.visible, "near civilians must keep full physics, animation and collision."):
+ var near_diagnostic := "tier=%d physics=%s visual=%s collision_disabled=%s visible=%s" % [
+  int(npc.get("_simulation_tier")),
+  str(npc.is_physics_processing()),
+  str(visual.is_processing()),
+  str(collision.disabled),
+  str(npc.visible)
+ ]
+ if not _expect(int(npc.get("_simulation_tier")) == 0 and npc.is_physics_processing() and visual.is_processing() and not collision.disabled and npc.visible, "near civilians must keep full physics, animation and collision; " + near_diagnostic):
   return
 
  npc.global_position = Vector3(90.0, 0.0, 0.0)
