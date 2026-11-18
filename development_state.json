@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "038_PROJECT_WIDE_BOOL_CAST_REPAIR_HEADLESS_VALIDATION_PENDING",
+  "current_milestone": "039_GDSCRIPT_VARIANT_BOOL_INFERENCE_REPAIR",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -40,7 +40,7 @@
     "030_FIRST_PERSON_BODY_AND_WEAPON_VISIBILITY_ASSERTIONS",
     "031_NPC_DISTANCE_SIMULATION_LOD_HEADLESS_PASS_DEVICE_PROFILE_PENDING"
   ],
-  "next_priority": "Run project-wide bool-constructor scanner before assets/Godot, then exact-PR Godot import, NPC LOD, player movement/jump, joystick, vehicle physics, vehicle boarding/alighting, Pitchbound, login backdrop and startup. The previous exact-PR validator run 44254756816 caught 30 remaining bool(...) calls after the first 100 were fixed; all 30 additional matches have now been replaced. Keep Android export disabled until this full lightweight gate is clean.",
+  "next_priority": "Run the exact PR lightweight validator after explicit bool type annotations in world.gd, character_visual.gd, hud.gd, district_map_display.gd, systems/mission_factory.gd and vehicle.gd. Do not start Android export until project import, NPC LOD, player movement/jump, mobile joystick, vehicle physics, vehicle boarding/alighting, Pitchbound, login backdrop and headless startup all pass on the exact same PR head. After the gate passes, reconcile all latest project branches/assets and make one reviewed Android export.",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -84,9 +84,10 @@
     "2026-11-18: Lightweight Godot validation run 44251945680 on workbench commit 0824316629d89cfbf22706f555704fdfe7dd696b proved the project scripts import successfully, but the NPC LOD smoke failed its initial near-tier processing-state assertion. The transition-only process toggles skipped initial tier 0; patched to explicitly set physics/visual processing on every distance refresh and enriched test diagnostics. No Android build was launched from this workbench result.",
     "2026-11-18: NPC distance-simulation LOD fix and regression test passed the dedicated Godot 4.4.1 workflow on workbench commit 0acbdc6f9716340340adcc4cf78ce4ccf414f561: project import, NPC LOD near/mid/far/hysteresis/re-entry smoke, and headless game startup all passed. This is CI/headless evidence only; the target Redmi device has not been profiled.",
     "2026-11-18: Exact PR validator run 44252942235: Godot import and login backdrop passed; vehicle boarding/alighting reached PASS marker but emitted repeated `Invalid call. Nonexistent 'bool' constructor` from player.gd:265 and player_vehicle_dynamics.gd:160. Other bool(...) calls across map, mission, HUD, save and character scripts are being removed in the same compatibility repair. New static scanner will block such calls across every .gd file.",
-    "2026-11-18: Lightweight scanner run 44254756816 found 30 additional invalid bool(...) constructor calls in city/PBR, Pitchbound, Ara/BR/NPC/vehicle tests, and map-pack validation. All 30 additional matches were replaced with explicit boolean comparisons. Static scan and full runtime validation pending."
+    "2026-11-18: Lightweight scanner run 44254756816 found 30 additional invalid bool(...) constructor calls in city/PBR, Pitchbound, Ara/BR/NPC/vehicle tests, and map-pack validation. All 30 additional matches were replaced with explicit boolean comparisons. Static scan and full runtime validation pending.",
+    "2026-11-18: Exact-PR validator run 44255132454 on head 1701c9d5aec31915e126ee441a9b6685ebbbbad3 passed the project-wide invalid bool(...) constructor scan but failed Godot import because explicit Variant comparisons with == true were used in inferred := declarations. Added explicit bool annotations to affected declarations (world one_way/is_oneway, character_visual crouched, HUD streaming_started/installed/br_assets_ready/applied, district map real_map/overview_map, mission factory geo_mode/real_map, vehicle did_refuel). Re-run exact-PR Godot validator before any Android export."
   ],
-  "build_status": "130_KNOWN_BOOL_CONSTRUCTOR_CALLS_REPLACED; STATIC_SCAN_BLOCKING_VALIDATION_PENDING; NO_ANDROID_EXPORT; SHARIATPUR_REVIEW_REQUIRED",
+  "build_status": "INVALID_BOOL_CONSTRUCTORS_REPLACED_AND_STATIC_SCAN_PASS; GODOT_IMPORT_FOUND_VARIANT_BOOL_INFERENCE_ERRORS; EXPLICIT_BOOL_ANNOTATIONS_APPLIED; EXACT_PR_RUNTIME_VALIDATION_PENDING; NO_ANDROID_EXPORT",
   "latest_verified_run": 38892036942,
   "latest_verified_commit": "7d62ad457907a72094a6cbdc072ebbdd152d0066",
   "latest_build_artifact": {
@@ -364,7 +365,15 @@
       "source_sha": "24febac9fe63d5b3be0e1688c7548e50f9fe7693",
       "remaining_matches": 30,
       "apk_built": false
-    }
+    },
+    "latest_failed_run": {
+      "id": 44255132454,
+      "sha": "1701c9d5aec31915e126ee441a9b6685ebbbbad3",
+      "failure": "Godot import: inferred Variant comparisons had no explicit bool type",
+      "bool_constructor_static_scan": "PASS",
+      "apk_built": false
+    },
+    "fixes_applied": "explicit bool annotations to all inference sites reported by Godot import"
   },
   "latest_checkpoint_commit": "79a2bb385292e151e3208b0cd86021c1f0cc81b6"
 }
