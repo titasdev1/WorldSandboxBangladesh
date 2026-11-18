@@ -503,6 +503,7 @@ func _complete_enter_player(p: CharacterBody3D) -> void:
     p.set_physics_process(false)
     p.set_meta("vehicle_cockpit_active", true)
     p.set_meta("vehicle_cockpit_eye_height", clampf(body_size.y * 0.80, 0.82, 1.48))
+    p.set_meta("vehicle_cockpit_yaw_offset", float(p.get("camera_yaw")) - rad_to_deg(body.global_rotation.y))
     if p.has_method("set_camera_view_mode"):
         p.call("set_camera_view_mode", _player_camera_mode_before_board)
 
@@ -555,6 +556,7 @@ func exit_player() -> void:
         visual.call("set_vehicle_driver_pose", false, vehicle_type)
     p.remove_meta("vehicle_cockpit_active")
     p.remove_meta("vehicle_cockpit_eye_height")
+    p.remove_meta("vehicle_cockpit_yaw_offset")
     if p.has_method("set_camera_view_mode"):
         p.call("set_camera_view_mode", "third_person")
     p.global_position = body.global_position + body.global_transform.basis.x * 1.35 + Vector3(0.0, 0.05, 0.0)
