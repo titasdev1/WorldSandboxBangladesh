@@ -113,6 +113,10 @@ func _update_camera():
  var effective_pitch := clampf(camera_pitch + camera_recoil_pitch, -55.0, 15.0)
  var pitch := deg_to_rad(effective_pitch)
  var target := global_position + Vector3(0, 1.0, 0)
+ var br_state := str(get_meta("br_deployment_state", ""))
+ if br_state in ["freefall", "deploying", "gliding"]:
+  _update_br_aerial_camera(yaw, br_state)
+  return
  if camera_view_mode == "first_person":
   # During driving, the player rig is seated as a child of the vehicle rigid body.
   # Use a cockpit-specific eye point so the actual animated arms/hands remain in
@@ -148,6 +152,40 @@ func _update_camera():
  camera.global_position = target + offset
  camera.fov = 56.0 if Input.is_action_pressed("aim") else 68.0
  camera.look_at(target, Vector3.UP)
+
+
+func _update_br_aerial_camera(yaw: float, state: String) -> void:
+ # BR uses a high, over-shoulder aerial camera so the player can read the
+ # district below while retaining the operator and parachute in the frame.
+ # It is deliberately separate from the short on-foot FPP/TPP orbit camera.
+ var look_forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
+ var trailing_distance := 16.0
+ var camera_height := 10.0
+ var focus_forward := 6.0
+ var focus_drop := 13.0
+ var target_fov := 78.0
+ match state:
+  "deploying":
+   trailing_distance = 19.0
+   camera_height = 11.0
+   focus_forward = 7.0
+   focus_drop = 12.0
+   target_fov = 80.0
+  "gliding":
+   trailing_distance = 25.0
+   camera_height = 8.0
+   focus_forward = 9.0
+   focus_drop = 7.0
+   target_fov = 76.0
+ var desired_position := global_position - look_forward * trailing_distance + Vector3(0.0, camera_height, 0.0)
+ if camera.global_position.distance_squared_to(desired_position) < 0.0001:
+  camera.global_position = desired_position
+ else:
+  camera.global_position = camera.global_position.lerp(desired_position, 0.24)
+ var focus_point := global_position + look_forward * focus_forward + Vector3(0.0, -focus_drop, 0.0)
+ camera.look_at(focus_point, Vector3.UP)
+ camera.fov = lerpf(camera.fov, target_fov, 0.16)
+ camera.near = 0.08
 
 func _physics_process(delta):
  var br_state := str(get_meta("br_deployment_state", ""))
