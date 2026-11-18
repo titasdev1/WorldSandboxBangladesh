@@ -140,8 +140,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          PROFILE_COMMIT="$(git log -n 1 --format=%H -- tools/ara3d/asquare_operator.params.json)"
           BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          PROFILE_COMMIT="$(gh api "repos/${GITHUB_REPOSITORY}/commits?path=tools/ara3d/asquare_operator.params.json&sha=${BRANCH}&per_page=1" --jq '.[0].sha // empty')"
+          if [[ -z "${PROFILE_COMMIT}" ]]; then
+            echo "Could not resolve the latest Ara character-profile commit from GitHub history." >&2
+            exit 1
+          fi
           RUN_RECORD="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${PROFILE_COMMIT}&per_page=100" \
             --jq ".workflow_runs | map(select(.workflow_id == 417330351 and .head_sha == \"${PROFILE_COMMIT}\" and .head_branch == \"${BRANCH}\")) | sort_by(.created_at) | last // empty | [.id, .status, (.conclusion // \"\")] | @tsv")"
           if [[ -z "${RUN_RECORD}" ]]; then
@@ -228,7 +232,7 @@ jobs:
               "required_animation_groups": data["required_animation_groups"],
               "license": report["license"]
           }
-          (destination / "ara_asset_manifest.json").write_text(json.dumps(manifest, indent=2) + "\\n", encoding="utf-8")
+          (destination / "ara_asset_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
           shutil.copy2(root / "ASSET-LICENSES.txt", destination / "ASSET-LICENSES.txt")
           print("ARA3D_OPERATOR_INSTALLED:", json.dumps(manifest, sort_keys=True))
           PY

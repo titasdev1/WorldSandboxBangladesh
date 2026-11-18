@@ -454,8 +454,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          PROFILE_COMMIT="$(git log -n 1 --format=%H -- tools/ara3d/asquare_operator.params.json)"
           BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          PROFILE_COMMIT="$(gh api "repos/${GITHUB_REPOSITORY}/commits?path=tools/ara3d/asquare_operator.params.json&sha=${BRANCH}&per_page=1" --jq '.[0].sha // empty')"
+          if [[ -z "${PROFILE_COMMIT}" ]]; then
+            echo "Could not resolve the latest Ara character-profile commit from GitHub history." >&2
+            exit 1
+          fi
           echo "Ara character profile commit: $PROFILE_COMMIT on $BRANCH"
           RUN_ID=""
           for attempt in $(seq 1 100); do
