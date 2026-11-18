@@ -23,6 +23,8 @@ var map_button: Button
 var interaction_button: Button
 var roadline_event_button: Button
 var driving_status: Label
+var br_deployment_button: Button
+var br_deployment_status: Label
 var teleport_panel: PanelContainer
 var teleport_lat_input: LineEdit
 var teleport_lon_input: LineEdit
@@ -109,6 +111,31 @@ func _ready():
  add_touch_button("JUMP", Vector2(1070, 445), Vector2(140, 48), "jump")
  add_touch_button("CROUCH", Vector2(1070, 500), Vector2(140, 48), "crouch")
  interaction_button = add_touch_button("INTERACT", Vector2(900, 650), Vector2(170, 55), "interact")
+ br_deployment_button = Button.new()
+ br_deployment_button.name = "BattleRoyaleDeploymentAction"
+ br_deployment_button.text = "JUMP FROM PLANE"
+ br_deployment_button.position = Vector2(690, 625)
+ br_deployment_button.size = Vector2(250, 58)
+ br_deployment_button.add_theme_font_size_override("font_size", 19)
+ br_deployment_button.add_theme_color_override("font_color", Color("#f2f7ff"))
+ br_deployment_button.visible = false
+ br_deployment_button.z_index = 18
+ br_deployment_button.pressed.connect(_handle_br_deployment_action)
+ add_child(br_deployment_button)
+ br_deployment_status = Label.new()
+ br_deployment_status.name = "BattleRoyaleDeploymentStatus"
+ br_deployment_status.position = Vector2(360, 76)
+ br_deployment_status.size = Vector2(480, 48)
+ br_deployment_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+ br_deployment_status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+ br_deployment_status.add_theme_font_size_override("font_size", 18)
+ br_deployment_status.add_theme_color_override("font_color", Color("#e7f3ff"))
+ br_deployment_status.add_theme_color_override("font_shadow_color", Color("#07111b"))
+ br_deployment_status.add_theme_constant_override("shadow_offset_x", 2)
+ br_deployment_status.add_theme_constant_override("shadow_offset_y", 2)
+ br_deployment_status.visible = false
+ br_deployment_status.z_index = 18
+ add_child(br_deployment_status)
  var throttle_button := add_touch_button("THROTTLE",Vector2(1080,590),Vector2(150,54),"vehicle_accelerate")
  var brake_button := add_touch_button("BRAKE",Vector2(910,590),Vector2(145,54),"vehicle_brake")
  var handbrake_button := add_touch_button("HANDBRAKE",Vector2(910,530),Vector2(145,48),"vehicle_handbrake")
@@ -777,6 +804,7 @@ func _process(_delta):
   var current_combat_mode := String(combat.get("active_mode")) if is_instance_valid(combat) else ""
   replay_round_button.visible = is_instance_valid(combat) and bool(combat.get("run_over")) and not bool(lobby_overlay.visible) and current_combat_mode in ["survival", "arena_training", "street_skirmish"]
  _update_interaction_prompt()
+ _update_br_deployment_ui()
  var health_value: int = w.player.health if w.player else 100
  stats.text = "৳ %d    Health: %d    Wanted: %d/5    Weather: %s" % [w.cash, health_value, w.wanted, "RAIN" if w.rain else "CLEAR"]
  var mission_factory = w.get_node_or_null("MissionFactory")
@@ -1643,6 +1671,58 @@ func _update_interaction_prompt() -> void:
    return
  interaction_button.text = "INTERACT"
  driving_status.visible = false
+
+
+func _handle_br_deployment_action() -> void:
+ if not is_instance_valid(w):
+  return
+ var deployment: Node = w.get("battle_royale_controller") as Node
+ if not is_instance_valid(deployment):
+  return
+ match str(deployment.call("get_phase")):
+  "flight":
+   deployment.call("jump_from_plane")
+  "freefall":
+   deployment.call("deploy_parachute")
+ _update_br_deployment_ui()
+
+
+func _update_br_deployment_ui() -> void:
+ if not is_instance_valid(w):
+  return
+ var deployment: Node = w.get("battle_royale_controller") as Node
+ if not is_instance_valid(deployment):
+  if is_instance_valid(br_deployment_button):
+   br_deployment_button.visible = false
+  if is_instance_valid(br_deployment_status):
+   br_deployment_status.visible = false
+  return
+
+ var phase := str(deployment.call("get_phase"))
+ var in_drop_sequence := phase in ["flight", "freefall", "gliding", "landing"]
+ var action_label := str(deployment.call("get_action_label"))
+ if is_instance_valid(br_deployment_button):
+  br_deployment_button.visible = not action_label.is_empty()
+  if not action_label.is_empty():
+   br_deployment_button.text = action_label
+ if is_instance_valid(br_deployment_status):
+  br_deployment_status.visible = phase != "inactive"
+  if phase == "landed":
+   var combat: Node = w.get("combat_controller") as Node
+   br_deployment_status.text = str(combat.call("get_status_text")) if is_instance_valid(combat) else str(deployment.call("get_status_text"))
+  else:
+   br_deployment_status.text = str(deployment.call("get_status_text"))
+
+ if is_instance_valid(interaction_button):
+  interaction_button.visible = not in_drop_sequence
+ for action_button in get_tree().get_nodes_in_group("touch_action_buttons"):
+  if not is_instance_valid(action_button):
+   continue
+  var action_name := str(action_button.get_meta("action_name", ""))
+  if action_name in ["sprint", "fire", "aim", "reload", "jump", "crouch", "interact", "rain"]:
+   action_button.visible = not in_drop_sequence
+ if is_instance_valid(driving_status) and in_drop_sequence:
+  driving_status.visible = false
 
 
 func _lobby_style(fill: Color, border_color: Color, border_width: int, corner_radius: int) -> StyleBoxFlat:
