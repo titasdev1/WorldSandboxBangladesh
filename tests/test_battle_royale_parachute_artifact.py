@@ -21,7 +21,7 @@ def make_glb(*, omit_animation: bool = False, omit_node: str = "") -> bytes:
     ])
     nodes.extend([{"name": f"Riser_Carabiner_{side}"} for side in ("L", "R")])
     meshes = [{"name": f"AssemblyMesh_{i}", "primitives": []} for i in range(24)]
-    binary_payload = b"\0" * 4096
+    binary_payload = b"\0" * 8192
     document = {
         "asset": {"version": "2.0", "generator": "A-Square test fixture"},
         "scene": 0,
