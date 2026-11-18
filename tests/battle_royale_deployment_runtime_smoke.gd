@@ -202,6 +202,25 @@ func _run_smoke() -> void:
 		quit(1)
 		return
 
+	# Verify the physical canopy root responds to the player's steering axis.
+	Input.action_press("move_right")
+	for _right_frame in range(20):
+		await process_frame
+	var right_bank := parachute.rotation.z
+	Input.action_release("move_right")
+	Input.action_press("move_left")
+	for _left_frame in range(24):
+		await process_frame
+	var left_bank := parachute.rotation.z
+	Input.action_release("move_left")
+	if right_bank > -deg_to_rad(4.0) or left_bank < deg_to_rad(4.0):
+		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: canopy did not bank in opposite directions for left/right steering.")
+		quit(1)
+		return
+	print("BR_CANOPY_STEERING_RUNTIME_PASS • right_bank=%.1fdeg • left_bank=%.1fdeg" % [
+		rad_to_deg(right_bank), rad_to_deg(left_bank)
+	])
+
 	deployment.call("notify_player_landed")
 	if deployment.call("get_phase") != "landing":
 		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: landing transition was not entered.")
