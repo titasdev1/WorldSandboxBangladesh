@@ -17,6 +17,7 @@ var br_zone_elapsed := 0.0
 var br_zone_shrink_seconds := 240.0
 var br_zone_visual: MeshInstance3D
 var br_zone_damage_accumulator := 0.0
+var br_bots_spawned := false
 
 func configure(w) -> void:
     world = w
@@ -36,6 +37,7 @@ func start_mode(mode_id: String) -> void:
     br_zone_elapsed = 0.0
     br_zone_damage_accumulator = 0.0
     br_zone_radius = 260.0
+    br_bots_spawned = false
     if is_instance_valid(br_zone_visual):
         br_zone_visual.queue_free()
     br_zone_visual = null
@@ -87,10 +89,24 @@ func _start_solo_battle_royale() -> void:
     if not is_instance_valid(world) or not is_instance_valid(world.player):
         active = false
         return
+    # Aircraft flight and freefall happen before the live combat phase. The
+    # arena, bots and safe zone are built around the actual landing location,
+    # not the operator's original lobby spawn.
     br_zone_center = world.player.global_position
     br_zone_radius = 260.0
     br_zone_elapsed = 0.0
     br_zone_damage_accumulator = 0.0
+    br_bots_spawned = false
+    target_goal = 12
+    alive_enemies = 0
+    world.event_text = "BATTLE ROYALE SOLO • BOARD THE CARGO PLANE • SELECT YOUR DROP"
+    world.event_time_left = 9.0
+
+
+func _begin_battle_royale_ground_phase() -> void:
+    if br_bots_spawned or not is_instance_valid(world) or not is_instance_valid(world.player):
+        return
+    br_zone_center = world.player.global_position
     var spawn_points: Array[Vector3] = []
     if bool(world.get("real_dhaka_loaded")):
         var loader: Node = world.get("real_dhaka_loader") as Node
@@ -103,25 +119,25 @@ func _start_solo_battle_royale() -> void:
                         continue
                     var point: Vector3 = value
                     var distance := Vector2(point.x - br_zone_center.x, point.z - br_zone_center.z).length()
-                    if distance < 85.0 or distance > 235.0:
+                    if distance < 55.0 or distance > 235.0:
                         continue
                     var separated := true
                     for existing in spawn_points:
-                        if Vector2(existing.x - point.x, existing.z - point.z).length() < 28.0:
+                        if Vector2(existing.x - point.x, existing.z - point.z).length() < 24.0:
                             separated = false
                             break
                     if separated:
                         spawn_points.append(point)
         if spawn_points.size() < 6:
             active = false
-            target_goal = 0
-            alive_enemies = 0
-            world.event_text = "SOLO BR UNAVAILABLE • NOT ENOUGH LOADED ROAD SPAWN POINTS"
-            world.event_time_left = 9.0
+            run_over = true
+            world.last_combat_result = "DEFEAT"
+            world.event_text = "BR DROP INCOMPLETE • NOT ENOUGH LOADED STREET SPAWN POINTS"
+            world.event_time_left = 10.0
             return
         spawn_points.shuffle()
     else:
-        # The fictional starter map is only a local development fallback.
+        # The local starter-world fallback is only for offline development.
         for i in range(12):
             var angle := TAU * (float(i) + 0.33) / 12.0
             var radius := 105.0 + float(i % 4) * 22.0
@@ -130,8 +146,12 @@ func _start_solo_battle_royale() -> void:
     alive_enemies = target_goal
     for index in range(target_goal):
         _spawn_enemy(spawn_points[index], false)
+    br_bots_spawned = true
+    br_zone_radius = 260.0
+    br_zone_elapsed = 0.0
+    br_zone_damage_accumulator = 0.0
     _create_br_safe_zone()
-    world.event_text = "BATTLE ROYALE SOLO • 1 OPERATOR VS %d BOTS • DROP FROM THE CARGO PLANE" % target_goal
+    world.event_text = "BATTLE ROYALE • DROP COMPLETE • %d AI OPERATORS • SAFE ZONE ACTIVE" % target_goal
     world.event_time_left = 9.0
 
 
@@ -163,7 +183,10 @@ func _update_battle_royale(delta: float) -> void:
     if not is_instance_valid(world) or not is_instance_valid(world.player):
         return
     var deployment: Node = world.get("battle_royale_controller") as Node
-    if not is_instance_valid(deployment) or String(deployment.call("get_phase")) != "landed":
+    if not is_instance_valid(deployment) or str(deployment.call("get_phase")) != "landed":
+        return
+    if not br_bots_spawned:
+        _begin_battle_royale_ground_phase()
         return
     br_zone_elapsed += delta
     var blend := clampf(br_zone_elapsed / br_zone_shrink_seconds, 0.0, 1.0)
