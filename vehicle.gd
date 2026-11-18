@@ -14,6 +14,7 @@ var _vehicle_transitioning := false
 var _transition_was_processing := true
 var _transition_player: CharacterBody3D
 var _player_camera_mode_before_board := "third_person"
+var _player_collision_was_disabled := false
 var cruise_speed := 4.0
 var steering_velocity := 0.0
 var vehicle_camera: Camera3D
@@ -485,12 +486,39 @@ func _complete_enter_player(p: CharacterBody3D) -> void:
     occupied = true
     visible = false
     world.set("occupied_vehicle",body)
-    p.visible = false
+
+    # Keep the actual operator rig inside the rigid-body vehicle. This makes
+    # third-person passengers visible through the windows and lets first-person
+    # driving render the animated hands/arms at the steering wheel.
+    var player_collision := p.get_node_or_null("CollisionShape3D") as CollisionShape3D
+    if is_instance_valid(player_collision):
+        _player_collision_was_disabled = player_collision.disabled
+        player_collision.disabled = true
+    p.reparent(body,true)
+    p.transform = Transform3D(
+        Basis.IDENTITY,
+        Vector3(body_size.x * 0.16, body_size.y * 0.18, -body_size.z * 0.14)
+    )
+    p.visible = true
     p.set_physics_process(false)
-    if p.camera:
-        p.camera.current = false
+    p.set_meta("vehicle_cockpit_active", true)
+    p.set_meta("vehicle_cockpit_eye_height", clampf(body_size.y * 0.80, 0.82, 1.48))
+    if p.has_method("set_camera_view_mode"):
+        p.call("set_camera_view_mode", _player_camera_mode_before_board)
+
+    var visual := p.get_node_or_null("HumanoidVisual") as Node
+    if is_instance_valid(visual) and visual.has_method("set_vehicle_driver_pose"):
+        visual.call("set_vehicle_driver_pose", true, vehicle_type)
+
     var active_camera := body.get_node_or_null("VehicleCamera") as Camera3D
-    if is_instance_valid(active_camera):
+    if _player_camera_mode_before_board == "first_person" and is_instance_valid(p.camera):
+        if is_instance_valid(active_camera):
+            active_camera.current = false
+        var exterior_camera := body.get_node_or_null("VehicleFirstPersonCamera") as Camera3D
+        if is_instance_valid(exterior_camera):
+            exterior_camera.current = false
+        p.camera.make_current()
+    elif is_instance_valid(active_camera):
         active_camera.make_current()
     _vehicle_transitioning = false
     _transition_player = null
@@ -522,6 +550,11 @@ func exit_player() -> void:
     _transition_was_processing = is_physics_processing()
     p.set_physics_process(false)
     p.visible = true
+    var visual := p.get_node_or_null("HumanoidVisual") as Node
+    if is_instance_valid(visual) and visual.has_method("set_vehicle_driver_pose"):
+        visual.call("set_vehicle_driver_pose", false, vehicle_type)
+    p.remove_meta("vehicle_cockpit_active")
+    p.remove_meta("vehicle_cockpit_eye_height")
     if p.has_method("set_camera_view_mode"):
         p.call("set_camera_view_mode", "third_person")
     p.global_position = body.global_position + body.global_transform.basis.x * 1.35 + Vector3(0.0, 0.05, 0.0)
@@ -547,6 +580,15 @@ func _complete_exit_player(p: CharacterBody3D, body: RigidBody3D) -> void:
     var final_speed := float(body.get("speed")) if is_instance_valid(body) else 0.0
     if is_instance_valid(body):
         global_transform = exit_transform
+        # The player is a child of the car while driving; move them back to
+        # the world before reparenting the vehicle visuals and freeing its body.
+        if p.get_parent() == body:
+            p.reparent(world,true)
+        var player_collision := p.get_node_or_null("CollisionShape3D") as CollisionShape3D
+        if is_instance_valid(player_collision):
+            player_collision.disabled = _player_collision_was_disabled
+        p.remove_meta("vehicle_cockpit_active")
+        p.remove_meta("vehicle_cockpit_eye_height")
         for child in body.get_children().duplicate():
             if child is CollisionShape3D:
                 continue
