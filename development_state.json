@@ -40,7 +40,7 @@
     "030_FIRST_PERSON_BODY_AND_WEAPON_VISIBILITY_ASSERTIONS",
     "031_NPC_DISTANCE_SIMULATION_LOD_PENDING_ANDROID_RUNTIME"
   ],
-  "next_priority": "Finish Android run 44247182541 on source b8a100a6f8e857bb6b7677a6ad27a01de67e1b94; do not duplicate it. Then validate latest PR #78 head 72309f955cbc478d1b83624fd42c5c5cf2079008, including NPC simulation LOD smoke, Ara runtime/FPP, movement/joystick, vehicle, BR, and APK export. The LOD change is committed but not validated. Do not promote the older 2026-11-04 Shariatpur map package as current; a fresh complete sequence and quality review are still required.",
+  "next_priority": "Run the canonical Android workflow on latest PR #78 head after the BR runtime smoke parse fixes (explicit Vector3/float camera types and use of the local canopy variable). Validate the new NPC distance-LOD runtime smoke, Ara operator rig/FPP, movement, joystick, vehicles, BR, full Godot startup and APK export. The previous Android run 44247182541 failed before gameplay tests and has no APK artifact. Shariatpur still falls back to an older 2026-11-04 map package until a fresh complete map sequence is assembled and reviewed.",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -78,9 +78,10 @@
     "2026-11-18: Ara3D candidate artifact 14045621227 contains a high GLB of 36,504,888 bytes, 159,168 triangles, 69 joints, 19 material surfaces, 22 images and 216 animations, plus medium/low LOD variants. Structural validation exists, but Godot import, rendered visual QA, animation deformation, APK integration and device memory/performance remain unverified.",
     "2026-11-18: Core rig has many authored animation mappings but only a subset is connected to gameplay calls. Pickup, grenade, cover, vault, climbing and swim/dive mappings require end-to-end action wiring/tests before being called usable features.",
     "2026-11-18: Login street and lobby showcase remain primitive/low-detail real-time 3D prototypes, not photoreal cinematic media or a CODM-quality lobby. Real login handshake, online matchmaking and human-player modes are not implemented/verified.",
-    "2026-11-18: Added NPC distance-simulation LOD in commit 833a0605a83e6dddfa6223cc5ad1c9a18c7c98ef, with a follow-up movement timestep compensation fix in 72309f955cbc478d1b83624fd42c5c5cf2079008. Nearby civilians stay fully active, mid-distance physics is throttled to ~8Hz with velocity compensation, far simulation/collision/animation is paused, and distant visibility uses 175m hide / 150m re-entry hysteresis. A new Godot runtime smoke is wired into the existing canonical Android workflow; no CI pass or device performance measurement yet."
+    "2026-11-18: Added NPC distance-simulation LOD in commit 833a0605a83e6dddfa6223cc5ad1c9a18c7c98ef, with a follow-up movement timestep compensation fix in 72309f955cbc478d1b83624fd42c5c5cf2079008. Nearby civilians stay fully active, mid-distance physics is throttled to ~8Hz with velocity compensation, far simulation/collision/animation is paused, and distant visibility uses 175m hide / 150m re-entry hysteresis. A new Godot runtime smoke is wired into the existing canonical Android workflow; no CI pass or device performance measurement yet.",
+    "2026-11-18: Godot 4.4 import of the BR deployment runtime smoke exposed additional static typing and identifier defects: camera position/distance and bank-angle locals needed explicit Vector3/float types, and the canopy steering assertions referenced `parachute` instead of the actual local `canopy`. These were corrected in the current BR smoke source; awaiting exact-head Godot validation."
   ],
-  "build_status": "NPC_DISTANCE_LOD_COMMITTED_RUNTIME_PENDING; ANDROID_RUN_44247182541_IN_PROGRESS_ON_PRE_LOD_COMMIT; ARA_VISUAL_DEVICE_QA_PENDING; SHARIATPUR_REVIEW_REQUIRED",
+  "build_status": "BR_RUNTIME_SMOKE_PARSE_FIX_COMMITTED; NPC_DISTANCE_LOD_COMMITTED; BOTH_PENDING_CANONICAL_ANDROID_CI; SHARIATPUR_REVIEW_REQUIRED",
   "latest_verified_run": 38892036942,
   "latest_verified_commit": "7d62ad457907a72094a6cbdc072ebbdd152d0066",
   "latest_build_artifact": {
@@ -192,7 +193,7 @@
       ]
     }
   },
-  "latest_development_commit": "72309f955cbc478d1b83624fd42c5c5cf2079008",
+  "latest_development_commit": "55f73fc32465a415592cf2175a0cb733f2e72ea3",
   "latest_development_branch": "feature/lobby-operator-showcase",
   "session_checkpoint": "A_SQUARE_SESSION_CHECKPOINT.md",
   "competitive_reference_blueprint": "COMPETITIVE_REFERENCE_BLUEPRINT.md",
@@ -276,7 +277,16 @@
     },
     "map_package_used_by_previous_run": "Project-A-Square-Shariatpur-Review-Map-41870559555 from 2026-11-04; not a current regenerated sequence",
     "ara_operator_runtime": "PENDING",
-    "android_device_profile": "NOT_MEASURED"
+    "android_device_profile": "NOT_MEASURED",
+    "latest_branch_head_before_state_commit": "55f73fc32465a415592cf2175a0cb733f2e72ea3",
+    "br_runtime_smoke_parse_fix_source": "55f73fc32465a415592cf2175a0cb733f2e72ea3",
+    "prior_android_run": {
+      "id": 44247182541,
+      "commit": "b8a100a6f8e857bb6b7677a6ad27a01de67e1b94",
+      "status": "FAILED_STEP_32_GODOT_PARSE",
+      "artifact_count": 0
+    },
+    "next_build_source_status": "READY_FOR_EXACT_HEAD_CANONICAL_ANDROID_CI_AFTER_CURRENT_SOURCE_FIX"
   },
   "latest_checkpoint_commit": "53206f43ee73575103c98f67ce1728feec3d1f74"
 }
