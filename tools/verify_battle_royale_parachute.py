@@ -43,14 +43,19 @@ def parse_glb(data: bytes) -> dict[str, Any]:
 
 
 def verify_asset(glb_path: pathlib.Path, licence_path: pathlib.Path) -> dict[str, Any]:
-    if not glb_path.is_file() or glb_path.stat().st_size < 4096:
-        raise ValueError(f"parachute GLB is missing or implausibly small: {glb_path}")
+    # Validate the container before checking secondary metadata. This keeps a
+    # corrupt GLB from being misreported as a licence or arbitrary file-size
+    # problem, and lets structural checks—not a guessed byte threshold—decide
+    # whether the exported canopy contains the required assembly.
+    if not glb_path.is_file():
+        raise ValueError(f"parachute GLB is missing: {glb_path}")
+    glb_bytes = glb_path.read_bytes()
+    document = parse_glb(glb_bytes)
     if not licence_path.is_file():
         raise ValueError(f"parachute CC0 licence file is missing: {licence_path}")
     licence = licence_path.read_text(encoding="utf-8", errors="replace")
     if LICENSE_MARKER not in licence or "A-Square Ram-Air Canopy and Harness" not in licence:
         raise ValueError("generated parachute licence does not identify the original CC0 asset")
-    document = parse_glb(glb_path.read_bytes())
     node_names = {
         str(node.get("name", ""))
         for node in document.get("nodes", [])
