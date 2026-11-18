@@ -17,6 +17,9 @@ var _cargo_door: Node3D
 var _landing_reported := false
 var _plane_resource: PackedScene
 var _parachute_resource: PackedScene
+var _flight_camera: Camera3D
+var _canopy_animation_player: AnimationPlayer
+const CANOPY_INFLATION_SECONDS := 0.85
 
 
 func _ready() -> void:
@@ -71,6 +74,8 @@ func start_solo_deployment() -> bool:
 	player.reparent(aircraft, true)
 	player.position = Vector3(0.0, 1.7, 4.2)
 	player.rotation = Vector3.ZERO
+	player.call("_play_visual_action", "idle_look")
+	_create_flight_overview_camera()
 	phase = "flight"
 	phase_time = 0.0
 	_landing_reported = false
@@ -98,9 +103,27 @@ func _collect_aircraft_parts() -> void:
 
 func _open_cargo_ramp() -> void:
 	if is_instance_valid(_ramp):
-		_ramp.rotation.x = deg_to_rad(-28.4)
+		_ramp.rotation.x = 0.0
+		var ramp_tween := create_tween()
+		ramp_tween.tween_property(_ramp, "rotation:x", deg_to_rad(-28.4), 0.9).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	if is_instance_valid(_cargo_door):
-		_cargo_door.rotation.x = deg_to_rad(-40.0)
+		_cargo_door.rotation.x = 0.0
+		var door_tween := create_tween()
+		door_tween.tween_property(_cargo_door, "rotation:x", deg_to_rad(-40.0), 0.85).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+
+func _create_flight_overview_camera() -> void:
+	if not is_instance_valid(aircraft):
+		return
+	_flight_camera = Camera3D.new()
+	_flight_camera.name = "BattleRoyaleFlightOverviewCamera"
+	_flight_camera.position = Vector3(-12.0, 26.0, 40.0)
+	_flight_camera.fov = 52.0
+	_flight_camera.near = 0.1
+	_flight_camera.far = 2600.0
+	aircraft.add_child(_flight_camera)
+	_flight_camera.look_at(Vector3(0.0, -25.0, -55.0), Vector3.UP)
+	_flight_camera.make_current()
 
 
 func _close_cargo_ramp() -> void:
@@ -122,6 +145,12 @@ func jump_from_plane() -> bool:
 	player.velocity = flight_direction * 34.0 + Vector3(0.0, -14.0, 0.0)
 	player.set_physics_process(true)
 	player.set_meta("br_deployment_state", "freefall")
+	player.call("_play_visual_action", "skydive")
+	if is_instance_valid(_flight_camera):
+		_flight_camera.queue_free()
+	_flight_camera = null
+	if is_instance_valid(player.camera):
+		player.camera.make_current()
 	phase = "freefall"
 	phase_time = 0.0
 	_close_cargo_ramp()
@@ -155,12 +184,22 @@ func deploy_parachute() -> bool:
 	visual.add_child(parachute)
 	parachute.position = Vector3(0.0, -0.15, 0.32)
 	parachute.rotation = Vector3.ZERO
-	parachute.scale = Vector3.ONE
-	player.set_meta("br_deployment_state", "gliding")
-	player.velocity.y = -8.2
-	phase = "gliding"
+	parachute.scale = Vector3(0.68, 0.24, 0.68)
+	var inflation_tween := create_tween()
+	inflation_tween.tween_property(parachute, "scale", Vector3.ONE, CANOPY_INFLATION_SECONDS).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_canopy_animation_player = parachute.find_child("*", "AnimationPlayer", true, false) as AnimationPlayer
+	if is_instance_valid(_canopy_animation_player):
+		var canopy_clip := StringName("A2_Parachute_Canopy_Wind_Sway")
+		if _canopy_animation_player.has_animation(canopy_clip):
+			var animation := _canopy_animation_player.get_animation(canopy_clip)
+			animation.loop_mode = Animation.LOOP_LINEAR
+			_canopy_animation_player.play(canopy_clip)
+	player.set_meta("br_deployment_state", "deploying")
+	player.velocity.y = -18.0
+	phase = "deploying"
 	phase_time = 0.0
-	world.event_text = "CANOPY OPEN • GLIDE AND STEER TOWARD THE LANDING ZONE"
+	world.event_text = "CANOPY INFLATING • KEEP STEERING TOWARD THE LANDING ZONE"
+	world.event_time_left = 7.0
 	world.event_time_left = 7.0
 	return true
 
@@ -200,6 +239,8 @@ func get_action_label() -> String:
 			return "JUMP FROM PLANE"
 		"freefall":
 			return "DEPLOY PARACHUTE"
+		"deploying":
+			return ""
 		_:
 			return ""
 
@@ -210,6 +251,8 @@ func get_status_text() -> String:
 			return "CARGO FLIGHT • ALTITUDE %dm • PICK A DROP" % int(maxf(0.0, aircraft.global_position.y) if is_instance_valid(aircraft) else 0.0)
 		"freefall":
 			return "FREEFALL • ALTITUDE %dm • DEPLOY CANOPY" % int(maxf(0.0, player.global_position.y) if is_instance_valid(player) else 0.0)
+		"deploying":
+			return "CANOPY INFLATING • ALTITUDE %dm" % int(maxf(0.0, player.global_position.y) if is_instance_valid(player) else 0.0)
 		"gliding":
 			return "CANOPY GLIDE • ALTITUDE %dm • STEER" % int(maxf(0.0, player.global_position.y) if is_instance_valid(player) else 0.0)
 		"landing":
@@ -228,15 +271,27 @@ func _process(delta: float) -> void:
 	if phase == "inactive" or phase == "landed":
 		return
 	phase_time += delta
-	if phase in ["flight", "freefall", "gliding", "landing"] and is_instance_valid(aircraft):
+
+	if phase in ["flight", "freefall", "deploying", "gliding", "landing"] and is_instance_valid(aircraft):
 		aircraft.global_position += flight_direction * flight_speed * delta
 		for propeller in _propellers:
 			if is_instance_valid(propeller):
 				propeller.rotate_object_local(Vector3.FORWARD, 24.0 * delta)
-	elif phase == "gliding" and is_instance_valid(parachute):
+
+	if phase == "deploying" and phase_time >= CANOPY_INFLATION_SECONDS:
+		phase = "gliding"
+		phase_time = 0.0
+		if is_instance_valid(player):
+			player.set_meta("br_deployment_state", "gliding")
+			player.velocity.y = -8.2
+		world.event_text = "CANOPY OPEN • GLIDE AND STEER TOWARD THE LANDING ZONE"
+		world.event_time_left = 7.0
+
+	if phase == "gliding" and is_instance_valid(parachute) and not is_instance_valid(_canopy_animation_player):
 		parachute.rotation.z = sin(phase_time * 0.72) * deg_to_rad(2.4)
 		parachute.rotation.x = cos(phase_time * 0.53) * deg_to_rad(1.4)
-	elif phase == "landing" and phase_time >= 1.0:
+
+	if phase == "landing" and phase_time >= 1.0:
 		_finish_landing()
 
 
@@ -247,6 +302,10 @@ func _reset_previous_deployment() -> void:
 	if is_instance_valid(aircraft):
 		aircraft.queue_free()
 	aircraft = null
+	if is_instance_valid(_flight_camera):
+		_flight_camera.queue_free()
+	_flight_camera = null
+	_canopy_animation_player = null
 	phase = "inactive"
 	phase_time = 0.0
 	_landing_reported = false
