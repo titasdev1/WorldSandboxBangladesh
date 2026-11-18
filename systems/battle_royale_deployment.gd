@@ -187,7 +187,8 @@ func deploy_parachute() -> bool:
 	parachute.scale = Vector3(0.68, 0.24, 0.68)
 	var inflation_tween := create_tween()
 	inflation_tween.tween_property(parachute, "scale", Vector3.ONE, CANOPY_INFLATION_SECONDS).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	_canopy_animation_player = parachute.find_child("*", "AnimationPlayer", true, false) as AnimationPlayer
+	var canopy_animation_nodes := parachute.find_children("*", "AnimationPlayer", true, false)
+	_canopy_animation_player = canopy_animation_nodes[0] as AnimationPlayer if not canopy_animation_nodes.is_empty() else null
 	if is_instance_valid(_canopy_animation_player):
 		var canopy_clip := StringName("A2_Parachute_Canopy_Wind_Sway")
 		if _canopy_animation_player.has_animation(canopy_clip):
