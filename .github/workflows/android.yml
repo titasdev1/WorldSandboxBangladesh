@@ -808,9 +808,21 @@ jobs:
           test -x "$GODOT"
           timeout 240s "$GODOT" --headless --editor --path . --import --quit > "$RUNNER_TEMP/godot-validation/br-asset-import.log" 2>&1
           cat "$RUNNER_TEMP/godot-validation/br-asset-import.log"
-          if grep -E "SCRIPT ERROR:|Parse Error|Failed loading resource|ERROR:" "$RUNNER_TEMP/godot-validation/br-asset-import.log"; then
-            echo "Godot failed to import the BR aircraft or parachute assets."
+          BR_IMPORT_LOG="$RUNNER_TEMP/godot-validation/br-asset-import.log"
+          # Godot 4.4.1 has a confirmed dummy-renderer GLTF preview warning:
+          # godotengine/godot#108994. It is emitted by EditorInterface preview
+          # generation after the scene import, not by GLB parsing or resource loading.
+          # Ignore only this exact line; all script/parse/resource and other ERRORs fail.
+          if grep -E "SCRIPT ERROR:|Parse Error|Failed loading resource" "$BR_IMPORT_LOG"; then
+            echo "Godot reported a script, parse, or missing-resource error while importing BR assets."
             exit 1
+          fi
+          if grep -E "ERROR:" "$BR_IMPORT_LOG" | grep -vF 'ERROR: Parameter "t" is null.'; then
+            echo "Godot reported an unexpected error while importing BR aircraft/parachute assets."
+            exit 1
+          fi
+          if grep -Fq 'ERROR: Parameter "t" is null.' "$BR_IMPORT_LOG"; then
+            echo "Known Godot 4.4.1 headless GLTF scene-preview warning observed (godotengine/godot#108994); import completed."
           fi
 
       - name: Exercise full Battle Royale cargo flight, freefall, canopy inflation and landing
