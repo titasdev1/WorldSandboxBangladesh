@@ -40,7 +40,7 @@
     "030_FIRST_PERSON_BODY_AND_WEAPON_VISIBILITY_ASSERTIONS",
     "031_NPC_DISTANCE_SIMULATION_LOD_HEADLESS_PASS_DEVICE_PROFILE_PENDING"
   ],
-  "next_priority": "Allow current run 44354975442 on exact SHA 149e6b8314325f3e036787f58eaad4945ea83d82 to complete steps 58-71. Inspect step 62 signing/integrity, step 63 distribution, step 64 sizes, step 65 canonical assembly, step 66 artifact metadata and actual APK bytes/hash before sharing. Be explicit that the final uploaded core APK excludes the district map and the Shariatpur PCK is separate. Do not start another full Android build or change PR #78 head while this run is unresolved. The user's single embedded-map APK preference remains unmet by the present modular workflow.",
+  "next_priority": "Preserve run 44354975442 APK/map pair as CI-verified review candidate. Before another full build, plan one embedded-map offline APK variant only after checking 1.816 GB full-map export size, Android installation/storage and stable signing. Obtain stable release signing, then arrange physical Android install/boot/touch/gameplay/first-run map download and performance QA. Keep PR #78 head unchanged until deliberate reviewed source change; Shariatpur remains REVIEW_REQUIRED with zero independently verified floor counts.",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -93,7 +93,11 @@
     "2026-11-19: ENet private-room code has local host/join and ~10 Hz player/vehicle transform replication, but no physical two-device test or complete mode-state synchronization.",
     "2026-11-19: Greenwake: The Monsoon Relic exists in the experience registry as planned only; no playable level or loop is evidenced.",
     "2026-11-19: Combat AI has basic line-of-sight, approach/retreat and timed attacks; strategic ranked squad AI tiers are not implemented.",
-    "2026-11-19 live poll update: run #1102 now has 57 successful completed steps, zero failures reported, and step 58 modular core APK export in progress. BR runtime step 45 passed. The temporary full-map APK passed step 55 but is not the canonical uploaded output; steps 57-59 prepare/verify a core APK without district-map content, with the Shariatpur PCK downloaded separately at first boot. Current artifact list remains empty and final signature/integrity/upload steps are pending."
+    "2026-11-19 live poll update: run #1102 now has 57 successful completed steps, zero failures reported, and step 58 modular core APK export in progress. BR runtime step 45 passed. The temporary full-map APK passed step 55 but is not the canonical uploaded output; steps 57-59 prepare/verify a core APK without district-map content, with the Shariatpur PCK downloaded separately at first boot. Current artifact list remains empty and final signature/integrity/upload steps are pending.",
+    "2026-11-19: Android run #1102 completed success (44354975442, 77/77 main workflow steps). Direct APK 321,119,583 bytes, SHA-256 4e8907179a2856da7febb3b3b21cc0fef029b7e978d3acfa471d79b5378c4030; v2/v3 signature and ZIP integrity passed.",
+    "2026-11-19: Shariatpur direct release includes a separate 2,451,147,626-byte PCK in 10 SHA-256-verified parts. Final core APK excludes all district-map scenes; temporary 1,816,125,286-byte full-map APK passed content verification but was not retained/published.",
+    "2026-11-19: Final APK certificate identity matches workflow-generated debug-fallback signer CN=World Sandbox Development; no stable production signing identity is established. Do not promise in-place upgrades from another signing key.",
+    "2026-11-19: CI passed but no physical Android device launch/gameplay/touch/FPS/RAM/thermal/first-run map download test has been conducted; Shariatpur remains REVIEW_REQUIRED."
   ],
   "build_status": "INVALID_BOOL_CONSTRUCTORS_REPLACED_AND_STATIC_SCAN_PASS; GODOT_IMPORT_FOUND_VARIANT_BOOL_INFERENCE_ERRORS; EXPLICIT_BOOL_ANNOTATIONS_APPLIED; EXACT_PR_RUNTIME_VALIDATION_PENDING; NO_ANDROID_EXPORT",
   "latest_verified_run": 38892036942,
@@ -406,8 +410,8 @@
     "run_id": 44354975442,
     "run_number": 1102,
     "head": "149e6b8314325f3e036787f58eaad4945ea83d82",
-    "status": "in_progress",
-    "successful_completed_steps": 57,
+    "status": "completed",
+    "successful_completed_steps": 77,
     "current_step": 58,
     "current_step_name": "Export modular core Android APK",
     "timeout_minutes": 330,
@@ -423,7 +427,23 @@
     "modular_core_export": "in_progress",
     "final_core_embeds_district_map": false,
     "final_canonical_delivery": "compact core APK plus separately downloaded map PCK parts",
-    "updated_at_api_stale": true
+    "updated_at_api_stale": true,
+    "conclusion": "success",
+    "failed_steps": 0,
+    "android_export": "success",
+    "apk_bytes": 321119583,
+    "apk_sha256": "4e8907179a2856da7febb3b3b21cc0fef029b7e978d3acfa471d79b5378c4030",
+    "apk_artifact_id": 14457820794,
+    "apk_artifact_container_bytes": 316210871,
+    "verification_report_artifact_id": 14457481076,
+    "direct_apk_release": "https://github.com/titasdev1/WorldSandboxBangladesh/releases/download/shariatpur-review-candidate/world_sandbox_bangladesh.apk",
+    "signing_mode": "debug-fallback (certificate CN=World Sandbox Development; not stable production key)",
+    "signature_verification": "PASS v2 and v3",
+    "map_pack_bytes": 2451147626,
+    "map_pack_parts": 10,
+    "map_pack_verification": "all part sizes/SHA-256 PASS; parts sum to manifest total",
+    "final_apk_embedded_map": false,
+    "physical_device_qa": "NOT VERIFIED"
   },
   "latest_pbr_validation_run": {
     "run_id": 44354592447,
@@ -431,6 +451,17 @@
     "head": "149e6b8314325f3e036787f58eaad4945ea83d82",
     "conclusion": "success"
   },
-  "current_build_status": "ANDROID_RUN_1102_IN_PROGRESS_STEP_58_MODULAR_CORE_EXPORT; 57_COMPLETED_STEPS_SUCCESS; BR_DEPLOYMENT_RUNTIME_PASS; TEMPORARY_FULL_MAP_CONTENT_CHECK_PASS; MODULAR_CORE_EXCLUDES_DISTRICT_MAP_BY_DESIGN; SHARIATPUR_PCK_SEPARATE_FIRST_RUN_DOWNLOAD; FINAL_SIGNATURE_AND_ARTIFACT_PENDING",
-  "new_requirements_recorded": "2026-11-19: Expanded mode families (JibonJatra, Roadline, Pitchbound, Strikefront, Greenwake), offline AI strategy tiers, local Wi-Fi/hotspot synchronization, whole-Earth land-and-water map target and country-aware content added to master plan/acceptance matrix on documentation branch docs/expanded-a-square-experiences. These are design/acceptance requirements, not implemented gameplay."
+  "current_build_status": "ANDROID_RUN_1102_COMPLETED_SUCCESS_ALL_77_STEPS; BR_RUNTIME_PASS; TEMPORARY_FULL_MAP_APK_VALIDATED_1.816GB; FINAL_MODULAR_APK_321119583_BYTES_SIGNED_DEBUG_FALLBACK_V2_V3_PASS; SHARIATPUR_PCK_2451147626_BYTES_10_PARTS_HASH_PASS; NO_PHYSICAL_DEVICE_QA; MAP_REVIEW_REQUIRED",
+  "new_requirements_recorded": "2026-11-19: Expanded mode families (JibonJatra, Roadline, Pitchbound, Strikefront, Greenwake), offline AI strategy tiers, local Wi-Fi/hotspot synchronization, whole-Earth land-and-water map target and country-aware content added to master plan/acceptance matrix on documentation branch docs/expanded-a-square-experiences. These are design/acceptance requirements, not implemented gameplay.",
+  "latest_published_candidate": {
+    "tag": "shariatpur-review-candidate",
+    "apk_release_url": "https://github.com/titasdev1/WorldSandboxBangladesh/releases/download/shariatpur-review-candidate/world_sandbox_bangladesh.apk",
+    "apk_bytes": 321119583,
+    "apk_sha256": "4e8907179a2856da7febb3b3b21cc0fef029b7e978d3acfa471d79b5378c4030",
+    "map_pack_bytes": 2451147626,
+    "map_pack_parts": 10,
+    "artifact_id": 14457820794,
+    "verification_reports_artifact_id": 14457481076,
+    "map_delivery": "external first-run PCK download; not embedded in core APK"
+  }
 }
