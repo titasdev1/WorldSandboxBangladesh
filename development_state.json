@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "031_DURABLE_CONTINUITY_CROSS_GAME_PRESENTATION_AND_CHARACTER_PIPELINE",
+  "current_milestone": "032_BR_FIRST_PERSON_AERIAL_DEPLOYMENT_AND_REAL_WORLD_PROVENANCE",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -30,9 +30,14 @@
     "020_AI_ASSISTED_RIGGED_OPERATOR_ASSET_CANDIDATE",
     "021_PLAYER_JUMP_VELOCITY_FIX_PENDING_ANDROID_PHYSICS_REGRESSION",
     "022_CROSS_GAME_MODE_AND_CINEMATIC_PRESENTATION_BLUEPRINT",
-    "023_DURABLE_CHAT_RECONNECT_CHECKPOINT"
+    "023_DURABLE_CHAT_RECONNECT_CHECKPOINT",
+    "024_Ara3D_OPERATOR_RUNTIME_INTEGRATION",
+    "025_BR_FIRST_PERSON_BODY_AND_AERIAL_CAMERA_RUNTIME_GATE",
+    "026_BR_LANDING_TO_AI_GROUND_MATCH_RUNTIME_GATE",
+    "027_REAL_WORLD_REFERENCE_LICENSE_AND_PROVENANCE_GATE",
+    "028_ANIMATED_LOGIN_AND_LOADING_ART_DIRECTION"
   ],
-  "next_priority": "Confirm the Android physics smoke test on jump-fix commit ce1b98876b833d153193827c76a437c0e1f17dca in run 43442181834. If it passes, inspect measured walk/sprint/jump values and move on to clothing/animation deformation. Review the Ara 3D Gen artifact 14045621227 (high/medium/low GLBs, structural PASS) through a real texture-aware renderer and Godot import before any integration; optimize its 28–36 MB candidate GLBs into shared textures and trimmed animation/LOD packages. Keep Shariatpur REVIEW_REQUIRED and verify all map/build/device acceptance separately. Use COMPETITIVE_REFERENCE_BLUEPRINT.md for original CODM/VALORANT/AOV/MLBB/GTA/Forza-inspired mode families and cinematic use; use TOOLS_AND_PLATFORMS_REGISTRY.md for free/open-source vs credit-based tool routing. Resume after app reconnect from A_SQUARE_SESSION_CHECKPOINT.md.",
+  "next_priority": "Validate the exact current branch head with the canonical Android workflow: run the Ara high-detail import/player smoke, FPP body/WeaponR test, BR aircraft/freefall/canopy/landing + 12-bot safe-zone ground-match smoke, parachute artifact regression suite, and real-world imagery policy tests. The latest visible Android run is older than current HEAD; no current-head result is verified. If CI still does not start, do not claim a pass. After validation, add live canopy steer/roll and landing/drop-zone feedback, then render the Ara operator/camera previs in a real renderer before any visual acceptance. Shariatpur remains REVIEW_REQUIRED with 0 independently verified floors and 0 sampled 360 photo candidates.",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -57,9 +62,14 @@
     "PR #74 is not merged. The new navigation and licensed facade-photo changes must pass the full Shariatpur rebuild and review APK gate before being treated as the canonical game base.",
     "2026-11-13: The newly added headless physics smoke test exposed a real jump cancellation bug: assigning jump_velocity was immediately overwritten by the grounded snap velocity while is_on_floor() still reflected the previous physics tick. Source fix committed to feature/lobby-operator-showcase as ce1b98876b833d153193827c76a437c0e1f17dca; re-run Android workflow 43442181834 must pass the walk/sprint/jump smoke before claiming it fixed.",
     "2026-11-13: Ara 3D Gen generated and structurally verified high/medium/low operator GLBs in workflow 43438511770, artifact 14045621227. It has 69 joints, WeaponR, 216 clips and facial morphs per GLB, but candidate sizes are about 28–36 MB each; actual visual QA, Godot import, animation deformation, Android LOD and integration remain pending.",
-    "2026-11-13: Instagram post Dew_yBIEuoJ slide 16 was inaccessible behind login; Reel DfkzCLqqBjf playback failed. Captions/hashtags were inspected only. Do not infer unseen video contents or exact tool pipeline."
+    "2026-11-13: Instagram post Dew_yBIEuoJ slide 16 was inaccessible behind login; Reel DfkzCLqqBjf playback failed. Captions/hashtags were inspected only. Do not infer unseen video contents or exact tool pipeline.",
+    "2026-11-18: PR #78 adds first-person head hiding/body/hand/WeaponR runtime assertions, elevated BR freefall/glide camera assertions, and landed 12-AI/safe-zone runtime smoke. These are committed but not yet validated on the current head.",
+    "2026-11-18: BR parachute verifier now checks GLB structure before licence metadata and no longer rejects a compact structurally valid asset by an arbitrary size floor. The Android test fixture includes compact, invalid-header, missing-node and missing-animation cases; current-head CI is pending.",
+    "2026-11-18: KartaView current-host audit passed all 30 tile and 30 photo-metadata requests but found one OSM-matched coverage track and zero qualifying 360-degree photos in the sampled Shariatpur district grid.",
+    "2026-11-18: Google Maps/Street View content must not feed offline reconstruction, AI image analysis, 3D tracing, terrain/building asset extraction or cached PCK/APK content. The committed REAL_WORLD_REFERENCE_POLICY.md is the engineering gate; Google Photorealistic 3D Tiles can only be considered as a separate compliant live visualisation with required attribution.",
+    "2026-11-18: The current GitHub Actions listing shows no run for the exact current PR head 0f8a0d28169ef9f6ae0e1673d94b2c3f3ef348e2; do not reuse older green workflows to claim current validation."
   ],
-  "build_status": "ARA_OPERATOR_STRUCTURAL_ASSET_BUILD_PASS; JUMP_FIX_COMMITTED_ANDROID_PHYSICS_RETEST_PENDING; SHARIATPUR_REVIEW_REQUIRED",
+  "build_status": "CURRENT_HEAD_VALIDATION_PENDING; ARA_OPERATOR_PIPELINE_INTEGRATED_NOT_DEVICE_ACCEPTED; BR_END_TO_END_RUNTIME_GATE_ADDED_NOT_YET_RUN; SHARIATPUR_REVIEW_REQUIRED",
   "latest_verified_run": 38892036942,
   "latest_verified_commit": "7d62ad457907a72094a6cbdc072ebbdd152d0066",
   "latest_build_artifact": {
@@ -171,7 +181,7 @@
       ]
     }
   },
-  "latest_development_commit": "ce1b98876b833d153193827c76a437c0e1f17dca",
+  "latest_development_commit": "0f8a0d28169ef9f6ae0e1673d94b2c3f3ef348e2",
   "latest_development_branch": "feature/lobby-operator-showcase",
   "session_checkpoint": "A_SQUARE_SESSION_CHECKPOINT.md",
   "competitive_reference_blueprint": "COMPETITIVE_REFERENCE_BLUEPRINT.md",
@@ -187,6 +197,28 @@
     "jump_fix_android_workflow_run": 43442181834,
     "jump_fix_android_workflow_status": "IN_PROGRESS_AT_CHECKPOINT",
     "instagram_carousel_slide_16": "NOT_ACCESSIBLE_LOGIN_MODAL",
-    "instagram_reel_video": "PLAYBACK_FAILED_CAPTION_AND_HASHTAGS_ONLY"
+    "instagram_reel_video": "PLAYBACK_FAILED_CAPTION_AND_HASHTAGS_ONLY",
+    "current_continuation": {
+      "date": "2026-11-18",
+      "branch": "feature/lobby-operator-showcase",
+      "checkpoint_commit": "0f8a0d28169ef9f6ae0e1673d94b2c3f3ef348e2",
+      "pr": 78,
+      "pr_status": "OPEN_DRAFT",
+      "ara_operator": "STRUCTURALLY_VERIFIED; CANONICAL_ANDROID_RUNTIME_GATE_ADDED; CURRENT_HEAD_IMPORT_DEVICE_QA_PENDING",
+      "br_first_person": "RUNTIME_SMOKE_ADDED; CURRENT_HEAD_VALIDATION_PENDING",
+      "br_aerial_camera": "RUNTIME_SMOKE_ADDED; CURRENT_HEAD_VALIDATION_PENDING",
+      "br_ground_match": "12_AI_PLUS_SHRINKING_SAFE_ZONE_RUNTIME_SMOKE_ADDED; CURRENT_HEAD_VALIDATION_PENDING",
+      "parachute_artifact": "COMPACT_GLTF_FIXTURE_AND_VALIDATOR_ORDER_FIX_COMMITTED; CURRENT_HEAD_VALIDATION_PENDING",
+      "kartaview_audit": {
+        "run_id": 44141428772,
+        "coverage_tiles_success": 30,
+        "photo_queries_success": 30,
+        "osm_matched_tracks": 1,
+        "qualifying_360_photos": 0
+      },
+      "real_world_reference_policy": "COMMITTED; ANDROID_POLICY_REGRESSION_TEST_ADDED; CURRENT_HEAD_CI_PENDING",
+      "shariatpur": "REVIEW_REQUIRED; INDEPENDENTLY_VERIFIED_FLOOR_COUNTS:0",
+      "google_source_policy": "NO_GOOGLE_MAPS_DERIVED_OFFLINE_GEOMETRY_OR_AI_RECONSTRUCTION"
+    }
   }
 }
