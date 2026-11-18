@@ -1166,7 +1166,14 @@ func _show_lobby_page(page: String) -> void:
   _lobby_add_section("ONLINE • NOT CONNECTED")
   _lobby_add_action("MULTIPLAYER QUICK PLAY", "Requires a real-time multiplayer server", Callable(), false)
   _lobby_add_action("MULTIPLAYER RANKED", "Requires accounts, matchmaking and authoritative servers", Callable(), false)
-  _lobby_add_action("BATTLE ROYALE / RANKED BR", "Large-scale online mode is not available in this build", Callable(), false)
+  var br_controller: Node = w.get("battle_royale_controller") as Node if is_instance_valid(w) else null
+  var br_assets_ready := is_instance_valid(br_controller) and bool(br_controller.call("can_start_solo_deployment"))
+  _lobby_add_section("BATTLE ROYALE • OFFLINE SOLO")
+  _lobby_add_action("BATTLE ROYALE • SOLO DROP", "Cargo flight • freefall • authored ram-air canopy • local AI operators • shrinking safe zone", Callable(self, "_choose_mode").bind("battle_royale_solo"), br_assets_ready)
+  if not br_assets_ready:
+   _lobby_add_info("BR ASSET STATUS", "Solo drop unlocks after the verified cargo aircraft and original parachute GLB are imported.")
+  _lobby_add_section("ONLINE • NOT CONNECTED")
+  _lobby_add_action("RANKED BATTLE ROYALE", "Requires real-player matchmaking, authoritative server simulation and anti-cheat", Callable(), false)
   _lobby_add_action("ZOMBIES / SPECIAL MODES", "Mode-specific maps and logic are not connected yet", Callable(), false)
  elif page == "briefing":
   _build_mode_briefing()
