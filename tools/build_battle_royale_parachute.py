@@ -467,7 +467,7 @@ def main() -> int:
         }],
     }
     manifest_path = output.with_name("asset_manifest.json")
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print("A2_PARACHUTE_MANIFEST_READY:", str(manifest_path))
     return 0
 
