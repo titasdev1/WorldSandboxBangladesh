@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "032_BR_FIRST_PERSON_AERIAL_DEPLOYMENT_AND_REAL_WORLD_PROVENANCE",
+  "current_milestone": "033_BR_CANOPY_STEERING_FEEDBACK_AND_REFERENCE_PROVENANCE",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -37,7 +37,7 @@
     "027_REAL_WORLD_REFERENCE_LICENSE_AND_PROVENANCE_GATE",
     "028_ANIMATED_LOGIN_AND_LOADING_ART_DIRECTION"
   ],
-  "next_priority": "Validate the exact current branch head with the canonical Android workflow: run the Ara high-detail import/player smoke, FPP body/WeaponR test, BR aircraft/freefall/canopy/landing + 12-bot safe-zone ground-match smoke, parachute artifact regression suite, and real-world imagery policy tests. The latest visible Android run is older than current HEAD; no current-head result is verified. If CI still does not start, do not claim a pass. After validation, add live canopy steer/roll and landing/drop-zone feedback, then render the Ara operator/camera previs in a real renderer before any visual acceptance. Shariatpur remains REVIEW_REQUIRED with 0 independently verified floors and 0 sampled 360 photo candidates.",
+  "next_priority": "Run exact-current-head CI for Ara operator import/player smoke, FPP body/WeaponR, BR aerial camera and left/right canopy bank, aircraft/freefall/parachute/landing, 12-AI ground phase and safe-zone shrink, plus parachute artifact and imagery policy tests. No current-head workflow result exists yet. Then render the Ara operator and canopy in a real 3D renderer, verify FPP arms/weapon alignment/ADS/reload, and only then accept visuals. Shariatpur remains REVIEW_REQUIRED with 0 independently verified floors and 0 qualifying 360 photo candidates in the sampled KartaView grid.",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -67,9 +67,10 @@
     "2026-11-18: BR parachute verifier now checks GLB structure before licence metadata and no longer rejects a compact structurally valid asset by an arbitrary size floor. The Android test fixture includes compact, invalid-header, missing-node and missing-animation cases; current-head CI is pending.",
     "2026-11-18: KartaView current-host audit passed all 30 tile and 30 photo-metadata requests but found one OSM-matched coverage track and zero qualifying 360-degree photos in the sampled Shariatpur district grid.",
     "2026-11-18: Google Maps/Street View content must not feed offline reconstruction, AI image analysis, 3D tracing, terrain/building asset extraction or cached PCK/APK content. The committed REAL_WORLD_REFERENCE_POLICY.md is the engineering gate; Google Photorealistic 3D Tiles can only be considered as a separate compliant live visualisation with required attribution.",
-    "2026-11-18: The current GitHub Actions listing shows no run for the exact current PR head 0f8a0d28169ef9f6ae0e1673d94b2c3f3ef348e2; do not reuse older green workflows to claim current validation."
+    "2026-11-18: The current GitHub Actions listing shows no run for the exact current PR head 0f8a0d28169ef9f6ae0e1673d94b2c3f3ef348e2; do not reuse older green workflows to claim current validation.",
+    "2026-11-18: BR canopy root now banks according to move_left/move_right input while retaining the internal CC0 canopy wind animation; runtime smoke checks opposite left/right bank angles. Exact-current-head CI is pending."
   ],
-  "build_status": "CURRENT_HEAD_VALIDATION_PENDING; ARA_OPERATOR_PIPELINE_INTEGRATED_NOT_DEVICE_ACCEPTED; BR_END_TO_END_RUNTIME_GATE_ADDED_NOT_YET_RUN; SHARIATPUR_REVIEW_REQUIRED",
+  "build_status": "CURRENT_HEAD_CI_NOT_STARTED_OR_NOT_VISIBLE; BR_CANOPY_STEER_CODE_AND_RUNTIME_GATE_COMMITTED; ARA_OPERATOR_RUNTIME_PENDING; SHARIATPUR_REVIEW_REQUIRED",
   "latest_verified_run": 38892036942,
   "latest_verified_commit": "7d62ad457907a72094a6cbdc072ebbdd152d0066",
   "latest_build_artifact": {
@@ -181,7 +182,7 @@
       ]
     }
   },
-  "latest_development_commit": "0f8a0d28169ef9f6ae0e1673d94b2c3f3ef348e2",
+  "latest_development_commit": "81fb6e6f4fbeee9b37712d8ed3bb373a4b49e86a",
   "latest_development_branch": "feature/lobby-operator-showcase",
   "session_checkpoint": "A_SQUARE_SESSION_CHECKPOINT.md",
   "competitive_reference_blueprint": "COMPETITIVE_REFERENCE_BLUEPRINT.md",
@@ -218,7 +219,9 @@
       },
       "real_world_reference_policy": "COMMITTED; ANDROID_POLICY_REGRESSION_TEST_ADDED; CURRENT_HEAD_CI_PENDING",
       "shariatpur": "REVIEW_REQUIRED; INDEPENDENTLY_VERIFIED_FLOOR_COUNTS:0",
-      "google_source_policy": "NO_GOOGLE_MAPS_DERIVED_OFFLINE_GEOMETRY_OR_AI_RECONSTRUCTION"
-    }
+      "google_source_policy": "NO_GOOGLE_MAPS_DERIVED_OFFLINE_GEOMETRY_OR_AI_RECONSTRUCTION",
+      "branch_head_after_code_changes": "81fb6e6f4fbeee9b37712d8ed3bb373a4b49e86a"
+    },
+    "br_canopy_steering": "ROOT_BANKS_FROM_STEERING_INPUT; OPPOSITE_BANK_RUNTIME_ASSERTION_ADDED; CI_PENDING"
   }
 }
