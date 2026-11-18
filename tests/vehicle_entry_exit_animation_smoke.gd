@@ -68,8 +68,25 @@ func _run() -> void:
 		return
 
 	await create_timer(0.68).timeout
-	if not bool(vehicle.get("occupied")) or bool(player.visible) or not is_instance_valid(test_world.occupied_vehicle):
-		push_error("VEHICLE_ACTION_RUNTIME_FAIL: board transition did not transfer control to the rigid-body vehicle.")
+	var driving_body := vehicle.get("_driving_body") as RigidBody3D
+	if not bool(vehicle.get("occupied")) or not bool(player.visible) or not is_instance_valid(test_world.occupied_vehicle):
+		push_error("VEHICLE_ACTION_RUNTIME_FAIL: board transition did not keep the seated operator inside the rigid-body vehicle.")
+		quit(1)
+		return
+	if driving_body == null or player.get_parent() != driving_body or not bool(player.get_meta("vehicle_cockpit_active", false)):
+		push_error("VEHICLE_ACTION_RUNTIME_FAIL: player rig was not parented to the cockpit body.")
+		quit(1)
+		return
+	if String(player.get("camera_view_mode")) != "first_person" or not player.camera.current:
+		push_error("VEHICLE_ACTION_RUNTIME_FAIL: first-person cockpit camera did not take control.")
+		quit(1)
+		return
+	if String(player.get_meta("character_action_state", "")) != "drive_car":
+		push_error("VEHICLE_ACTION_RUNTIME_FAIL: looping steering/drive pose was not activated.")
+		quit(1)
+		return
+	if player_visual.get("played_actions").size() != 2:
+		push_error("VEHICLE_ACTION_RUNTIME_FAIL: expected board and drive animation actions.")
 		quit(1)
 		return
 
@@ -79,7 +96,7 @@ func _run() -> void:
 		quit(1)
 		return
 	action_state = String(player.get_meta("character_action_state", ""))
-	if action_state != "alight_vehicle" or player_visual.get("played_actions").size() != 2:
+	if action_state != "alight_vehicle" or player_visual.get("played_actions").size() != 3:
 		push_error("VEHICLE_ACTION_RUNTIME_FAIL: authored alight_vehicle clip was not requested.")
 		quit(1)
 		return
@@ -92,10 +109,14 @@ func _run() -> void:
 		push_error("VEHICLE_ACTION_RUNTIME_FAIL: original first-person camera mode was not restored after exiting.")
 		quit(1)
 		return
+	if player.get_parent() != test_world or player.has_meta("vehicle_cockpit_active"):
+		push_error("VEHICLE_ACTION_RUNTIME_FAIL: player rig was not restored to the world after exiting.")
+		quit(1)
+		return
 	if is_instance_valid(test_world.occupied_vehicle):
 		push_error("VEHICLE_ACTION_RUNTIME_FAIL: world still references an occupied vehicle after exit.")
 		quit(1)
 		return
 
-	print("VEHICLE_ENTRY_EXIT_ANIMATION_PASS • board_clip=true • alight_clip=true • duplicate_input_blocked=true • first_person_restored=%s" % str(camera_was_first_person))
+	print("VEHICLE_ENTRY_EXIT_ANIMATION_PASS • board_clip=true • drive_car_loop=true • alight_clip=true • duplicate_input_blocked=true • cockpit_camera=true • first_person_restored=%s" % str(camera_was_first_person))
 	quit(0)
