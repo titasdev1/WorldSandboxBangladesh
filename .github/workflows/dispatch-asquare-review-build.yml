@@ -19,35 +19,43 @@ jobs:
        contains(github.event.comment.body, '/asquare-validate'))
     runs-on: ubuntu-latest
     steps:
-      - name: Validate the exact project branch and dispatch its Android build
+      - name: Dispatch a targeted project validation or the full Android build
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
           set -euo pipefail
-          pr_json="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"
-          head_repo="$(jq -r '.head.repo.full_name // empty' <<<"${pr_json}")"
-          head_ref="$(jq -r '.head.ref // empty' <<<"${pr_json}")"
-          head_sha="$(jq -r '.head.sha // empty' <<<"${pr_json}")"
+          if [[ "${COMMENT_BODY}" == *"/asquare-build"* ]]; then
+            pr_json="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"
+            head_repo="$(jq -r '.head.repo.full_name // empty' <<<"${pr_json}")"
+            head_ref="$(jq -r '.head.ref // empty' <<<"${pr_json}")"
+            head_sha="$(jq -r '.head.sha // empty' <<<"${pr_json}")"
 
-          if [[ "${head_repo}" != "${REPOSITORY}" ]]; then
-            echo "Refusing to build a forked repository head." >&2
-            exit 1
-          fi
-          if [[ "${head_ref}" != "feature/lobby-operator-showcase" ]]; then
-            echo "Refusing to dispatch an unapproved branch: ${head_ref}" >&2
-            exit 1
-          fi
-          if [[ -z "${head_sha}" ]]; then
-            echo "PR head SHA is missing." >&2
-            exit 1
+            if [[ "${head_repo}" != "${REPOSITORY}" || "${head_ref}" != "feature/lobby-operator-showcase" || -z "${head_sha}" ]]; then
+              echo "Refusing full Android build: project PR head is not the approved canonical branch." >&2
+              exit 1
+            fi
+
+            echo "Dispatching full Android review build from ${head_ref} at ${head_sha}."
+            gh workflow run android.yml --repo "${REPOSITORY}" --ref "${head_ref}" --field map_package=shariatpur_review
+            exit 0
           fi
 
-          echo "Dispatching Project A-Square Android review build."
-          echo "PR: ${PR_NUMBER}"
-          echo "Branch: ${head_ref}"
-          echo "Exact source SHA: ${head_sha}"
-          gh workflow run android.yml --repo "${REPOSITORY}" --ref "${head_ref}" --field map_package=shariatpur_review
-          echo "Android workflow dispatch request accepted for ${head_ref}."
+          if [[ "${COMMENT_BODY}" =~ ^[[:space:]]*/asquare-validate[[:space:]]+workbench/godot-lod-validation[[:space:]]*$ ]]; then
+            validation_ref="workbench/godot-lod-validation"
+            branch_json="$(gh api "repos/${REPOSITORY}/branches/workbench%2Fgodot-lod-validation")"
+            validation_sha="$(jq -r '.commit.sha // empty' <<<"${branch_json}")"
+            if [[ -z "${validation_sha}" ]]; then
+              echo "Validation branch ref could not be resolved." >&2
+              exit 1
+            fi
+            echo "Dispatching lightweight Godot validation from ${validation_ref} at ${validation_sha}."
+            gh workflow run validate-godot.yml --repo "${REPOSITORY}" --ref "${validation_ref}"
+            exit 0
+          fi
+
+          echo "Comment does not match an approved A-Square command." >&2
+          exit 1
