@@ -390,7 +390,7 @@ func _drive_player_vehicle(delta: float) -> void:
 
 func refuel(amount: float) -> bool:
     if occupied and is_instance_valid(_driving_body):
-        var did_refuel := (_driving_body.call("refuel",amount) == true)
+        var did_refuel: bool = (_driving_body.call("refuel",amount) == true)
         fuel = float(_driving_body.get("fuel"))
         if did_refuel and is_instance_valid(world):
             world.set("event_text","VEHICLE REFUELLED • %d%%" % roundi(fuel))
