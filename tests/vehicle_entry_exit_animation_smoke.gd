@@ -83,9 +83,6 @@ func _run() -> void:
 		push_error("VEHICLE_ACTION_RUNTIME_FAIL: authored alight_vehicle clip was not requested.")
 		quit(1)
 		return
-	if bool(vehicle.get("enter_player", null)):
-		pass
-
 	await create_timer(0.72).timeout
 	if bool(vehicle.get("occupied")) or bool(vehicle.get("_vehicle_transitioning")) or not bool(player.is_physics_processing()):
 		push_error("VEHICLE_ACTION_RUNTIME_FAIL: alight transition did not restore player control.")
