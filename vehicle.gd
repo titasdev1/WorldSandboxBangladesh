@@ -10,6 +10,10 @@ var body_size := Vector3(2.0, 1.0, 4.0)
 var body_color := Color("#d94a45")
 var is_police := false
 var occupied := false
+var _vehicle_transitioning := false
+var _transition_was_processing := true
+var _transition_player: CharacterBody3D
+var _player_camera_mode_before_board := "third_person"
 var cruise_speed := 4.0
 var steering_velocity := 0.0
 var vehicle_camera: Camera3D
@@ -267,6 +271,8 @@ func _build_motorcycle(w: float, h: float, length: float, metal: Color, dark: Co
     _part(self, "MotorcycleHeadlight", Vector3(0, h * 0.7, -length * 0.43), Vector3(0.22, 0.2, 0.08), Color("#fff1bb"), 0.25, 0.0, true)
 
 func _physics_process(delta: float) -> void:
+    if _vehicle_transitioning:
+        return
     indicator_time += delta
     if occupied and world and world.player:
         # PlayerVehicleDynamics owns the detached rigid-body simulation.
@@ -401,9 +407,64 @@ func on_hit() -> void:
         if is_police:
             world.wanted = mini(5, world.wanted + 2)
 
+func _play_entry_exit_action(p: CharacterBody3D, action_name: String) -> float:
+    var visual := p.get_node_or_null("HumanoidVisual") as Node
+    if not is_instance_valid(visual) or not visual.has_method("play_action"):
+        return 0.0
+    if not bool(visual.call("play_action", action_name)):
+        return 0.0
+    var lookup: Dictionary = visual.get("_authored_animation_lookup")
+    var animation_name := String(lookup.get(action_name, ""))
+    var animation_player := visual.get("_authored_animation_player") as AnimationPlayer
+    if animation_name.is_empty() or not is_instance_valid(animation_player):
+        return 0.0
+    var clip := animation_player.get_animation(animation_name)
+    if clip == null:
+        return 0.0
+    return clampf(clip.length, 0.35, 2.8)
+
+
+func _queue_vehicle_transition(duration: float, callback: Callable) -> void:
+    if duration <= 0.0:
+        callback.call()
+        return
+    var transition_tween := create_tween()
+    transition_tween.tween_interval(duration)
+    transition_tween.finished.connect(callback)
+
+
 func enter_player(p: CharacterBody3D) -> bool:
-    if occupied or not is_instance_valid(p) or not is_instance_valid(world):
+    if occupied or _vehicle_transitioning or not is_instance_valid(p) or not is_instance_valid(world):
         return false
+    _vehicle_transitioning = true
+    _transition_player = p
+    _transition_was_processing = is_physics_processing()
+    set_physics_process(false)
+    _player_camera_mode_before_board = String(p.get("camera_view_mode"))
+    p.set_physics_process(false)
+    if p.has_method("set_camera_view_mode"):
+        # Show the complete board animation from a third-person view. The
+        # driver's original camera choice is restored after the exit animation.
+        p.call("set_camera_view_mode", "third_person")
+    var door_offset := global_transform.basis.x * 1.28
+    p.global_position = global_position + door_offset + Vector3(0.0, 0.05, 0.0)
+    var toward_cabin := global_position - p.global_position
+    toward_cabin.y = 0.0
+    if toward_cabin.length_squared() > 0.001:
+        p.global_rotation.y = atan2(-toward_cabin.x, -toward_cabin.z)
+    var action_duration := _play_entry_exit_action(p, "board_vehicle")
+    _queue_vehicle_transition(action_duration, _complete_enter_player.bind(p))
+    return true
+
+
+func _complete_enter_player(p: CharacterBody3D) -> void:
+    if not _vehicle_transitioning or not is_instance_valid(p) or not is_instance_valid(world):
+        _vehicle_transitioning = false
+        _transition_player = null
+        if is_instance_valid(p):
+            p.set_physics_process(true)
+        set_physics_process(_transition_was_processing)
+        return
     var body := RigidBody3D.new()
     body.name = "PlayerDrivingBody_" + vehicle_type.validate_node_name()
     body.set_script(load("res://player_vehicle_dynamics.gd"))
@@ -431,7 +492,10 @@ func enter_player(p: CharacterBody3D) -> bool:
     var active_camera := body.get_node_or_null("VehicleCamera") as Camera3D
     if is_instance_valid(active_camera):
         active_camera.make_current()
-    return true
+    _vehicle_transitioning = false
+    _transition_player = null
+    set_physics_process(_transition_was_processing)
+
 
 func toggle_vehicle_camera_mode() -> String:
     if is_instance_valid(_driving_body):
@@ -447,14 +511,41 @@ func _apply_vehicle_camera_mode() -> void:
         _driving_body.call("toggle_vehicle_camera_mode")
 
 func exit_player() -> void:
-    if not occupied or not is_instance_valid(world) or not is_instance_valid(world.player):
+    if not occupied or _vehicle_transitioning or not is_instance_valid(world) or not is_instance_valid(world.player):
         return
+    var p: CharacterBody3D = world.player
     var body := _driving_body
-    var exit_transform := global_transform
-    var final_speed := 0.0
+    if not is_instance_valid(body):
+        return
+    _vehicle_transitioning = true
+    _transition_player = p
+    _transition_was_processing = is_physics_processing()
+    p.set_physics_process(false)
+    p.visible = true
+    if p.has_method("set_camera_view_mode"):
+        p.call("set_camera_view_mode", "third_person")
+    p.global_position = body.global_position + body.global_transform.basis.x * 1.35 + Vector3(0.0, 0.05, 0.0)
+    var toward_car := body.global_position - p.global_position
+    toward_car.y = 0.0
+    if toward_car.length_squared() > 0.001:
+        p.global_rotation.y = atan2(-toward_car.x, -toward_car.z)
+    body.linear_velocity = Vector3.ZERO
+    body.angular_velocity = Vector3.ZERO
+    body.freeze = true
+    if p.camera:
+        p.camera.make_current()
+    var action_duration := _play_entry_exit_action(p, "alight_vehicle")
+    _queue_vehicle_transition(action_duration, _complete_exit_player.bind(p, body))
+
+
+func _complete_exit_player(p: CharacterBody3D, body: RigidBody3D) -> void:
+    if not _vehicle_transitioning or not is_instance_valid(p) or not is_instance_valid(world):
+        _vehicle_transitioning = false
+        _transition_player = null
+        return
+    var exit_transform := body.global_transform if is_instance_valid(body) else global_transform
+    var final_speed := float(body.get("speed")) if is_instance_valid(body) else 0.0
     if is_instance_valid(body):
-        exit_transform = body.global_transform
-        final_speed = float(body.get("speed"))
         global_transform = exit_transform
         for child in body.get_children().duplicate():
             if child is CollisionShape3D:
@@ -471,13 +562,16 @@ func exit_player() -> void:
         collision.disabled = false
     if world.get("occupied_vehicle") == body:
         world.set("occupied_vehicle",null)
-    var p: CharacterBody3D = world.player
     p.visible = true
     p.set_physics_process(true)
-    p.global_position = global_position + global_transform.basis.x*2.5 + Vector3(0,0.1,0)
+    p.global_position = global_position + global_transform.basis.x * 2.0 + Vector3(0.0, 0.1, 0.0)
+    if p.has_method("set_camera_view_mode"):
+        p.call("set_camera_view_mode", _player_camera_mode_before_board)
     if p.camera:
-        p.camera.current = true
         p.camera.make_current()
     speed = final_speed
     engine_empty_notified = false
+    _vehicle_transitioning = false
+    _transition_player = null
+    set_physics_process(_transition_was_processing)
 
