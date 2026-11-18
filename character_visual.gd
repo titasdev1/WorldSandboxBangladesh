@@ -1038,7 +1038,7 @@ func _update_authored_animation(body: CharacterBody3D, planar_speed: float) -> v
     var aiming := Input.is_action_pressed("aim")
     var firing := Input.is_action_pressed("fire")
     var reloading := float(body.get("reload_time")) > 0.0
-    var crouched := (body.get("_is_crouched") == true)
+    var crouched: bool = (body.get("_is_crouched") == true)
     var first_person := str(body.get("camera_view_mode")) == "first_person"
     var state := "idle"
     var br_phase := str(body.get_meta("br_deployment_state", ""))
