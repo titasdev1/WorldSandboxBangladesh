@@ -50,6 +50,8 @@ var _authored_current_animation := ""
 var _authored_animation_lookup: Dictionary = {}
 var _authored_weapon_attachment: BoneAttachment3D
 var _ara_base_surface_materials: Array[Dictionary] = []
+var _first_person_requested := false
+var _first_person_head_pose_backup: Dictionary = {}
 var _authored_hero_ready := false
 var _authored_hero_load_pending := false
 
@@ -230,6 +232,8 @@ func _build_authored_hero(packed: PackedScene) -> void:
             selected_player_clip_count = candidate_names.size()
             _authored_animation_player = candidate_player
     if is_instance_valid(_authored_animation_player):
+        if not _authored_animation_player.animation_finished.is_connected(_on_authored_animation_finished):
+            _authored_animation_player.animation_finished.connect(_on_authored_animation_finished)
         print("AUTHORED_HERO_ANIMATION_PLAYER • node=%s • clips=%d" % [
             _authored_animation_player.get_path(),
             selected_player_clip_count
@@ -331,6 +335,32 @@ func _build_authored_hero(packed: PackedScene) -> void:
         "idle_look": _find_authored_animation(["Look around", "idle_look", "Idle_Look"]),
         "idle_breathe": _find_authored_animation(["Idle breathing", "idle_breathe", "Idle_Breathe"]),
         "idle_fidget": _find_authored_animation(["Idle fidget", "idle_fidget", "Idle_Fidget"]),
+        "hit_reaction": _find_authored_animation(["Rifle hit from front", "Hit reaction", "Hit from front"]),
+        "death": _find_authored_animation(["Rifle death (fall forward)", "Death (fall forward)", "Death"]),
+        "get_up": _find_authored_animation(["Get up (from front)", "Get up (from back)"]),
+        "open_door": _find_authored_animation(["Open door"]),
+        "pickup": _find_authored_animation(["Pick up (ground)"]),
+        "throw_grenade": _find_authored_animation(["Throw grenade"]),
+        "take_cover": _find_authored_animation(["Take cover"]),
+        "cover_idle": _find_authored_animation(["Cover idle"]),
+        "cover_fire": _find_authored_animation(["Cover fire (pop up)"]),
+        "vault": _find_authored_animation(["Vault over obstacle"]),
+        "climb_up": _find_authored_animation(["Climb up ledge", "Climb ladder up"]),
+        "climb_down": _find_authored_animation(["Climb ladder down"]),
+        "swim": _find_authored_animation(["Swim forward (front crawl)", "Tread water"]),
+        "dive": _find_authored_animation(["Dive into water"]),
+        "skydive": _find_authored_animation(["Skydive (free fall)"]),
+        "parachute_deploy": _find_authored_animation(["Activate parachute (deploy)"]),
+        "parachute_glide": _find_authored_animation(["Use parachute (glide)"]),
+        "parachute_land": _find_authored_animation(["Land parachute"]),
+        "drive_car": _find_authored_animation(["Drive car"]),
+        "drive_sports_car": _find_authored_animation(["Drive modern sports car"]),
+        "drive_suv": _find_authored_animation(["Drive SUV"]),
+        "board_vehicle": _find_authored_animation(["Board convertible (driver)", "Board sports car (driver)"]),
+        "alight_vehicle": _find_authored_animation(["Alight from convertible (driver)", "Alight from sports car (driver)"]),
+        "pilot_jet": _find_authored_animation(["Pilot jet (fly / taxi)"]),
+        "board_jet": _find_authored_animation(["Board jet cockpit"]),
+        "alight_jet": _find_authored_animation(["Alight from jet cockpit"]),
     }
     _configure_authored_animation_loops()
     var hero_clip_count := _authored_animation_player.get_animation_list().size()
@@ -361,12 +391,18 @@ func _build_authored_hero(packed: PackedScene) -> void:
 
     var weapon_socket_attached := false
     if is_ara3d and is_instance_valid(_weapon_root):
-        var authored_socket := _authored_hero.find_child("WeaponR", true, false) as Node3D
-        if is_instance_valid(authored_socket):
+        # WeaponR is exported as a real glTF joint under RightHand, not as a
+        # separate scene Node3D. Attach through Godot's BoneAttachment3D.
+        var weapon_socket_index := skeleton.find_bone("WeaponR")
+        if weapon_socket_index >= 0:
+            _authored_weapon_attachment = BoneAttachment3D.new()
+            _authored_weapon_attachment.name = "ProjectASquareWeaponRSocket"
+            _authored_weapon_attachment.bone_name = "WeaponR"
+            skeleton.add_child(_authored_weapon_attachment)
             var old_weapon_parent := _weapon_root.get_parent()
             if is_instance_valid(old_weapon_parent):
                 old_weapon_parent.remove_child(_weapon_root)
-            authored_socket.add_child(_weapon_root)
+            _authored_weapon_attachment.add_child(_weapon_root)
             _weapon_root.position = Vector3.ZERO
             _weapon_root.rotation = Vector3.ZERO
             _weapon_root.scale = Vector3.ONE
@@ -392,6 +428,8 @@ func _build_authored_hero(packed: PackedScene) -> void:
 
     _procedural_root.visible = false
     _authored_hero_ready = true
+    if _first_person_requested:
+        _apply_first_person_pose(true)
     if is_character_creator or is_ara3d:
         apply_operator_preset(_selected_operator_preset)
     if is_player_character and is_character_creator:
@@ -896,13 +934,55 @@ func _build_charactercreator_combat_gear(skeleton: Skeleton3D) -> void:
 func _configure_authored_animation_loops() -> void:
     if not is_instance_valid(_authored_animation_player):
         return
-    for state in ["idle", "walk", "run", "sprint", "crouch_idle", "crouch_walk", "aim", "cover_idle"]:
+    for state in ["idle", "walk", "run", "sprint", "crouch_idle", "crouch_walk", "aim", "cover_idle", "skydive", "parachute_glide", "swim"]:
         var animation_name := String(_authored_animation_lookup.get(state, ""))
         if animation_name.is_empty():
             continue
         var clip := _authored_animation_player.get_animation(animation_name)
         if clip != null:
             clip.loop_mode = Animation.LOOP_LINEAR
+
+
+func set_first_person_view(enabled: bool) -> void:
+    _first_person_requested = enabled
+    if not _authored_hero_ready or not is_instance_valid(_authored_skeleton):
+        return
+    _apply_first_person_pose(enabled)
+
+
+func _apply_first_person_pose(enabled: bool) -> void:
+    if not is_instance_valid(_authored_skeleton):
+        return
+    # Collapse only the Head joint, preserving neck, shoulders, chest, arms,
+    # gloves, hands and rifle; the torso and legs remain visible when looking down.
+    var head_index := _authored_skeleton.find_bone("Head")
+    if head_index < 0:
+        return
+    if not _first_person_head_pose_backup.has(head_index):
+        _first_person_head_pose_backup[head_index] = _authored_skeleton.get_bone_pose_scale(head_index)
+    if enabled:
+        _authored_skeleton.set_bone_pose_scale(head_index, Vector3(0.001, 0.001, 0.001))
+    else:
+        _authored_skeleton.set_bone_pose_scale(head_index, _first_person_head_pose_backup[head_index])
+
+
+func play_action(action_name: String) -> bool:
+    if String(_authored_animation_lookup.get(action_name, "")).is_empty():
+        return false
+    var body := get_parent()
+    if is_instance_valid(body):
+        body.set_meta("character_action_state", action_name)
+    _play_authored_animation(action_name)
+    return true
+
+
+func _on_authored_animation_finished(animation_name: StringName) -> void:
+    var body := get_parent()
+    if not is_instance_valid(body):
+        return
+    var active_action := str(body.get_meta("character_action_state", ""))
+    if not active_action.is_empty() and String(_authored_animation_lookup.get(active_action, "")) == String(animation_name):
+        body.remove_meta("character_action_state")
 
 
 func _play_authored_animation(state: String) -> void:
@@ -924,9 +1004,21 @@ func _update_authored_animation(body: CharacterBody3D, planar_speed: float) -> v
     var firing := Input.is_action_pressed("fire")
     var reloading := float(body.get("reload_time")) > 0.0
     var crouched := bool(body.get("_is_crouched"))
-    var first_person := String(body.get("camera_view_mode")) == "first_person"
+    var first_person := str(body.get("camera_view_mode")) == "first_person"
     var state := "idle"
-    if not body.is_on_floor():
+    var br_phase := str(body.get_meta("br_deployment_state", ""))
+    var br_state_map := {
+        "freefall": "skydive",
+        "deploying": "parachute_deploy",
+        "gliding": "parachute_glide",
+        "landing": "parachute_land"
+    }
+    var requested_action := str(body.get_meta("character_action_state", ""))
+    if not requested_action.is_empty() and not String(_authored_animation_lookup.get(requested_action, "")).is_empty():
+        state = requested_action
+    elif br_state_map.has(br_phase) and not String(_authored_animation_lookup.get(br_state_map[br_phase], "")).is_empty():
+        state = br_state_map[br_phase]
+    elif not body.is_on_floor():
         if body.velocity.y > 0.65 and not String(_authored_animation_lookup.get("jump", "")).is_empty():
             state = "jump"
         else:
