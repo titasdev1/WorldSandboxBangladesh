@@ -126,7 +126,7 @@ func _update_camera():
 
 func _physics_process(delta):
  var br_state := str(get_meta("br_deployment_state", ""))
- if br_state == "freefall" or br_state == "gliding":
+ if br_state in ["freefall", "deploying", "gliding"]:
   _process_br_descent(delta, br_state)
   return
  if reload_time > 0.0:
@@ -239,12 +239,14 @@ func _process_br_descent(delta: float, state: String) -> void:
  var forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
  var right := Vector3(cos(yaw), 0.0, -sin(yaw))
  var direction := (right * input_vec.x + forward * -input_vec.y).normalized()
- var horizontal_speed := 21.0 if state == "freefall" else 9.5
- var horizontal_acceleration := 12.0 if state == "freefall" else 7.0
+ var horizontal_speed := 21.0 if state == "freefall" else (13.0 if state == "deploying" else 9.5)
+ var horizontal_acceleration := 12.0 if state == "freefall" else (9.0 if state == "deploying" else 7.0)
  velocity.x = move_toward(velocity.x, direction.x * horizontal_speed, horizontal_acceleration * delta)
  velocity.z = move_toward(velocity.z, direction.z * horizontal_speed, horizontal_acceleration * delta)
  if state == "freefall":
   velocity.y = maxf(velocity.y - 26.0 * delta, -48.0)
+ elif state == "deploying":
+  velocity.y = move_toward(velocity.y, -18.0, 14.0 * delta)
  else:
   velocity.y = move_toward(velocity.y, -7.6, 10.0 * delta)
  if direction.length_squared() > 0.001:
