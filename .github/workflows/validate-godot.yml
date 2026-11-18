@@ -133,7 +133,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m unittest tests.test_gdscript_bool_cast_checker -v
+          python3 -m unittest discover -s tests -p 'test_gdscript_bool_cast_checker.py' -v
           python3 tools/check_gdscript_bool_casts.py --self-test
           python3 tools/check_gdscript_bool_casts.py --root .
 
