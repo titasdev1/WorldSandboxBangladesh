@@ -16,6 +16,7 @@ jobs:
       github.event.issue.number == 78 &&
       github.event.comment.user.login == 'titasdev1' &&
       (contains(github.event.comment.body, '/asquare-build') ||
+       contains(github.event.comment.body, '/asquare-map-build') ||
        contains(github.event.comment.body, '/asquare-validate') ||
        contains(github.event.comment.body, '/asquare-cancel'))
     runs-on: ubuntu-latest
@@ -32,6 +33,32 @@ jobs:
           if [[ "${COMMENT_BODY}" =~ ^[[:space:]]*/asquare-cancel[[:space:]]+44251728526[[:space:]]*$ ]]; then
             echo "Cancelling the unintended Android export run 44251728526."
             gh run cancel 44251728526 --repo "${REPOSITORY}"
+            exit 0
+          fi
+
+          if [[ "${COMMENT_BODY}" =~ ^[[:space:]]*/asquare-map-build[[:space:]]*$ ]]; then
+            pr_json="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"
+            head_repo="$(jq -r '.head.repo.full_name // empty' <<<"${pr_json}")"
+            head_ref="$(jq -r '.head.ref // empty' <<<"${pr_json}")"
+            head_sha="$(jq -r '.head.sha // empty' <<<"${pr_json}")"
+
+            if [[ "${head_repo}" != "${REPOSITORY}" || "${head_ref}" != "feature/lobby-operator-showcase" || -z "${head_sha}" ]]; then
+              echo "Refusing Shariatpur map build: project PR head is not the approved canonical branch." >&2
+              exit 1
+            fi
+
+            sequence_id="shariatpur-${head_sha:0:12}"
+            echo "Dispatching pinned Shariatpur-first map sequence ${sequence_id} from ${head_ref} at ${head_sha}."
+            gh workflow run dhaka-3d-map.yml --repo "${REPOSITORY}" --ref "${head_ref}" \
+              --field tile_degrees=0.05 \
+              --field tile_offset=0 \
+              --field max_tiles=8 \
+              --field build_stage=shariatpur_review \
+              --field continue_full_division=true \
+              --field sequence_id="${sequence_id}" \
+              --field source_commit="${head_sha}" \
+              --field assemble_only=false \
+              --field retry_count=0
             exit 0
           fi
 
