@@ -45,8 +45,21 @@ class VehicleEntryExitAnimationTests(unittest.TestCase):
         self.assertIn('animation_player.get_animation(animation_name)', self.vehicle)
         self.assertIn('clampf(clip.length, 0.35, 2.8)', self.vehicle)
 
+    def test_vehicle_keeps_the_driver_rig_inside_the_car_and_uses_a_looping_steering_pose(self):
+        completion = self.vehicle[
+            self.vehicle.index("func _complete_enter_player("):
+            self.vehicle.index("func toggle_vehicle_camera_mode(")
+        ]
+        self.assertIn("p.reparent(body,true)", completion)
+        self.assertIn('p.set_meta("vehicle_cockpit_active", true)', completion)
+        self.assertIn('visual.call("set_vehicle_driver_pose", true, vehicle_type)', completion)
+        self.assertIn('p.camera.make_current()', completion)
+        self.assertIn("func set_vehicle_driver_pose(", read("character_visual.gd"))
+        self.assertIn("clip.loop_mode = Animation.LOOP_LINEAR", read("character_visual.gd"))
+        self.assertIn("vehicle_cockpit_yaw_offset", read("player.gd"))
+
     def test_runtime_smoke_exercises_both_transitions_and_camera_restore(self):
-        for marker in ("VEHICLE_ENTRY_EXIT_ANIMATION_PASS", "board_vehicle", "alight_vehicle", "first_person", "duplicate board input"):
+        for marker in ("VEHICLE_ENTRY_EXIT_ANIMATION_PASS", "board_vehicle", "drive_car_loop=true", "alight_vehicle", "first_person", "duplicate board input"):
             self.assertIn(marker, self.smoke)
         self.assertIn('player.call("set_camera_view_mode", "first_person")', self.smoke)
         self.assertIn('vehicle.call("exit_player")', self.smoke)
