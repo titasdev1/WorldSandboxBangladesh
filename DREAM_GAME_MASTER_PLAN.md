@@ -355,3 +355,7 @@ The target is detailed, authored and recognizable 3D content, not arbitrary tria
 
 ### 14.7 Priority and evidence
 Do not interrupt the existing canonical Android candidate with unrelated feature work. First resolve the current exact-head run, BR deployment test, Android export, included-content checks, signing and artifact inspection. Afterward, sequence full vertical slices: stable world/device boot; Shariatpur quality gate; complete offline combat plus fair AI tiers; two-device local-room proof; one polished Roadline car/event; one complete Pitchbound match; a playable Greenwake chapter; then the global region catalogue. Track planned, prototype, implemented, CI-verified, device-verified and accepted separately. Never infer completion from workflow steps, code count, triangle count or registry entries.
+
+
+### 2026-11-19 packaging clarification
+The current Android workflow validates a temporary full-map APK, then creates the canonical compact modular core APK with district-map content intentionally removed and delivers Shariatpur as a separate verified first-run PCK download. This is a legitimate modular install design, but it is not the user's requested single embedded-map APK and it is not an offline-complete first install. Keep the distinction visible in delivery notes. A future combined candidate needs an explicit Android size/installability/storage decision and its own content-hash verification; do not silently replace the current modular design or assume the temporary full-map export is the published artifact.
