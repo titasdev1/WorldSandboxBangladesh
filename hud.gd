@@ -758,7 +758,7 @@ func _process(_delta):
    var startup_loader: Variant = w.get("real_dhaka_loader")
    if is_instance_valid(startup_loader) and startup_loader.has_method("get_runtime_map_diagnostics"):
     var startup_diagnostics: Dictionary = startup_loader.call("get_runtime_map_diagnostics")
-    var streaming_started := (startup_diagnostics.get("streaming_started", false) == true)
+    var streaming_started: bool = (startup_diagnostics.get("streaming_started", false) == true)
     var loaded_count := int(startup_diagnostics.get("loaded_tiles", 0))
     var pending_count := int(startup_diagnostics.get("pending_tile_loads", 0))
     var activating_count := int(startup_diagnostics.get("activating_tiles", 0))
@@ -1140,7 +1140,7 @@ func _show_lobby_page(page: String) -> void:
  if page == "home":
   _lobby_add_heading("WORLD COMMAND", "Your local world, career and deployments are gathered here.")
   _lobby_add_featured_play()
-  var installed := is_instance_valid(w) and (w.get("real_dhaka_loaded") == true)
+  var installed: bool = is_instance_valid(w) and (w.get("real_dhaka_loaded") == true)
   _lobby_add_section("FEATURED • BANGLADESH")
   _lobby_add_action("SHARIATPUR WORLD", "60 district tile records • full-resolution local streaming", Callable(self, "_show_map_information"))
   _lobby_add_action("DESHI STORIES", "Local missions, transport fares, markets and connected jobs", Callable(self, "_choose_mode").bind("deshi_story"))
@@ -1167,7 +1167,7 @@ func _show_lobby_page(page: String) -> void:
   _lobby_add_action("MULTIPLAYER QUICK PLAY", "Requires a real-time multiplayer server", Callable(), false)
   _lobby_add_action("MULTIPLAYER RANKED", "Requires accounts, matchmaking and authoritative servers", Callable(), false)
   var br_controller: Node = w.get("battle_royale_controller") as Node if is_instance_valid(w) else null
-  var br_assets_ready := is_instance_valid(br_controller) and (br_controller.call("can_start_solo_deployment") == true)
+  var br_assets_ready: bool = is_instance_valid(br_controller) and (br_controller.call("can_start_solo_deployment") == true)
   _lobby_add_section("BATTLE ROYALE • OFFLINE SOLO")
   _lobby_add_action("BATTLE ROYALE • SOLO DROP", "Cargo flight • freefall • authored ram-air canopy • local AI operators • shrinking safe zone", Callable(self, "_choose_mode").bind("battle_royale_solo"), br_assets_ready)
   if not br_assets_ready:
@@ -1233,7 +1233,7 @@ func _select_operator_preset(preset_id: String) -> void:
  if not is_instance_valid(operator_visual) or not operator_visual.has_method("apply_operator_preset"):
   _set_save_feedback("OPERATOR APPEARANCE IS NOT READY", false)
   return
- var applied := (operator_visual.call("apply_operator_preset", preset_id) == true)
+ var applied: bool = (operator_visual.call("apply_operator_preset", preset_id) == true)
  if not applied:
   _set_save_feedback("UNKNOWN OPERATOR PRESET", false)
   return
