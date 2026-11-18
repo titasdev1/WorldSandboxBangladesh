@@ -54,6 +54,10 @@ on:
       - "tests/test_battle_royale_aircraft_pipeline.py"
       - "tests/test_battle_royale_parachute_pipeline.py"
       - "tests/test_battle_royale_parachute_artifact.py"
+      - "tests/test_vehicle_entry_exit_animation.py"
+      - "tests/vehicle_entry_exit_animation_smoke.gd"
+      - "tests/vehicle_entry_exit_visual_stub.gd"
+      - "tests/vehicle_entry_exit_world_stub.gd"
       - "tests/battle_royale_deployment_runtime_smoke.gd"
       - "tools/build_battle_royale_parachute.py"
       - "tools/verify_battle_royale_parachute.py"
@@ -153,6 +157,10 @@ jobs:
           python3 -m unittest discover -s tests -p "test_battle_royale_aircraft_pipeline.py"
           python3 -m unittest discover -s tests -p "test_battle_royale_parachute_pipeline.py"
           python3 -m unittest discover -s tests -p "test_battle_royale_parachute_artifact.py"
+
+      - name: Run authored vehicle entry and exit animation regression tests
+        shell: bash
+        run: python3 -m unittest discover -s tests -p "test_vehicle_entry_exit_animation.py"
 
       - name: Run mobile interaction regression tests
         shell: bash
@@ -763,6 +771,22 @@ jobs:
           GODOT="$RUNNER_TEMP/godot-validation/Godot_v4.4.1-stable_linux.x86_64"
           test -x "$GODOT"
           "$GODOT" --headless --path . --script res://tests/player_vehicle_physics_smoke.gd
+
+      - name: Exercise authored boarding, alighting and camera restoration
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot-validation/Godot_v4.4.1-stable_linux.x86_64"
+          LOG="$RUNNER_TEMP/godot-validation/vehicle-entry-exit.log"
+          set +e
+          timeout 90s "$GODOT" --headless --path . --script res://tests/vehicle_entry_exit_animation_smoke.gd > "$LOG" 2>&1
+          STATUS=$?
+          set -e
+          cat "$LOG"
+          if [ "$STATUS" -ne 0 ] || ! grep -Fq "VEHICLE_ENTRY_EXIT_ANIMATION_PASS" "$LOG"; then
+            echo "Authored vehicle entry/exit runtime smoke failed with status $STATUS."
+            exit 1
+          fi
 
       - name: Exercise Pitchbound 3D team and match-ball runtime
         shell: bash
