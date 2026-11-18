@@ -235,8 +235,8 @@ func _draw() -> void:
  draw_rect(bounds, Color("#3a8397"), false, 2.0)
  var margin := 14.0 if expanded else 10.0
  var map_rect := Rect2(Vector2(margin, margin), size - Vector2(margin*2.0, margin*2.0))
- var real_map := is_instance_valid(world) and (world.get("real_dhaka_loaded") == true)
- var overview_map := expanded and real_map
+ var real_map: bool = is_instance_valid(world) and (world.get("real_dhaka_loaded") == true)
+ var overview_map: bool = expanded and real_map
  var range_m := (300.0 if expanded else 105.0) / _map_zoom
  var map_world_center := Vector2(_player_position.x, _player_position.z)
  var center := map_rect.position + map_rect.size * 0.5
