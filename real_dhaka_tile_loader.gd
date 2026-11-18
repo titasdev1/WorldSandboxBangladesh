@@ -282,6 +282,10 @@ func _apply_tile_pbr_materials(tile_root: Node3D) -> void:
     if not is_instance_valid(_world):
         return
     var factory: Node = _world.get("pbr_surface_factory") as Node
+    # The game World exposes a script property; isolated runtime tests and
+    # compatibility scenes may only have the named child.
+    if not is_instance_valid(factory) and _world.has_node("PBRSurfaceFactory"):
+        factory = _world.get_node("PBRSurfaceFactory")
     if not is_instance_valid(factory) or not factory.has_method("material_for_tile"):
         return
 
