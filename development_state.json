@@ -40,7 +40,7 @@
     "030_FIRST_PERSON_BODY_AND_WEAPON_VISIBILITY_ASSERTIONS",
     "031_NPC_DISTANCE_SIMULATION_LOD_HEADLESS_PASS_DEVICE_PROFILE_PENDING"
   ],
-  "next_priority": "Resolve/access existing run 44354975442 and inspect steps 42-45 on exact SHA 149e6b8314325f3e036787f58eaad4945ea83d82. Do not start another full Android build or change PR #78 head while this run is unresolved. Then inspect APK export, included map/assets, signing, checksums and artifact before sharing. Shariatpur stays REVIEW_REQUIRED; physical-device QA remains pending.",
+  "next_priority": "Allow current run 44354975442 on exact SHA 149e6b8314325f3e036787f58eaad4945ea83d82 to complete steps 58-71. Inspect step 62 signing/integrity, step 63 distribution, step 64 sizes, step 65 canonical assembly, step 66 artifact metadata and actual APK bytes/hash before sharing. Be explicit that the final uploaded core APK excludes the district map and the Shariatpur PCK is separate. Do not start another full Android build or change PR #78 head while this run is unresolved. The user's single embedded-map APK preference remains unmet by the present modular workflow.",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -92,7 +92,8 @@
     "2026-11-19: Roadline source provides sprint/time-attack/drift prototypes; sprint uses six checkpoints and three simple AI racers. Forza-level garage, tuning, car fleet, event variety and AI remain unimplemented.",
     "2026-11-19: ENet private-room code has local host/join and ~10 Hz player/vehicle transform replication, but no physical two-device test or complete mode-state synchronization.",
     "2026-11-19: Greenwake: The Monsoon Relic exists in the experience registry as planned only; no playable level or loop is evidenced.",
-    "2026-11-19: Combat AI has basic line-of-sight, approach/retreat and timed attacks; strategic ranked squad AI tiers are not implemented."
+    "2026-11-19: Combat AI has basic line-of-sight, approach/retreat and timed attacks; strategic ranked squad AI tiers are not implemented.",
+    "2026-11-19 live poll update: run #1102 now has 57 successful completed steps, zero failures reported, and step 58 modular core APK export in progress. BR runtime step 45 passed. The temporary full-map APK passed step 55 but is not the canonical uploaded output; steps 57-59 prepare/verify a core APK without district-map content, with the Shariatpur PCK downloaded separately at first boot. Current artifact list remains empty and final signature/integrity/upload steps are pending."
   ],
   "build_status": "INVALID_BOOL_CONSTRUCTORS_REPLACED_AND_STATIC_SCAN_PASS; GODOT_IMPORT_FOUND_VARIANT_BOOL_INFERENCE_ERRORS; EXPLICIT_BOOL_ANNOTATIONS_APPLIED; EXACT_PR_RUNTIME_VALIDATION_PENDING; NO_ANDROID_EXPORT",
   "latest_verified_run": 38892036942,
@@ -406,14 +407,23 @@
     "run_number": 1102,
     "head": "149e6b8314325f3e036787f58eaad4945ea83d82",
     "status": "in_progress",
-    "successful_completed_steps": 40,
-    "current_step": 42,
-    "current_step_name": "Install Blender for original BR parachute asset authoring",
+    "successful_completed_steps": 57,
+    "current_step": 58,
+    "current_step_name": "Export modular core Android APK",
     "timeout_minutes": 330,
-    "android_export_started": false,
+    "android_export_started": true,
     "artifact_available": false,
     "log_download": "BlobNotFound",
-    "cancellation": "not performed; authenticated GitHub browser access unavailable"
+    "cancellation": "not performed; authenticated GitHub browser access unavailable",
+    "no_failed_steps_reported": true,
+    "temporary_full_map_apk_export": "completed",
+    "temporary_full_map_content_verification": "completed",
+    "separate_map_pack_export_and_verification": "completed",
+    "compact_core_export_preparation": "completed",
+    "modular_core_export": "in_progress",
+    "final_core_embeds_district_map": false,
+    "final_canonical_delivery": "compact core APK plus separately downloaded map PCK parts",
+    "updated_at_api_stale": true
   },
   "latest_pbr_validation_run": {
     "run_id": 44354592447,
@@ -421,6 +431,6 @@
     "head": "149e6b8314325f3e036787f58eaad4945ea83d82",
     "conclusion": "success"
   },
-  "current_build_status": "ANDROID_RUN_1102_REPORTED_IN_PROGRESS_AT_STEP_42; 40_COMPLETED_STEPS_SUCCESS; BR_RUNTIME_STEP_45_PENDING; CURRENT_HEAD_PBR_PASS; NO_ANDROID_EXPORT; NO_APK_ARTIFACT",
+  "current_build_status": "ANDROID_RUN_1102_IN_PROGRESS_STEP_58_MODULAR_CORE_EXPORT; 57_COMPLETED_STEPS_SUCCESS; BR_DEPLOYMENT_RUNTIME_PASS; TEMPORARY_FULL_MAP_CONTENT_CHECK_PASS; MODULAR_CORE_EXCLUDES_DISTRICT_MAP_BY_DESIGN; SHARIATPUR_PCK_SEPARATE_FIRST_RUN_DOWNLOAD; FINAL_SIGNATURE_AND_ARTIFACT_PENDING",
   "new_requirements_recorded": "2026-11-19: Expanded mode families (JibonJatra, Roadline, Pitchbound, Strikefront, Greenwake), offline AI strategy tiers, local Wi-Fi/hotspot synchronization, whole-Earth land-and-water map target and country-aware content added to master plan/acceptance matrix on documentation branch docs/expanded-a-square-experiences. These are design/acceptance requirements, not implemented gameplay."
 }
