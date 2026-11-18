@@ -26,6 +26,9 @@ class BattleRoyaleParachuteAssetTests(unittest.TestCase):
         self.assertIn("A2_Parachute_Canopy_Wind_Sway", self.source)
         self.assertIn('"player_mesh_included": False', self.source)
         self.assertIn("export_animations=True", self.source)
+        deployment = (ROOT / "systems" / "battle_royale_deployment.gd").read_text(encoding="utf-8")
+        self.assertIn('find_children("*", "AnimationPlayer", true, false)', deployment)
+        self.assertNotIn('find_child("*", "AnimationPlayer", true, false)', deployment)
 
     def test_generated_asset_is_original_and_cc0(self):
         self.assertIn("CC0 1.0 Universal", self.source)
