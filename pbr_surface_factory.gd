@@ -23,7 +23,7 @@ func configure(_world: Node) -> void:
 func material_for(surface_id: String, fallback: StandardMaterial3D, enable_parallax := false, use_triplanar := false) -> StandardMaterial3D:
     if not surfaces.has(surface_id):
         return fallback
-    var cache_key := "%s:%s:rough=%.4f:metal=%.4f:pom=%s" % [
+    var cache_key := "%s:%s:rough=%.4f:metal=%.4f:pom=%s:triplanar=%s" % [
         surface_id,
         fallback.albedo_color.to_html(true),
         fallback.roughness,
