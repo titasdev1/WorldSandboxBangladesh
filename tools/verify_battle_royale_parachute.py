@@ -42,11 +42,43 @@ def parse_glb(data: bytes) -> dict[str, Any]:
     return document
 
 
+MIN_CANOPY_TRIANGLES = 25_000
+CANOPY_ANIMATION_NODE = "Canopy_Wind_Sway_Root"
+
+
+def count_glb_triangles(document: dict[str, Any]) -> int:
+    """Count triangle primitives from glTF accessors, including strips and fans."""
+    accessors = document.get("accessors", [])
+    total = 0
+    for mesh in document.get("meshes", []):
+        if not isinstance(mesh, dict):
+            continue
+        for primitive in mesh.get("primitives", []):
+            if not isinstance(primitive, dict):
+                continue
+            mode = int(primitive.get("mode", 4))
+            if mode not in (4, 5, 6):
+                continue
+            if "indices" in primitive:
+                accessor_index = primitive["indices"]
+            else:
+                accessor_index = primitive.get("attributes", {}).get("POSITION")
+            if not isinstance(accessor_index, int) or not 0 <= accessor_index < len(accessors):
+                raise ValueError("GLB triangle primitive references a missing accessor")
+            element_count = int(accessors[accessor_index].get("count", 0))
+            if mode == 4:
+                if element_count % 3:
+                    raise ValueError("GLB triangle-list index count is not divisible by three")
+                total += element_count // 3
+            else:
+                total += max(0, element_count - 2)
+    return total
+
+
 def verify_asset(glb_path: pathlib.Path, licence_path: pathlib.Path) -> dict[str, Any]:
     # Validate the container before checking secondary metadata. This keeps a
     # corrupt GLB from being misreported as a licence or arbitrary file-size
-    # problem, and lets structural checks—not a guessed byte threshold—decide
-    # whether the exported canopy contains the required assembly.
+    # problem; acceptance is based on the actual mesh, rig and animation content.
     if not glb_path.is_file():
         raise ValueError(f"parachute GLB is missing: {glb_path}")
     glb_bytes = glb_path.read_bytes()
@@ -56,9 +88,10 @@ def verify_asset(glb_path: pathlib.Path, licence_path: pathlib.Path) -> dict[str
     licence = licence_path.read_text(encoding="utf-8", errors="replace")
     if LICENSE_MARKER not in licence or "A-Square Ram-Air Canopy and Harness" not in licence:
         raise ValueError("generated parachute licence does not identify the original CC0 asset")
+    nodes = document.get("nodes", [])
     node_names = {
         str(node.get("name", ""))
-        for node in document.get("nodes", [])
+        for node in nodes
         if isinstance(node, dict)
     }
     missing = [name for name in REQUIRED_NODES if name not in node_names]
@@ -68,27 +101,53 @@ def verify_asset(glb_path: pathlib.Path, licence_path: pathlib.Path) -> dict[str
         raise ValueError("parachute GLB contains no suspension lines")
     if not any(name.startswith("Riser_Carabiner_") for name in node_names):
         raise ValueError("parachute GLB contains no riser carabiners")
+
     animations = document.get("animations", [])
-    animation_names = {
-        str(animation.get("name", ""))
-        for animation in animations
-        if isinstance(animation, dict)
-    }
-    if EXPECTED_ANIMATION not in animation_names:
+    expected_animation = next(
+        (item for item in animations if isinstance(item, dict) and item.get("name") == EXPECTED_ANIMATION),
+        None,
+    )
+    if expected_animation is None:
         raise ValueError(f"parachute GLB is missing animation {EXPECTED_ANIMATION}")
+    canopy_node_indices = {
+        index for index, node in enumerate(nodes)
+        if isinstance(node, dict) and node.get("name") == CANOPY_ANIMATION_NODE
+    }
+    canopy_rotation_channels = [
+        channel for channel in expected_animation.get("channels", [])
+        if isinstance(channel, dict)
+        and isinstance(channel.get("target"), dict)
+        and channel["target"].get("node") in canopy_node_indices
+        and channel["target"].get("path") == "rotation"
+    ]
+    if not canopy_rotation_channels:
+        raise ValueError("parachute GLB has no canopy rotation animation channel")
+    samplers = expected_animation.get("samplers", [])
+    if any(not isinstance(channel.get("sampler"), int) or not 0 <= channel["sampler"] < len(samplers)
+           for channel in canopy_rotation_channels):
+        raise ValueError("parachute canopy animation channel references a missing sampler")
+
     meshes = document.get("meshes", [])
     if len(meshes) < 20:
         raise ValueError(f"parachute GLB has too few mesh objects: {len(meshes)}")
-    if any("player" in str(node.get("name", "")).lower() for node in document.get("nodes", []) if isinstance(node, dict)):
+    triangle_count = count_glb_triangles(document)
+    if triangle_count < MIN_CANOPY_TRIANGLES:
+        raise ValueError(
+            f"parachute GLB has too few render triangles: {triangle_count} "
+            f"(minimum {MIN_CANOPY_TRIANGLES})"
+        )
+    if any("player" in str(node.get("name", "")).lower() for node in nodes if isinstance(node, dict)):
         raise ValueError("parachute assembly unexpectedly contains a duplicate player mesh")
     return {
         "validation": "PASS",
         "file": str(glb_path),
         "bytes": glb_path.stat().st_size,
-        "node_count": len(document.get("nodes", [])),
+        "node_count": len(nodes),
         "mesh_count": len(meshes),
+        "triangle_count": triangle_count,
         "material_count": len(document.get("materials", [])),
-        "animation_names": sorted(animation_names),
+        "animation_names": sorted(str(item.get("name", "")) for item in animations if isinstance(item, dict)),
+        "canopy_rotation_channels": len(canopy_rotation_channels),
         "license": "CC0-1.0",
         "required_nodes": list(REQUIRED_NODES),
     }
