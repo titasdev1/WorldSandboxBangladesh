@@ -222,3 +222,12 @@ Use `TOOLS_AND_PLATFORMS_REGISTRY.md` as the durable directory. Snapshot 2026-11
 ### Metadata-only follow-up
 - After the above checkpoint entry, development_state.json was refreshed in commit e540c69a0a88ff8a543a1d440db532401e785219. It records the BR/FPP runtime gates, current KartaView coverage result, Google imagery restrictions, and the fact that current-head CI is pending.
 - This metadata-only follow-up does not change game source or create a new APK. The last code head recorded above remains the source baseline for the next validation refresh.
+
+
+### 2026-11-18 continuation addendum — BR canopy control
+- Latest game-source head before metadata-only updates: 81fb6e6f4fbeee9b37712d8ed3bb373a4b49e86a.
+- systems/battle_royale_deployment.gd now banks the canopy root using move_left/move_right input while preserving the CC0 canopy's internal wind-sway animation. Forward/back input also adds a small pitch response.
+- tests/battle_royale_deployment_runtime_smoke.gd injects right then left input and asserts opposite bank angles; tests/test_battle_royale_entry.py asserts the control mapping and runtime marker.
+- Runtime marker: BR_CANOPY_STEERING_RUNTIME_PASS.
+- This is source-committed only. There is no Android/Godot workflow result for the exact current head; do not call the new bank behavior runtime-verified yet.
+- development_state.json was refreshed after this source head in metadata-only commit d08724b18c4cf926d06cfe1b7765c1f22b6563df.
