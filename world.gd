@@ -26,6 +26,7 @@ var material_cache: Dictionary = {}
 var city_asset_factory
 var pbr_surface_factory
 var combat_controller
+var battle_royale_controller: Node
 var career_profile: Node
 var last_combat_result := ""
 var interior_factory
@@ -89,6 +90,10 @@ func _ready():
  combat_controller.name = "CombatModeController"
  add_child(combat_controller)
  combat_controller.configure(self)
+ battle_royale_controller = load("res://systems/battle_royale_deployment.gd").new()
+ battle_royale_controller.name = "BattleRoyaleDeployment"
+ add_child(battle_royale_controller)
+ battle_royale_controller.configure(self)
  var activity_director: Node = load("res://systems/activities/world_activity_director.gd").new()
  activity_director.name = "WorldActivityDirector"
  add_child(activity_director)
