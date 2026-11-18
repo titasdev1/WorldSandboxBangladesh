@@ -1049,10 +1049,13 @@ func _update_authored_animation(body: CharacterBody3D, planar_speed: float) -> v
         "landing": "parachute_land"
     }
     var requested_action := str(body.get_meta("character_action_state", ""))
-    if not requested_action.is_empty() and not String(_authored_animation_lookup.get(requested_action, "")).is_empty():
-        state = requested_action
-    elif br_state_map.has(br_phase) and not String(_authored_animation_lookup.get(br_state_map[br_phase], "")).is_empty():
+    # Deployment phases are authoritative. A transient action (for example the
+    # skydive action queued at plane exit) must never mask the parachute inflate,
+    # glide or landing clips once the BR controller has advanced the phase.
+    if br_state_map.has(br_phase) and not String(_authored_animation_lookup.get(br_state_map[br_phase], "")).is_empty():
         state = br_state_map[br_phase]
+    elif not requested_action.is_empty() and not String(_authored_animation_lookup.get(requested_action, "")).is_empty():
+        state = requested_action
     elif not body.is_on_floor():
         if body.velocity.y > 0.65 and not String(_authored_animation_lookup.get("jump", "")).is_empty():
             state = "jump"
