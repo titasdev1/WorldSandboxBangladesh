@@ -62,6 +62,7 @@ on:
       - "tests/vehicle_entry_exit_visual_stub.gd"
       - "tests/vehicle_entry_exit_world_stub.gd"
       - "tests/battle_royale_deployment_runtime_smoke.gd"
+      - "tests/ara_operator_runtime_smoke.gd"
       - "tools/build_battle_royale_parachute.py"
       - "tools/verify_battle_royale_parachute.py"
       - "systems/battle_royale_deployment.gd"
