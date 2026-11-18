@@ -155,3 +155,65 @@ Use `TOOLS_AND_PLATFORMS_REGISTRY.md` as the durable directory. Snapshot 2026-11
 - New Android run: https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/43450870427 — run 1010, in progress at checkpoint time (job 131972358446). No claim yet that the Godot touch test passes.
 - Latest known completed movement test remains Android run 43443145933 with walk 3.50 m, sprint 5.50 m, jump peak 1.24 m. That was a physics smoke test, not this joystick test.
 - Next: inspect run 1010 and confirm the new Godot viewport-injected joystick runtime test passes. If it fails, debug the event routing based on actual Godot logs. Then test crouch/animation and phone layout, and continue Shariatpur evidence gate.
+
+
+## 2026-11-18 — active continuation checkpoint (branch head 018422a48e632d35c09adcc1e6e832d3e83e15da)
+
+### Do not repeat these audits
+- PR #78 remains open and draft, base main, head branch feature/lobby-operator-showcase.
+- Re-read live HEAD before any new edit; do not assume this SHA remains latest.
+- The Ara 3D Gen export pipeline has already been created and invoked. Its structural candidate report previously recorded: high GLB ~36.5 MB / ~159k triangles, 19 materials, 22 embedded textures (about 3.67 MB total texture payload), 69 joints, WeaponR socket, 646 facial morph targets and 216 animation clips. Medium/low LODs were also exported. Structural export is not visual approval or device validation.
+- The Android pipeline now resolves the Ara asset build by exact profile commit, verifies the matched workflow artifact digest, installs the high-detail GLB plus provenance manifest, and includes a Godot runtime smoke. The active character loader prefers Ara when that GLB is present, otherwise retaining CharacterCreator and Quaternius fallbacks. It maps rifle-specific locomotion/aim/fire/reload clips and the WeaponR socket. Latest current-head Godot import/device result is NOT VERIFIED.
+- The first-run login backdrop scene already exists: 960x540 live SubViewport, moving CNG, swaying foliage, existing HumanoidVisual operator and wind detail. This is still a lightweight prototype and not CODM/AOV/MLBB-level art. Do not re-create this scene or describe it as an AAA upgrade.
+- The new Instagram reel (DeHqbh_OwYd) public metadata/caption was retrieved. It describes a Blender 5.2 previs workflow (precise geometry/camera path first, then a video model renders a photorealistic pass). The actual Instagram video player did not load, so only the post metadata/caption was inspected; do not claim the clip itself was watched.
+- The older Instagram references were also inspected for public captions/metadata where accessible; some video streams/carousel media were not playable from the connector. Ask for a screen recording only if a precise frame-by-frame analysis becomes necessary.
+- Three.js Skills (CloudAI-X, MIT) is a coding/skill guide for three.js/React Three Fiber, scene construction, asset pipeline, animation, camera and performance. It is not a ready-made AAA asset library and does not replace Godot.
+- city3d-skill (MIT) was inspected: OSM-to-city geometry, HTML preview, Blender/GLB export and photogrammetry/capture workflow. It is a useful base geometry pipeline but needs independently licensed reference imagery for convincing building appearances.
+- Abyssal Garden (MIT) was inspected as a procedural WebGPU world example. It demonstrates how much environmental detail can be built from code, but its low-end Android performance warning makes it an inspiration for isolated environment systems, not a direct whole-city replacement.
+- The old Higgsfield 3D Jutsu Tactical Operator Studio was inspected: 20-bone armature, 134 mesh objects, ~21k vertices, ~41k triangles, plain solid materials and one idle-breathing action. It is a legacy blockout, not the final character asset.
+- The old Runway workspace contains previous generated image assets (cinematic key art and several environment/prop references) but no verified integration into the current Godot project. Do not claim those images are already in the APK.
+- Connected creative services were checked in the prior audit. Do not claim unlimited free image/video/3D generation; do not start paid-credit generation without explicit approval. Prefer existing authored files, Blender/GitHub Actions and CC0 resources.
+
+### Recent committed improvements
+- Ara candidate runtime integration and Android artifact/provenance gate (see recent character_visual.gd and .github/workflows/android.yml commits).
+- player.gd: _update_br_aerial_camera() now gives freefall, canopy-inflation and glide a higher/wider chasing camera so the player can see the map below; each phase uses a different trailing distance, height and FOV.
+- tests/battle_royale_deployment_runtime_smoke.gd now checks:
+  - imported rig readiness and first-person head hiding;
+  - both hand bones and WeaponR attachment;
+  - first-person eye camera position;
+  - skydiving, parachute-deploy and glide animation mappings;
+  - aircraft overview, freefall camera, canopy inflation, glide animation and landing;
+  - after landing, the actual production CombatModeController's solo-BR spawn/safe-zone logic.
+- tests/br_smoke_combat_controller.gd only replaces the expensive enemy visuals in that smoke test. The real BR controller, spawn rules, bot count and safe-zone shrink code run unchanged. Production gameplay still uses the original combat enemy/operator path.
+- tests/test_battle_royale_entry.py adds static regression checks for first-person, aerial camera and 12-bot/safe-zone coverage.
+- A duplicate BR ground-smoke block was found during readback and removed. The current runtime smoke must contain exactly one each of FIRST_PERSON_BODY_RUNTIME_PASS, BR_AERIAL_CAMERA_RUNTIME_PASS, BR_GROUND_MATCH_RUNTIME_PASS and BR_DEPLOYMENT_RUNTIME_PASS.
+- tests/test_battle_royale_parachute_artifact.py now allows structurally valid compact GLBs and fixes the licence-fixture newline; tools/verify_battle_royale_parachute.py was also improved to parse/validate the GLB container before secondary licence metadata so corrupt files fail for the right reason.
+- REAL_WORLD_REFERENCE_POLICY.md records the offline map provenance pipeline and Google restrictions; tests/test_real_world_reference_policy.py adds five policy regression tests. MAP_PIPELINE.md links the policy and Android CI is wired to run its tests.
+- KartaView audit endpoint was repaired from the old openstreetcam hostname to api.kartaview.org, the allow-partial success escape was removed, and the audit now fails on failed tile/photo requests. Confirmed audit run 44141428772 succeeded with 30/30 tile requests and 30/30 photo queries but only one OSM-matched track and zero qualifying 360-degree photos in its sampled Shariatpur grid. The imagery gap is real.
+
+### Google imagery / reconstruction decision
+- Google Maps Platform Map Tiles and Street View content must not be scraped, cached into the offline PCK/APK, used for machine interpretation/image analysis, or used to derive offline 3D/terrain/building assets. Google policy explicitly gives examples including not tracing features and not building 3D models from those tiles. If a live Google Photorealistic 3D Tiles layer is ever used, it must be a separate API-compliant in-app visualisation with required attribution; independent game assets overlaid on it must not be derived from the Google tiles.
+- For the distributable world, use OSM/Overture/open data for geospatial geometry and independently authored or redistributable assets. Use user-owned, commissioned or correctly licensed photos/videos for façade evidence and photogrammetry. Do not treat InstantStreetView as a separate imagery licence.
+- The actual Google policy sources reviewed 2026-11-18:
+  - https://developers.google.com/maps/documentation/tile/policies
+  - https://developers.google.com/maps/documentation/streetview/policies
+- The user manually checked that Bangladesh has no blanket 360 coverage from Mapillary/KartaView. The KartaView audit confirms a sample-grid gap, so do not promise 100% street-level reconstruction from those services.
+
+### CI and delivery status at this checkpoint
+- Branch head / PR head: 018422a48e632d35c09adcc1e6e832d3e83e15da.
+- The connected GitHub Actions list has not shown a run for this head. The latest visible Android run on an earlier head (18e9733a08866c3553e32a3298f6d5f42481b2cb, run 44231084590) failed in the BR parachute artifact regression suite before Android export. The parachute verifier and fixture fixes were committed after that run, but they are NOT YET CI-VERIFIED on the current head.
+- No new APK has been produced/verified for the Ara/BR updates in this checkpoint. Do not give the user an APK link from an older candidate as if it contained these changes.
+- The last visible separate Godot validator success at head 18e9733a predates the latest BR smoke and map policy changes. It does not validate the current head.
+- The PR remains draft. Do not mark it ready or merge it merely to trigger CI. If Actions do not start on the next commit, report that validation is blocked by the available GitHub action controls; do not claim a pass.
+
+### Next actions (continue from here; do not repeat the audits above)
+1. Refresh PR #78 head, latest commit history and Actions runs.
+2. Verify the full BR smoke file and the current parachute verifier/fixture are not duplicated or stale; run the corresponding Android regression step on the exact current head.
+3. If full CI has not triggered, use only an available authorised workflow action or clearly state the blocker; never rerun an older commit and represent it as current.
+4. Once the current runtime smoke passes, address BR controls: live steering feedback, route/drop choice, altitude/landing feedback and the full post-landing match loop. Ranked BR remains unavailable without authoritative online matchmaking/anti-cheat; do not label offline 12-bot solo as ranked BR.
+5. Next first-person work: verify a real rendered FPP scene (hands, forearms, chest, rifle alignment, clipping/ADS/reload) in Godot, not just bone existence. Add a proper separate viewmodel only if the existing full-body rig fails that visual gate.
+6. Next cinematic work: use the reel's Blender previs + camera path + render-pass principle. Keep login as a live 3D scene, loading as a controlled static cinematic key-art frame with native game UI text, and lobby as an animated operator/environment composition. Do not substitute primitive geometry or random AI text for finished art.
+7. For map assets, continue from the strict provenance pipeline above. No more broad coverage queries unless a new source/provider is identified. Shariatpur remains REVIEW_REQUIRED with 0 independently verified floors and no accepted building-by-building exterior/interior review.
+8. Record the exact commit, run, job, artifact, and unresolved failure in this checkpoint after each meaningful validation.
+
+**Continuity rule:** Never start by re-fetching the old Instagram/KartaView/Three.js/Ara audits. Refresh the live branch head and act on the newest unfinished subsystem. A committed source change is not complete until the exact current commit passes its intended runtime/build tests.
