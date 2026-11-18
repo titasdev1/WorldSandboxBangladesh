@@ -65,6 +65,50 @@ func _run_smoke() -> void:
 		quit(1)
 		return
 
+	# Validate the actual on-foot first-person rig before the BR camera takes over:
+	# head is removed from the eye view, both hands and the WeaponR socket remain
+	# attached, and the camera sits at the operator eye point.
+	var skeleton := visual.get("_authored_skeleton") as Skeleton3D
+	var hero := visual.get("_authored_hero") as Node3D
+	var lookup: Dictionary = visual.get("_authored_animation_lookup")
+	if skeleton == null or hero == null:
+		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: authored body/skeleton is missing before first-person validation.")
+		quit(1)
+		return
+	var head_index := skeleton.find_bone("Head")
+	var right_hand_index := skeleton.find_bone("RightHand")
+	var left_hand_index := skeleton.find_bone("LeftHand")
+	var weapon_socket_index := skeleton.find_bone("WeaponR")
+	if head_index < 0 or right_hand_index < 0 or left_hand_index < 0 or weapon_socket_index < 0:
+		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: full-body first-person rig lacks Head/RightHand/LeftHand/WeaponR bones.")
+		quit(1)
+		return
+	if String(lookup.get("skydive", "")).is_empty() or String(lookup.get("parachute_deploy", "")).is_empty() or String(lookup.get("parachute_glide", "")).is_empty():
+		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: skydive/deploy/glide character clips are not mapped.")
+		quit(1)
+		return
+	player.call("set_camera_view_mode", "first_person")
+	await process_frame
+	var head_scale := skeleton.get_bone_pose_scale(head_index)
+	var weapon := visual.get("_weapon_root") as Node3D
+	var weapon_attachment := visual.get("_authored_weapon_attachment") as BoneAttachment3D
+	var body_meshes := hero.find_children("*", "MeshInstance3D", true, false)
+	if not visual.visible or head_scale.x > 0.01 or head_scale.y > 0.01 or head_scale.z > 0.01:
+		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: first-person view did not hide the head while retaining the authored body.")
+		quit(1)
+		return
+	if weapon == null or weapon_attachment == null or weapon_attachment.bone_name != "WeaponR" or weapon.get_parent() != weapon_attachment or body_meshes.size() < 15:
+		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: first-person hands/body/weapon are not attached to the live operator rig.")
+		quit(1)
+		return
+	var eye_position := player.camera.global_position
+	if absf(eye_position.y - (player.global_position.y + 1.68)) > 0.08 or not player.camera.current:
+		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: first-person eye camera is not in the expected operator position.")
+		quit(1)
+		return
+	print("FIRST_PERSON_BODY_RUNTIME_PASS • head_hidden=true • left_hand=true • right_hand=true • weapon_socket=true • visible_meshes=%d" % body_meshes.size())
+	player.call("set_camera_view_mode", "third_person")
+
 	var deployment := Node.new()
 	deployment.name = "BattleRoyaleDeployment"
 	deployment.set_script(load(DEPLOYMENT_SCRIPT))
