@@ -225,7 +225,7 @@ func _process(delta: float) -> void:
 			aircraft.global_position += flight_direction * flight_speed * delta
 			for propeller in _propellers:
 				if is_instance_valid(propeller):
-					propeller.rotate_local(Vector3.FORWARD, 24.0 * delta)
+					propeller.rotate_object_local(Vector3.FORWARD, 24.0 * delta)
 	elif phase == "gliding" and is_instance_valid(parachute):
 		parachute.rotation.z = sin(phase_time * 0.72) * deg_to_rad(2.4)
 		parachute.rotation.x = cos(phase_time * 0.53) * deg_to_rad(1.4)
