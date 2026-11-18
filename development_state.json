@@ -39,7 +39,7 @@
     "029_BR_PARACHUTE_ARTIFACT_REGRESSION_REPAIR",
     "030_FIRST_PERSON_BODY_AND_WEAPON_VISIBILITY_ASSERTIONS"
   ],
-  "next_priority": "Run authorized CI on exact PR #78 head 99fa7ca85e4b49dbf33467112d35811c5d4ffc68 (or latest docs head fddbdbcdc304d77da238f4351a341cc81c46acb3 if docs are included). Current GitHub Actions listing does not expose a run for these commits; do not rerun an older SHA as evidence. Once CI is available, validate BR GLB tests, Ara import/FPP bone+WeaponR visibility, BR plane-to-parachute-to-12-AI match, vehicle and login/lobby tests. Then render the real imported Ara character and test FPP arm/weapon alignment, ADS/reload/clipping; do not claim quality from skeleton/unit tests alone. Shariatpur stays REVIEW_REQUIRED; current offline/local modes are not online multiplayer; cinematic lobby media and building-specific facade/interior evidence remain incomplete.",
+  "next_priority": "Obtain an authorised Actions run for the exact PR #78 source head 99fa7ca85e4b49dbf33467112d35811c5d4ffc68 (docs-only follow-up at branch head 53206f43ee73575103c98f67ce1728feec3d1f74). No exact-head Actions run is visible through the connected GitHub Actions tools. Do not rerun an older commit as proof. When CI is available, validate the BR compact GLB/license tests, Ara import/FPP full-body and WeaponR visibility, full plane/freefall/parachute/landing/12-bot loop, login/lobby runtime, map package and Android export. Then obtain a real rendered FPP screenshot/video and Redmi device smoke. Shariatpur remains REVIEW_REQUIRED; online multiplayer and cinematic art are not accepted.",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -237,7 +237,7 @@
     "pr_number": 78,
     "pr_state": "open_draft_dirty",
     "source_head": "99fa7ca85e4b49dbf33467112d35811c5d4ffc68",
-    "latest_checkpoint_commit": "fddbdbcdc304d77da238f4351a341cc81c46acb3",
+    "latest_checkpoint_commit": "53206f43ee73575103c98f67ce1728feec3d1f74",
     "last_android_failure_run": 44231084590,
     "last_android_failure_commit": "18e9733a08866c3553e32a3298f6d5f42481b2cb",
     "validator_fix_commit": "6d0fd0410c82e115636c3710da7db0e2bf07a117",
@@ -253,6 +253,16 @@
     "ara_operator_textures": 22,
     "ara_operator_runtime_and_device_qa": "PENDING",
     "map_quality": "REVIEW_REQUIRED",
-    "real_online_multiplayer": "NOT_IMPLEMENTED_OR_VERIFIED"
-  }
+    "real_online_multiplayer": "NOT_IMPLEMENTED_OR_VERIFIED",
+    "instagram_reference_audit": {
+      "status": "CAPTIONS_AND_METADATA_READ;_VIDEO_PLAYBACK_UNAVAILABLE",
+      "inspected_urls": 6,
+      "key_workflow": "Blender 3D previs/camera path then AI visual finishing for cinematics",
+      "procedural_reference_repository": "Noniv/abyssal-garden",
+      "repository_license": "MIT",
+      "repository_type": "WebGPU procedural fantasy underwater demo, not a real-world map",
+      "android_takeaway": "study instancing, custom shaders, camera paths, quality fallback; do not replace Godot runtime or assume mobile performance"
+    }
+  },
+  "latest_checkpoint_commit": "53206f43ee73575103c98f67ce1728feec3d1f74"
 }
