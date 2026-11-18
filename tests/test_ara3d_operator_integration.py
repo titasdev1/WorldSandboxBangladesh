@@ -79,6 +79,25 @@ class AraOperatorIntegrationTests(unittest.TestCase):
             self.assertIn(marker, self.apk_verifier)
         self.assertIn("assets/external_content/ara3d_operator/ara_asset_manifest.json", self.core_verifier)
 
+    def test_animation_lookup_dictionary_has_no_duplicate_state_keys(self):
+        start = self.visual.index("_authored_animation_lookup = {")
+        end = self.visual.index("\n    }", start)
+        dictionary = self.visual[start:end]
+        import re
+        keys = re.findall(r'^\s*"([^"]+)"\s*:', dictionary, re.MULTILINE)
+        self.assertEqual(len(keys), len(set(keys)), f"duplicate animation state keys: {keys}")
+
+    def test_ara_action_names_match_the_generated_glb_clip_labels(self):
+        for clip in (
+            "Hit reaction", "Pick up (ground)", "Open door", "Throw grenade",
+            "Take cover", "Vault over obstacle", "Climb up ledge",
+            "Swim forward (front crawl)", "Drive car", "Drive modern sports car",
+            "Drive SUV", "Board sports car (driver)", "Alight from sports car (driver)",
+            "Skydive (free fall)", "Activate parachute (deploy)",
+            "Use parachute (glide)", "Land parachute",
+        ):
+            self.assertIn(clip, self.visual)
+
     def test_runtime_smoke_covers_rig_textures_weapon_and_real_animation(self):
         for marker in ("ARA3D_RUNTIME_PASS", "RightHand", "WeaponR", "textured_surface_count", "LOOP_LINEAR", "first_person_body=true", "BR_parachute_states=true"):
             self.assertIn(marker, self.smoke)
