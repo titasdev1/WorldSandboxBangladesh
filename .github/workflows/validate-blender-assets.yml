@@ -1,0 +1,80 @@
+name: Validate Blender-authored game assets
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/lobby-operator-showcase
+    paths:
+      - "tools/build_battle_royale_parachute.py"
+      - "tools/smoke_battle_royale_parachute_blender_api.py"
+      - "tools/verify_battle_royale_parachute.py"
+      - "tests/test_battle_royale_parachute_artifact.py"
+      - ".github/workflows/validate-blender-assets.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "tools/build_battle_royale_parachute.py"
+      - "tools/smoke_battle_royale_parachute_blender_api.py"
+      - "tools/verify_battle_royale_parachute.py"
+      - "tests/test_battle_royale_parachute_artifact.py"
+      - ".github/workflows/validate-blender-assets.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blender-asset-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-parachute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v5
+
+      - name: Install Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y blender
+          blender --version
+
+      - name: Compile authoring and verification scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/build_battle_royale_parachute.py \
+            tools/smoke_battle_royale_parachute_blender_api.py \
+            tools/verify_battle_royale_parachute.py
+
+      - name: Smoke-test Blender Action slots, F-curves, easing and cycle modifiers
+        shell: bash
+        run: |
+          set -euo pipefail
+          blender --background --factory-startup \
+            --python tools/smoke_battle_royale_parachute_blender_api.py
+
+      - name: Author and structurally verify the high-detail CC0 parachute
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/blender-validation"
+          OUT="${OUT_DIR}/a_square_ram_air_canopy.glb"
+          mkdir -p "${OUT_DIR}"
+          blender --background --factory-startup \
+            --python tools/build_battle_royale_parachute.py -- --out "${OUT}" \
+            > "${OUT_DIR}/authoring.log" 2>&1
+          cat "${OUT_DIR}/authoring.log"
+          grep -Fq "A2_PARACHUTE_ASSET_READY:" "${OUT_DIR}/authoring.log"
+          python3 tools/verify_battle_royale_parachute.py \
+            --glb "${OUT}" \
+            --license "${OUT_DIR}/LICENSE.txt" \
+            --out "${OUT_DIR}/verification.json"
+          python3 -m json.tool "${OUT_DIR}/asset_manifest.json" > /dev/null
+          python3 -m unittest discover -s tests -p "test_battle_royale_parachute_artifact.py" -v
