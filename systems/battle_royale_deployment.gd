@@ -293,9 +293,19 @@ func _process(delta: float) -> void:
 		world.event_text = "CANOPY OPEN • GLIDE AND STEER TOWARD THE LANDING ZONE"
 		world.event_time_left = 7.0
 
-	if phase == "gliding" and is_instance_valid(parachute) and not is_instance_valid(_canopy_animation_player):
-		parachute.rotation.z = sin(phase_time * 0.72) * deg_to_rad(2.4)
-		parachute.rotation.x = cos(phase_time * 0.53) * deg_to_rad(1.4)
+	if phase in ["deploying", "gliding"] and is_instance_valid(parachute):
+		# Keep the authored canopy wind animation on its internal rig, while the
+		# parachute root visibly banks with the same left/right input that steers
+		# the player. This makes the glide readable instead of a static loop.
+		var steer_axis := Input.get_axis("move_left", "move_right")
+		var forward_axis := Input.get_axis("move_back", "move_forward")
+		var wind_roll := sin(phase_time * 0.72) * deg_to_rad(1.8)
+		var wind_pitch := cos(phase_time * 0.53) * deg_to_rad(1.1)
+		var target_roll := -steer_axis * deg_to_rad(12.0) + wind_roll
+		var target_pitch := -forward_axis * deg_to_rad(3.2) + wind_pitch
+		var bank_blend := clampf(delta * 5.5, 0.0, 1.0)
+		parachute.rotation.z = lerp_angle(parachute.rotation.z, target_roll, bank_blend)
+		parachute.rotation.x = lerp_angle(parachute.rotation.x, target_pitch, bank_blend)
 
 	if phase == "landing" and phase_time >= 1.0:
 		_finish_landing()
