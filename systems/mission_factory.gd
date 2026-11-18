@@ -439,7 +439,7 @@ func get_persistence_state() -> Dictionary:
     var loader: Node = null
     if is_instance_valid(world):
         loader = world.get("real_dhaka_loader") as Node
-    var geo_mode := is_instance_valid(world) and (world.get("real_dhaka_loaded") == true) and is_instance_valid(loader) and loader.has_method("world_to_lat_lon")
+    var geo_mode: bool = is_instance_valid(world) and (world.get("real_dhaka_loaded") == true) and is_instance_valid(loader) and loader.has_method("world_to_lat_lon")
     for point in target_positions:
         if geo_mode:
             var ll: Variant = loader.call("world_to_lat_lon", point)
@@ -491,7 +491,7 @@ func restore_persistence_state(state: Dictionary) -> void:
     var loader: Node = null
     if is_instance_valid(world):
         loader = world.get("real_dhaka_loader") as Node
-    var real_map := is_instance_valid(world) and (world.get("real_dhaka_loaded") == true) and is_instance_valid(loader)
+    var real_map: bool = is_instance_valid(world) and (world.get("real_dhaka_loaded") == true) and is_instance_valid(loader)
     var bounds: Variant = loader.get("_region_bounds_lat_lon") if real_map else []
     if saved_positions is Array:
         for item in saved_positions:
