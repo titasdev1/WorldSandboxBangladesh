@@ -18,6 +18,8 @@ on:
       - "Main.tscn"
       - "project.godot"
       - "tests/test_dhaka_map_pipeline.py"
+      - "tools/check_gdscript_bool_casts.py"
+      - "tests/test_gdscript_bool_cast_checker.py"
   pull_request:
     branches:
       - main
@@ -76,6 +78,14 @@ jobs:
             -o "$RUNNER_TEMP/godot/godot.zip"
           unzip -q "$RUNNER_TEMP/godot/godot.zip" -d "$RUNNER_TEMP/godot"
           chmod +x "$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+
+      - name: Reject invalid GDScript bool constructors
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_gdscript_bool_cast_checker.py' -v
+          python3 tools/check_gdscript_bool_casts.py --self-test
+          python3 tools/check_gdscript_bool_casts.py --root .
 
       - name: Parse and import all project scripts
         shell: bash
