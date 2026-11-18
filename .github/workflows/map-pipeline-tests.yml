@@ -10,7 +10,7 @@ on:
       - "tests/test_real_world_navigation_index.py"
       - ".github/workflows/map-pipeline-tests.yml"
   push:
-    branches: [main]
+    branches: [main, feature/lobby-operator-showcase]
     paths:
       - "tools/map_pipeline/**"
       - "tests/test_dhaka_map_pipeline.py"

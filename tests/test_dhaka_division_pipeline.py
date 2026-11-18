@@ -737,6 +737,19 @@ class MapSourceRetryTests(unittest.TestCase):
             )
 
 
+
+
+class MapWorkflowRetryTests(unittest.TestCase):
+    def test_failed_root_batch_retries_as_a_new_root_not_a_continuation(self):
+        workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "dhaka-3d-map.yml").read_text(encoding="utf-8")
+        self.assertIn("INPUT_SEQUENCE_ID: ${{ inputs.sequence_id }}", workflow)
+        self.assertIn("INPUT_SOURCE_COMMIT: ${{ inputs.source_commit }}", workflow)
+        self.assertIn('if [[ -z "${INPUT_SEQUENCE_ID}" && -z "${INPUT_SOURCE_COMMIT}" ]]; then', workflow)
+        self.assertIn('RETRY_SEQUENCE_ID="${INPUT_SEQUENCE_ID:-}"', workflow)
+        self.assertIn('RETRY_SOURCE_COMMIT="${INPUT_SOURCE_COMMIT:-}"', workflow)
+        self.assertIn('if [[ -z "${INPUT_SEQUENCE_ID}" || -z "${INPUT_SOURCE_COMMIT}" ]]; then', workflow)
+
+
 class DhakaDivisionPipelineTests(unittest.TestCase):
     def test_pinned_pipeline_commit_is_available_for_batch_manifests(self):
         import os
