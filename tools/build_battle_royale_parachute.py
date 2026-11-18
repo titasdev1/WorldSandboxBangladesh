@@ -409,6 +409,23 @@ def main() -> int:
     print("A2_PARACHUTE_ASSET_READY:", json.dumps(report, sort_keys=True))
     license_path = output.with_name("LICENSE.txt")
     license_path.write_text(LICENSE_TEXT, encoding="utf-8")
+    manifest = {
+        "available": True,
+        "license": "CC0-1.0",
+        "license_file": "res://external_content/battle_royale_parachute/LICENSE.txt",
+        "model_count": 1,
+        "models": [{
+            "name": "A-Square Ram-Air Canopy and Harness",
+            "path": "res://external_content/battle_royale_parachute/a_square_ram_air_canopy.glb",
+            "role": "player-attached 28-cell ram-air canopy with harness and animated wind sway",
+            "mesh_objects": report["mesh_objects"],
+            "triangles": report["triangles"],
+            "animation": report["animation"],
+        }],
+    }
+    manifest_path = output.with_name("asset_manifest.json")
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    print("A2_PARACHUTE_MANIFEST_READY:", str(manifest_path))
     return 0
 
 
