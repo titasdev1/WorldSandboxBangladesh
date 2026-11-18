@@ -108,6 +108,12 @@ jobs:
           set -euo pipefail
           GODOT="$RUNNER_TEMP/godot-pbr/Godot_v4.4.1-stable_linux.x86_64"
           LOG="$RUNNER_TEMP/godot-pbr/pbr-runtime.log"
+          set +e
           timeout 90s "$GODOT" --headless --path . --script res://tests/pbr_surface_runtime_smoke.gd > "$LOG" 2>&1
+          STATUS=$?
+          set -e
           cat "$LOG"
-          grep -Fq "PBR_SURFACE_RUNTIME_PASS:" "$LOG"
+          if [ "$STATUS" -ne 0 ] || ! grep -Fq "PBR_SURFACE_RUNTIME_PASS:" "$LOG"; then
+            echo "PBR runtime smoke failed with exit status $STATUS."
+            exit 1
+          fi
