@@ -311,6 +311,40 @@ def create_harness(parent: bpy.types.Object, webbing: bpy.types.Material, fabric
     return objects
 
 
+def action_fcurves_for_object(obj: bpy.types.Object):
+    """Return the animated object's F-curves across Blender 4.3, 4.4/4.5 and 5.x.
+
+    Blender 4.4 introduced slotted Actions; Blender 5.0 removed the old
+    action.fcurves shortcut. Keep the real Action slot bound so the exported
+    glTF animation is attached to the intended object.
+    """
+    animation_data = obj.animation_data
+    if animation_data is None or animation_data.action is None:
+        raise RuntimeError(f"{obj.name} has no keyed Blender Action")
+
+    action = animation_data.action
+    if bpy.app.version < (4, 4, 0):
+        return action.fcurves
+
+    slot = animation_data.action_slot
+    if slot is None:
+        raise RuntimeError(f"{obj.name} has no bound Action slot after keyframe insertion")
+
+    if bpy.app.version >= (5, 0, 0):
+        # Blender 5.0 removed Action.fcurves and added this slot-aware helper.
+        from bpy_extras.anim_utils import action_ensure_channelbag_for_slot
+        channelbag = action_ensure_channelbag_for_slot(action, slot)
+    else:
+        # Blender 4.4/4.5 has the slotted model but not the 5.0 ensure helper.
+        layer = action.layers[0] if action.layers else action.layers.new("Canopy_Wind_Sway")
+        strip = layer.strips[0] if layer.strips else layer.strips.new(type="KEYFRAME")
+        channelbag = strip.channelbag(slot, ensure=True)
+
+    if channelbag is None:
+        raise RuntimeError(f"Could not create an Action channelbag for {obj.name}")
+    return channelbag.fcurves
+
+
 def animate_wing(root: bpy.types.Object, wing: bpy.types.Object) -> None:
     scene = bpy.context.scene
     scene.frame_start = 1
@@ -323,7 +357,7 @@ def animate_wing(root: bpy.types.Object, wing: bpy.types.Object) -> None:
     action = wing.animation_data.action if wing.animation_data else None
     if action:
         action.name = "A2_Parachute_Canopy_Wind_Sway"
-        for fcurve in action.fcurves:
+        for fcurve in action_fcurves_for_object(wing):
             for keyframe in fcurve.keyframe_points:
                 keyframe.interpolation = "BEZIER"
             fcurve.modifiers.new("CYCLES")
