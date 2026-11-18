@@ -164,8 +164,8 @@ def create_canopy_mesh(
     parent: bpy.types.Object,
     materials: list[bpy.types.Material],
     cell_count: int = 28,
-    chord_steps: int = 28,
-    span_steps_per_cell: int = 3,
+    chord_steps: int = 40,
+    span_steps_per_cell: int = 6,
 ) -> bpy.types.Object:
     vertices: list[tuple[float, float, float]] = []
     faces: list[tuple[int, ...]] = []
@@ -225,8 +225,8 @@ def create_canopy_structure(parent: bpy.types.Object, rib_material: bpy.types.Ma
     for rib_index in range(29):
         x = -half_span + 2.0 * half_span * rib_index / 28.0
         points = []
-        for step in range(33):
-            chord_u = step / 32.0
+        for step in range(65):
+            chord_u = step / 64.0
             p = canopy_point(x, chord_u, False)
             p.z -= 0.015
             points.append(tuple(p))
@@ -240,7 +240,7 @@ def create_canopy_structure(parent: bpy.types.Object, rib_material: bpy.types.Ma
 
     # Reinforced leading and trailing hems are separate continuous textile seams.
     for chord_u, name in ((0.04, "Leading_Edge_Reinforcement"), (0.96, "Trailing_Edge_Hem")):
-        points = [tuple(canopy_point(-half_span + 2.0 * half_span * i / 96.0, chord_u, True)) for i in range(97)]
+        points = [tuple(canopy_point(-half_span + 2.0 * half_span * i / 192.0, chord_u, True)) for i in range(193)]
         objects.append(add_curve(name, points, rib_material, 0.025, parent))
     return objects
 
@@ -422,12 +422,19 @@ def build_asset(output_path: pathlib.Path) -> dict:
         export_tangents=True,
         export_yup=True,
     )
-    triangle_count = sum(len(obj.data.polygons) for obj in bpy.context.scene.objects if obj.type == "MESH")
+    # GLB export triangulates polygon faces; n-gons contribute (vertices - 2) triangles.
+    triangle_count = sum(
+        max(0, len(polygon.vertices) - 2)
+        for obj in bpy.context.scene.objects if obj.type == "MESH"
+        for polygon in obj.data.polygons
+    )
     return {
         "file": str(output_path),
         "bytes": output_path.stat().st_size,
         "mesh_objects": sum(1 for obj in bpy.context.scene.objects if obj.type == "MESH"),
         "triangles": triangle_count,
+        "surface_resolution": {"cells": 28, "chord_steps": 40, "span_steps_per_cell": 6},
+        "blender_version": bpy.app.version_string,
         "fabric_cells": 28,
         "suspension_lines": 36,
         "license": "CC0-1.0",
@@ -454,6 +461,8 @@ def main() -> int:
             "role": "player-attached 28-cell ram-air canopy with harness and animated wind sway",
             "mesh_objects": report["mesh_objects"],
             "triangles": report["triangles"],
+            "surface_resolution": report["surface_resolution"],
+            "blender_version": report["blender_version"],
             "animation": report["animation"],
         }],
     }
