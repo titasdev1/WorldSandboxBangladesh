@@ -84,6 +84,14 @@ jobs:
       - name: Checkout canonical project
         uses: actions/checkout@v5
 
+      - name: Reject invalid GDScript bool constructors
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_gdscript_bool_cast_checker.py' -v
+          python3 tools/check_gdscript_bool_casts.py --self-test
+          python3 tools/check_gdscript_bool_casts.py --root .
+
       - name: Validate character asset pipeline Python syntax
         run: python3 -m py_compile tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/fetch_charactercreator_hero.py tools/convert_charactercreator_glbs.py
 
@@ -128,14 +136,6 @@ jobs:
             -o "$RUNNER_TEMP/godot/godot.zip"
           unzip -q "$RUNNER_TEMP/godot/godot.zip" -d "$RUNNER_TEMP/godot"
           chmod +x "$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
-
-      - name: Reject invalid GDScript bool constructors
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 -m unittest discover -s tests -p 'test_gdscript_bool_cast_checker.py' -v
-          python3 tools/check_gdscript_bool_casts.py --self-test
-          python3 tools/check_gdscript_bool_casts.py --root .
 
       - name: Parse and import all project scripts
         shell: bash
