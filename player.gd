@@ -101,12 +101,22 @@ func _update_camera():
  var pitch := deg_to_rad(effective_pitch)
  var target := global_position + Vector3(0, 1.0, 0)
  if camera_view_mode == "first_person":
+  # During driving, the player rig is seated as a child of the vehicle rigid body.
+  # Use a cockpit-specific eye point so the actual animated arms/hands remain in
+  # frame at the steering wheel instead of hiding the whole operator.
+  var look_forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
+  if bool(get_meta("vehicle_cockpit_active", false)):
+   var cockpit_eye_height := clampf(float(get_meta("vehicle_cockpit_eye_height", 1.0)), 0.72, 1.55)
+   camera.global_position = global_position + Vector3(0.0, cockpit_eye_height, 0.0) + look_forward * 0.12
+   camera.fov = 78.0
+   camera.near = 0.035
+   camera.global_rotation = Vector3(deg_to_rad(first_person_pitch + camera_recoil_pitch), yaw, 0.0)
+   return
   # Place the camera just in front of the face, along its current look direction.
   # This keeps the head/helmet behind the near clip plane but leaves the actual
   # rigged arms, hands and WeaponR-attached rifle visible at the bottom of frame.
   var crouched := _is_crouched
   var eye_height := 1.13 if crouched else 1.68
-  var look_forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
   camera.global_position = global_position + Vector3(0.0, eye_height, 0.0) + look_forward * 0.24
   camera.fov = 50.0 if Input.is_action_pressed("aim") else 70.0
   camera.near = 0.06
