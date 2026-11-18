@@ -187,26 +187,31 @@ func deploy_parachute() -> bool:
 	parachute.scale = Vector3(0.68, 0.24, 0.68)
 	var inflation_tween := create_tween()
 	inflation_tween.tween_property(parachute, "scale", Vector3.ONE, CANOPY_INFLATION_SECONDS).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var canopy_clip := StringName("A2_Parachute_Canopy_Wind_Sway")
 	var canopy_animation_nodes := parachute.find_children("*", "AnimationPlayer", true, false)
-	_canopy_animation_player = canopy_animation_nodes[0] as AnimationPlayer if not canopy_animation_nodes.is_empty() else null
+	_canopy_animation_player = null
+	for animation_node in canopy_animation_nodes:
+		var candidate_player := animation_node as AnimationPlayer
+		if is_instance_valid(candidate_player) and candidate_player.has_animation(canopy_clip):
+			_canopy_animation_player = candidate_player
+			break
 	if is_instance_valid(_canopy_animation_player):
-		var canopy_clip := StringName("A2_Parachute_Canopy_Wind_Sway")
-		if _canopy_animation_player.has_animation(canopy_clip):
-			var animation := _canopy_animation_player.get_animation(canopy_clip)
-			animation.loop_mode = Animation.LOOP_LINEAR
-			_canopy_animation_player.play(canopy_clip)
+		var animation := _canopy_animation_player.get_animation(canopy_clip)
+		animation.loop_mode = Animation.LOOP_LINEAR
+		_canopy_animation_player.play(canopy_clip)
+	else:
+		push_warning("BR_PARACHUTE_WIND_ANIMATION_MISSING: using physics-driven canopy sway.")
 	player.set_meta("br_deployment_state", "deploying")
 	player.velocity.y = -18.0
 	phase = "deploying"
 	phase_time = 0.0
 	world.event_text = "CANOPY INFLATING • KEEP STEERING TOWARD THE LANDING ZONE"
 	world.event_time_left = 7.0
-	world.event_time_left = 7.0
 	return true
 
 
 func notify_player_landed() -> void:
-	if _landing_reported or phase not in ["freefall", "gliding"]:
+	if _landing_reported or phase not in ["freefall", "deploying", "gliding"]:
 		return
 	_landing_reported = true
 	phase = "landing"
