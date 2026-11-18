@@ -8,6 +8,16 @@ on:
     paths:
       - "world.gd"
       - "character_visual.gd"
+      - "npc.gd"
+      - "player_vehicle_dynamics.gd"
+      - "virtual_stick.gd"
+      - "systems/npc_simulation_lod_manager.gd"
+      - "systems/activities/pitchbound_3d.gd"
+      - "tests/npc_simulation_lod_smoke.gd"
+      - "tests/player_input_runtime_smoke.gd"
+      - "tests/mobile_joystick_runtime_smoke.gd"
+      - "tests/player_vehicle_physics_smoke.gd"
+      - "tests/pitchbound_runtime_smoke.gd"
       - "external_content/**"
       - "tools/fetch_quaternius_character.py"
       - "tools/merge_quaternius_character.mjs"
@@ -119,6 +129,14 @@ jobs:
           unzip -q "$RUNNER_TEMP/godot/godot.zip" -d "$RUNNER_TEMP/godot"
           chmod +x "$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
 
+      - name: Reject invalid GDScript bool constructors
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests.test_gdscript_bool_cast_checker -v
+          python3 tools/check_gdscript_bool_casts.py --self-test
+          python3 tools/check_gdscript_bool_casts.py --root .
+
       - name: Parse and import all project scripts
         shell: bash
         run: |
@@ -132,6 +150,41 @@ jobs:
           if [ "$result" -ne 0 ] || grep -E "SCRIPT ERROR:|Parse Error|Failed to load script" "$RUNNER_TEMP/godot/import.log" || (grep -E "ERROR:" "$RUNNER_TEMP/godot/import.log" | grep -vF 'ERROR: Parameter "t" is null.'); then
             exit 1
           fi
+
+      - name: Exercise NPC distance-simulation LOD in Godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+          "$GODOT" --headless --path . --script res://tests/npc_simulation_lod_smoke.gd
+
+      - name: Exercise player movement and jump
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+          "$GODOT" --headless --path . --script res://tests/player_input_runtime_smoke.gd
+
+      - name: Exercise mobile joystick
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+          "$GODOT" --headless --path . --script res://tests/mobile_joystick_runtime_smoke.gd
+
+      - name: Exercise vehicle acceleration and braking
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+          "$GODOT" --headless --path . --script res://tests/player_vehicle_physics_smoke.gd
+
+      - name: Exercise Pitchbound 3D
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+          "$GODOT" --headless --path . --script res://tests/pitchbound_runtime_smoke.gd
 
       - name: Exercise animated login backdrop in an isolated SubViewport
         shell: bash

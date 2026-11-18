@@ -18,7 +18,7 @@ func _bootstrap() -> void:
     player = world.get("player")
     # Real-map traffic already spawns on mapped OSM road paths. Suppress the
     # arbitrary ±210 m depot/race rings so they cannot float over real buildings.
-    if bool(world.get("real_dhaka_loaded")):
+    if (world.get("real_dhaka_loaded") == true):
         set_meta("vehicle_factory_status", "real_map_mode_fixed_markers_suppressed")
         set_meta("real_map_overlay_suppressed", true)
         set_meta("race_checkpoints", 0)

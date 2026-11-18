@@ -162,7 +162,7 @@ func _try_load_authored_model() -> bool:
     if not FileAccess.file_exists(manifest_path):
         return false
     var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(manifest_path))
-    if not parsed is Dictionary or not bool(parsed.get("available", false)):
+    if not parsed is Dictionary or not (parsed.get("available", false) == true):
         return false
     var models: Array = parsed.get("models", [])
     var priorities: Array[String] = ["sedan", "hatchback", "taxi", "race", "sports", "car", "vehicle"] if kind == "car" else ["bus", "van", "truck", "lorry"]
@@ -390,7 +390,7 @@ func _drive_player_vehicle(delta: float) -> void:
 
 func refuel(amount: float) -> bool:
     if occupied and is_instance_valid(_driving_body):
-        var did_refuel := bool(_driving_body.call("refuel",amount))
+        var did_refuel := (_driving_body.call("refuel",amount) == true)
         fuel = float(_driving_body.get("fuel"))
         if did_refuel and is_instance_valid(world):
             world.set("event_text","VEHICLE REFUELLED • %d%%" % roundi(fuel))
@@ -412,7 +412,7 @@ func _play_entry_exit_action(p: CharacterBody3D, action_name: String) -> float:
     var visual := p.get_node_or_null("HumanoidVisual") as Node
     if not is_instance_valid(visual) or not visual.has_method("play_action"):
         return 0.0
-    if not bool(visual.call("play_action", action_name)):
+    if not (visual.call("play_action", action_name) == true):
         return 0.0
     var lookup: Dictionary = visual.get("_authored_animation_lookup")
     var animation_name := String(lookup.get(action_name, ""))

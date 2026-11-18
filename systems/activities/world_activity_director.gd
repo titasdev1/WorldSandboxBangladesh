@@ -46,7 +46,7 @@ func configure(world_ref: Node3D) -> void:
     world = world_ref
     process_mode = Node.PROCESS_MODE_ALWAYS
     _build_ui()
-    if not bool(world.get("real_dhaka_loaded")):
+    if not (world.get("real_dhaka_loaded") == true):
         _add_starter_city_pitch()
 
 func _build_ui() -> void:
@@ -226,7 +226,7 @@ func _create_stadium_marker(id: String,venue_name: String,point: Vector3) -> Nod
     return marker
 
 func _sync_nearby_sports_venues() -> void:
-    if not is_instance_valid(world) or not bool(world.get("real_dhaka_loaded")):
+    if not is_instance_valid(world) or not (world.get("real_dhaka_loaded") == true):
         return
     var loader: Node = world.get("real_dhaka_loader") as Node
     var player: Node3D = world.get("player") as Node3D

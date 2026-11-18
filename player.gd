@@ -82,7 +82,7 @@ func _ready():
 func _process(_delta: float) -> void:
     # The player physics loop is paused while seated in a rigid-body vehicle.
     # Keep the cockpit first-person camera attached to vehicle yaw and look input.
-    if camera_view_mode == "first_person" and bool(get_meta("vehicle_cockpit_active", false)):
+    if camera_view_mode == "first_person" and (get_meta("vehicle_cockpit_active", false) == true):
         _update_camera()
 
 
@@ -92,14 +92,14 @@ func _unhandled_input(event):
  # dragging FIRE/AIM/RELOAD must not accidentally move the view.
  if event is InputEventScreenDrag:
   if event.position.x > get_viewport().get_visible_rect().size.x * 0.42:
-   if camera_view_mode == "first_person" and bool(get_meta("vehicle_cockpit_active", false)):
+   if camera_view_mode == "first_person" and (get_meta("vehicle_cockpit_active", false) == true):
     set_meta("vehicle_cockpit_yaw_offset", float(get_meta("vehicle_cockpit_yaw_offset", 0.0)) - event.relative.x * camera_sensitivity)
    else:
     camera_yaw -= event.relative.x * camera_sensitivity
    camera_pitch = clamp(camera_pitch - event.relative.y * camera_sensitivity, -55.0, 15.0)
    first_person_pitch = clampf(first_person_pitch - event.relative.y * camera_sensitivity, -65.0, 65.0)
  elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
-  if camera_view_mode == "first_person" and bool(get_meta("vehicle_cockpit_active", false)):
+  if camera_view_mode == "first_person" and (get_meta("vehicle_cockpit_active", false) == true):
    set_meta("vehicle_cockpit_yaw_offset", float(get_meta("vehicle_cockpit_yaw_offset", 0.0)) - event.relative.x * camera_sensitivity)
   else:
    camera_yaw -= event.relative.x * camera_sensitivity
@@ -122,7 +122,7 @@ func _update_camera():
   # Use a cockpit-specific eye point so the actual animated arms/hands remain in
   # frame at the steering wheel instead of hiding the whole operator.
   var look_forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
-  if bool(get_meta("vehicle_cockpit_active", false)):
+  if (get_meta("vehicle_cockpit_active", false) == true):
    var cockpit_eye_height := clampf(float(get_meta("vehicle_cockpit_eye_height", 1.0)), 0.72, 1.55)
    var cockpit_yaw := global_rotation.y + deg_to_rad(float(get_meta("vehicle_cockpit_yaw_offset", 0.0)))
    var cockpit_forward := Vector3(-sin(cockpit_yaw), 0.0, -cos(cockpit_yaw))
@@ -144,7 +144,7 @@ func _update_camera():
  var camera_distance := 4.4 if Input.is_action_pressed("aim") else 6.2
  if world:
   var interior_node: Node = world.get("interior_factory")
-  if is_instance_valid(interior_node) and interior_node.has_method("is_inside") and bool(interior_node.call("is_inside")):
+  if is_instance_valid(interior_node) and interior_node.has_method("is_inside") and (interior_node.call("is_inside") == true):
    camera_distance = 4.2
  # Camera stays behind the player. Its horizontal offset and movement basis
  # must use opposite signs: forward movement points from camera toward target.
@@ -262,7 +262,7 @@ func _physics_process(delta):
   _was_airborne = false
  # The real-data Greater Dhaka map streams geographically positioned tiles.
  # Keep the smaller bounds only for the fictional fallback city.
- if world and bool(world.get("real_dhaka_loaded")):
+ if world and (world.get("real_dhaka_loaded") == true):
   var bounds: Dictionary = {}
   var map_loader: Node = world.get("real_dhaka_loader")
   if is_instance_valid(map_loader) and map_loader.has_method("get_world_bounds"):
@@ -368,7 +368,7 @@ func interact():
   return
  # These starter-city coordinates only belong to the fictional fallback map.
  # Never award/charge money at arbitrary real-world coordinates in Shariatpur.
- if not bool(world.get("real_dhaka_loaded")):
+ if not (world.get("real_dhaka_loaded") == true):
   if position.distance_to(Vector3(42, 0, 42)) < 15:
    world.cash = max(0, world.cash - world.bargain_offer)
    world.bargain_offer = min(world.fare_requested, world.bargain_offer + 10)
@@ -388,7 +388,7 @@ func take_damage(amount: int):
  if health <= 0 and world:
   _play_visual_action("death")
   var combat = world.get("combat_controller")
-  if is_instance_valid(combat) and bool(combat.get("active")) and not bool(combat.get("run_over")):
+  if is_instance_valid(combat) and (combat.get("active") == true) and not (combat.get("run_over") == true):
    combat.call("on_player_defeated")
    return
   world.respawn_player()

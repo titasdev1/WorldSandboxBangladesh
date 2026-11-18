@@ -12,7 +12,7 @@ static func save_world(world: Node) -> bool:
  var player: Node3D = world.get("player") as Node3D
  if not is_instance_valid(player):
   return false
- var map_context := "real_world" if bool(world.get("real_dhaka_loaded")) else "procedural_fallback"
+ var map_context := "real_world" if (world.get("real_dhaka_loaded") == true) else "procedural_fallback"
  var player_position := player.global_position
  var player_ll: Array = []
  var target_ll: Array = []
@@ -56,8 +56,8 @@ static func save_world(world: Node) -> bool:
  var data := {
   "version": 2, "saved_at_unix": Time.get_unix_time_from_system(),
   "map_context": map_context, "cash": int(world.get("cash")),
-  "wanted": int(world.get("wanted")), "rain": bool(world.get("rain")),
-  "day_time": float(world.get("day_time")), "mission_active": bool(world.get("mission_active")),
+  "wanted": int(world.get("wanted")), "rain": (world.get("rain") == true),
+  "day_time": float(world.get("day_time")), "mission_active": (world.get("mission_active") == true),
   "mission_stage": int(world.get("mission_stage")), "mission_progress": int(world.get("mission_progress")),
   "mission_target_position": local_target, "mission_target_lat_lon": target_ll,
   "real_mission_targets_lat_lon": real_targets_ll, "fare_requested": int(world.get("fare_requested")),
@@ -154,9 +154,9 @@ static func load_world(world: Node) -> bool:
   return false
  world.set("cash", _safe_int(data.get("cash", world.get("cash")), int(world.get("cash")), 0, 999999999))
  world.set("wanted", _safe_int(data.get("wanted", 0), 0, 0, 5))
- world.set("rain", bool(data.get("rain", false)))
+ world.set("rain", (data.get("rain", false) == true))
  world.set("day_time", fposmod(float(data.get("day_time", world.get("day_time"))), 24.0))
- world.set("mission_active", bool(data.get("mission_active", world.get("mission_active"))))
+ world.set("mission_active", (data.get("mission_active", world.get("mission_active")) == true))
  world.set("mission_stage", _safe_int(data.get("mission_stage", 0), 0, 0, 2))
  world.set("mission_progress", _safe_int(data.get("mission_progress", 0), 0, 0, 1))
  world.set("fare_requested", _safe_int(data.get("fare_requested", 120), 120, 0, 100000))
@@ -175,17 +175,17 @@ static func load_world(world: Node) -> bool:
  var loader: Node = world.get("real_dhaka_loader") as Node
  var restored := false
  var map_context := str(data.get("map_context", "procedural_fallback"))
- if bool(world.get("real_dhaka_loaded")):
+ if (world.get("real_dhaka_loaded") == true):
   var ll: Variant = data.get("player_lat_lon", [])
   if map_context == "real_world" and _valid_lat_lon(ll) and _inside_map(loader, float(ll[0]), float(ll[1])) and loader.has_method("teleport_player_to_lat_lon"):
    var move_result: Variant = loader.call("teleport_player_to_lat_lon", float(ll[0]), float(ll[1]), player)
-   restored = move_result is Dictionary and bool(move_result.get("ok", false))
+   restored = move_result is Dictionary and (move_result.get("ok", false) == true)
  elif map_context == "procedural_fallback" and _valid_position(data.get("player_position", [])):
   var p: Array = data["player_position"]
   player.global_position = Vector3(float(p[0]), float(p[1]), float(p[2]))
   restored = true
  world.set("save_location_status", "LOCATION RESTORED" if restored else "LOCATION SKIPPED: MAP CHANGED OR UNAVAILABLE")
- if bool(world.get("real_dhaka_loaded")) and is_instance_valid(loader):
+ if (world.get("real_dhaka_loaded") == true) and is_instance_valid(loader):
   var saved_targets: Variant = data.get("real_mission_targets_lat_lon", [])
   var world_targets: Array[Vector3] = []
   if saved_targets is Array and loader.has_method("lat_lon_to_world"):
@@ -204,7 +204,7 @@ static func load_world(world: Node) -> bool:
   world.set("mission_target", Vector3(float(t[0]), float(t[1]), float(t[2])))
  var environment_node := world.get_node_or_null("WorldEnvironment")
  if is_instance_valid(environment_node) and environment_node.environment:
-  environment_node.environment.background_color = Color("#52677a") if bool(world.get("rain")) else Color("#8eb9d2")
+  environment_node.environment.background_color = Color("#52677a") if (world.get("rain") == true) else Color("#8eb9d2")
  var factory: Node = world.get_node_or_null("MissionFactory")
  var side_state: Variant = data.get("side_missions", {})
  if is_instance_valid(factory) and side_state is Dictionary and factory.has_method("restore_persistence_state"):

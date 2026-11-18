@@ -911,13 +911,13 @@ func navigate_to_named_place(query: String, start_player: Node3D) -> Dictionary:
 		clear_navigation_route()
 		return {"ok": false, "message": "Real-world map is not loaded."}
 	var resolved := resolve_named_place(query)
-	if not bool(resolved.get("ok", false)):
+	if not (resolved.get("ok", false) == true):
 		clear_navigation_route()
 		return resolved
 	var place: Dictionary = resolved["place"]
 	var destination := _geo_to_world(float(place["latitude"]), float(place["longitude"]))
 	var result: Dictionary = await navigate_to_world_position(destination, start_player)
-	if not bool(result.get("ok", false)):
+	if not (result.get("ok", false) == true):
 		return result
 	result["message"] = "Route to %s: %.0f m, %d instructions. Destination point is approximate; follow the mapped road." % [str(place["name"]), float(result.get("distance_m", 0.0)), _navigation_steps.size()]
 	result["place"] = place
@@ -939,7 +939,7 @@ func navigate_to_world_position(destination_position: Vector3, start_player: Nod
 	if start_node.is_empty() or destination_node.is_empty():
 		return {"ok": false, "message": "No mapped road node is available near the player or mission stop."}
 	var route_result := _shortest_road_path(start_node, destination_node)
-	if not bool(route_result.get("ok", false)):
+	if not (route_result.get("ok", false) == true):
 		return route_result
 	var node_path: Array = route_result.get("nodes", [])
 	var edge_names: Array = route_result.get("road_names", [])
@@ -988,7 +988,7 @@ func _refresh_navigation_if_needed(player: Node3D, player_position: Vector3) -> 
 	# route if the graph temporarily cannot produce a replacement.
 	var destination := _navigation_target_position
 	var result: Dictionary = await navigate_to_world_position(destination, player, true)
-	if not bool(result.get("ok", false)):
+	if not (result.get("ok", false) == true):
 		# Cool down failed re-route attempts; leave the last valid route visible.
 		_navigation_recalc_clock = 0.0
 
@@ -1677,7 +1677,7 @@ func _refresh_loaded_building_collisions(player_position: Vector3) -> void:
 		if not (value is Dictionary):
 			continue
 		var record: Dictionary = value
-		if not bool(record.get("uses_seed_building_collisions", false)):
+		if not (record.get("uses_seed_building_collisions", false) == true):
 			continue
 		var root := record.get("instance") as Node3D
 		if root == null or not is_instance_valid(root):

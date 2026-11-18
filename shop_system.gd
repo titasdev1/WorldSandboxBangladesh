@@ -96,9 +96,9 @@ func use(world: Node, item: String) -> bool:
   "fuel":
    var v: Node = world.get("occupied_vehicle") as Node
    if is_instance_valid(v) and v.has_method("refuel"):
-    applied = bool(v.call("refuel", 40.0))
+    applied = (v.call("refuel", 40.0) == true)
    elif world.has_method("refuel_nearest_vehicle"):
-    applied = bool(world.call("refuel_nearest_vehicle", p.global_position, 40.0))
+    applied = (world.call("refuel_nearest_vehicle", p.global_position, 40.0) == true)
    if not applied:
     _notify(world, "FUEL: MOVE CLOSER TO A VEHICLE")
  if not applied:

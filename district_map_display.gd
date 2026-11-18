@@ -139,7 +139,7 @@ func update_world(target_world: Node) -> void:
  if is_instance_valid(player):
   _player_position = player.global_position
   _player_yaw = player.global_rotation.y
-  if bool(world.get("real_dhaka_loaded")):
+  if (world.get("real_dhaka_loaded") == true):
    var loader = world.get("real_dhaka_loader")
    var moved_since_place_lookup := Vector2(
     _player_position.x - _last_place_lookup_position.x,
@@ -170,7 +170,7 @@ func update_world(target_world: Node) -> void:
     if distance < 28.0:
      discovered[str(district.name)] = true
    current_district = best_name
- var active: bool = bool(world.get("mission_active"))
+ var active: bool = (world.get("mission_active") == true)
  _has_target = active
  if active:
   _target_position = world.get("mission_target")
@@ -235,7 +235,7 @@ func _draw() -> void:
  draw_rect(bounds, Color("#3a8397"), false, 2.0)
  var margin := 14.0 if expanded else 10.0
  var map_rect := Rect2(Vector2(margin, margin), size - Vector2(margin*2.0, margin*2.0))
- var real_map := is_instance_valid(world) and bool(world.get("real_dhaka_loaded"))
+ var real_map := is_instance_valid(world) and (world.get("real_dhaka_loaded") == true)
  var overview_map := expanded and real_map
  var range_m := (300.0 if expanded else 105.0) / _map_zoom
  var map_world_center := Vector2(_player_position.x, _player_position.z)

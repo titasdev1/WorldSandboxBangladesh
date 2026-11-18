@@ -133,7 +133,7 @@ func _create_hub() -> void:
     if hub_created or not is_instance_valid(world):
         return
     var hub_position := Vector3(6, 0.2, -12)
-    if bool(world.get("real_dhaka_loaded")):
+    if (world.get("real_dhaka_loaded") == true):
         # A real Shariatpur build has no fictional-city coordinate origin for
         # a job board. Place this gameplay kiosk beside an actual mapped road.
         var loader: Node = world.get("real_dhaka_loader") as Node
@@ -210,7 +210,7 @@ func _create_hub() -> void:
 
     marker_node = _marker(hub.position, Color("#ffd34e"), Vector3(1.8, 1.0, 1.8))
     hub_created = true
-    set_meta("mission_board_status", "mapped_roadside_kiosk" if bool(world.get("real_dhaka_loaded")) else "starter_city_kiosk")
+    set_meta("mission_board_status", "mapped_roadside_kiosk" if (world.get("real_dhaka_loaded") == true) else "starter_city_kiosk")
 
 func _on_hub_entered(body: Node3D) -> void:
     if body != player or cooldown > 0.0 or active_index >= 0:
@@ -254,14 +254,14 @@ func _update_mission_navigation() -> void:
     if not is_instance_valid(world):
         return
     var loader: Node = world.get("real_dhaka_loader") as Node
-    if not bool(world.get("real_dhaka_loaded")) or not is_instance_valid(loader):
+    if not (world.get("real_dhaka_loaded") == true) or not is_instance_valid(loader):
         _clear_mission_navigation()
         return
     if not is_instance_valid(player) or not is_instance_valid(active_target) or not loader.has_method("navigate_to_world_position"):
         _clear_mission_navigation()
         return
     var result: Dictionary = await loader.call("navigate_to_world_position", active_target.global_position, player)
-    if not bool(result.get("ok", false)):
+    if not (result.get("ok", false) == true):
         _clear_mission_navigation()
 
 
@@ -293,7 +293,7 @@ func _make_target_positions(mission: Dictionary) -> Array[Vector3]:
 
     # Prefer actual nearby OSM road points on the streamed map, so repeatable
     # jobs do not all route to the same three startup coordinates.
-    if bool(world.get("real_dhaka_loaded")):
+    if (world.get("real_dhaka_loaded") == true):
         var loader: Node = world.get("real_dhaka_loader") as Node
         if is_instance_valid(loader) and loader.has_method("get_road_routes"):
             var routes: Array = loader.call("get_road_routes")
@@ -339,7 +339,7 @@ func _make_target_positions(mission: Dictionary) -> Array[Vector3]:
                 if positions.size() >= count:
                     break
 
-    if bool(world.get("real_dhaka_loaded")) and positions.size() < count:
+    if (world.get("real_dhaka_loaded") == true) and positions.size() < count:
         var graph_loader: Node = world.get("real_dhaka_loader") as Node
         if is_instance_valid(graph_loader) and graph_loader.has_method("get_nearby_road_points"):
             var graph_points: Array = graph_loader.call("get_nearby_road_points", player_position, TARGET_RADIUS_MIN, 900.0)
@@ -358,7 +358,7 @@ func _make_target_positions(mission: Dictionary) -> Array[Vector3]:
                     break
     # A real map mission must remain grounded in the mapped road graph. Never
     # invent free-floating target coordinates if mapped coverage is insufficient.
-    if bool(world.get("real_dhaka_loaded")) and positions.size() < count:
+    if (world.get("real_dhaka_loaded") == true) and positions.size() < count:
         return positions
 
     while positions.size() < count:
@@ -439,7 +439,7 @@ func get_persistence_state() -> Dictionary:
     var loader: Node = null
     if is_instance_valid(world):
         loader = world.get("real_dhaka_loader") as Node
-    var geo_mode := is_instance_valid(world) and bool(world.get("real_dhaka_loaded")) and is_instance_valid(loader) and loader.has_method("world_to_lat_lon")
+    var geo_mode := is_instance_valid(world) and (world.get("real_dhaka_loaded") == true) and is_instance_valid(loader) and loader.has_method("world_to_lat_lon")
     for point in target_positions:
         if geo_mode:
             var ll: Variant = loader.call("world_to_lat_lon", point)
@@ -491,7 +491,7 @@ func restore_persistence_state(state: Dictionary) -> void:
     var loader: Node = null
     if is_instance_valid(world):
         loader = world.get("real_dhaka_loader") as Node
-    var real_map := is_instance_valid(world) and bool(world.get("real_dhaka_loaded")) and is_instance_valid(loader)
+    var real_map := is_instance_valid(world) and (world.get("real_dhaka_loaded") == true) and is_instance_valid(loader)
     var bounds: Variant = loader.get("_region_bounds_lat_lon") if real_map else []
     if saved_positions is Array:
         for item in saved_positions:
@@ -544,7 +544,7 @@ func _process(delta: float) -> void:
     cooldown = max(0.0, cooldown - delta)
     if not is_instance_valid(player) and is_instance_valid(world):
         player = world.get("player")
-    if not hub_created and is_instance_valid(world) and bool(world.get("real_dhaka_loaded")):
+    if not hub_created and is_instance_valid(world) and (world.get("real_dhaka_loaded") == true):
         hub_retry_clock += delta
         if hub_retry_clock >= 2.0:
             hub_retry_clock = 0.0

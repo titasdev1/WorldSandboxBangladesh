@@ -157,7 +157,7 @@ func _physics_process(delta: float) -> void:
     var wet := false
     if is_instance_valid(vehicle_wrapper):
         var game_world := vehicle_wrapper.get_parent()
-        wet = is_instance_valid(game_world) and bool(game_world.get("rain"))
+        wet = is_instance_valid(game_world) and (game_world.get("rain") == true)
     var lateral_grip := 10.5 if not wet else 7.2
     if handbrake > 0.1:
         lateral_grip *= lerpf(1.0,0.34,handbrake)

@@ -462,14 +462,14 @@ func _teleport_to_named_place() -> void:
   teleport_status.text = "Place search is unavailable until the real-world map is loaded."
   return
  var resolved := _resolve_teleport_selection(loader)
- if not bool(resolved.get("ok", false)):
+ if not (resolved.get("ok", false) == true):
   teleport_status.text = str(resolved.get("message", "No mapped match.")) + " Choose one of the suggested matches."
   _refresh_named_place_suggestions(teleport_place_input.text)
   return
  var place: Dictionary = resolved["place"]
  var result: Dictionary = loader.call("teleport_player_to_lat_lon", float(place["latitude"]), float(place["longitude"]), player)
  teleport_status.text = str(place["name"]) + " — " + str(result.get("message", "Teleport request finished.")) + "\nMapped point approximation, not a surveyed building entrance."
- if bool(result.get("ok", false)):
+ if (result.get("ok", false) == true):
   teleport_panel.visible = false
 
 
@@ -482,7 +482,7 @@ func _navigate_to_named_place() -> void:
   teleport_status.text = "Turn-by-turn road navigation is unavailable in this build."
   return
  var resolved := _resolve_teleport_selection(loader)
- if not bool(resolved.get("ok", false)):
+ if not (resolved.get("ok", false) == true):
   teleport_status.text = str(resolved.get("message", "No mapped match.")) + " Choose one of the suggested matches."
   _refresh_named_place_suggestions(teleport_place_input.text)
   return
@@ -493,7 +493,7 @@ func _navigate_to_named_place() -> void:
  teleport_status.text = "Preparing offline road routing…"
  var destination: Vector3 = loader.call("lat_lon_to_world", float(place["latitude"]), float(place["longitude"]))
  var result: Dictionary = await loader.call("navigate_to_world_position", destination, player)
- if not bool(result.get("ok", false)):
+ if not (result.get("ok", false) == true):
   teleport_status.text = str(result.get("message", "No route available."))
   return
  result["place"] = place
@@ -523,7 +523,7 @@ func _toggle_navigation_mode() -> void:
 func _teleport_to_coordinates() -> void:
  if not is_instance_valid(w) or not is_instance_valid(teleport_status):
   return
- if not bool(w.get("real_dhaka_loaded")):
+ if not (w.get("real_dhaka_loaded") == true):
   teleport_status.text = "Real-world map is not loaded; teleport is unavailable in fallback city."
   return
  var latitude := teleport_lat_input.text.strip_edges().to_float()
@@ -538,20 +538,20 @@ func _teleport_to_coordinates() -> void:
   return
  var result: Dictionary = loader.teleport_player_to_lat_lon(latitude, longitude, player)
  teleport_status.text = str(result.get("message", "Teleport request finished."))
- if bool(result.get("ok", false)):
+ if (result.get("ok", false) == true):
   teleport_panel.visible = false
 
 func _toggle_map() -> void:
  if not district_map:
   return
- var next_expanded: bool = not bool(district_map.get("expanded"))
+ var next_expanded: bool = not (district_map.get("expanded") == true)
  district_map.call("set_expanded", next_expanded)
  _sync_map_button_state()
 
 
 func _sync_map_button_state() -> void:
  if is_instance_valid(map_button) and is_instance_valid(district_map):
-  map_button.text = "CLOSE MAP" if bool(district_map.get("expanded")) else "CITY MAP"
+  map_button.text = "CLOSE MAP" if (district_map.get("expanded") == true) else "CITY MAP"
 
 func _build_settings_ui() -> void:
  var settings_button := Button.new()
@@ -754,18 +754,18 @@ func _process(_delta):
  _update_lobby_header()
  _check_combat_result()
  if is_instance_valid(lobby_loading_label):
-  if bool(w.get("real_dhaka_loaded")):
+  if (w.get("real_dhaka_loaded") == true):
    var startup_loader: Variant = w.get("real_dhaka_loader")
    if is_instance_valid(startup_loader) and startup_loader.has_method("get_runtime_map_diagnostics"):
     var startup_diagnostics: Dictionary = startup_loader.call("get_runtime_map_diagnostics")
-    var streaming_started := bool(startup_diagnostics.get("streaming_started", false))
+    var streaming_started := (startup_diagnostics.get("streaming_started", false) == true)
     var loaded_count := int(startup_diagnostics.get("loaded_tiles", 0))
     var pending_count := int(startup_diagnostics.get("pending_tile_loads", 0))
     var activating_count := int(startup_diagnostics.get("activating_tiles", 0))
     if not streaming_started:
      lobby_loading_label.text = "SHARIATPUR MAP VERIFIED • TAP ENTER TO LOAD THE NEAREST AREA"
      lobby_loading_progress.value = 0
-    elif bool(startup_diagnostics.get("navigation_index_ready", false)):
+    elif (startup_diagnostics.get("navigation_index_ready", false) == true):
      lobby_loading_label.text = "SHARIATPUR READY • NEARBY TILE AND ROAD INDEX LOADED"
      lobby_loading_progress.value = 100
     elif loaded_count > 0:
@@ -792,7 +792,7 @@ func _process(_delta):
   var marker_time: float = float(w.get("combat_hit_marker_time"))
   if marker_time > 0.0:
    crosshair_label.text = "×"
-   var marker_color := Color("#ffd34e") if bool(w.get("combat_hit_marker_headshot")) else Color("#ff6b6b")
+   var marker_color := Color("#ffd34e") if (w.get("combat_hit_marker_headshot") == true) else Color("#ff6b6b")
    crosshair_label.add_theme_color_override("font_color", marker_color)
   else:
    crosshair_label.text = "+"
@@ -802,7 +802,7 @@ func _process(_delta):
  if replay_round_button:
   var combat = w.get("combat_controller")
   var current_combat_mode := String(combat.get("active_mode")) if is_instance_valid(combat) else ""
-  replay_round_button.visible = is_instance_valid(combat) and bool(combat.get("run_over")) and not bool(lobby_overlay.visible) and current_combat_mode in ["survival", "arena_training", "street_skirmish"]
+  replay_round_button.visible = is_instance_valid(combat) and (combat.get("run_over") == true) and not (lobby_overlay.visible == true) and current_combat_mode in ["survival", "arena_training", "street_skirmish"]
  _update_interaction_prompt()
  _update_br_deployment_ui()
  var health_value: int = w.player.health if w.player else 100
@@ -831,7 +831,7 @@ func _process(_delta):
    if not route_instruction.is_empty():
     mission.text += "\nROAD ROUTE: " + route_instruction
  elif w.mission_active:
-  if bool(w.get("real_dhaka_loaded")) and w.real_mission_targets.size() < 3:
+  if (w.get("real_dhaka_loaded") == true) and w.real_mission_targets.size() < 3:
    mission.text = "STORY ROUTE LOADING • waiting for mapped road coverage"
   else:
    var stage_names = ["Market delivery", "Tower pickup", "Bus terminal drop"]
@@ -846,7 +846,7 @@ func _process(_delta):
  var ammo_text = "%d/%d" % [w.player.ammo, w.player.reserve_ammo] if w.player else "30/120"
  var reload_text = " • RELOADING" if w.player and w.player.reload_time > 0.0 else ""
  var district_name := "Noborongo City"
- if bool(w.get("real_dhaka_loaded")):
+ if (w.get("real_dhaka_loaded") == true):
   var map_loader: Node = w.get("real_dhaka_loader") as Node
   if is_instance_valid(map_loader) and map_loader.has_method("get_map_display_name"):
    district_name = str(map_loader.call("get_map_display_name"))
@@ -864,11 +864,11 @@ func _process(_delta):
    has_live_target = true
  var target_distance := int(w.player.global_position.distance_to(active_target_position)) if w.player and has_live_target else -1
  var objective_text := "TARGET %dm" % target_distance if target_distance >= 0 else "FREE ROAM"
- var map_attribution := "\n© OpenStreetMap contributors" if bool(w.get("real_dhaka_loaded")) else ""
+ var map_attribution := "\n© OpenStreetMap contributors" if (w.get("real_dhaka_loaded") == true) else ""
  status.text = "%s • %s\nAMMO %s%s   %s%s" % [district_name.to_upper(), objective_text, ammo_text, reload_text, w.event_text if w.event_time_left > 0 else "Explore • drive • bargain • fight", map_attribution]
 
 func _current_route_instruction() -> String:
- if not is_instance_valid(w) or not bool(w.get("real_dhaka_loaded")):
+ if not is_instance_valid(w) or not (w.get("real_dhaka_loaded") == true):
   return ""
  var route_loader: Node = w.get("real_dhaka_loader") as Node
  if not is_instance_valid(route_loader) or not route_loader.has_method("get_navigation_steps"):
@@ -1140,7 +1140,7 @@ func _show_lobby_page(page: String) -> void:
  if page == "home":
   _lobby_add_heading("WORLD COMMAND", "Your local world, career and deployments are gathered here.")
   _lobby_add_featured_play()
-  var installed := is_instance_valid(w) and bool(w.get("real_dhaka_loaded"))
+  var installed := is_instance_valid(w) and (w.get("real_dhaka_loaded") == true)
   _lobby_add_section("FEATURED • BANGLADESH")
   _lobby_add_action("SHARIATPUR WORLD", "60 district tile records • full-resolution local streaming", Callable(self, "_show_map_information"))
   _lobby_add_action("DESHI STORIES", "Local missions, transport fares, markets and connected jobs", Callable(self, "_choose_mode").bind("deshi_story"))
@@ -1167,7 +1167,7 @@ func _show_lobby_page(page: String) -> void:
   _lobby_add_action("MULTIPLAYER QUICK PLAY", "Requires a real-time multiplayer server", Callable(), false)
   _lobby_add_action("MULTIPLAYER RANKED", "Requires accounts, matchmaking and authoritative servers", Callable(), false)
   var br_controller: Node = w.get("battle_royale_controller") as Node if is_instance_valid(w) else null
-  var br_assets_ready := is_instance_valid(br_controller) and bool(br_controller.call("can_start_solo_deployment"))
+  var br_assets_ready := is_instance_valid(br_controller) and (br_controller.call("can_start_solo_deployment") == true)
   _lobby_add_section("BATTLE ROYALE • OFFLINE SOLO")
   _lobby_add_action("BATTLE ROYALE • SOLO DROP", "Cargo flight • freefall • authored ram-air canopy • local AI operators • shrinking safe zone", Callable(self, "_choose_mode").bind("battle_royale_solo"), br_assets_ready)
   if not br_assets_ready:
@@ -1233,7 +1233,7 @@ func _select_operator_preset(preset_id: String) -> void:
  if not is_instance_valid(operator_visual) or not operator_visual.has_method("apply_operator_preset"):
   _set_save_feedback("OPERATOR APPEARANCE IS NOT READY", false)
   return
- var applied := bool(operator_visual.call("apply_operator_preset", preset_id))
+ var applied := (operator_visual.call("apply_operator_preset", preset_id) == true)
  if not applied:
   _set_save_feedback("UNKNOWN OPERATOR PRESET", false)
   return
@@ -1267,7 +1267,7 @@ func _build_mode_briefing() -> void:
  _lobby_add_section("MISSION PARAMETERS")
  _lobby_add_info("MODE", selected_mode.replace("_", " ").to_upper())
  var map_name := "Noborongo Starter City"
- if is_instance_valid(w) and bool(w.get("real_dhaka_loaded")):
+ if is_instance_valid(w) and (w.get("real_dhaka_loaded") == true):
   map_name = "Shariatpur, Bangladesh"
  _lobby_add_info("AREA", map_name)
  if selected_mode in ["survival", "arena_training", "street_skirmish"]:
@@ -1359,7 +1359,7 @@ func _check_combat_result() -> void:
   return
  _ensure_lobby_showcase()
  var combat: Node = w.get("combat_controller") as Node
- if not is_instance_valid(combat) or not bool(combat.get("run_over")):
+ if not is_instance_valid(combat) or not (combat.get("run_over") == true):
   return
  var token := "%s:%s:%s:%s" % [String(combat.get("active_mode")), str(combat.get("kills")), str(combat.get("wave")), String(w.get("last_combat_result"))]
  if token == _shown_result_token:
@@ -1605,7 +1605,7 @@ func _replay_combat_round() -> void:
  combat.call("start_mode", mode_id)
  if mode_id == "battle_royale_solo":
   var deployment: Node = w.get("battle_royale_controller") as Node
-  if not is_instance_valid(deployment) or not bool(deployment.call("start_solo_deployment")):
+  if not is_instance_valid(deployment) or not (deployment.call("start_solo_deployment") == true):
    combat.call("_finish_match", "DEFEAT")
    _show_lobby_page("results")
    return
@@ -1660,7 +1660,7 @@ func _update_interaction_prompt() -> void:
  var nearest_vehicle: Node3D = null
  var nearest_distance := 4.0
  for node in w.get_children():
-  if node is CharacterBody3D and node.has_method("enter_player") and not bool(node.get("occupied")) and not bool(node.get("is_police")):
+  if node is CharacterBody3D and node.has_method("enter_player") and not (node.get("occupied") == true) and not (node.get("is_police") == true):
    var distance: float = w.player.global_position.distance_to(node.global_position)
    if distance<nearest_distance:
     nearest_distance = distance
@@ -1759,7 +1759,7 @@ func _select_lobby_mode(mode_id: String, selected_button: Button) -> void:
 func _enter_selected_mode() -> void:
  if _map_entry_in_progress:
   return
- if is_instance_valid(w) and bool(w.get("real_dhaka_loaded")):
+ if is_instance_valid(w) and (w.get("real_dhaka_loaded") == true):
   var loader: Node = w.get("real_dhaka_loader") as Node
   if is_instance_valid(loader) and loader.has_method("start_map_streaming"):
    _map_entry_in_progress = true
@@ -1783,7 +1783,7 @@ func _enter_selected_mode() -> void:
     var pending_count := int(diagnostics.get("pending_tile_loads", 0))
     var activating_count := int(diagnostics.get("activating_tiles", 0))
     var failed_count := int(diagnostics.get("failed_tile_loads", 0))
-    if loaded_count > 0 and bool(diagnostics.get("navigation_index_ready", false)):
+    if loaded_count > 0 and (diagnostics.get("navigation_index_ready", false) == true):
      if is_instance_valid(lobby_loading_label):
       lobby_loading_label.text = "SHARIATPUR READY • ENTERING THE WORLD"
      if is_instance_valid(lobby_loading_progress):
@@ -1853,7 +1853,7 @@ func _complete_enter_selected_mode() -> void:
      _show_lobby_page("play")
     return
    combat.call("start_mode", "battle_royale_solo")
-   if not bool(deployment.call("start_solo_deployment")):
+   if not (deployment.call("start_solo_deployment") == true):
     combat.call("_finish_match", "DEFEAT")
     w.event_text = "BR SOLO FAILED • AIRCRAFT OR PARACHUTE ASSET COULD NOT LOAD"
     w.event_time_left = 9.0

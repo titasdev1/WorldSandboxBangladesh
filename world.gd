@@ -380,9 +380,9 @@ func _configure_mapped_vehicle_route(vehicle_node: Node3D, road: Dictionary) -> 
  if points.size() < 2:
   return false
  vehicle_node.set("route_points", points.duplicate())
- vehicle_node.set("route_oneway", bool(road.get("one_way", false)))
+ vehicle_node.set("route_oneway", (road.get("one_way", false) == true))
  vehicle_node.set("route_id", str(road.get("route_id", "")))
- var one_way := bool(road.get("one_way", false))
+ var one_way := (road.get("one_way", false) == true)
  var direction := int(road.get("one_way_direction", 1)) if one_way else (1 if rng.randi_range(0, 1) == 0 else -1)
  vehicle_node.set("route_direction", direction)
  var start_index := rng.randi_range(0, points.size() - 2) if direction > 0 else rng.randi_range(1, points.size() - 1)
@@ -469,7 +469,7 @@ func advance_mapped_traffic_route(vehicle_node: Node3D) -> bool:
   var next_points: Array = candidate.get("points", [])
   if next_points.size() < 2:
    continue
-  var is_oneway := bool(candidate.get("one_way", false))
+  var is_oneway := (candidate.get("one_way", false) == true)
   var candidate_direction := int(candidate.get("one_way_direction", 1)) if is_oneway else 1
   var entry_index := 0 if candidate_direction > 0 else next_points.size() - 1
   if not is_oneway:
@@ -487,7 +487,7 @@ func advance_mapped_traffic_route(vehicle_node: Node3D) -> bool:
   return false
  var next_points: Array = best_record["points"]
  vehicle_node.set("route_points", next_points.duplicate())
- vehicle_node.set("route_oneway", bool(best_record.get("one_way", false)))
+ vehicle_node.set("route_oneway", (best_record.get("one_way", false) == true))
  vehicle_node.set("route_id", str(best_record.get("route_id", "")))
  vehicle_node.set("route_direction", best_direction)
  vehicle_node.set("route_index", 0 if best_direction > 0 else next_points.size() - 1)
@@ -687,7 +687,7 @@ func try_fire():
  var hero_visual := player.get_node_or_null("HumanoidVisual")
  if is_instance_valid(hero_visual) and hero_visual.has_method("play_muzzle_flash"):
   hero_visual.call("play_muzzle_flash")
- var controlled_combat_mode: bool = is_instance_valid(combat_controller) and bool(combat_controller.active) and not bool(combat_controller.run_over) and String(combat_controller.active_mode) in ["survival", "arena_training", "street_skirmish"]
+ var controlled_combat_mode: bool = is_instance_valid(combat_controller) and (combat_controller.active == true) and not (combat_controller.run_over == true) and String(combat_controller.active_mode) in ["survival", "arena_training", "street_skirmish"]
  if not controlled_combat_mode and gunfire_wanted_cooldown <= 0.0:
   wanted = min(5, wanted + 1)
   gunfire_wanted_cooldown = 2.5
@@ -775,20 +775,20 @@ func try_vehicle_interaction() -> bool:
  var nearest: Node3D = null
  var best_distance := 4.0
  for node in get_children():
-  if node is CharacterBody3D and node.has_method("enter_player") and not bool(node.get("occupied")):
+  if node is CharacterBody3D and node.has_method("enter_player") and not (node.get("occupied") == true):
    var distance := player.global_position.distance_to(node.global_position)
    if distance < best_distance:
     best_distance = distance
     nearest = node as Node3D
  if not is_instance_valid(nearest):
   return false
- return bool(nearest.call("enter_player", player))
+ return (nearest.call("enter_player", player) == true)
 
 func refuel_nearest_vehicle(from_position: Vector3, amount: float) -> bool:
  var nearest: Node3D = null
  var best_distance := 6.0
  for node in get_children():
-  if not (node is Node3D) or not node.has_method("refuel") or bool(node.get("occupied")):
+  if not (node is Node3D) or not node.has_method("refuel") or (node.get("occupied") == true):
    continue
   var distance: float = node.global_position.distance_to(from_position)
   if distance < best_distance:
@@ -796,7 +796,7 @@ func refuel_nearest_vehicle(from_position: Vector3, amount: float) -> bool:
    best_distance = distance
  if not is_instance_valid(nearest):
   return false
- return bool(nearest.call("refuel", amount))
+ return (nearest.call("refuel", amount) == true)
 
 
 func is_red_for_axis(_axis: String, _vehicle_position: Vector3) -> bool:
@@ -902,7 +902,7 @@ func refresh_active_world_navigation() -> void:
     if real_dhaka_loader.has_method("is_navigation_graph_ready") and not real_dhaka_loader.is_navigation_graph_ready():
         return
     var result: Dictionary = await real_dhaka_loader.navigate_to_world_position(mission_target, player)
-    if not bool(result.get("ok", false)) and real_dhaka_loader.has_method("clear_navigation_route"):
+    if not (result.get("ok", false) == true) and real_dhaka_loader.has_method("clear_navigation_route"):
         real_dhaka_loader.clear_navigation_route()
 
 func _setup_a_square():
@@ -954,7 +954,7 @@ func get_interior_interaction_label(at: Vector3) -> String:
  if not is_instance_valid(entry):
   return ""
  var door := entry.get_node_or_null("DoorHinge") as Node3D
- if is_instance_valid(door) and not bool(entry.get_meta("door_open", false)):
+ if is_instance_valid(door) and not (entry.get_meta("door_open", false) == true):
   return "OPEN DOOR"
  var seed: Dictionary = entry.get_meta("interior_seed", {})
  var category := str(seed.get("category", "")).to_lower()
@@ -972,7 +972,7 @@ func try_open_interior_door(at: Vector3) -> bool:
  if not is_instance_valid(entry):
   return false
  var hinge := entry.get_node_or_null("DoorHinge") as Node3D
- if not is_instance_valid(hinge) or bool(entry.get_meta("door_open", false)):
+ if not is_instance_valid(hinge) or (entry.get_meta("door_open", false) == true):
   return false
  entry.set_meta("door_open", true)
  var tween := create_tween()
@@ -989,7 +989,7 @@ func try_interior_interaction(at: Vector3) -> bool:
  if interior_factory.has_method("is_inside") and interior_factory.is_inside():
   return interior_factory.try_interact(at)
  var entry := _nearest_real_building_entry(at)
- if not is_instance_valid(entry) or not bool(entry.get_meta("door_open", false)):
+ if not is_instance_valid(entry) or not (entry.get_meta("door_open", false) == true):
   return false
  var seed: Dictionary = entry.get_meta("interior_seed", {})
  var direction: Vector3 = entry.get_meta("exit_direction", Vector3(0, 0, 1))

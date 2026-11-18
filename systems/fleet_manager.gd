@@ -20,5 +20,5 @@ static func get_fleet() -> Array[Dictionary]:
 static func fare_enabled(vehicle_id: String) -> bool:
     for item in FLEET:
         if str(item.id) == vehicle_id:
-            return bool(item.fare)
+            return (item.fare == true)
     return false

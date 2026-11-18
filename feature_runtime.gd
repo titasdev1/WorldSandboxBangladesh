@@ -36,7 +36,7 @@ func _process(delta):
         _activate_one(_next_index)
         _next_index += 1
         _boot_timer = 0.0
-    elif not bool(get_meta("integration_complete", false)):
+    elif not (get_meta("integration_complete", false) == true):
         set_meta("integration_complete", true)
         set_meta("integration_activated", activated)
 

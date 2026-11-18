@@ -135,7 +135,7 @@ func _begin_staged_authored_hero_load() -> void:
     var player_node := get_parent()
     var world_node: Node = player_node.get_parent() if is_instance_valid(player_node) else null
     var map_loader: Node = world_node.get("real_dhaka_loader") as Node if is_instance_valid(world_node) else null
-    if is_instance_valid(world_node) and bool(world_node.get("real_dhaka_loaded")) and is_instance_valid(map_loader):
+    if is_instance_valid(world_node) and (world_node.get("real_dhaka_loaded") == true) and is_instance_valid(map_loader):
         # Avoid competing with the first map import, but never let a delayed or
         # missing navigation index trap the player in the primitive fallback.
         # The actual GLB is still loaded on Godot's background resource thread.
@@ -146,10 +146,10 @@ func _begin_staged_authored_hero_load() -> void:
             var diagnostics: Dictionary = {}
             if map_loader.has_method("get_runtime_map_diagnostics"):
                 diagnostics = map_loader.call("get_runtime_map_diagnostics")
-            if int(diagnostics.get("loaded_tiles", 0)) > 0 and bool(diagnostics.get("navigation_index_ready", false)):
+            if int(diagnostics.get("loaded_tiles", 0)) > 0 and (diagnostics.get("navigation_index_ready", false) == true):
                 map_ready_for_character = true
                 break
-            if bool(diagnostics.get("streaming_started", false)) and not wait_warning_sent and Time.get_ticks_msec() - wait_started_ms > 5000:
+            if (diagnostics.get("streaming_started", false) == true) and not wait_warning_sent and Time.get_ticks_msec() - wait_started_ms > 5000:
                 push_warning("AUTHORED_HERO_STAGED_WAIT: map is still preparing; bounded wait continues before the background character load.")
                 wait_warning_sent = true
             await get_tree().process_frame
@@ -1038,7 +1038,7 @@ func _update_authored_animation(body: CharacterBody3D, planar_speed: float) -> v
     var aiming := Input.is_action_pressed("aim")
     var firing := Input.is_action_pressed("fire")
     var reloading := float(body.get("reload_time")) > 0.0
-    var crouched := bool(body.get("_is_crouched"))
+    var crouched := (body.get("_is_crouched") == true)
     var first_person := str(body.get("camera_view_mode")) == "first_person"
     var state := "idle"
     var br_phase := str(body.get_meta("br_deployment_state", ""))
@@ -1058,7 +1058,7 @@ func _update_authored_animation(body: CharacterBody3D, planar_speed: float) -> v
             state = "jump"
         else:
             state = "fall"
-    elif bool(body.get_meta("just_landed", false)) and not String(_authored_animation_lookup.get("land", "")).is_empty():
+    elif (body.get_meta("just_landed", false) == true) and not String(_authored_animation_lookup.get("land", "")).is_empty():
         state = "land"
     elif reloading and not String(_authored_animation_lookup.get("reload", "")).is_empty():
         state = "reload"
@@ -1495,7 +1495,7 @@ func _process(delta: float) -> void:
     elif has_combat_weapon:
         # Enemies use the same rifle rig but raise it only during the readable shot
         # wind-up; gait resumes between shots instead of permanently locking both arms.
-        var ai_shot_pending: bool = bool(body.get("_shot_pending"))
+        var ai_shot_pending: bool = (body.get("_shot_pending") == true)
         if ai_shot_pending:
             left_arm.position = Vector3(-0.02, 1.40, -0.04)
             left_arm.rotation.x = lerpf(left_arm.rotation.x, PI * 0.5, minf(delta * 12.0, 1.0))

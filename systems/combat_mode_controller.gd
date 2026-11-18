@@ -108,7 +108,7 @@ func _begin_battle_royale_ground_phase() -> void:
         return
     br_zone_center = world.player.global_position
     var spawn_points: Array[Vector3] = []
-    if bool(world.get("real_dhaka_loaded")):
+    if (world.get("real_dhaka_loaded") == true):
         var loader: Node = world.get("real_dhaka_loader") as Node
         if is_instance_valid(loader) and loader.has_method("get_road_routes"):
             for route in loader.get_road_routes():

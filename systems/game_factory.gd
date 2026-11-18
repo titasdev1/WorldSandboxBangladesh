@@ -21,7 +21,7 @@ func _bootstrap() -> void:
         return
     # The georeferenced map owns its terrain, roads, buildings and landmarks.
     # Never paste the fictional 600 m procedural grid over a real district.
-    if bool(world.get("real_dhaka_loaded")):
+    if (world.get("real_dhaka_loaded") == true):
         generated = false
         set_meta("factory_status", "real_map_mode_fictional_grid_suppressed")
         set_meta("real_map_overlay_suppressed", true)
