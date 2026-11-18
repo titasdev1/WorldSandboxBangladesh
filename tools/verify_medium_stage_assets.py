@@ -12,6 +12,7 @@ REQUIRED = {
     "kenney_city_kit_industrial": 20,
     "kenney_city_kit_suburban": 30,
     "battle_royale_aircraft": 2,
+    "battle_royale_parachute": 1,
 }
 
 def main() -> int:
@@ -36,6 +37,15 @@ def main() -> int:
             license_text = license_path.read_text(encoding="utf-8", errors="replace")
             if "CC0 1.0 Universal" not in license_text:
                 failures.append(f"{pack}: downloaded license is not CC0 1.0")
+                continue
+        if pack == "battle_royale_parachute":
+            license_path = ROOT / "external_content" / pack / "LICENSE.txt"
+            if data.get("license") != "CC0-1.0" or not license_path.is_file():
+                failures.append(f"{pack}: original CC0 licence evidence missing")
+                continue
+            license_text = license_path.read_text(encoding="utf-8", errors="replace")
+            if "CC0 1.0 Universal" not in license_text or "A-Square Ram-Air Canopy and Harness" not in license_text:
+                failures.append(f"{pack}: generated asset licence does not identify the original CC0 parachute")
                 continue
         models = data.get("models", [])
         count = len(models) if isinstance(models, list) else 0
