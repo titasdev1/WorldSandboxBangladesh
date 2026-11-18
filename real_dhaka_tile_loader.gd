@@ -260,59 +260,61 @@ func _poll_pending_tile_loads() -> void:
 
 
 func _tile_pbr_surface_for_node(node_name: String) -> String:
-    var key := node_name.to_lower()
-    if key.begins_with("terrain_base"):
-        return "ground"
-    if key.begins_with("road_"):
-        return "road"
-    if key.begins_with("mapped_buildings_"):
-        return "plaster"
-    if key.begins_with("mapped_roofs_"):
-        return "concrete"
-    if key.begins_with("facade_doors_"):
-        return "wood"
-    if key.begins_with("facade_balconies_"):
-        return "metal"
-    # Keep licensed_facade_photo_* panels and original window/glass materials
-    # intact; they are separately curated or authored, not generic masonry.
-    return ""
+	var key := node_name.to_lower()
+	if key.begins_with("terrain_base"):
+		return "ground"
+	if key.begins_with("road_"):
+		return "road"
+	if key.begins_with("mapped_buildings_"):
+		return "plaster"
+	if key.begins_with("mapped_roofs_"):
+		return "concrete"
+	if key.begins_with("facade_doors_"):
+		return "wood"
+	if key.begins_with("facade_balconies_"):
+		return "metal"
+	# Keep licensed_facade_photo_* panels and original window/glass materials
+	# intact; they are separately curated or authored, not generic masonry.
+	return ""
 
 
 func _apply_tile_pbr_materials(tile_root: Node3D) -> void:
-    if not is_instance_valid(_world):
-        return
-    var factory: Node = _world.get("pbr_surface_factory") as Node
-    # The game World exposes a script property; isolated runtime tests and
-    # compatibility scenes may only have the named child.
-    if not is_instance_valid(factory) and _world.has_node("PBRSurfaceFactory"):
-        factory = _world.get_node("PBRSurfaceFactory")
-    if not is_instance_valid(factory) or not factory.has_method("material_for_tile"):
-        return
+	if not is_instance_valid(_world):
+		return
+	var factory: Node = _world.get("pbr_surface_factory") as Node
+	# The game World exposes a script property; isolated runtime tests and
+	# compatibility scenes may only have the named child.
+	if not is_instance_valid(factory) and _world.has_node("PBRSurfaceFactory"):
+		factory = _world.get_node("PBRSurfaceFactory")
+	if not is_instance_valid(factory) or not factory.has_method("material_for_tile"):
+		return
 
-    var applied: Dictionary = {}
-    var mesh_nodes: Array[Node] = tile_root.find_children("*", "MeshInstance3D", true, false)
-    for candidate in mesh_nodes:
-        var mesh_instance := candidate as MeshInstance3D
-        if not is_instance_valid(mesh_instance):
-            continue
-        var surface_id := _tile_pbr_surface_for_node(mesh_instance.name)
-        if surface_id.is_empty():
-            continue
-        var fallback := StandardMaterial3D.new()
-        var active_material := mesh_instance.get_active_material(0)
-        if active_material is StandardMaterial3D:
-            fallback = active_material
-        var mapped_material: StandardMaterial3D = factory.call(
-            "material_for_tile", surface_id, fallback
-        ) as StandardMaterial3D
-        if not is_instance_valid(mapped_material) or mapped_material == fallback:
-            continue
-        mesh_instance.material_override = mapped_material
-        applied[surface_id] = int(applied.get(surface_id, 0)) + 1
+	var applied: Dictionary = {}
+	var mesh_nodes: Array[Node] = tile_root.find_children("*", "MeshInstance3D", true, false)
+	for candidate in mesh_nodes:
+		var mesh_instance := candidate as MeshInstance3D
+		if not is_instance_valid(mesh_instance) or mesh_instance.mesh == null:
+			continue
+		if mesh_instance.mesh.get_surface_count() < 1:
+			continue
+		var surface_id := _tile_pbr_surface_for_node(mesh_instance.name)
+		if surface_id.is_empty():
+			continue
+		var fallback := StandardMaterial3D.new()
+		var active_material := mesh_instance.get_active_material(0)
+		if active_material is StandardMaterial3D:
+			fallback = active_material
+		var mapped_material: StandardMaterial3D = factory.call(
+			"material_for_tile", surface_id, fallback
+		) as StandardMaterial3D
+		if not is_instance_valid(mapped_material) or mapped_material == fallback:
+			continue
+		mesh_instance.material_override = mapped_material
+		applied[surface_id] = int(applied.get(surface_id, 0)) + 1
 
-    if not applied.is_empty():
-        tile_root.set_meta("pbr_surface_counts", applied)
-        print("REAL_MAP_PBR_MATERIALS_APPLIED: " + JSON.stringify(applied))
+	if not applied.is_empty():
+		tile_root.set_meta("pbr_surface_counts", applied)
+		print("REAL_MAP_PBR_MATERIALS_APPLIED: " + JSON.stringify(applied))
 
 
 func _activate_loaded_tile(tile_key: String, record: Dictionary, packed: PackedScene) -> void:
