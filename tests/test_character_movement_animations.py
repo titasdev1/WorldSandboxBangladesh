@@ -58,7 +58,7 @@ class CharacterMovementAnimationTests(unittest.TestCase):
         start = source.index("func _update_authored_animation(")
         end = source.index("\nfunc _material(", start)
         block = source[start:end]
-        self.assertIn('var first_person := String(body.get("camera_view_mode")) == "first_person"', block)
+        self.assertIn('var first_person := str(body.get("camera_view_mode")) == "first_person"', block)
         self.assertIn('state = "aim_walk" if planar_speed > 0.25 else "aim"', block)
         self.assertIn('state = "sprint"', block)
 
