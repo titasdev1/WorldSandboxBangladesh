@@ -788,6 +788,8 @@ jobs:
           set -euo pipefail
           mkdir -p build/battle-royale
           OUT="external_content/battle_royale_parachute/a_square_ram_air_canopy.glb"
+          python3 -m py_compile tools/build_battle_royale_parachute.py tools/smoke_battle_royale_parachute_blender_api.py
+          blender --background --factory-startup --python tools/smoke_battle_royale_parachute_blender_api.py
           blender --background --factory-startup --python tools/build_battle_royale_parachute.py -- --out "$OUT" > build/battle-royale/parachute-authoring.log 2>&1
           cat build/battle-royale/parachute-authoring.log
           grep -Fq "A2_PARACHUTE_ASSET_READY:" build/battle-royale/parachute-authoring.log
