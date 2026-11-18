@@ -382,7 +382,7 @@ func _configure_mapped_vehicle_route(vehicle_node: Node3D, road: Dictionary) -> 
  vehicle_node.set("route_points", points.duplicate())
  vehicle_node.set("route_oneway", (road.get("one_way", false) == true))
  vehicle_node.set("route_id", str(road.get("route_id", "")))
- var one_way := (road.get("one_way", false) == true)
+ var one_way: bool = (road.get("one_way", false) == true)
  var direction := int(road.get("one_way_direction", 1)) if one_way else (1 if rng.randi_range(0, 1) == 0 else -1)
  vehicle_node.set("route_direction", direction)
  var start_index := rng.randi_range(0, points.size() - 2) if direction > 0 else rng.randi_range(1, points.size() - 1)
@@ -469,7 +469,7 @@ func advance_mapped_traffic_route(vehicle_node: Node3D) -> bool:
   var next_points: Array = candidate.get("points", [])
   if next_points.size() < 2:
    continue
-  var is_oneway := (candidate.get("one_way", false) == true)
+  var is_oneway: bool = (candidate.get("one_way", false) == true)
   var candidate_direction := int(candidate.get("one_way_direction", 1)) if is_oneway else 1
   var entry_index := 0 if candidate_direction > 0 else next_points.size() - 1
   if not is_oneway:
