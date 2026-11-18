@@ -1,5 +1,10 @@
 # Dhaka 3D map pipeline
 
+## Real-world imagery and reconstruction policy
+
+See [REAL_WORLD_REFERENCE_POLICY.md](REAL_WORLD_REFERENCE_POLICY.md) before using Google Maps/Street View, KartaView, Mapillary, OSM, Overture or AI/photogrammetry workflows. In particular, Google imagery is a live visualisation source only under its API terms and must not be used to derive offline meshes or AI reconstructions.
+
+
 This is a **map-asset pipeline**, separate from the Android APK workflow. It writes an interoperable binary glTF 2.0 scene (`Dhaka_Explorable_Map.glb`) plus OSM source GeoJSON, attribution, a feature manifest, and anchors for future AI-generated interiors/NPCs. It does not replace the game project or create a second APK pipeline.
 
 ## First target
