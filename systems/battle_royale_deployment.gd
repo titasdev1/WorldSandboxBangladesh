@@ -15,6 +15,8 @@ var _propellers: Array[Node3D] = []
 var _ramp: Node3D
 var _cargo_door: Node3D
 var _landing_reported := false
+var _plane_resource: PackedScene
+var _parachute_resource: PackedScene
 
 
 func _ready() -> void:
@@ -25,20 +27,23 @@ func configure(game_world: Node3D) -> void:
 	world = game_world
 
 
+func can_start_solo_deployment() -> bool:
+	if not ResourceLoader.exists(CARGO_PLANE_PATH) or not ResourceLoader.exists(PARACHUTE_PATH):
+		return false
+	_plane_resource = load(CARGO_PLANE_PATH) as PackedScene
+	_parachute_resource = load(PARACHUTE_PATH) as PackedScene
+	return _plane_resource != null and _parachute_resource != null
+
+
 func start_solo_deployment() -> bool:
 	if not is_instance_valid(world) or not is_instance_valid(world.player):
 		return false
-	if not ResourceLoader.exists(CARGO_PLANE_PATH):
-		push_warning("BR_DEPLOYMENT_UNAVAILABLE: CC0 cargo plane has not been imported.")
-		world.event_text = "BR DEPLOYMENT UNAVAILABLE • AIRCRAFT ASSET MISSING"
+	if _plane_resource == null and not can_start_solo_deployment():
+		push_warning("BR_DEPLOYMENT_UNAVAILABLE: CC0 plane or authored parachute assembly is missing.")
+		world.event_text = "BR DEPLOYMENT UNAVAILABLE • AIRCRAFT OR PARACHUTE ASSET MISSING"
 		world.event_time_left = 8.0
 		return false
-	var packed := load(CARGO_PLANE_PATH) as PackedScene
-	if packed == null:
-		push_warning("BR_DEPLOYMENT_UNAVAILABLE: cargo-plane GLB did not import as a PackedScene.")
-		world.event_text = "BR DEPLOYMENT UNAVAILABLE • AIRCRAFT IMPORT FAILED"
-		world.event_time_left = 8.0
-		return false
+	var packed := _plane_resource
 
 	_reset_previous_deployment()
 	player = world.player
@@ -133,7 +138,9 @@ func deploy_parachute() -> bool:
 		world.event_text = "PARACHUTE ASSEMBLY NOT AVAILABLE • FREEFALL CONTINUES"
 		world.event_time_left = 5.0
 		return false
-	var packed := load(PARACHUTE_PATH) as PackedScene
+	if _parachute_resource == null:
+		_parachute_resource = load(PARACHUTE_PATH) as PackedScene
+	var packed := _parachute_resource
 	if packed == null:
 		world.event_text = "PARACHUTE IMPORT FAILED • FREEFALL CONTINUES"
 		world.event_time_left = 5.0
@@ -165,6 +172,7 @@ func notify_player_landed() -> void:
 	phase = "landing"
 	phase_time = 0.0
 	if is_instance_valid(player):
+		player.set_physics_process(false)
 		player.set_meta("br_deployment_state", "landing")
 		player.velocity = Vector3.ZERO
 	world.event_text = "LANDING • PREPARE FOR THE FIRST ENGAGEMENT"
@@ -220,12 +228,11 @@ func _process(delta: float) -> void:
 	if phase == "inactive" or phase == "landed":
 		return
 	phase_time += delta
-	if phase == "flight":
-		if is_instance_valid(aircraft):
-			aircraft.global_position += flight_direction * flight_speed * delta
-			for propeller in _propellers:
-				if is_instance_valid(propeller):
-					propeller.rotate_object_local(Vector3.FORWARD, 24.0 * delta)
+	if phase in ["flight", "freefall", "gliding", "landing"] and is_instance_valid(aircraft):
+		aircraft.global_position += flight_direction * flight_speed * delta
+		for propeller in _propellers:
+			if is_instance_valid(propeller):
+				propeller.rotate_object_local(Vector3.FORWARD, 24.0 * delta)
 	elif phase == "gliding" and is_instance_valid(parachute):
 		parachute.rotation.z = sin(phase_time * 0.72) * deg_to_rad(2.4)
 		parachute.rotation.x = cos(phase_time * 0.53) * deg_to_rad(1.4)
