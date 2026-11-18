@@ -15,7 +15,8 @@ jobs:
       github.event.issue.pull_request &&
       github.event.issue.number == 78 &&
       github.event.comment.user.login == 'titasdev1' &&
-      contains(github.event.comment.body, '/asquare-build')
+      (contains(github.event.comment.body, '/asquare-build') ||
+       contains(github.event.comment.body, '/asquare-validate'))
     runs-on: ubuntu-latest
     steps:
       - name: Validate the exact project branch and dispatch its Android build

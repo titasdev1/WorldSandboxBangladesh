@@ -9,13 +9,15 @@ on:
       - "world.gd"
       - "player.gd"
       - "vehicle.gd"
+      - "npc.gd"
+      - "systems/npc_simulation_lod_manager.gd"
+      - "tests/npc_simulation_lod_smoke.gd"
       - "hud.gd"
       - "district_map_display.gd"
       - "real_dhaka_tile_loader.gd"
       - "Main.tscn"
       - "project.godot"
       - "tests/test_dhaka_map_pipeline.py"
-      - ".github/workflows/validate-godot.yml"
   pull_request:
     branches:
       - main
@@ -70,6 +72,13 @@ jobs:
           if [ "$result" -ne 0 ] || grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|ERROR:" "$RUNNER_TEMP/godot/import.log"; then
             exit 1
           fi
+
+      - name: Run NPC distance-simulation LOD regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+          "$GODOT" --headless --path . --script res://tests/npc_simulation_lod_smoke.gd
 
       - name: Run headless game startup
         shell: bash
