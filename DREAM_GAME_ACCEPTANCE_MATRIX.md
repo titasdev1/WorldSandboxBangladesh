@@ -157,3 +157,28 @@ This file is a quality-control ledger, not a claim that listed features are comp
 **Presentation rule:** Generated images/video are valid production assets for cinematic and UI presentation. They do not count as a functional character, vehicle, world, mode or match. Critical text, HUD values, player identity, score, timers, maps and buttons must remain live, localized, testable game data/UI.
 
 **Continuity rule:** after each substantial change, update `A_SQUARE_SESSION_CHECKPOINT.md`, `development_state.json` and the relevant acceptance rows. When a chat reconnects, resume from the checkpoint and refresh GitHub state; do not ask the user to repeat the complete brief.
+
+
+## H. Expanded mode, AI, local-network and global-world acceptance (2026-11-19)
+
+| Area | Required acceptance evidence | Current evidence / honest state |
+|---|---|---|
+| JibonJatra open world | Dense selected district, stable controls, meaningful NPC/traffic routines, missions, fares, shops, interiors, police/wanted and save/reload | Foundations exist; full integrated vertical slice, Shariatpur fidelity gate and physical-device QA remain partial/pending |
+| Roadline / Forza driving | Authored vehicle(s), differentiated handling, cockpit/chase cameras, garage/ownership/tuning, race rules, AI rivals, results and phone-tested controls | Current-road sprint/time-attack/drift source exists; sprint has six checkpoints and three simple AI racers. Forza-level art, garage, tuning, event density and device acceptance are not evidenced |
+| Pitchbound 3D football | Complete 11v11 match, switching/controls, passing/shooting/dribbling/tackling, goalkeeper, formations/tactics, set pieces, authored kits/players, detailed stadium/crowd/audio and results | Current workflow step 39 reports runtime smoke success for 22 player bodies, one controlled player and a rigid-body ball. Simple AI and procedural low-detail stadium only; full football mechanics/visual quality/device QA not accepted |
+| Greenwake adventure | Playable authored chapter with traversal, climbing/swimming, puzzle/mystery, story/companion beats, stealth/combat, assets and checkpoint/fail/retry | Registry entry exists but is planned only; no playable Greenwake level/loop evidenced |
+| Offline strategic AI | Mode-specific perception, memory, cover/flanking, squad roles, racing tactics, football formations and adventure behavior; repeatable tier evaluation | Combat enemy has basic LOS/approach/retreat/timed attacks; civilian LOD exists. Strategic AI tiers and fair rank evaluation not evidenced |
+| LAN / hotspot | Two physical Android clients join; identity and full mode state sync; disconnect/rejoin, host loss, versioning and abuse tests pass | ENet host/join and local IP room code exist (configured 8 peers); only player/occupied-vehicle transform/type is sent at about 10 Hz. No two-device test or full match-state sync evidenced |
+| Strikefront MP / BR / Zombies | Each playlist has distinct rules, AI and/or genuine human-player lifecycle, objectives, loadout/inventory, fail/win/reward and disconnect handling | Offline combat prototypes and solo BR deployment/12-AI/safe-zone path exist. Current BR deployment build gate remains pending; loot/spectate/revive/ranked/online/Zombies acceptance not evidenced |
+| Global Earth map | Verified selectable regions covering cities, rural/remote land, borders, islands, coasts, rivers, lakes, seas, oceans and offshore/open-water sectors | Current pipeline is Shariatpur-first then remaining Dhaka Division. Shariatpur is REVIEW_REQUIRED; no whole-Earth content package exists |
+| Country-aware assets | Evidence-informed local vehicles, signs, language, dress/cosmetics, architecture and cultural details by selected region | Recorded as target only; no global country-by-country acceptance evidence |
+| Mobile visual quality | Android render inspection, material/animation correctness, FPS/frame-time/RAM/thermal profile and stable LOD | Current-head PBR CI validation passed; it does not prove phone rendering. Ara operator asset is a candidate only; rendered/device integration unverified. Lobby and stadium are still prototypes |
+
+### H.1 Exact candidate evidence at 2026-11-19
+- Android workflow #1102 (run ID 44354975442) targets commit 149e6b8314325f3e036787f58eaad4945ea83d82 on feature/lobby-operator-showcase. It is still reported in progress.
+- Last fetched job steps: 40 successful completed steps; step 42, “Install Blender for original BR parachute asset authoring,” remained in progress. Steps 43 onward, including the full BR smoke (45), medium-stage asset gate, Android export, signing and APK assembly/upload, were still pending. The workflow declares a 330-minute timeout.
+- No artifact was listed for run #1102; Android export had not started at the last inspection.
+- Downloading the job log returned BlobNotFound. The public browser page hid run controls behind sign-in; no authenticated session was available, so no cancellation was performed or verified.
+- Separate PBR run 44354592447 passed on the same commit. It is not an Android APK pass.
+- PR #78 and PR #77 remain open draft PRs. Neither is merged. Do not substitute an older APK for this head.
+- Do not ask the user to test this candidate before export/content/signature/artifact gates pass and the agreed medium-stage threshold is met.
