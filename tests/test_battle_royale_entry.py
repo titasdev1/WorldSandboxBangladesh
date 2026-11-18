@@ -66,6 +66,13 @@ class BattleRoyaleEntryTests(unittest.TestCase):
         for marker in ("BR_AERIAL_CAMERA_RUNTIME_PASS", "freefall_camera_distance < 15.0", "camera_height = 8.0", "trailing_distance = 25.0"):
             self.assertIn(marker, self.runtime_smoke + self.player)
 
+    def test_canopy_root_banks_in_response_to_left_and_right_steering(self):
+        self.assertIn('Input.get_axis("move_left", "move_right")', self.deployment)
+        self.assertIn('parachute.rotation.z = lerp_angle', self.deployment)
+        self.assertIn("BR_CANOPY_STEERING_RUNTIME_PASS", self.runtime_smoke)
+        self.assertIn('Input.action_press("move_right")', self.runtime_smoke)
+        self.assertIn('Input.action_press("move_left")', self.runtime_smoke)
+
     def test_landed_br_starts_twelve_ai_operators_and_shrinking_safe_zone(self):
         self.assertIn("BR_GROUND_MATCH_RUNTIME_PASS", self.runtime_smoke)
         self.assertIn('combat.call("start_mode", "battle_royale_solo")', self.runtime_smoke)
