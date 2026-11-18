@@ -20,6 +20,10 @@ on:
       - "Main.tscn"
       - "Boot.tscn"
       - "boot.gd"
+      - "vehicle.gd"
+      - "tests/vehicle_entry_exit_animation_smoke.gd"
+      - "tests/vehicle_entry_exit_visual_stub.gd"
+      - "tests/vehicle_entry_exit_world_stub.gd"
       - "systems/login_backdrop.gd"
       - "systems/login_backdrop_view.gd"
       - "systems/login_operator_actor.gd"
@@ -143,6 +147,23 @@ jobs:
             echo "Animated login backdrop runtime smoke failed."
             exit 1
           fi
+
+      - name: Exercise authored vehicle boarding and alighting in Godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
+          LOG="$RUNNER_TEMP/godot/vehicle-entry-exit.log"
+          set +e
+          timeout 90s "$GODOT" --headless --path . --script tests/vehicle_entry_exit_animation_smoke.gd > "$LOG" 2>&1
+          result=$?
+          set -e
+          cat "$LOG"
+          if [ "$result" -ne 0 ] || ! grep -Fq "VEHICLE_ENTRY_EXIT_ANIMATION_PASS" "$LOG" || grep -E "SCRIPT ERROR:|Parse Error|Invalid call|Invalid get index|ERROR:" "$LOG"; then
+            echo "Vehicle entry/exit animation runtime smoke failed."
+            exit 1
+          fi
+
 
       - name: Run headless game startup
         shell: bash
