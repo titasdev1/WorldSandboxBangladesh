@@ -52,6 +52,8 @@ on:
       - "tests/test_mobile_interaction_flow.py"
       - "tests/test_login_backdrop.py"
       - "tests/test_battle_royale_entry.py"
+      - "tests/test_real_world_reference_policy.py"
+      - "REAL_WORLD_REFERENCE_POLICY.md"
       - "tests/test_battle_royale_aircraft_pipeline.py"
       - "tests/test_battle_royale_parachute_pipeline.py"
       - "tests/test_battle_royale_parachute_artifact.py"
@@ -129,6 +131,10 @@ jobs:
       - name: Run navigation-index unit tests
         shell: bash
         run: python3 -m unittest discover -s tests -p "test_real_world_navigation_index.py"
+
+      - name: Run real-world imagery provenance and licensing policy tests
+        shell: bash
+        run: python3 -m unittest discover -s tests -p "test_real_world_reference_policy.py"
 
       - name: Run separate map-pack build tests
         shell: bash
