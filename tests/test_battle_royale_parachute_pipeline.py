@@ -28,15 +28,14 @@ class BattleRoyaleParachuteAssetTests(unittest.TestCase):
         self.assertIn("export_animations=True", self.source)
         deployment = (ROOT / "systems" / "battle_royale_deployment.gd").read_text(encoding="utf-8")
         self.assertIn('find_children("*", "AnimationPlayer", true, false)', deployment)
+        self.assertIn("candidate_player.has_animation(canopy_clip)", deployment)
+        self.assertIn('phase not in ["freefall", "deploying", "gliding"]', deployment)
         self.assertNotIn('find_child("*", "AnimationPlayer", true, false)', deployment)
 
     def test_generated_asset_is_original_and_cc0(self):
         self.assertIn("CC0 1.0 Universal", self.source)
         self.assertIn("No third-party meshes, logos, national insignia", self.source)
         self.assertIn("A2_RamAir_Parachute_Root", self.source)
-        self.assertIn('"model_count": 1', self.source)
-        self.assertIn('"license": "CC0-1.0"', self.source)
-        self.assertIn('"asset_manifest.json"', self.source)
         self.assertIn('"model_count": 1', self.source)
         self.assertIn('"license": "CC0-1.0"', self.source)
         self.assertIn('"asset_manifest.json"', self.source)
