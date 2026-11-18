@@ -319,12 +319,29 @@ factory_specs = [
     ("systems/vehicle_gameplay_factory.gd", "_add_vehicle_depots()", "real_map_mode_fixed_markers_suppressed"),
     ("systems/population_factory.gd", "_spawn_outer_traffic()", "real_map_mode_mapped_population_only"),
 ]
+real_map_true_guard_patterns = (
+    'if bool(world.get("real_dhaka_loaded")):',
+    'if (world.get("real_dhaka_loaded") == true):',
+)
+
+def _find_first_pattern(source_text: str, patterns: tuple[str, ...], start: int = 0) -> int:
+    positions = [source_text.find(pattern, start) for pattern in patterns]
+    return min((position for position in positions if position >= 0), default=-1)
+
+
 for relative_path, fictional_call, expected_status in factory_specs:
     factory_text = (ROOT / relative_path).read_text(encoding="utf-8")
     boot_start = factory_text.find("func _bootstrap()")
-    map_guard = factory_text.find('if bool(world.get("real_dhaka_loaded")):', boot_start)
+    map_guard = _find_first_pattern(factory_text, real_map_true_guard_patterns, boot_start)
     generator_call = factory_text.find(fictional_call, boot_start)
-    if boot_start < 0 or map_guard < 0 or generator_call < 0 or map_guard > generator_call:
+    guard_return = factory_text.find("\\n        return", map_guard) if map_guard >= 0 else -1
+    if (
+        boot_start < 0
+        or map_guard < 0
+        or generator_call < 0
+        or guard_return < 0
+        or not (map_guard < guard_return < generator_call)
+    ):
         raise SystemExit(
             f"PRODUCTION GATE FAILED: {relative_path} can build fictional content before its real-map suppression guard"
         )
@@ -387,9 +404,15 @@ ground_code = fallback_factory_text[ground_start:ground_end]
 if 'Vector3(0, -0.04, 0), Vector3(CITY_RADIUS * 2.0, 0.08, CITY_RADIUS * 2.0)' not in ground_code:
     raise SystemExit("PRODUCTION GATE FAILED: fallback ground top must remain aligned at y=0")
 ground_boot = fallback_factory_text.find("func _bootstrap()")
-ground_guard = fallback_factory_text.find('if bool(world.get("real_dhaka_loaded")):', ground_boot)
+ground_guard = _find_first_pattern(fallback_factory_text, real_map_true_guard_patterns, ground_boot)
 ground_call = fallback_factory_text.find("_expand_ground()", ground_boot)
-if ground_guard < 0 or ground_call < 0 or ground_guard > ground_call:
+ground_guard_return = fallback_factory_text.find("\\n        return", ground_guard) if ground_guard >= 0 else -1
+if (
+    ground_guard < 0
+    or ground_call < 0
+    or ground_guard_return < 0
+    or not (ground_guard < ground_guard_return < ground_call)
+):
     raise SystemExit("PRODUCTION GATE FAILED: fallback ground can be created before real-map mode is checked")
 
 # The Deshi mission board is a gameplay kiosk, not a surveyed building. On a
@@ -400,10 +423,16 @@ hub_end = mission_factory_text.find("func _on_hub_entered", hub_start)
 if hub_start < 0 or hub_end < 0:
     raise SystemExit("PRODUCTION GATE FAILED: Deshi job-board creation is missing")
 hub_text = mission_factory_text[hub_start:hub_end]
-for token in ('if bool(world.get("real_dhaka_loaded")):', 'loader.call("get_road_routes")', 'hub_position = best_point + sidewalk_side * 8.0', "hub.position = hub_position", "hub_created = true"):
+if _find_first_pattern(hub_text, real_map_true_guard_patterns) < 0:
+    raise SystemExit("PRODUCTION GATE FAILED: real-map Deshi job-board placement lacks its map-mode branch")
+for token in ('loader.call("get_road_routes")', 'hub_position = best_point + sidewalk_side * 8.0', "hub.position = hub_position", "hub_created = true"):
     if token not in hub_text:
         raise SystemExit(f"PRODUCTION GATE FAILED: real-map Deshi job-board placement missing {token}")
-if "if not hub_created and is_instance_valid(world) and bool(world.get(\"real_dhaka_loaded\")):" not in mission_factory_text:
+mission_retry_patterns = (
+    'if not hub_created and is_instance_valid(world) and bool(world.get("real_dhaka_loaded")):',
+    'if not hub_created and is_instance_valid(world) and (world.get("real_dhaka_loaded") == true):',
+)
+if _find_first_pattern(mission_factory_text, mission_retry_patterns) < 0:
     raise SystemExit("PRODUCTION GATE FAILED: Deshi job board does not retry as road tiles stream in")
 
 # The verified Burirhat mosque interior photo must travel through map baking,
