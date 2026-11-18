@@ -183,9 +183,12 @@ func _run_smoke() -> void:
 		quit(1)
 		return
 
-	# Inject a conflicting one-shot action to prove the authoritative BR
-	# deployment phase cannot be masked by the stale skydiving action.
-	player.set_meta("character_action_state", "idle_look")
+	# The plane-exit flow left "skydive" in the character-action metadata.
+	# Prove the deployment phase overrides that real, still-valid conflicting clip.
+	if str(player.get_meta("character_action_state", "")) != "skydive":
+		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: expected stale skydive action was not retained for priority regression test.")
+		quit(1)
+		return
 	visual.call("_update_authored_animation", player, 0.0)
 
 	var animation_player := visual.get("_authored_animation_player") as AnimationPlayer
