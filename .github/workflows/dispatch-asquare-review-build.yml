@@ -16,7 +16,8 @@ jobs:
       github.event.issue.number == 78 &&
       github.event.comment.user.login == 'titasdev1' &&
       (contains(github.event.comment.body, '/asquare-build') ||
-       contains(github.event.comment.body, '/asquare-validate'))
+       contains(github.event.comment.body, '/asquare-validate') ||
+       contains(github.event.comment.body, '/asquare-cancel'))
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch a targeted project validation or the full Android build
@@ -28,6 +29,12 @@ jobs:
           COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
           set -euo pipefail
+          if [[ "${COMMENT_BODY}" =~ ^[[:space:]]*/asquare-cancel[[:space:]]+44251728526[[:space:]]*$ ]]; then
+            echo "Cancelling the unintended Android export run 44251728526."
+            gh run cancel 44251728526 --repo "${REPOSITORY}"
+            exit 0
+          fi
+
           if [[ "${COMMENT_BODY}" == *"/asquare-build"* ]]; then
             pr_json="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"
             head_repo="$(jq -r '.head.repo.full_name // empty' <<<"${pr_json}")"
