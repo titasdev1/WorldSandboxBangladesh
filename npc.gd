@@ -60,9 +60,9 @@ func pick_target():
  target.z = clamp(target.z, -roam_limit, roam_limit)
  wait_time = randf_range(1.0, 4.0)
 
-func _physics_process(delta):
- var simulation_delta := delta
- var movement_scale := 1.0
+func _physics_process(delta: float) -> void:
+ var simulation_delta: float = delta
+ var movement_scale: float = 1.0
  if _simulation_tier == 1:
   _simulation_delta_accumulator += delta
   if _simulation_delta_accumulator < MID_SIMULATION_INTERVAL_S:
