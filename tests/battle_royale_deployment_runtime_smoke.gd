@@ -118,7 +118,7 @@ func _run_smoke() -> void:
 		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: first-person hands/body/weapon are not attached to the live operator rig.")
 		quit(1)
 		return
-	var eye_position := player.camera.global_position
+	var eye_position: Vector3 = player.camera.global_position
 	if absf(eye_position.y - (player.global_position.y + 1.68)) > 0.08 or not player.camera.current:
 		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: first-person eye camera is not in the expected operator position.")
 		quit(1)
@@ -164,7 +164,7 @@ func _run_smoke() -> void:
 		return
 	for _camera_frame in range(12):
 		player.call("_update_camera")
-	var freefall_camera_distance := player.camera.global_position.distance_to(player.global_position)
+	var freefall_camera_distance: float = player.camera.global_position.distance_to(player.global_position)
 	if freefall_camera_distance < 15.0 or player.camera.global_position.y < player.global_position.y + 5.0 or player.camera.fov < 74.0:
 		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: freefall camera did not transition to the elevated district overview.")
 		quit(1)
@@ -206,12 +206,12 @@ func _run_smoke() -> void:
 	Input.action_press("move_right")
 	for _right_frame in range(20):
 		await process_frame
-	var right_bank := parachute.rotation.z
+	var right_bank: float = canopy.rotation.z
 	Input.action_release("move_right")
 	Input.action_press("move_left")
 	for _left_frame in range(24):
 		await process_frame
-	var left_bank := parachute.rotation.z
+	var left_bank: float = canopy.rotation.z
 	Input.action_release("move_left")
 	if right_bank > -deg_to_rad(4.0) or left_bank < deg_to_rad(4.0):
 		push_error("BR_DEPLOYMENT_RUNTIME_FAIL: canopy did not bank in opposite directions for left/right steering.")
