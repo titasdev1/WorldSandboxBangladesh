@@ -58,6 +58,95 @@ class MapPackBuildTests(unittest.TestCase):
         map_pack_build.ROOT, map_pack_build.MAP_ROOT, map_pack_build.PRESET_PATH = self.old
         self.temp.cleanup()
 
+    def _rewrite_manifest(self, tiles, **updates):
+        path = self.map_root / "map_tiles_manifest.json"
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["tiles"] = tiles
+        manifest["tile_count_total"] = len(tiles)
+        manifest.update(updates)
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+        return manifest
+
+    def test_manifest_accepts_variable_regional_tile_counts(self):
+        original = json.loads((self.map_root / "map_tiles_manifest.json").read_text(encoding="utf-8"))["tiles"]
+        for count in (1, 3, 60, 121):
+            tiles = []
+            for index in range(count):
+                tile = dict(original[index % len(original)])
+                tile["tile_id"] = f"region_tile_{index:03d}"
+                tiles.append(tile)
+            self._rewrite_manifest(tiles)
+            self.assertEqual(len(map_pack_build._manifest()["tiles"]), count)
+
+    def test_manifest_rejects_declared_tile_count_mismatch(self):
+        manifest_path = self.map_root / "map_tiles_manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["tile_count_total"] = 59
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        with self.assertRaisesRegex(SystemExit, "declares 59 tiles"):
+            map_pack_build._manifest()
+
+    def test_manifest_rejects_duplicate_tile_identity(self):
+        manifest_path = self.map_root / "map_tiles_manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["tiles"][1]["tile_id"] = manifest["tiles"][0]["tile_id"]
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        with self.assertRaisesRegex(SystemExit, "duplicate tile identity"):
+            map_pack_build._manifest()
+
+    def test_manifest_rejects_empty_tile_list(self):
+        self._rewrite_manifest([])
+        with self.assertRaisesRegex(SystemExit, "at least one tile"):
+            map_pack_build._manifest()
+
+    def test_pack_preset_accepts_a_three_tile_region(self):
+        manifest_path = self.map_root / "map_tiles_manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["tiles"] = manifest["tiles"][:3]
+        manifest["tile_count_total"] = 3
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        map_pack_build.configure_pack_preset()
+        text = self.preset.read_text(encoding="utf-8")
+        self.assertIn('res://assets/world/dhaka_tiles/tile_00/Dhaka_Explorable_Map.glb', text)
+        self.assertIn('res://assets/world/dhaka_tiles/tile_02/Dhaka_Explorable_Map.glb', text)
+        self.assertNotIn('res://assets/world/dhaka_tiles/tile_03/Dhaka_Explorable_Map.glb', text)
+
+    def test_future_region_metadata_uses_explicit_country_and_region_identity(self):
+        manifest_path = self.map_root / "map_tiles_manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["build_stage"] = "regional"
+        manifest["administrative_boundary"] = {"name": "Sylhet City"}
+        manifest["country_code"] = "BD"
+        manifest["region_code"] = "sylhet-city"
+        manifest["display_name"] = "Sylhet City"
+        manifest["tiles"] = manifest["tiles"][:3]
+        manifest["tile_count_total"] = 3
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        pack = self.root / "regional-map.pck"
+        pack.write_bytes(b"future-region-pack")
+        output = self.root / "future-region.json"
+        map_pack_build.write_metadata(pack, output, "future-region-release", max_part_bytes=64)
+        metadata = json.loads(output.read_text(encoding="utf-8"))
+        self.assertEqual(metadata["map_pack_id"], "bd.sylhet-city")
+        self.assertEqual(metadata["display_name"], "Sylhet City")
+        self.assertEqual(metadata["tile_count"], 3)
+        self.assertEqual(metadata["country_code"], "BD")
+        self.assertEqual(metadata["region_code"], "sylhet-city")
+
+    def test_future_region_requires_stable_identity(self):
+        manifest_path = self.map_root / "map_tiles_manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["build_stage"] = "regional"
+        manifest["administrative_boundary"] = {"name": "Sylhet City"}
+        manifest.pop("country_code", None)
+        manifest.pop("region_code", None)
+        manifest.pop("map_pack_id", None)
+        manifest["display_name"] = "Sylhet City"
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        with self.assertRaisesRegex(SystemExit, "require map_pack_id"):
+            map_pack_build._map_pack_id(map_pack_build._manifest())
+
     def test_pack_preset_selects_all_tiles_and_required_data_without_changing_base(self):
         map_pack_build.configure_pack_preset()
         text = self.preset.read_text(encoding="utf-8")
