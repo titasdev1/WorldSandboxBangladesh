@@ -53,6 +53,8 @@ if [[ "${VERSION_LINE}" != *"Blender ${BLENDER_VERSION}"* ]]; then
 fi
 
 echo "A-SQUARE BLENDER TOOLCHAIN READY: ${VERSION_LINE}"
+# Make Blender available both in this shell step and all later GitHub Actions steps.
+export PATH="${BLENDER_DIR}:${PATH}"
 if [[ -n "${GITHUB_PATH:-}" ]]; then
   echo "${BLENDER_DIR}" >> "${GITHUB_PATH}"
 fi
