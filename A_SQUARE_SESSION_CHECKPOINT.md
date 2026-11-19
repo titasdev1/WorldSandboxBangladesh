@@ -327,3 +327,49 @@ Use `TOOLS_AND_PLATFORMS_REGISTRY.md` as the durable directory. Snapshot 2026-11
 3. Obtain stable signing configuration for update installs.
 4. Run physical device smoke on the Redmi after a safe data/installation plan; test first-run PCK download and reassembly with sufficient storage and Wi-Fi.
 5. Resolve Shariatpur visual/floor/device quality gates before calling the map complete or expanding to all Dhaka Division.
+
+
+## 2026-11-19 — global-world direction, Instagram review and regional-pack progress
+
+### Corrected player-facing structure
+- **JibonJatra is the GTA-style open-world experience.** Racing/Forza systems (Roadline prototypes) and eFootball-style stadium football (Pitchbound prototypes) are activities inside this world, discoverable at roads, tracks, stadiums, schools/colleges and neighbourhood grounds. They are not separate top-level mode cards.
+- Strikefront remains the COD/CODM-style combat family with its own MP/Ranked/BR/Zombies/Special Ops rules and acceptance gates. Greenwake remains a planned adventure family. None of these labels means the mode is complete.
+
+### Earth-scale world architecture
+Build four connected detail tiers in parallel:
+1. **Planetary foundation:** connected global land/water topology, coastlines, islands, rivers/lakes, country/administrative boundaries, broad land cover, generalized elevation and ocean bathymetry.
+2. **Regional terrain/infrastructure:** variable-size regional packages with actual DEM-backed slopes/valleys/floodplains and roads, rail, waterways, settlements and building footprints aligned to the terrain.
+3. **City/street evidence:** building height/floor evidence, roof/façade materials, entrances, windows, local signs and props matched to licensed aerial/oblique/street-level multi-view material.
+4. **Hero buildings/interiors:** structured evidence packs with coordinates, footprint, floor/height records, photos by side, roof, source/date/licence and uncertainty. Blender authoring, AI-assisted drafting and manual correction are all appropriate; exact real-world text/signage must be human-verified. When interior evidence is unavailable, create coherent fictional interiors and label them as authored rather than factual.
+
+Shariatpur remains the first detailed Bangladesh gameplay/visual field test, but its local release gate must not block the global atlas, DEM terrain foundation, generic map-package architecture or other regional proofs. OSM footprints alone are not photorealistic facades; overhead satellite imagery cannot show the reverse side, hidden entrances or interiors. A single image is not a complete multi-side building record. Do not use Google Maps/Street View/Photorealistic 3D Tiles as offline mesh/texture/terrain or AI-reconstruction input.
+
+### Two Instagram references — exact inspection result
+- Reel DfCjug5MFbF caption promotes Concept Studio OSM for importing OSM buildings and photo textures into Blender without an API key. Browser playback was blocked by an Instagram login overlay; only a brief map/route UI glimpse was visible, so full 3D output was not independently inspected.
+- Carousel Df5pkQiDkT2 caption describes a purported 12-agent Ferry Building walk-through workflow. The user-linked img_index=9 slide itself is a monochrome portrait of a man sitting on a railing with a hilly background; it contains no building/model, signage or architectural text. The Ferry Building claim is in the caption, not shown in that particular slide.
+- Concept Studio is a commercial Blender add-on (listed Solo $39); its photogrammetric-looking Google 3D Tiles path requires Google billing and its imagery must not be extracted into our offline game. Its no-key OSM route is a different, lower-detail geometry path. Do not buy the add-on or use paid services without explicit approval.
+
+### Source and licensing direction
+- BlenderGIS is a free/open-source Blender geographic-data bridge; it can import vector data, OSM and GeoTIFF/DEM workflows. It is a tool, not a substitute for licensed source data.
+- Candidate global elevation sources: Copernicus DEM GLO-30/GLO-90 (check the current data-use/attribution terms for the exact product), NASA SRTM for its stated coverage/resolution, and GEBCO's global land/ocean grid for coarse planet-scale relief/bathymetry. Do not assume one elevation product provides equally accurate local street terrain everywhere.
+- Candidate imagery: OpenAerialMap/STAC, with exact item-level licence/provenance; Mapillary images are CC BY-SA under its open-data licence; Panoramax offers reusable public-street imagery but check the instance/API and photo-level conditions. KartaView/Mapillary/Panoramax are sparse references, not universal coverage. The prior Shariatpur KartaView audit found zero qualifying 360° photos in the sampled grid.
+- Preserve contributor/author, permalink, capture date, exact licence, transformation/redistribution permissions and building-match evidence per asset. Never fabricate business names or signage; AI text is draft-only until verified.
+
+### Actual code changes now on the branch
+- Branch: feature/lobby-operator-showcase; PR #78 remains open/draft.
+- tools/map_pack_build.py no longer hard-codes exactly 60 tile records. It accepts non-empty variable-sized manifests, rejects duplicate identities and declared-count mismatches, derives future regional IDs from stable country/region codes, and retains the legacy Shariatpur/Greater-Dhaka IDs.
+- Regression tests added for 1, 3, 60 and 121 tiles, duplicate IDs, empty/mismatched manifests, generic region metadata and stable IDs.
+- Fast CI workflow was wired to run those tests. **Run #657 / 44460503513 completed SUCCESS** on source head af871216fe9debd8a75efa1899c3814d33f91b60.
+- This is packaging/manifest progress, not full global map support: the Godot loader, world selection and current workflow still use assets/world/dhaka_tiles; global catalogue, alternate-root runtime mounting and DEM terrain are not implemented. The Shariatpur builder still creates flat ground.
+
+### Unchanged release truth
+- Android build #1102 / run 44354975442 is a CI-verified review candidate, not a completed game or production-signed release. Core APK 321,119,583 bytes; debug-fallback signing; Shariatpur PCK 2,451,147,626 bytes in 10 checksum-verified pieces.
+- Shariatpur remains REVIEW_REQUIRED: prior build log reports zero independently verified floor counts, three licensed façade-photo panels and only a small amount of interior-reference evidence. Physical Android installation, visual quality, touch, FPS/frame-time, RAM/thermal and full first-run download remain unverified.
+- PR #78 is not merged. PR #79 is the documentation correction branch. Do not treat the candidate APK as a finished dream-game build.
+
+### Next engineering gates
+1. Extend the map loader and content catalogue to select region IDs/manifest roots instead of assuming one Dhaka tile directory; preserve the current Shariatpur pack as a regression fixture.
+2. Add a licensed DEM ingestion/terrain-mesh stage with geographic alignment, NoData handling, slope-aware collisions and roads/buildings draping. Test a varied-relief fixture before rebuilding Shariatpur.
+3. Create a low-detail global land/water/coastline atlas and progressive LOD/streaming policy; then build bounded country/region packages, not a planet-sized APK.
+4. Audit imagery coverage by source and exact licence; prioritize representative multi-view buildings and human-verified signage/floor evidence. Do not claim all four sides/interiors are covered.
+5. Keep racing and stadium football as JibonJatra in-world activities and measure one complete playable loop for each before promoting either.
