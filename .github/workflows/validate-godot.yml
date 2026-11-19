@@ -28,6 +28,8 @@ on:
       - "player.gd"
       - "vehicle.gd"
       - "hud.gd"
+      - "tests/test_lobby_operator_showcase.py"
+      - "assets/ui/icons/**"
       - "district_map_display.gd"
       - "real_dhaka_tile_loader.gd"
       - "Main.tscn"
@@ -101,6 +103,9 @@ jobs:
 
       - name: Validate character asset pipeline Python syntax
         run: python3 -m py_compile tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/fetch_charactercreator_hero.py tools/convert_charactercreator_glbs.py
+
+      - name: Verify icon-led lobby navigation and page routing
+        run: python3 -m unittest discover -s tests -p "test_lobby_operator_showcase.py" -v
 
       - name: Restore cached Quaternius CC0 hero and animation libraries
         uses: actions/cache@v4
