@@ -63,6 +63,21 @@ class CharacterMovementAnimationTests(unittest.TestCase):
         self.assertIn('state = "sprint"', block)
 
 
+    def test_locomotion_visual_uses_local_heading_after_actor_root_turns(self):
+        source = (ROOT / "character_visual.gd").read_text(encoding="utf-8")
+        self.assertIn(
+            "var desired_local_yaw := wrapf(desired_yaw - body.global_rotation.y, -PI, PI)",
+            source,
+        )
+        self.assertIn(
+            "rotation.y = lerp_angle(rotation.y, desired_local_yaw",
+            source,
+        )
+        self.assertNotIn(
+            "rotation.y = lerp_angle(rotation.y, desired_yaw",
+            source,
+        )
+
     def test_jump_has_a_short_buffer_and_coyote_window(self):
         source = (ROOT / "player.gd").read_text(encoding="utf-8")
         self.assertIn("var _jump_buffer_time := 0.0", source)

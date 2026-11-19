@@ -1459,7 +1459,11 @@ func _process(delta: float) -> void:
 
         # Follow travel direction smoothly. The player controller remains authoritative.
         var desired_yaw := atan2(-body.velocity.x, -body.velocity.z)
-        rotation.y = lerp_angle(rotation.y, desired_yaw, minf(delta * 9.0, 1.0))
+        # The CharacterBody3D root already turns toward travel. Convert the
+        # world-space travel heading into this visual child's local space so
+        # the same yaw is not applied twice.
+        var desired_local_yaw := wrapf(desired_yaw - body.global_rotation.y, -PI, PI)
+        rotation.y = lerp_angle(rotation.y, desired_local_yaw, minf(delta * 9.0, 1.0))
     else:
         left_leg.rotation.x = move_toward(left_leg.rotation.x, 0.0, delta * 3.4)
         right_leg.rotation.x = move_toward(right_leg.rotation.x, 0.0, delta * 3.4)
