@@ -67,8 +67,19 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
 
     def test_navigation_selection_tracks_the_current_lobby_page(self):
         page = function_block(self.hud, "_show_lobby_page")
+        lobby = function_block(self.hud, "_build_lobby_ui")
         self.assertIn('nav_button.button_pressed = String(page_id) == page', page)
         self.assertIn('button.toggle_mode = true', self.hud)
+        self.assertIn('button.icon = load(String(item[2])) as Texture2D', lobby)
+        self.assertIn('button.icon_max_width = 30 if is_play_navigation else 25', lobby)
+        self.assertIn('button.tooltip_text = String(item[0]).capitalize()', lobby)
+        for icon_name in ("home", "play", "loadout", "operator", "events", "store", "clan", "profile"):
+            self.assertIn(f'"res://assets/ui/icons/{icon_name}.svg"', lobby)
+            icon_path = ROOT / "assets" / "ui" / "icons" / f"{icon_name}.svg"
+            self.assertTrue(icon_path.is_file(), f"Missing lobby navigation icon: {icon_name}")
+            icon = icon_path.read_text(encoding="utf-8")
+            self.assertIn('viewBox="0 0 64 64"', icon)
+            self.assertIn("<path", icon)
 
     def test_operator_page_exposes_live_appearance_presets_on_player_visual(self):
         operator_page = function_block(self.hud, "_show_lobby_page")
