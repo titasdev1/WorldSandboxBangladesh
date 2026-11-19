@@ -9,6 +9,8 @@ on:
       - "tools/build_battle_royale_parachute.py"
       - "tools/smoke_battle_royale_parachute_blender_api.py"
       - "tools/verify_battle_royale_parachute.py"
+      - "tools/install_blender_ci.sh"
+      - "tests/test_blender_ci_toolchain.py"
       - "tests/test_battle_royale_parachute_artifact.py"
       - ".github/workflows/validate-blender-assets.yml"
   pull_request:
@@ -36,13 +38,23 @@ jobs:
       - name: Checkout project
         uses: actions/checkout@v5
 
-      - name: Install Blender
+      - name: Cache Blender 5.2.4 LTS
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/blender-5.2.4
+          key: blender-linux-5.2.4-lts
+
+      - name: Install pinned Blender 5.2.4 LTS
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y blender python3-numpy
+          sudo apt-get install -y curl xz-utils python3-numpy
+          bash tools/install_blender_ci.sh
           blender --version
+
+      - name: Test pinned Blender CI toolchain
+        run: python3 -m unittest discover -s tests -p "test_blender_ci_toolchain.py" -v
 
       - name: Compile authoring and verification scripts
         shell: bash
