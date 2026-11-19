@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "tools/map_pipeline/**"
+      - "tools/map_pack_build.py"
+      - "tests/test_map_pack_build.py"
       - "tests/test_dhaka_map_pipeline.py"
       - "tests/test_dhaka_division_pipeline.py"
       - "tests/test_merge_dhaka_division_batches.py"
@@ -13,6 +15,8 @@ on:
     branches: [main, feature/lobby-operator-showcase]
     paths:
       - "tools/map_pipeline/**"
+      - "tools/map_pack_build.py"
+      - "tests/test_map_pack_build.py"
       - "tests/test_dhaka_map_pipeline.py"
       - "tests/test_dhaka_division_pipeline.py"
       - "tests/test_merge_dhaka_division_batches.py"
@@ -33,6 +37,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+      - name: Validate regional map-pack builder
+        run: |
+          python -m py_compile tools/map_pack_build.py
+          python -m unittest discover -s tests -p 'test_map_pack_build.py'
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
