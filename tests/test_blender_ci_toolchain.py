@@ -21,6 +21,7 @@ class BlenderCIToolchainTests(unittest.TestCase):
         ):
             workflow = (ROOT / relative).read_text(encoding="utf-8")
             self.assertIn("tools/install_blender_ci.sh", workflow)
+            self.assertIn("source tools/install_blender_ci.sh", workflow)
             self.assertIn("Blender 5.2.4 LTS", workflow)
             self.assertNotIn("apt-get install -y blender", workflow)
 
