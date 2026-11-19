@@ -342,6 +342,17 @@ func spawn_player():
  player.add_child(visual)
  add_child(player)
 
+func set_world_traffic_enabled(enabled: bool) -> void:
+ # Keep traffic vehicles in the scene when combat starts: disabling their
+ # physics turns them into parked cover instead of deleting the city dressing.
+ for vehicle_node in get_tree().get_nodes_in_group("world_traffic"):
+  if not is_instance_valid(vehicle_node):
+   continue
+  vehicle_node.set_physics_process(enabled)
+  if not enabled and vehicle_node is CharacterBody3D:
+   vehicle_node.velocity = Vector3.ZERO
+
+
 func spawn_traffic():
  if real_dhaka_loaded and real_dhaka_loader:
   var mapped_routes: Array = real_dhaka_loader.get_vehicle_route_records()
@@ -373,6 +384,7 @@ func spawn_traffic():
    v.position = Vector3(rng.randf_range(-78, 78), 0, lane + (1.8 if i % 2 == 0 else -1.8))
   v.body_size = t.size
   v.body_color = t.color
+  v.add_to_group("world_traffic")
   add_child(v)
 
 func _configure_mapped_vehicle_route(vehicle_node: Node3D, road: Dictionary) -> bool:
@@ -421,6 +433,7 @@ func _spawn_mapped_traffic_vehicle(route_records: Array = []) -> void:
   v.free()
   return
  v.add_to_group("mapped_traffic_vehicle")
+ v.add_to_group("world_traffic")
  add_child(v)
 
 

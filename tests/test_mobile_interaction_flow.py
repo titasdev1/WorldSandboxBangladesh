@@ -56,6 +56,19 @@ class MobileInteractionFlowTests(unittest.TestCase):
         # not prevent the selected mode from entering its own loading phase.
         self.assertIn("_map_entry_in_progress = true", map_entry)
 
+    def test_combat_modes_freeze_city_traffic_as_parked_cover(self):
+        traffic_toggle = function_block(self.world, "set_world_traffic_enabled")
+        generic_traffic = function_block(self.world, "spawn_traffic")
+        mapped_traffic = function_block(self.world, "_spawn_mapped_traffic_vehicle")
+        mode_entry = function_block(self.hud, "_complete_enter_selected_mode")
+        replay = function_block(self.hud, "_replay_combat_round")
+        self.assertIn('v.add_to_group("world_traffic")', generic_traffic)
+        self.assertIn('v.add_to_group("world_traffic")', mapped_traffic)
+        self.assertIn('vehicle_node.set_physics_process(enabled)', traffic_toggle)
+        self.assertIn('vehicle_node.velocity = Vector3.ZERO', traffic_toggle)
+        self.assertIn('["survival", "arena_training", "street_skirmish", "battle_royale_solo"]', mode_entry)
+        self.assertIn('w.call("set_world_traffic_enabled", false)', replay)
+
     def test_vehicle_interaction_precedes_building_and_vendor_interactions(self):
         block = function_block(self.player, "interact")
         self.assertLess(block.index("try_vehicle_interaction"), block.index("try_street_vendor"))

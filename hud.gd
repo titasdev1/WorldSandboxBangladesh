@@ -1608,6 +1608,8 @@ func _replay_combat_round() -> void:
  selected_mode = mode_id
  _shown_result_token = ""
  w.set("game_mode", mode_id)
+ if w.has_method("set_world_traffic_enabled"):
+  w.call("set_world_traffic_enabled", false)
  combat.call("start_mode", mode_id)
  if mode_id == "battle_royale_solo":
   var deployment: Node = w.get("battle_royale_controller") as Node
@@ -1826,6 +1828,9 @@ func _complete_enter_selected_mode() -> void:
  _release_gameplay_inputs()
  if w:
   w.game_mode = selected_mode
+  if w.has_method("set_world_traffic_enabled"):
+   var combat_mode_ids := ["survival", "arena_training", "street_skirmish", "battle_royale_solo"]
+   w.call("set_world_traffic_enabled", not combat_mode_ids.has(selected_mode))
   if selected_mode == "jibon_jatra":
    w.mission_active = false
    w.event_text = "JIBONJATRA • OPEN WORLD SESSION ACTIVE"
