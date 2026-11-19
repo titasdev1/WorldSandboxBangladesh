@@ -37,7 +37,7 @@ jobs:
           set -euo pipefail
           python3 -m py_compile tools/audit_openaerialmap_coverage.py
           python3 -m unittest discover -s tests -p "test_audit_openaerialmap_coverage.py" -v
-      - name: Query OpenAerialMap STAC for Shariatpur
+      - name: Query all HOTOSM STAC imagery collections for Shariatpur
         shell: bash
         run: |
           set -euo pipefail
