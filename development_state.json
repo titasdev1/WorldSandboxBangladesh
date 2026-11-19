@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "040_REGION_AGNOSTIC_MAP_PACKS_AND_GLOBAL_WORLD_FOUNDATION",
+  "current_milestone": "041_DEM_BACKED_TERRAIN_PIPELINE",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -39,9 +39,10 @@
     "029_BR_PARACHUTE_ARTIFACT_REGRESSION_REPAIR",
     "030_FIRST_PERSON_BODY_AND_WEAPON_VISIBILITY_ASSERTIONS",
     "031_NPC_DISTANCE_SIMULATION_LOD_HEADLESS_PASS_DEVICE_PROFILE_PENDING",
-    "040_REGION_AGNOSTIC_MAP_PACK_VALIDATION: variable tile counts and region IDs committed; fast regression CI passed run 44460503513; global loader/catalogue/DEM still pending"
+    "040_REGION_AGNOSTIC_MAP_PACK_VALIDATION: variable tile counts and region IDs committed; fast regression CI passed run 44460503513; global loader/catalogue/DEM still pending",
+    "041_DEM_BACKED_TERRAIN_PIPELINE: optional licensed GeoTIFF reader, terrain mesh, road/rail/land surface draping, building/prop base elevations and provenance; 8 focused GeoTIFF tests passed in run 44461918274; latest end-to-end GLB integration test run 44462038457 pending at checkpoint."
   ],
-  "next_priority": "Extend real_dhaka_tile_loader.gd and boot/world selection to load a selected region from its manifest root and stable map_pack_id; preserve Shariatpur compatibility. Add DEM-backed terrain ingestion/mesh generation with a varied-relief fixture, then build the global low-detail land/water/coastline atlas and regional LOD streaming. Shariatpur remains the first detailed field test but must not block global foundations. Keep racing and Pitchbound football as in-world JibonJatra activities. Do not claim global map or real device quality until separately verified.",
+  "next_priority": "Obtain/select a licensed DEM for Shariatpur; run the map builder with full source URL/licence/attribution; inspect generated GLB in Blender/Godot for terrain-to-road/building/river fit, then wire DEM heights into runtime spawn/navigation/player/vehicle placement. In parallel implement planetary low-detail land/water/coastline catalog and region streaming. Do not claim current Shariatpur package has elevation until rebuilt and visually/device verified.",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -406,6 +407,23 @@
         ],
         "remaining": "runtime loader and map content root still district-specific"
       }
+    },
+    "dem_terrain": {
+      "date": "2026-11-19",
+      "implementation_commits": [
+        "2931e957410da70001bba5e524f3b8d81ba62275",
+        "58f8d2ab738c5437abde2f277513fcc457d9a1e8",
+        "653512245ba61ef2cb286b5ce6181eb040e7ea63",
+        "1142fb44b18e668bab80658a43d213347803e5a1"
+      ],
+      "focused_tests": 8,
+      "focused_test_run": 44461918274,
+      "focused_test_conclusion": "success",
+      "end_to_end_test_run": 44462038457,
+      "end_to_end_test_status": "in_progress_at_checkpoint",
+      "production_dem_selected": false,
+      "shariatpur_package_rebuilt": false,
+      "runtime_player_vehicle_elevation_qa": false
     }
   },
   "latest_checkpoint_commit": "79a2bb385292e151e3208b0cd86021c1f0cc81b6",
