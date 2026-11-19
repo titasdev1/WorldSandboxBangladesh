@@ -958,13 +958,26 @@ func _build_lobby_ui() -> void:
  var nav := VBoxContainer.new()
  nav.add_theme_constant_override("separation", 8)
  nav_panel.add_child(nav)
- var nav_items := [["HOME","home"],["PLAY","play"],["LOADOUT","loadout"],["OPERATOR","operator"],["EVENTS","events"],["STORE","store"],["CLAN","clan"],["PROFILE","profile"]]
+ var nav_items := [
+  ["HOME", "home", "res://assets/ui/icons/home.svg"],
+  ["PLAY", "play", "res://assets/ui/icons/play.svg"],
+  ["LOADOUT", "loadout", "res://assets/ui/icons/loadout.svg"],
+  ["OPERATOR", "operator", "res://assets/ui/icons/operator.svg"],
+  ["EVENTS", "events", "res://assets/ui/icons/events.svg"],
+  ["STORE", "store", "res://assets/ui/icons/store.svg"],
+  ["CLAN", "clan", "res://assets/ui/icons/clan.svg"],
+  ["PROFILE", "profile", "res://assets/ui/icons/profile.svg"],
+ ]
  for item in nav_items:
   var button := Button.new()
   var page_id := String(item[1])
   var is_play_navigation := page_id == "play"
   button.name = "LobbyNav_" + page_id.capitalize()
-  button.text = ("▶  " if is_play_navigation else "   ") + String(item[0])
+  button.text = String(item[0])
+  button.icon = load(String(item[2])) as Texture2D
+  button.icon_max_width = 30 if is_play_navigation else 25
+  button.add_theme_constant_override("h_separation", 11)
+  button.tooltip_text = String(item[0]).capitalize()
   button.toggle_mode = true
   button.button_pressed = page_id == "home"
   button.custom_minimum_size = Vector2(0.0, 60.0 if is_play_navigation else 48.0)
