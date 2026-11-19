@@ -12,6 +12,7 @@ class BlenderCIToolchainTests(unittest.TestCase):
         self.assertIn("sha256sum --check expected.sha256", installer)
         self.assertIn("refusing unverified archive", installer)
         self.assertIn("Unexpected Blender version", installer)
+        self.assertIn('export PATH="${BLENDER_DIR}:${PATH}"', installer)
 
     def test_blender_workflows_share_the_pinned_installer(self):
         for relative in (
