@@ -75,6 +75,9 @@ jobs:
         shell: bash
         run: python3 -m py_compile tools/convert_charactercreator_glbs.py tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/fetch_charactercreator_hero.py tools/kenney_pack_utils.py tools/fetch_battle_royale_aircraft.py tools/verify_medium_stage_assets.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py tools/map_pack_build.py tools/verify_core_apk_contents.py tools/verify_final_distribution.py tools/ara3d/verify_ara_glb.py tools/build_battle_royale_parachute.py tools/verify_battle_royale_parachute.py
 
+      - name: Test pinned Blender CI toolchain
+        run: python3 -m unittest discover -s tests -p "test_blender_ci_toolchain.py" -v
+
       - name: Run navigation-index unit tests
         shell: bash
         run: python3 -m unittest discover -s tests -p "test_real_world_navigation_index.py"
@@ -774,12 +777,19 @@ jobs:
           python3 tools/fetch_battle_royale_aircraft.py
           python3 -m unittest discover -s tests -p "test_battle_royale_aircraft_pipeline.py"
 
-      - name: Install Blender for original BR parachute asset authoring
+      - name: Cache Blender 5.2.4 LTS
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/blender-5.2.4
+          key: blender-linux-5.2.4-lts
+
+      - name: Install pinned Blender 5.2.4 LTS for authored game assets
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y blender python3-numpy
+          sudo apt-get install -y curl xz-utils python3-numpy
+          bash tools/install_blender_ci.sh
           blender --version
 
       - name: Build and structurally verify the original CC0 ram-air parachute
