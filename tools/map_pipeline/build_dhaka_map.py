@@ -13,6 +13,7 @@ import hashlib
 import math
 import os
 import re
+import sys
 import time
 import urllib.parse
 import urllib.request
@@ -23,6 +24,12 @@ import numpy as np
 import trimesh
 from shapely.geometry import GeometryCollection, LineString, MultiLineString, MultiPolygon, Point, Polygon, box, mapping, shape
 from shapely.ops import unary_union
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tools.map_pipeline.terrain_elevation import ElevationGrid
 
 # First map slice: central Dhaka. Small enough for responsible Overpass use and
 # useful for validating the complete export/import pipeline before scaling out.
@@ -1397,16 +1404,18 @@ def make_geojson(
     return {"type": "FeatureCollection", "name": "Dhaka OSM source features (clipped to tile)", "features": features}
 
 
-def add_node_environment_prop(scene: trimesh.Scene, x: float, y: float,
-                              tags: dict[str, str], osm_id: int) -> str:
+def add_node_environment_prop(
+    scene: trimesh.Scene, x: float, y: float,
+    tags: dict[str, str], osm_id: int, ground_elevation_m: float = 0.0,
+) -> str:
     """Add simple, clearly approximate 3D props at mapped OSM tree/pole/light nodes."""
     if tags.get("natural", "").lower() == "tree":
         trunk = trimesh.creation.cylinder(radius=0.13, height=2.2, sections=7)
-        trunk.apply_translation((x, y, 1.1))
+        trunk.apply_translation((x, y, ground_elevation_m + 1.1))
         color_mesh(trunk, (105, 76, 51, 255))
         canopy = trimesh.creation.icosphere(subdivisions=1, radius=1.05)
         canopy.apply_scale((1.0, 1.0, 1.15))
-        canopy.apply_translation((x, y, 2.8))
+        canopy.apply_translation((x, y, ground_elevation_m + 2.8))
         color_mesh(canopy, (58, 105, 61, 255))
         scene.add_geometry(trunk, node_name=f"osm_tree_trunk_{osm_id}", geom_name=f"osm_tree_trunk_{osm_id}")
         scene.add_geometry(canopy, node_name=f"osm_tree_canopy_{osm_id}", geom_name=f"osm_tree_canopy_{osm_id}")
@@ -1428,34 +1437,43 @@ def add_node_environment_prop(scene: trimesh.Scene, x: float, y: float,
 
     pole_radius = 0.17 if power_kind == "tower" else (0.11 if is_utility_pole else 0.075)
     pole = trimesh.creation.cylinder(radius=pole_radius, height=height, sections=8)
-    pole.apply_translation((x, y, height / 2.0))
+    pole.apply_translation((x, y, ground_elevation_m + height / 2.0))
     color_mesh(pole, (111, 119, 121, 255))
     scene.add_geometry(pole, node_name=f"osm_utility_pole_{osm_id}", geom_name=f"osm_utility_pole_{osm_id}")
 
     if is_utility_pole:
         arm = trimesh.creation.box(extents=(2.0 if power_kind == "tower" else 1.25, 0.12, 0.12))
-        arm.apply_translation((x, y, height * 0.82))
+        arm.apply_translation((x, y, ground_elevation_m + height * 0.82))
         color_mesh(arm, (91, 99, 101, 255))
         scene.add_geometry(arm, node_name=f"osm_power_crossarm_{osm_id}", geom_name=f"osm_power_crossarm_{osm_id}")
         for insulator_index, dx in enumerate((-0.72, 0.0, 0.72)):
             insulator = trimesh.creation.cylinder(radius=0.07, height=0.24, sections=6)
-            insulator.apply_translation((x + dx, y, height * 0.82 + 0.16))
+            insulator.apply_translation((x + dx, y, ground_elevation_m + height * 0.82 + 0.16))
             color_mesh(insulator, (204, 205, 194, 255))
             scene.add_geometry(insulator, node_name=f"osm_power_insulator_{osm_id}_{insulator_index}", geom_name=f"osm_power_insulator_{osm_id}_{insulator_index}")
     else:
         arm = trimesh.creation.box(extents=(0.75, 0.07, 0.07))
-        arm.apply_translation((x + 0.32, y, height - 0.1))
+        arm.apply_translation((x + 0.32, y, ground_elevation_m + height - 0.1))
         color_mesh(arm, (80, 88, 90, 255))
         scene.add_geometry(arm, node_name=f"osm_streetlamp_arm_{osm_id}", geom_name=f"osm_streetlamp_arm_{osm_id}")
         lamp = trimesh.creation.box(extents=(0.36, 0.20, 0.12))
-        lamp.apply_translation((x + 0.65, y, height - 0.16))
+        lamp.apply_translation((x + 0.65, y, ground_elevation_m + height - 0.16))
         color_mesh(lamp, (236, 220, 160, 255))
         scene.add_geometry(lamp, node_name=f"osm_streetlamp_head_{osm_id}", geom_name=f"osm_streetlamp_head_{osm_id}")
     return "utility_pole" if is_utility_pole else "street_lamp"
 
 
-def build_map(elements: list[dict[str, Any]], output_dir: Path,
-              bbox: tuple[float, float, float, float] = DEFAULT_BBOX) -> dict[str, Any]:
+def build_map(
+    elements: list[dict[str, Any]],
+    output_dir: Path,
+    bbox: tuple[float, float, float, float] = DEFAULT_BBOX,
+    *,
+    dem_geotiff: str | Path | None = None,
+    dem_spacing_m: float = 30.0,
+    dem_source_url: str = "",
+    dem_license: str = "",
+    dem_attribution: str = "",
+) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     south, west, north, east = bbox
     origin_lat, origin_lon = (south + north) / 2.0, (west + east) / 2.0
@@ -1465,6 +1483,22 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     tile_bounds = Polygon([(-width / 2, -depth / 2), (width / 2, -depth / 2),
                            (width / 2, depth / 2), (-width / 2, depth / 2)])
     scene = trimesh.Scene()
+    terrain_grid: ElevationGrid | None = None
+    if dem_geotiff is not None:
+        if not (dem_source_url.strip() and dem_license.strip() and dem_attribution.strip()):
+            raise ValueError(
+                "DEM export requires dem_source_url, dem_license and dem_attribution; "
+                "do not bake untraceable elevation data"
+            )
+        terrain_grid = ElevationGrid.from_geotiff(
+            dem_geotiff,
+            bbox_south_west_north_east=bbox,
+            origin_lat=origin_lat,
+            origin_lon=origin_lon,
+            width_m=width,
+            depth_m=depth,
+            spacing_m=dem_spacing_m,
+        )
     facade_photo_catalog = load_facade_photo_catalog()
     loaded_facade_photo_ids = facade_photo_catalog_image_ids(facade_photo_catalog)
     interior_reference_catalog = load_interior_reference_catalog()
@@ -1472,8 +1506,11 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
     interior_reference_photo_matches: list[dict[str, Any]] = []
     facade_photo_panels = 0
     interior_reference_photos_embedded = 0
-    ground = trimesh.creation.box(extents=(width, depth, 0.20))
-    ground.apply_translation((0.0, 0.0, -0.10))
+    if terrain_grid is not None:
+        ground = terrain_grid.make_mesh()
+    else:
+        ground = trimesh.creation.box(extents=(width, depth, 0.20))
+        ground.apply_translation((0.0, 0.0, -0.10))
     color_mesh(ground, (104, 119, 91, 255))
     scene.add_geometry(ground, node_name="terrain_base", geom_name="terrain_base")
 
@@ -1544,6 +1581,14 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 if color is not None:
                     for polygon in relation_area_polygons(el, origin_lat, origin_lon, tile_bounds):
                         for mesh in flat_surface_mesh(polygon, color, f"osm_relation_surface_{osm_id}"):
+                            if terrain_grid is not None:
+                                if is_water_area(tags):
+                                    water_level = terrain_grid.sample_height(
+                                        float(polygon.centroid.x), float(polygon.centroid.y)
+                                    )
+                                    mesh.apply_translation((0.0, 0.0, water_level))
+                                else:
+                                    terrain_grid.drape_mesh(mesh)
                             surface_meshes_by_color.setdefault(color, []).append(mesh)
                         if is_water_area(tags):
                             water_polygons += 1
@@ -1561,8 +1606,13 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                     x, y = local_xy(float(lat), float(lon), origin_lat, origin_lon)
                     # Keep multi-metre props inside the tile; a neighbouring tile owns edge-adjacent nodes.
                     prop_kind = ""
+                    node_ground_elevation = (
+                        terrain_grid.sample_height(x, y) if terrain_grid is not None else 0.0
+                    )
                     if abs(x) <= width / 2.0 - 1.1 and abs(y) <= depth / 2.0 - 1.1:
-                        prop_kind = add_node_environment_prop(scene, x, y, tags, osm_id)
+                        prop_kind = add_node_environment_prop(
+                            scene, x, y, tags, osm_id, node_ground_elevation
+                        )
                     if prop_kind == "tree":
                         trees += 1
                     elif prop_kind == "utility_pole":
@@ -1575,6 +1625,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                             "name": tags.get("name", tags.get("shop", tags.get("amenity", "Unnamed place"))),
                             "category": tags.get("shop", tags.get("amenity", tags.get("tourism", "place"))),
                             "anchor_local_m": [round(x, 2), round(y, 2)],
+                            "ground_elevation_m": round(node_ground_elevation, 3),
                             "interior_status": "FICTIONAL_GAME_INTERIOR_GENERATED_AT_RUNTIME",
                             "npc_seed": "Generate a locally plausible fictional Bangladeshi shopkeeper or resident; do not claim this person's identity is real.",
                         })
@@ -1595,12 +1646,17 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             if polygon.is_empty or polygon.area < 0.5:
                 continue
             blocked_vegetation_polygons.append(polygon)
+            building_center = polygon.representative_point()
+            building_ground_elevation = (
+                terrain_grid.sample_height(float(building_center.x), float(building_center.y))
+                if terrain_grid is not None else 0.0
+            )
             height, inferred = building_height(tags, osm_id, polygon.area)
             if inferred:
                 inferred_heights += 1
             facade_color = building_color(tags, osm_id)
             for mesh in extruded_polygon(polygon, height, facade_color, f"osm_building_{osm_id}"):
-                mesh.apply_translation((0.0, 0.0, 0.02))
+                mesh.apply_translation((0.0, 0.0, 0.02 + building_ground_elevation))
                 building_meshes_by_color.setdefault(facade_color, []).append(mesh)
             facade_photo = match_facade_photo(tags, facade_photo_catalog, polygon, origin_lat, origin_lon)
             if facade_photo is not None:
@@ -1609,6 +1665,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                     polygon, height, facade_photo["image"], osm_id, str(photo_metadata.get("id", "licensed_photo"))
                 )
                 if photo_panel is not None:
+                    photo_panel.apply_translation((0.0, 0.0, building_ground_elevation))
                     scene.add_geometry(
                         photo_panel,
                         node_name=f"licensed_facade_photo_{photo_metadata.get('id')}_{osm_id}",
@@ -1642,7 +1699,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             roof_shape_model, roof_shape_source = roof_shape_for_building(tags, polygon.area, height)
             mapped_roof_color = procedural_roof_color(tags, osm_id, roof_shape_source)
             for roof_mesh in extruded_polygon(polygon, 0.055, mapped_roof_color, f"osm_roof_{osm_id}"):
-                roof_mesh.apply_translation((0.0, 0.0, height + 0.025))
+                roof_mesh.apply_translation((0.0, 0.0, height + 0.025 + building_ground_elevation))
                 roof_meshes_by_color.setdefault(mapped_roof_color, []).append(roof_mesh)
             if roof_shape_source.startswith("INFERRED_"):
                 inferred_roofs += 1
@@ -1664,6 +1721,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 if not roof_within_tile:
                     edge_clipped_roofs_suppressed += 1
                 else:
+                    pitched_roof.apply_translation((0.0, 0.0, building_ground_elevation))
                     color_mesh(pitched_roof, mapped_roof_color)
                     roof_meshes_by_color.setdefault(mapped_roof_color, []).append(pitched_roof)
                     modeled_roofs += 1
@@ -1690,7 +1748,8 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             door_entrance_node_osm_id = ""
             if door_info is not None:
                 door_color = door_info["color"]
-                door_vertices = door_info["vertices"]
+                door_vertices = np.asarray(door_info["vertices"], dtype=np.float64).copy()
+                door_vertices[:, 2] += building_ground_elevation
                 door_faces = door_info["faces"]
                 vertex_offset = door_vertex_counts.get(door_color, 0)
                 door_vertices_by_color.setdefault(door_color, []).append(door_vertices)
@@ -1708,6 +1767,8 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             window_geometry = facade_window_geometry(polygon, height, osm_id, tile_bounds, tags)
             if window_geometry is not None:
                 window_color, window_vertices, window_faces, window_count = window_geometry
+                window_vertices = np.asarray(window_vertices, dtype=np.float64).copy()
+                window_vertices[:, 2] += building_ground_elevation
                 vertex_offset = facade_vertex_counts.get(window_color, 0)
                 facade_vertices_by_color.setdefault(window_color, []).append(window_vertices)
                 facade_faces_by_color.setdefault(window_color, []).append(window_faces + vertex_offset)
@@ -1716,6 +1777,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             balcony_info = facade_balcony_geometry(polygon, height, osm_id, tags, tile_bounds)
             if balcony_info is not None:
                 balcony_color, balcony_mesh, balcony_count = balcony_info
+                balcony_mesh.apply_translation((0.0, 0.0, building_ground_elevation))
                 balcony_meshes_by_color.setdefault(balcony_color, []).append(balcony_mesh)
                 facade_balconies += int(balcony_count)
             buildings += 1
@@ -1836,6 +1898,7 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 "door_entrance_node_osm_id": door_entrance_node_osm_id,
                 "roof_shape_model": roof_shape_model,
                 "roof_shape_source": roof_shape_source,
+                "ground_elevation_m": round(building_ground_elevation, 3),
                 "interior_status": "FICTIONAL_BUILDING_SPECIFIC_INTERIOR_GENERATED_AT_RUNTIME",
                 "npc_seed": "Generate fictional residents/workers from this building's own mapped name, category, address and exterior tags; never imply actual occupants.",
                 "rooms_seed": ["entrance", "public_or_living_area", "counter_or_reception", "back_room"],
@@ -1860,6 +1923,14 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                     polygon = polygon.intersection(tile_bounds)
                     surface_meshes = flat_surface_mesh(polygon, color, f"osm_surface_{osm_id}")
                     for mesh in surface_meshes:
+                        if terrain_grid is not None:
+                            if is_water_area(tags):
+                                water_level = terrain_grid.sample_height(
+                                    float(polygon.centroid.x), float(polygon.centroid.y)
+                                )
+                                mesh.apply_translation((0.0, 0.0, water_level))
+                            else:
+                                terrain_grid.drape_mesh(mesh)
                         surface_meshes_by_color.setdefault(color, []).append(mesh)
                     if surface_meshes:
                         if is_water_area(tags):
@@ -1886,6 +1957,11 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                     blocked_vegetation_polygons.append(water_polygon)
                 water_meshes = flat_surface_mesh(water_polygon, (52, 121, 158, 255), f"osm_waterway_{osm_id}")
                 for mesh in water_meshes:
+                    if terrain_grid is not None:
+                        water_level = terrain_grid.sample_height(
+                            float(water_polygon.centroid.x), float(water_polygon.centroid.y)
+                        )
+                        mesh.apply_translation((0.0, 0.0, water_level))
                     surface_meshes_by_color.setdefault((52, 121, 158, 255), []).append(mesh)
                 if water_meshes:
                     waterway_segments += 1
@@ -1904,6 +1980,8 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                 rail_color = (75, 78, 80, 255)
                 rail_meshes = flat_surface_mesh(rail_bed, rail_color, f"osm_railway_{osm_id}")
                 for mesh in rail_meshes:
+                    if terrain_grid is not None:
+                        terrain_grid.drape_mesh(mesh)
                     surface_meshes_by_color.setdefault(rail_color, []).append(mesh)
                 if rail_meshes:
                     railway_ways += 1
@@ -1925,7 +2003,10 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
                     if part.area < 0.25:
                         continue
                     for mesh_index, mesh in enumerate(extruded_polygon(part, 0.07, road_color(tags), f"road_{osm_id}")):
-                        mesh.apply_translation((0.0, 0.0, lift))
+                        if terrain_grid is not None:
+                            terrain_grid.drape_mesh(mesh, offset_m=lift)
+                        else:
+                            mesh.apply_translation((0.0, 0.0, lift))
                         scene.add_geometry(mesh, node_name=f"road_{osm_id}_{part_index}_{mesh_index}", geom_name=f"road_{osm_id}_{part_index}_{mesh_index}")
                 roads += 1
                 if tags.get("bridge", "").lower() not in {"", "no", "false", "0"}:
@@ -1966,9 +2047,13 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         kind_budget = {"forest": 90, "orchard": 130, "scrub": 42, "park": 48, "farmland": 22}.get(kind, 30)
         sites = procedural_tree_sites(safe_polygon, osm_id, kind, min(kind_budget, per_tile_tree_budget - procedural_trees))
         for tree_index, (tree_x, tree_y) in enumerate(sites):
+            tree_ground_elevation = (
+                terrain_grid.sample_height(tree_x, tree_y) if terrain_grid is not None else 0.0
+            )
             for tree_color, tree_mesh in make_procedural_tree_meshes(
                 tree_x, tree_y, osm_id * 1009 + tree_index, kind
             ):
+                tree_mesh.apply_translation((0.0, 0.0, tree_ground_elevation))
                 vegetation_meshes_by_color.setdefault(tree_color, []).append(tree_mesh)
             procedural_trees += 1
             if procedural_trees >= per_tile_tree_budget:
@@ -2082,6 +2167,14 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
         "bbox_south_west_north_east": list(bbox),
         "local_origin_lat_lon": [origin_lat, origin_lon],
         "projected_local_units": "metres; local equirectangular projection; Z is up",
+        "terrain": (
+            terrain_grid.to_manifest(spacing_m=dem_spacing_m)
+            if terrain_grid is not None
+            else {"status": "FLAT_FALLBACK_NO_DEM"}
+        ),
+        "terrain_source_url": dem_source_url.strip() if terrain_grid is not None else "",
+        "terrain_license": dem_license.strip() if terrain_grid is not None else "",
+        "terrain_attribution": dem_attribution.strip() if terrain_grid is not None else "",
         "extent_metres_approx": {"east_west": round(width, 1), "north_south": round(depth, 1)},
         "feature_counts": {"osm_elements": len(elements), "building_footprints": buildings, "overture_building_footprints": overture_buildings, "road_ways": roads,
                            "buildings_with_inferred_height": inferred_heights, "named_or_tagged_interaction_seeds": named_places,
@@ -2145,6 +2238,14 @@ def build_map(elements: list[dict[str, Any]], output_dir: Path,
             attribution_text += "\n" + entry + "\n"
     if overture_buildings:
         attribution_text += "\nSupplemental building footprints: Overture Maps Foundation Buildings theme, accessed using the official Overture Maps Python client. Feature-level source datasets and record IDs are retained in building tags. Follow current source attribution and terms: https://docs.overturemaps.org/getting-data/\n"
+    if terrain_grid is not None:
+        attribution_text += (
+            "\nDEM source: " + dem_source_url.strip()
+            + "\nDEM licence: " + dem_license.strip()
+            + "\nDEM attribution: " + dem_attribution.strip()
+            + "\nDEM GeoTIFF SHA-256: " + hashlib.sha256(Path(dem_geotiff).read_bytes()).hexdigest()
+            + "\n"
+        )
     (output_dir / "ATTRIBUTION.txt").write_text(attribution_text, encoding="utf-8")
     return manifest
 
@@ -2155,6 +2256,11 @@ def main() -> None:
     parser.add_argument("--bbox", nargs=4, type=float, metavar=("SOUTH", "WEST", "NORTH", "EAST"),
                         default=DEFAULT_BBOX, help="OSM extract bounds in decimal degrees")
     parser.add_argument("--input-json", help="Use a saved Overpass JSON response instead of network access")
+    parser.add_argument("--dem-geotiff", help="Optional licensed GeoTIFF DEM used to build elevation-backed ground and drape roads/buildings")
+    parser.add_argument("--dem-spacing-m", type=float, default=30.0, help="Nominal DEM terrain mesh spacing in metres (default: 30)")
+    parser.add_argument("--dem-source-url", default="", help="Exact URL/catalogue item for the DEM source (required with --dem-geotiff)")
+    parser.add_argument("--dem-license", default="", help="Exact licence for this DEM item/product version (required with --dem-geotiff)")
+    parser.add_argument("--dem-attribution", default="", help="Required DEM attribution notice (required with --dem-geotiff)")
     args = parser.parse_args()
     bbox = tuple(args.bbox)
     if not (-90 < bbox[0] < bbox[2] < 90 and -180 < bbox[1] < bbox[3] < 180):
@@ -2163,7 +2269,14 @@ def main() -> None:
         payload = json.loads(Path(args.input_json).read_text(encoding="utf-8"))
     else:
         payload = fetch_osm(bbox)
-    manifest = build_map(payload.get("elements", []), Path(args.out), bbox)
+    manifest = build_map(
+        payload.get("elements", []), Path(args.out), bbox,
+        dem_geotiff=args.dem_geotiff,
+        dem_spacing_m=args.dem_spacing_m,
+        dem_source_url=args.dem_source_url,
+        dem_license=args.dem_license,
+        dem_attribution=args.dem_attribution,
+    )
     print(json.dumps(manifest, indent=2))
     if manifest["feature_counts"]["building_footprints"] < 1 or manifest["feature_counts"]["road_ways"] < 1:
         raise SystemExit("Map export contains no buildings or roads; refusing to publish an empty map.")
