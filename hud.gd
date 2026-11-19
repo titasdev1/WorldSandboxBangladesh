@@ -975,7 +975,6 @@ func _build_lobby_ui() -> void:
   button.name = "LobbyNav_" + page_id.capitalize()
   button.text = String(item[0])
   button.icon = load(String(item[2])) as Texture2D
-  button.add_theme_constant_override("icon_max_width", 30 if is_play_navigation else 25)
   button.add_theme_constant_override("h_separation", 11)
   button.tooltip_text = String(item[0]).capitalize()
   button.toggle_mode = true
