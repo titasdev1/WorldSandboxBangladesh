@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit OpenAerialMap STAC imagery intersecting the Shariatpur target envelope.
+"""Audit all public HOTOSM STAC imagery collections intersecting Shariatpur.
 
 Discovery only: this script never downloads imagery or approves it for shipping.
 Every item remains subject to exact district clipping, source/licence review,
@@ -20,7 +20,6 @@ from typing import Any, Callable
 API_URL = "https://api.imagery.hotosm.org/stac/search"
 # Approximate search envelope [west, south, east, north]; not the clip boundary.
 SHARIATPUR_BBOX = (90.16, 23.00, 90.50, 23.35)
-COLLECTION = "openaerialmap"
 PAGE_LIMIT = 100
 MAX_PAGES = 20
 USER_AGENT = "Project-A-Square-Shariatpur-Imagery-Audit/1.0 (+https://github.com/titasdev1/WorldSandboxBangladesh)"
@@ -144,7 +143,7 @@ def _default_fetch_json(url: str, method: str = "GET", payload: dict[str, Any] |
 
 def search_items(fetch_json: Callable[..., dict[str, Any]] = _default_fetch_json) -> tuple[list[dict[str, Any]], int, bool]:
     payload: dict[str, Any] = {
-        "collections": [COLLECTION], "bbox": list(SHARIATPUR_BBOX), "limit": PAGE_LIMIT,
+        "bbox": list(SHARIATPUR_BBOX), "limit": PAGE_LIMIT,
     }
     url, method, request_body = API_URL, "POST", payload
     items_by_id: dict[str, dict[str, Any]] = {}
@@ -186,7 +185,11 @@ def build_report(items: list[dict[str, Any]], page_count: int, truncated: bool) 
         "audit": "SHARIATPUR_OPENAERIALMAP_STAC_DISCOVERY",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "catalog_api": API_URL,
-        "collection": COLLECTION,
+        "catalog_scope": "ALL_COLLECTIONS_EXPOSED_BY_HOTOSM_STAC_API",
+        "collection_item_counts": {
+            collection: sum(1 for row in rows if str(row.get("collection") or "UNKNOWN") == collection)
+            for collection in sorted({str(row.get("collection") or "UNKNOWN") for row in rows})
+        },
         "search_bbox_wsen": list(SHARIATPUR_BBOX),
         "boundary_note": "Approximate search envelope only; use the official Shariatpur district polygon for exact clipping and coverage percentages.",
         "pages_read": page_count,
