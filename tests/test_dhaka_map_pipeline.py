@@ -1067,5 +1067,132 @@ class DhakaMapPipelineTests(unittest.TestCase):
             self.assertLessEqual(float(scene.bounds[1][2]), depth / 2.0 + 0.01)
 
 
+class DemBackedMapExportTests(unittest.TestCase):
+    def test_dem_is_exported_as_terrain_and_building_and_road_meshes_follow_it(self):
+        import hashlib
+        import numpy as np
+        import rasterio
+        from rasterio.transform import from_origin
+
+        south, west, north, east = DEFAULT_BBOX
+        # A synthetic but georeferenced slope fixture. It is not real elevation
+        # data and is used only to test geometric integration/provenance.
+        width = 80
+        height = 80
+        pixel_lon = (east - west + 0.004) / width
+        pixel_lat = (north - south + 0.004) / height
+        transform = from_origin(
+            west - 0.002, north + 0.002, pixel_lon, pixel_lat
+        )
+        data = np.fromfunction(
+            lambda row, col: 20.0 + row * 0.45 + col * 0.30,
+            (height, width),
+            dtype=np.float32,
+        ).astype(np.float32)
+
+        elements = [
+            {
+                "type": "way", "id": 91001,
+                "tags": {"building": "yes", "building:levels": "2", "name": "DEM Fixture House"},
+                "geometry": [
+                    {"lat": 23.8098, "lon": 90.4123},
+                    {"lat": 23.8098, "lon": 90.4125},
+                    {"lat": 23.8100, "lon": 90.4125},
+                    {"lat": 23.8100, "lon": 90.4123},
+                    {"lat": 23.8098, "lon": 90.4123},
+                ],
+            },
+            {
+                "type": "way", "id": 91002,
+                "tags": {"highway": "residential", "name": "DEM Fixture Road"},
+                "geometry": [
+                    {"lat": 23.8097, "lon": 90.4120},
+                    {"lat": 23.8101, "lon": 90.4128},
+                ],
+            },
+        ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dem_path = root / "synthetic_slope.tif"
+            with rasterio.open(
+                dem_path,
+                "w",
+                driver="GTiff",
+                height=height,
+                width=width,
+                count=1,
+                dtype="float32",
+                crs="EPSG:4326",
+                transform=transform,
+                nodata=-9999.0,
+            ) as dataset:
+                dataset.write(data, 1)
+
+            output = root / "dem-export"
+            manifest = build_map(
+                elements,
+                output,
+                DEFAULT_BBOX,
+                dem_geotiff=dem_path,
+                dem_spacing_m=80.0,
+                dem_source_url="https://example.invalid/synthetic-fixture-only",
+                dem_license="TEST_FIXTURE_ONLY",
+                dem_attribution="Synthetic test raster; not for production distribution",
+            )
+            self.assertEqual(manifest["terrain"]["status"], "DEM_BACKED")
+            self.assertGreater(manifest["terrain"]["relative_max_elevation_m"], manifest["terrain"]["relative_min_elevation_m"])
+            attribution = (output / "ATTRIBUTION.txt").read_text(encoding="utf-8")
+            self.assertIn("TEST_FIXTURE_ONLY", attribution)
+            self.assertIn(hashlib.sha256(dem_path.read_bytes()).hexdigest(), attribution)
+
+            scene = trimesh.load(output / "Dhaka_Explorable_Map.glb", force="scene")
+            terrain = scene.geometry["terrain_base"]
+            self.assertGreater(
+                float(terrain.bounds[1][1] - terrain.bounds[0][1]),
+                1.0,
+                "The exported terrain base must contain real elevation relief, not a flat box",
+            )
+            building_batches = [
+                mesh for name, mesh in scene.geometry.items()
+                if name.startswith("mapped_buildings_")
+            ]
+            road_meshes = [
+                mesh for name, mesh in scene.geometry.items()
+                if name.startswith("road_91002_")
+            ]
+            self.assertTrue(building_batches)
+            self.assertTrue(road_meshes)
+            self.assertTrue(
+                all(mesh.bounds[0][1] > terrain.bounds[0][1] - 1.0 for mesh in building_batches),
+                "Building geometry should sit above the terrain datum after DEM placement",
+            )
+            self.assertTrue(
+                any(mesh.bounds[1][1] > mesh.bounds[0][1] for mesh in road_meshes),
+                "Road meshes should contain terrain-following vertical variation",
+            )
+
+    def test_dem_metadata_is_mandatory_before_export(self):
+        import numpy as np
+        import rasterio
+        from rasterio.transform import from_origin
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "dem.tif"
+            data = np.full((20, 20), 15.0, dtype=np.float32)
+            with rasterio.open(
+                path, "w", driver="GTiff", height=20, width=20, count=1,
+                dtype="float32", crs="EPSG:4326",
+                transform=from_origin(90.40, 23.82, 0.001, 0.001),
+                nodata=-9999.0,
+            ) as dataset:
+                dataset.write(data, 1)
+            with self.assertRaisesRegex(ValueError, "dem_source_url"):
+                build_map(
+                    [], Path(tmp) / "missing-provenance", DEFAULT_BBOX,
+                    dem_geotiff=path,
+                )
+
+
 if __name__ == "__main__":
     unittest.main()
