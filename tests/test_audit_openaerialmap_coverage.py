@@ -34,7 +34,7 @@ class OpenAerialMapAuditTests(unittest.TestCase):
         self.assertEqual(pages, 1)
         self.assertFalse(truncated)
         self.assertEqual(calls[0][1], "POST")
-        self.assertEqual(calls[0][2]["collections"], ["openaerialmap"])
+        self.assertNotIn("collections", calls[0][2], "Search all collections exposed by the catalogue")
         self.assertEqual(tuple(calls[0][2]["bbox"]), SHARIATPUR_BBOX)
 
     def test_high_resolution_cc_by_item_is_candidate_not_automatic_approval(self):
@@ -58,6 +58,7 @@ class OpenAerialMapAuditTests(unittest.TestCase):
 
     def test_report_is_fail_closed_and_does_not_claim_coverage_percent(self):
         report = build_report([item()], 1, False)
+        self.assertEqual(report["catalog_scope"], "ALL_COLLECTIONS_EXPOSED_BY_HOTOSM_STAC_API")
         self.assertEqual(
             report["release_gate"],
             "BLOCKED_PENDING_PER_ITEM_LICENSE_GSD_GEOMETRY_ALIGNMENT_AND_VISUAL_QA",
