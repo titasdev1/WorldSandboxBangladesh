@@ -48,6 +48,22 @@ class OpenAerialMapAuditTests(unittest.TestCase):
         self.assertEqual(summarize_item(item(license_name="CC BY-NC 4.0"))["review_tier"], "HOLD_LICENSE_REVIEW")
         self.assertEqual(summarize_item(item(license_name=""))["review_tier"], "HOLD_LICENSE_REVIEW")
 
+    def test_collection_license_is_used_when_item_license_is_absent(self):
+        record = item()
+        record["properties"].pop("license")
+        summary = summarize_item(record, {"license": "CC BY 4.0", "title": "Open imagery"})
+        self.assertEqual(summary["license"], "CC-BY-4.0")
+        self.assertEqual(summary["collection_title"], "Open imagery")
+
+    def test_dem_data_asset_is_not_misclassified_as_photographic_imagery(self):
+        record = item(license_name="CC BY 4.0", gsd=30.0)
+        record["collection"] = "cop-dem-glo-30"
+        record["assets"] = {"data": {"href": "https://example.invalid/dem.tif"}}
+        summary = summarize_item(record, {"license": "CC BY 4.0", "title": "Copernicus DEM"})
+        self.assertFalse(summary["visual_asset_available"])
+        self.assertTrue(summary["terrain_asset_available"])
+        self.assertEqual(summary["review_tier"], "HOLD_NO_VISUAL_ASSET")
+
     def test_missing_ground_sample_distance_is_held(self):
         self.assertEqual(summarize_item(item(gsd=None))["review_tier"], "HOLD_GSD_UNVERIFIED")
 
