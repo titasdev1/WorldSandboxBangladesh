@@ -789,7 +789,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y curl xz-utils python3-numpy
-          bash tools/install_blender_ci.sh
+          source tools/install_blender_ci.sh
           blender --version
 
       - name: Build and structurally verify the original CC0 ram-air parachute
