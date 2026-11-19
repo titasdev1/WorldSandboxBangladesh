@@ -26,8 +26,33 @@ def _manifest() -> dict[str, Any]:
     except (OSError, json.JSONDecodeError) as exc:
         raise SystemExit(f"MAP PACK EXPORT FAILED: invalid selected map manifest: {exc}") from exc
     tiles = data.get("tiles")
-    if not isinstance(tiles, list) or len(tiles) != 60:
-        raise SystemExit(f"MAP PACK EXPORT FAILED: expected exactly 60 selected district tiles; found {len(tiles) if isinstance(tiles, list) else 'invalid'}")
+    if not isinstance(tiles, list) or not tiles:
+        raise SystemExit("MAP PACK EXPORT FAILED: manifest must contain at least one tile record")
+
+    # Map packs are regional content, not a fixed 60-tile district product.
+    # Keep validating identities and any declared count so a partial/corrupt
+    # regional manifest cannot silently produce an apparently complete pack.
+    seen_ids: set[str] = set()
+    for index, tile in enumerate(tiles):
+        if not isinstance(tile, dict):
+            raise SystemExit(f"MAP PACK EXPORT FAILED: tile record {index} is not an object")
+        tile_id = str(tile.get("tile_id", tile.get("id", tile.get("glb", "")))).strip()
+        if not tile_id:
+            raise SystemExit(f"MAP PACK EXPORT FAILED: tile record {index} has no stable identity")
+        if tile_id in seen_ids:
+            raise SystemExit(f"MAP PACK EXPORT FAILED: duplicate tile identity: {tile_id}")
+        seen_ids.add(tile_id)
+
+    declared_count = data.get("tile_count_total")
+    if declared_count is not None:
+        try:
+            declared_count = int(declared_count)
+        except (TypeError, ValueError) as exc:
+            raise SystemExit("MAP PACK EXPORT FAILED: tile_count_total must be an integer") from exc
+        if declared_count != len(tiles):
+            raise SystemExit(
+                f"MAP PACK EXPORT FAILED: manifest declares {declared_count} tiles but contains {len(tiles)}"
+            )
     return data
 
 
@@ -61,7 +86,45 @@ def _map_slug(manifest: dict[str, Any]) -> str:
     name = str(boundary.get("name", "")) if isinstance(boundary, dict) else ""
     if str(manifest.get("build_stage", "")).lower() == "shariatpur_review" or "shariatpur" in name.lower():
         return "Shariatpur"
-    return "Greater-Dhaka"
+    if "dhaka" in name.lower():
+        return "Greater-Dhaka"
+
+    # New regional packs must carry a useful region name or stable region ID.
+    # Never silently label an unrelated country/region as Greater Dhaka.
+    raw_name = (
+        str(manifest.get("display_name", "")).strip()
+        or str(manifest.get("region_name", "")).strip()
+        or name.strip()
+        or str(manifest.get("region_id", "")).strip()
+    )
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", raw_name).strip("-")
+    if not slug:
+        raise SystemExit("MAP PACK EXPORT FAILED: new regional manifest requires region_name, display_name, or region_id")
+    return slug
+
+
+def _map_pack_id(manifest: dict[str, Any]) -> str:
+    boundary = manifest.get("administrative_boundary", {})
+    name = str(boundary.get("name", "")) if isinstance(boundary, dict) else ""
+    if str(manifest.get("build_stage", "")).lower() == "shariatpur_review" or "shariatpur" in name.lower():
+        return "bangladesh.shariatpur"
+    if "dhaka" in name.lower():
+        return "bangladesh.greater-dhaka"
+
+    explicit_id = str(manifest.get("map_pack_id", "")).strip()
+    if explicit_id:
+        pack_id = explicit_id.lower()
+    else:
+        country = str(manifest.get("country_code", "")).strip().lower()
+        region = str(manifest.get("region_code", manifest.get("region_id", ""))).strip().lower()
+        if not country or not region:
+            raise SystemExit(
+                "MAP PACK EXPORT FAILED: new regional manifests require map_pack_id or both country_code and region_code"
+            )
+        pack_id = f"{country}.{region}"
+    if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{1,95}", pack_id):
+        raise SystemExit(f"MAP PACK EXPORT FAILED: invalid map_pack_id: {pack_id!r}")
+    return pack_id
 
 
 def configure_pack_preset() -> None:
@@ -178,12 +241,8 @@ def write_metadata(
         raise SystemExit("MAP PACK METADATA FAILED: each release part must be smaller than GitHub's 2 GiB asset limit.")
     boundary = manifest.get("administrative_boundary", {})
     map_name = str(boundary.get("name", "")) if isinstance(boundary, dict) else ""
-    if str(manifest.get("build_stage", "")).lower() == "shariatpur_review" or "shariatpur" in map_name.lower():
-        slug = "Shariatpur"
-        pack_id = "bangladesh.shariatpur"
-    else:
-        slug = "Greater-Dhaka"
-        pack_id = "bangladesh.greater-dhaka"
+    slug = _map_slug(manifest)
+    pack_id = _map_pack_id(manifest)
 
     filename = f"{MAP_PACK_BASE}-{slug}-Map.pck"
     base_url = f"https://github.com/titasdev1/WorldSandboxBangladesh/releases/download/{release_tag}/{filename}"
@@ -242,6 +301,10 @@ def write_metadata(
         "parts": parts,
         "tile_count": len(manifest["tiles"]),
         "build_stage": manifest.get("build_stage", ""),
+        "country_code": manifest.get("country_code", ""),
+        "region_code": manifest.get("region_code", manifest.get("region_id", "")),
+        "administrative_boundary": boundary,
+        "region_south_west_north_east": manifest.get("region_south_west_north_east", []),
         "game_origin_lat_lon": manifest.get("game_origin_lat_lon", []),
         "map_detail_policy": "full-resolution exported resources; original PCK bytes are reassembled without recompression or downscaling",
         "runtime_note": "The game downloads SHA-256-verified parts into private app storage and reassembles one byte-identical PCK before mounting it on the next launch.",
