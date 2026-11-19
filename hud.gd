@@ -16,6 +16,7 @@ var lobby_overlay: ColorRect
 var lobby_loading_label: Label
 var lobby_loading_progress: ProgressBar
 var _map_entry_in_progress := false
+var _deployment_sequence_in_progress := false
 var selected_mode := "deshi_story"
 var mode_buttons: Array[Button] = []
 var district_map: Control
@@ -1283,8 +1284,11 @@ func _build_mode_briefing() -> void:
 
 
 func _start_deployment_sequence() -> void:
- if _map_entry_in_progress:
+ # Lock the countdown itself, not only the later map-streaming phase. The
+ # button can otherwise start several overlapping countdown coroutines.
+ if _deployment_sequence_in_progress or _map_entry_in_progress:
   return
+ _deployment_sequence_in_progress = true
  _lobby_clear_content()
  _lobby_add_heading("PREPARING DEPLOYMENT", "Loading the selected mode and checking the active world.")
  var countdown := Label.new()
@@ -1300,6 +1304,7 @@ func _start_deployment_sequence() -> void:
  lobby_content.add_child(progress)
  for count in [3, 2, 1]:
   if not is_instance_valid(countdown):
+   _deployment_sequence_in_progress = false
    return
   countdown.text = "DEPLOYING  %d" % count
   progress.value = float(4 - count) * 33.0
@@ -1307,6 +1312,7 @@ func _start_deployment_sequence() -> void:
  countdown.text = "ENGAGING"
  progress.value = 100
  await get_tree().create_timer(0.35, true, false, true).timeout
+ _deployment_sequence_in_progress = false
  _enter_selected_mode()
 
 

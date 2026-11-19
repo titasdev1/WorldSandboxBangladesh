@@ -32,6 +32,30 @@ class MobileInteractionFlowTests(unittest.TestCase):
         cls.pack_verifier = read("tools/verify_map_pack.gd")
         cls.boot = read("boot.gd")
 
+    def test_deployment_countdown_rejects_duplicate_taps_before_waiting(self):
+        countdown = function_block(self.hud, "_start_deployment_sequence")
+        map_entry = function_block(self.hud, "_enter_selected_mode")
+        self.assertIn("var _deployment_sequence_in_progress := false", self.hud)
+        self.assertIn(
+            "if _deployment_sequence_in_progress or _map_entry_in_progress:",
+            countdown,
+        )
+        self.assertLess(
+            countdown.index("_deployment_sequence_in_progress = true"),
+            countdown.index("await get_tree().create_timer"),
+        )
+        self.assertIn(
+            'if not is_instance_valid(countdown):\n   _deployment_sequence_in_progress = false\n   return',
+            countdown,
+        )
+        self.assertLess(
+            countdown.index("_deployment_sequence_in_progress = false"),
+            countdown.index("_enter_selected_mode()"),
+        )
+        # Keep the independent map-streaming guard: the countdown lock must
+        # not prevent the selected mode from entering its own loading phase.
+        self.assertIn("_map_entry_in_progress = true", map_entry)
+
     def test_vehicle_interaction_precedes_building_and_vendor_interactions(self):
         block = function_block(self.player, "interact")
         self.assertLess(block.index("try_vehicle_interaction"), block.index("try_street_vendor"))
