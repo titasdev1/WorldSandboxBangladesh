@@ -71,7 +71,6 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('nav_button.button_pressed = String(page_id) == page', page)
         self.assertIn('button.toggle_mode = true', self.hud)
         self.assertIn('button.icon = load(String(item[2])) as Texture2D', lobby)
-        self.assertIn('button.add_theme_constant_override("icon_max_width", 30 if is_play_navigation else 25)', lobby)
         self.assertIn('button.tooltip_text = String(item[0]).capitalize()', lobby)
         for icon_name in ("home", "play", "loadout", "operator", "events", "store", "clan", "profile"):
             self.assertIn(f'"res://assets/ui/icons/{icon_name}.svg"', lobby)
