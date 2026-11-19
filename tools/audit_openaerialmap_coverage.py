@@ -10,14 +10,17 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
 API_URL = "https://api.imagery.hotosm.org/stac/search"
+COLLECTIONS_URL = "https://api.imagery.hotosm.org/stac/collections/"
 # Approximate search envelope [west, south, east, north]; not the clip boundary.
 SHARIATPUR_BBOX = (90.16, 23.00, 90.50, 23.35)
 PAGE_LIMIT = 100
@@ -59,18 +62,24 @@ def numeric_gsd(properties: dict[str, Any], item: dict[str, Any]) -> float | Non
     return None
 
 
-def asset_summary(assets: Any) -> dict[str, Any]:
+def asset_summary(assets: Any, collection_id: str = "") -> dict[str, Any]:
     if not isinstance(assets, dict):
         assets = {}
-    visual_keys = {"visual", "image", "data", "visual.tif", "visual_cog"}
+    terrain_collection = "dem" in collection_id.casefold() or "elevation" in collection_id.casefold()
+    visual_keys = {"visual", "image", "visual.tif", "visual_cog"}
     visual = any(
         key in assets and isinstance(assets[key], dict) and assets[key].get("href")
         for key in visual_keys
     )
-    pmtiles = isinstance(assets.get("pmtiles"), dict) and bool(assets["pmtiles"].get("href"))
+    data_asset = assets.get("data") if isinstance(assets.get("data"), dict) else {}
+    data_available = bool(data_asset.get("href"))
+    if data_available and not terrain_collection:
+        roles = data_asset.get("roles", [])
+        visual = visual or not roles or "visual" in roles
     return {
         "visual_asset_available": visual,
-        "pmtiles_available": pmtiles,
+        "terrain_asset_available": data_available and terrain_collection,
+        "pmtiles_available": isinstance(assets.get("pmtiles"), dict) and bool(assets["pmtiles"].get("href")),
         "asset_keys": sorted(str(key) for key in assets),
     }
 
@@ -91,12 +100,14 @@ def quality_tier(license_name: str, gsd: float | None, visual_available: bool) -
     return "REGIONAL_REFERENCE_ONLY"
 
 
-def summarize_item(item: dict[str, Any]) -> dict[str, Any]:
+def summarize_item(item: dict[str, Any], collection_metadata: dict[str, Any] | None = None) -> dict[str, Any]:
     properties = item.get("properties") if isinstance(item.get("properties"), dict) else {}
-    license_value = item.get("license") or properties.get("license")
+    collection_metadata = collection_metadata if isinstance(collection_metadata, dict) else {}
+    license_value = item.get("license") or properties.get("license") or collection_metadata.get("license")
     license_name = normalize_license(license_value)
     gsd = numeric_gsd(properties, item)
-    assets = asset_summary(item.get("assets"))
+    collection_id = str(item.get("collection") or "")
+    assets = asset_summary(item.get("assets"), collection_id)
     item_id = str(item.get("id") or "").strip()
     if not item_id:
         raise ValueError("STAC item is missing its id")
@@ -107,7 +118,9 @@ def summarize_item(item: dict[str, Any]) -> dict[str, Any]:
     )
     return {
         "id": item_id,
-        "collection": item.get("collection"),
+        "collection": collection_id,
+        "collection_title": collection_metadata.get("title"),
+        "collection_license_raw": str(collection_metadata.get("license") or ""),
         "title": str(properties.get("title") or properties.get("description") or item_id),
         "datetime": properties.get("datetime") or properties.get("start_datetime") or properties.get("end_datetime"),
         "provider": properties.get("provider") or properties.get("platform") or properties.get("constellation"),
@@ -139,6 +152,26 @@ def _default_fetch_json(url: str, method: str = "GET", payload: dict[str, Any] |
     if not isinstance(parsed, dict):
         raise ValueError("STAC response was not a JSON object")
     return parsed
+
+
+def fetch_collection_metadata(
+    collection_ids: list[str], fetch_json: Callable[..., dict[str, Any]] = _default_fetch_json
+) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+    metadata: dict[str, dict[str, Any]] = {}
+    errors: dict[str, str] = {}
+    for collection_id in sorted(set(collection_ids)):
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", collection_id):
+            errors[collection_id] = "collection id contains unexpected characters"
+            continue
+        url = COLLECTIONS_URL + urllib.parse.quote(collection_id, safe=".-_")
+        try:
+            record = fetch_json(url, "GET", None)
+            if not isinstance(record, dict):
+                raise ValueError("collection endpoint did not return an object")
+            metadata[collection_id] = record
+        except (OSError, TimeoutError, urllib.error.URLError, ValueError, json.JSONDecodeError) as exc:
+            errors[collection_id] = f"{type(exc).__name__}: {exc}"
+    return metadata, errors
 
 
 def search_items(fetch_json: Callable[..., dict[str, Any]] = _default_fetch_json) -> tuple[list[dict[str, Any]], int, bool]:
@@ -174,8 +207,14 @@ def search_items(fetch_json: Callable[..., dict[str, Any]] = _default_fetch_json
     return list(items_by_id.values()), page_count, truncated
 
 
-def build_report(items: list[dict[str, Any]], page_count: int, truncated: bool) -> dict[str, Any]:
-    rows = [summarize_item(item) for item in items]
+def build_report(
+    items: list[dict[str, Any]], page_count: int, truncated: bool,
+    collection_metadata: dict[str, dict[str, Any]] | None = None,
+    collection_metadata_errors: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    collection_metadata = collection_metadata or {}
+    collection_metadata_errors = collection_metadata_errors or {}
+    rows = [summarize_item(item, collection_metadata.get(str(item.get("collection") or ""))) for item in items]
     rows.sort(key=lambda row: (row["gsd_m"] is None, row["gsd_m"] or float("inf"), row["id"]))
     counts: dict[str, int] = {}
     for row in rows:
@@ -186,6 +225,17 @@ def build_report(items: list[dict[str, Any]], page_count: int, truncated: bool) 
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "catalog_api": API_URL,
         "catalog_scope": "ALL_COLLECTIONS_EXPOSED_BY_HOTOSM_STAC_API",
+        "collection_metadata": {
+            collection_id: {
+                "title": record.get("title"),
+                "description": record.get("description"),
+                "license_raw": record.get("license"),
+                "license": normalize_license(record.get("license")),
+                "providers": record.get("providers"),
+            }
+            for collection_id, record in sorted(collection_metadata.items())
+        },
+        "collection_metadata_errors": collection_metadata_errors,
         "collection_item_counts": {
             collection: sum(1 for row in rows if str(row.get("collection") or "UNKNOWN") == collection)
             for collection in sorted({str(row.get("collection") or "UNKNOWN") for row in rows})
@@ -195,6 +245,9 @@ def build_report(items: list[dict[str, Any]], page_count: int, truncated: bool) 
         "pages_read": page_count,
         "pagination_truncated": truncated,
         "item_count": len(rows),
+        "visual_imagery_item_count": sum(1 for row in rows if row["visual_asset_available"]),
+        "terrain_only_item_count": sum(1 for row in rows if row["terrain_asset_available"] and not row["visual_asset_available"]),
+        "high_detail_review_candidate_count": sum(1 for row in rows if row["review_tier"] in {"VERY_HIGH_DETAIL_REVIEW", "HIGH_DETAIL_REVIEW"}),
         "review_tier_counts": counts,
         "items": rows,
         "release_gate": "BLOCKED_PENDING_PER_ITEM_LICENSE_GSD_GEOMETRY_ALIGNMENT_AND_VISUAL_QA",
@@ -213,7 +266,9 @@ def main() -> int:
     args = parser.parse_args()
     try:
         items, pages, truncated = search_items()
-        report = build_report(items, pages, truncated)
+        collection_ids = sorted({str(item.get("collection")) for item in items if item.get("collection")})
+        collection_metadata, collection_errors = fetch_collection_metadata(collection_ids)
+        report = build_report(items, pages, truncated, collection_metadata, collection_errors)
     except (OSError, TimeoutError, urllib.error.URLError, ValueError, json.JSONDecodeError) as exc:
         print(f"OPENAERIALMAP_AUDIT_ERROR: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2
@@ -221,6 +276,10 @@ def main() -> int:
     args.out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({
         "audit": report["audit"], "item_count": report["item_count"],
+        "collection_item_counts": report["collection_item_counts"],
+        "visual_imagery_item_count": report["visual_imagery_item_count"],
+        "terrain_only_item_count": report["terrain_only_item_count"],
+        "high_detail_review_candidate_count": report["high_detail_review_candidate_count"],
         "review_tier_counts": report["review_tier_counts"],
         "pagination_truncated": report["pagination_truncated"],
         "report": str(args.out), "release_gate": report["release_gate"],
