@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - feature/lobby-operator-showcase
     paths:
       - "**.gd"
       - "tools/check_gdscript_bool_casts.py"
