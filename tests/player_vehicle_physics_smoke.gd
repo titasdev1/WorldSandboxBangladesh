@@ -2,6 +2,9 @@ extends SceneTree
 
 const DYNAMICS: Script = preload("res://player_vehicle_dynamics.gd")
 
+func _initialize() -> void:
+    call_deferred("_run")
+
 func _has_property(object: Object, property_name: String) -> bool:
     for property in object.get_property_list():
         if str(property.get("name", "")) == property_name:

@@ -88,5 +88,11 @@ class JibonJatraPitchboundTests(unittest.TestCase):
         self.assertIn("func _kick_ball",self.pitch2d)
         self.assertIn("func _finish_match",self.pitch2d)
 
+    def test_wheel_contact_forces_use_world_space_offsets(self):
+        self.assertIn("var force_offset := hit_position - global_position",self.driving)
+        self.assertIn("apply_force(surface_normal * spring_force, force_offset)",self.driving)
+        self.assertIn("apply_force(wheel_forward * longitudinal_force + wheel_right * lateral_force, force_offset)",self.driving)
+        self.assertNotIn("to_local(hit_position)",self.driving)
+
 if __name__=="__main__":
     unittest.main()

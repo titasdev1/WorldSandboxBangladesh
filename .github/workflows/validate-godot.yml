@@ -89,6 +89,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     timeout-minutes: 40
     steps:
       - name: Checkout canonical project
@@ -310,7 +311,7 @@ jobs:
         run: |
           set -euo pipefail
           GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
-          "$GODOT" --headless --path . --script res://tests/player_vehicle_physics_smoke.gd
+          timeout 90s "$GODOT" --headless --path . --script res://tests/player_vehicle_physics_smoke.gd
 
       - name: Exercise Pitchbound 3D
         shell: bash
