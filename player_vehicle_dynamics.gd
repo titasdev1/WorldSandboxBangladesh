@@ -484,7 +484,8 @@ func _simulate_wheel_forces(drive_force: float, brake_input: float, handbrake: f
         state["compression"] = compression
         state["extension"] = extension
 
-        var local_contact := to_local(hit_position)
+        # RigidBody3D.apply_force() takes a world-space offset from the body origin.
+		var force_offset := hit_position - global_position
         var contact_velocity: Vector3 = _velocity_at_world_point(hit_position)
         var suspension_velocity: float = contact_velocity.dot(surface_normal)
         var spring_force: float = spring_stiffness * compression - spring_damping * suspension_velocity
@@ -493,7 +494,7 @@ func _simulate_wheel_forces(drive_force: float, brake_input: float, handbrake: f
             continue
 
         debug_last_suspension_force += spring_force
-        apply_force(surface_normal * spring_force, local_contact)
+        apply_force(surface_normal * spring_force, force_offset)
 
         var is_front: bool = state.get("front", false)
         var is_driven: bool = state.get("driven", false)
@@ -528,7 +529,7 @@ func _simulate_wheel_forces(drive_force: float, brake_input: float, handbrake: f
 
         debug_last_lateral_force += absf(lateral_force)
         debug_last_drive_force += absf(longitudinal_force)
-        apply_force(wheel_forward * longitudinal_force + wheel_right * lateral_force, local_contact)
+        apply_force(wheel_forward * longitudinal_force + wheel_right * lateral_force, force_offset)
 
 func _maximum_speed_kmh() -> float:
     match vehicle_type.to_lower():
