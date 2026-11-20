@@ -45,6 +45,11 @@ class JibonJatraPitchboundTests(unittest.TestCase):
         self.assertIn("apply_force(",self.driving)
         self.assertIn("CORNERING_STIFFNESS",self.driving)
         self.assertIn("debug_contact_wheels",self.driving)
+        self.assertIn("Vector2(longitudinal_force, lateral_force).length()",self.driving)
+        self.assertIn("debug_last_steering",self.driving)
+        self.assertIn("debug_grounded_wheels",self.driving)
+        self.assertIn("debug_wheel_count",self.driving)
+        self.assertIn("func _velocity_at_world_point",self.driving)
         for action in ("vehicle_accelerate","vehicle_brake","vehicle_reverse","vehicle_handbrake"):
             self.assertIn(action,self.driving)
 

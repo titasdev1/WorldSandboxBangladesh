@@ -19,6 +19,7 @@ const WET_TIRE_GRIP := 0.78
 const BRAKE_DECELERATION := 9.0
 const YAW_STABILITY := 0.55
 const ROAD_COLLISION_MASK := 1
+const MAX_SIMULATED_WHEELS := 6
 
 var vehicle_wrapper: Node3D
 var vehicle_type := "Car"
@@ -39,6 +40,9 @@ var _last_speed := 0.0
 var debug_physics_tick_count := 0
 var debug_last_throttle := 0.0
 var debug_contact_wheels := 0
+var debug_wheel_count := 0
+var debug_grounded_wheels := 0
+var debug_last_steering := 0.0
 var debug_last_suspension_force := 0.0
 var debug_last_lateral_force := 0.0
 var debug_last_drive_force := 0.0
@@ -124,6 +128,104 @@ func _wheel_radius_for_kind() -> float:
             return 0.31
 
 
+func _target_wheel_count() -> int:
+    match vehicle_type.to_lower():
+        "cng", "rickshaw":
+            return 3
+        "motorcycle", "bike":
+            return 2
+        _:
+            return 4
+
+
+func _has_wheel_position(records: Array[Dictionary], position: Vector3) -> bool:
+    for record in records:
+        var existing: Vector3 = record["position"]
+        if existing.distance_to(position) < 0.12:
+            return true
+    return false
+
+
+func _append_center_wheel(candidates: Array[Dictionary], selected: Array[Dictionary]) -> void:
+    var best_record: Dictionary = {}
+    var best_distance := INF
+    for record in candidates:
+        var position: Vector3 = record["position"]
+        var lateral_distance := absf(position.x)
+        if lateral_distance < best_distance and not _has_wheel_position(selected, position):
+            best_distance = lateral_distance
+            best_record = record
+    if not best_record.is_empty():
+        selected.append(best_record)
+
+
+func _append_lateral_wheels(candidates: Array[Dictionary], wanted: int, selected: Array[Dictionary]) -> void:
+    if wanted <= 0:
+        return
+    var left_record: Dictionary = {}
+    var right_record: Dictionary = {}
+    var left_x := INF
+    var right_x := -INF
+    for record in candidates:
+        var position: Vector3 = record["position"]
+        if position.x < left_x:
+            left_x = position.x
+            left_record = record
+        if position.x > right_x:
+            right_x = position.x
+            right_record = record
+
+    var added := 0
+    if not left_record.is_empty():
+        var left_position: Vector3 = left_record["position"]
+        if not _has_wheel_position(selected, left_position):
+            selected.append(left_record)
+            added += 1
+    if added < wanted and not right_record.is_empty():
+        var right_position: Vector3 = right_record["position"]
+        if not _has_wheel_position(selected, right_position):
+            selected.append(right_record)
+            added += 1
+
+    for record in candidates:
+        if added >= wanted:
+            break
+        var position: Vector3 = record["position"]
+        if not _has_wheel_position(selected, position):
+            selected.append(record)
+            added += 1
+
+
+func _select_wheel_candidates(candidates: Array[Dictionary], target_count: int) -> Array[Dictionary]:
+    var front: Array[Dictionary] = []
+    var rear: Array[Dictionary] = []
+    for record in candidates:
+        var position: Vector3 = record["position"]
+        if position.z < 0.0:
+            front.append(record)
+        else:
+            rear.append(record)
+
+    var selected: Array[Dictionary] = []
+    if target_count == 2:
+        _append_center_wheel(front, selected)
+        _append_center_wheel(rear, selected)
+    elif target_count == 3:
+        _append_center_wheel(front, selected)
+        _append_lateral_wheels(rear, 2, selected)
+    else:
+        _append_lateral_wheels(front, 2, selected)
+        _append_lateral_wheels(rear, 2, selected)
+
+    for record in candidates:
+        if selected.size() >= target_count:
+            break
+        var position: Vector3 = record["position"]
+        if not _has_wheel_position(selected, position):
+            selected.append(record)
+    return selected
+
+
 func _fallback_wheel_positions(dimensions: Vector3) -> Array[Vector3]:
     var radius := _wheel_radius_for_kind()
     var wheel_y := radius
@@ -149,21 +251,31 @@ func _fallback_wheel_positions(dimensions: Vector3) -> Array[Vector3]:
 
 
 func _build_wheel_states(dimensions: Vector3) -> void:
-    var target_count := _fallback_wheel_positions(dimensions).size()
-    var candidate_positions: Array[Vector3] = []
+    _wheel_states.clear()
+    var target_count := mini(_target_wheel_count(), MAX_SIMULATED_WHEELS)
+    var candidates: Array[Dictionary] = []
+    var seen_positions: Array[Vector3] = []
 
     for visual in wheel_pivots:
         if not is_instance_valid(visual):
             continue
         var local_position := to_local(visual.global_position)
         var duplicate := false
-        for previous in candidate_positions:
+        for previous in seen_positions:
             if previous.distance_to(local_position) < 0.12:
                 duplicate = true
                 break
         if duplicate:
             continue
-        candidate_positions.append(local_position)
+        seen_positions.append(local_position)
+        candidates.append({"visual": visual, "position": local_position})
+
+    var selected := _select_wheel_candidates(candidates, target_count)
+    wheel_pivots.clear()
+    for record in selected:
+        var visual: Node3D = record["visual"] as Node3D
+        var local_position: Vector3 = record["position"]
+        wheel_pivots.append(visual)
         _wheel_states.append({
             "visual": visual,
             "rest_position": local_position,
@@ -176,25 +288,24 @@ func _build_wheel_states(dimensions: Vector3) -> void:
             "extension": SUSPENSION_TRAVEL
         })
 
-    # Imported vehicle kits differ in their wheel node naming. Add invisible
-    # physics anchors only for positions not represented by a real wheel node.
-    # This keeps the controller functional without replacing authored geometry.
+    # Fill missing imported wheel names/layout positions with deterministic
+    # invisible anchors, while keeping exactly 2/3/4 simulated wheels.
     for fallback_position in _fallback_wheel_positions(dimensions):
         if _wheel_states.size() >= target_count:
             break
-        var already_covered := false
-        for previous in candidate_positions:
-            if previous.distance_to(fallback_position) < 0.18:
-                already_covered = true
+        var covered := false
+        for state in _wheel_states:
+            var rest_position: Vector3 = state["rest_position"]
+            if rest_position.distance_to(fallback_position) < 0.18:
+                covered = true
                 break
-        if already_covered:
+        if covered:
             continue
         var anchor := Node3D.new()
         anchor.name = "PhysicsWheelAnchor_%02d" % _wheel_states.size()
         anchor.position = fallback_position
         add_child(anchor)
         wheel_pivots.append(anchor)
-        candidate_positions.append(fallback_position)
         _wheel_states.append({
             "visual": anchor,
             "rest_position": fallback_position,
@@ -207,26 +318,9 @@ func _build_wheel_states(dimensions: Vector3) -> void:
             "extension": SUSPENSION_TRAVEL
         })
 
-    # A malformed source mesh must not leave the rigid body without support.
-    if _wheel_states.size() < 2:
-        for fallback_position in _fallback_wheel_positions(dimensions):
-            var anchor := Node3D.new()
-            anchor.name = "PhysicsWheelFallback_%02d" % _wheel_states.size()
-            anchor.position = fallback_position
-            add_child(anchor)
-            wheel_pivots.append(anchor)
-            _wheel_states.append({
-                "visual": anchor,
-                "rest_position": fallback_position,
-                "base_rotation": anchor.rotation,
-                "front": fallback_position.z < 0.0,
-                "driven": fallback_position.z >= 0.0,
-                "radius": _wheel_radius_for_kind(),
-                "spin": 0.0,
-                "compression": 0.0,
-                "extension": SUSPENSION_TRAVEL
-            })
-
+    debug_wheel_count = _wheel_states.size()
+    debug_grounded_wheels = 0
+    debug_contact_wheels = 0
 
 func _physics_process(delta: float) -> void:
     debug_physics_tick_count += 1
@@ -289,6 +383,7 @@ func _physics_process(delta: float) -> void:
     var speed_fraction := clampf(absf(forward_speed) / maxf(max_speed, 1.0), 0.0, 1.0)
     var target_steer := steer * 0.49 * clampf(1.0 - speed_fraction * 0.66, 0.22, 1.0)
     _steering = move_toward(_steering, target_steer, delta * (2.8 + speed_fraction * 1.7))
+    debug_last_steering = _steering
 
     var wet := false
     if is_instance_valid(vehicle_wrapper):
@@ -323,7 +418,12 @@ func _physics_process(delta: float) -> void:
         vehicle_wrapper.call("exit_player")
 
 
+func _velocity_at_world_point(world_point: Vector3) -> Vector3:
+    return linear_velocity + angular_velocity.cross(world_point - global_position)
+
+
 func _simulate_wheel_forces(drive_force: float, brake_input: float, handbrake: float, wet: bool) -> void:
+    debug_grounded_wheels = 0
     debug_contact_wheels = 0
     debug_last_suspension_force = 0.0
     debug_last_lateral_force = 0.0
@@ -331,10 +431,11 @@ func _simulate_wheel_forces(drive_force: float, brake_input: float, handbrake: f
     if _wheel_states.is_empty() or not is_inside_tree():
         return
 
-    var wheel_count := _wheel_states.size()
+    var wheel_count := mini(_wheel_states.size(), MAX_SIMULATED_WHEELS)
     var driven_wheel_count := 0
     var rear_wheel_count := 0
-    for state in _wheel_states:
+    for index in range(wheel_count):
+        var state: Dictionary = _wheel_states[index]
         if state.get("driven", false):
             driven_wheel_count += 1
         if not state.get("front", false):
@@ -342,19 +443,19 @@ func _simulate_wheel_forces(drive_force: float, brake_input: float, handbrake: f
     driven_wheel_count = maxi(1, driven_wheel_count)
     rear_wheel_count = maxi(1, rear_wheel_count)
 
-    var static_load := mass * 9.81 / float(wheel_count)
-    var spring_stiffness := static_load / SUSPENSION_TARGET_SAG
-    var spring_damping := 2.0 * sqrt(spring_stiffness * (mass / float(wheel_count))) * 0.72
+    var static_load: float = mass * 9.81 / float(wheel_count)
+    var spring_stiffness: float = static_load / SUSPENSION_TARGET_SAG
+    var spring_damping: float = 2.0 * sqrt(spring_stiffness * (mass / float(wheel_count))) * 0.72
     var space_state := get_world_3d().direct_space_state
-    var body_up := global_transform.basis.y.normalized()
 
-    for state in _wheel_states:
+    for index in range(wheel_count):
+        var state: Dictionary = _wheel_states[index]
         var rest_position: Vector3 = state["rest_position"]
-        var anchor_position: Vector3 = rest_position + Vector3.UP * SUSPENSION_REST_LENGTH
+        var anchor_position := rest_position + Vector3.UP * SUSPENSION_REST_LENGTH
         var wheel_radius: float = float(state["radius"])
         var cast_origin := global_transform * (anchor_position + Vector3.UP * SUSPENSION_RAY_START)
         var cast_length := SUSPENSION_RAY_START + wheel_radius + SUSPENSION_REST_LENGTH + SUSPENSION_TRAVEL + 0.08
-        var cast_end := cast_origin - body_up * cast_length
+        var cast_end := cast_origin + Vector3.DOWN * cast_length
         var query := PhysicsRayQueryParameters3D.create(cast_origin, cast_end, ROAD_COLLISION_MASK)
         query.exclude = [get_rid()]
         query.collide_with_areas = false
@@ -367,7 +468,8 @@ func _simulate_wheel_forces(drive_force: float, brake_input: float, handbrake: f
             continue
 
         var hit_position: Vector3 = hit.get("position", Vector3.ZERO)
-        var surface_normal: Vector3 = hit.get("normal", Vector3.UP).normalized()
+        var surface_normal: Vector3 = hit.get("normal", Vector3.UP)
+        surface_normal = surface_normal.normalized()
         var hit_distance := cast_origin.distance_to(hit_position)
         var suspension_length := hit_distance - SUSPENSION_RAY_START - wheel_radius
         if suspension_length > SUSPENSION_REST_LENGTH + SUSPENSION_TRAVEL:
@@ -375,20 +477,21 @@ func _simulate_wheel_forces(drive_force: float, brake_input: float, handbrake: f
             state["extension"] = SUSPENSION_TRAVEL
             continue
 
+        debug_grounded_wheels += 1
+        debug_contact_wheels = debug_grounded_wheels
         var compression := clampf(SUSPENSION_REST_LENGTH - suspension_length, 0.0, SUSPENSION_TRAVEL)
         var extension := clampf(suspension_length - SUSPENSION_REST_LENGTH, 0.0, SUSPENSION_TRAVEL)
         state["compression"] = compression
         state["extension"] = extension
 
         var local_contact := to_local(hit_position)
-        var contact_velocity := get_velocity_at_local_position(local_contact)
-        var suspension_velocity := contact_velocity.dot(surface_normal)
-        var spring_force := spring_stiffness * compression - spring_damping * suspension_velocity
+        var contact_velocity: Vector3 = _velocity_at_world_point(hit_position)
+        var suspension_velocity: float = contact_velocity.dot(surface_normal)
+        var spring_force: float = spring_stiffness * compression - spring_damping * suspension_velocity
         spring_force = clampf(spring_force, 0.0, static_load * 3.2)
         if spring_force <= 0.1:
             continue
 
-        debug_contact_wheels += 1
         debug_last_suspension_force += spring_force
         apply_force(surface_normal * spring_force, local_contact)
 
@@ -397,30 +500,35 @@ func _simulate_wheel_forces(drive_force: float, brake_input: float, handbrake: f
         var steer_angle := _steering if is_front else 0.0
         var local_wheel_forward := Vector3(sin(steer_angle), 0.0, -cos(steer_angle))
         var wheel_forward := (global_transform.basis * local_wheel_forward).normalized()
+        wheel_forward = (wheel_forward - surface_normal * wheel_forward.dot(surface_normal)).normalized()
         var wheel_right := wheel_forward.cross(surface_normal).normalized()
-        var longitudinal_speed := contact_velocity.dot(wheel_forward)
-        var lateral_speed := contact_velocity.dot(wheel_right)
+        var longitudinal_speed: float = contact_velocity.dot(wheel_forward)
+        var lateral_speed: float = contact_velocity.dot(wheel_right)
 
         var tire_grip := WET_TIRE_GRIP if wet else DRY_TIRE_GRIP
         if not is_front and handbrake > 0.01:
-            tire_grip *= lerpf(1.0, 0.26, handbrake)
+            tire_grip *= lerpf(1.0, 0.26, clampf(handbrake, 0.0, 1.0))
         var grip_limit := spring_force * tire_grip
 
-        var lateral_force := clampf(-lateral_speed * CORNERING_STIFFNESS, -grip_limit, grip_limit)
+        var lateral_force := -lateral_speed * CORNERING_STIFFNESS
         var longitudinal_force := 0.0
         if is_driven:
             longitudinal_force += drive_force / float(driven_wheel_count)
-
         if brake_input > 0.01 and absf(longitudinal_speed) > 0.03:
-            longitudinal_force -= signf(longitudinal_speed) * (mass * BRAKE_DECELERATION / float(wheel_count)) * brake_input
+            longitudinal_force -= signf(longitudinal_speed) * (mass * BRAKE_DECELERATION / float(wheel_count)) * clampf(brake_input, 0.0, 1.0)
         if not is_front and handbrake > 0.01 and absf(longitudinal_speed) > 0.03:
-            longitudinal_force -= signf(longitudinal_speed) * (mass * 5.5 / float(rear_wheel_count)) * handbrake
+            longitudinal_force -= signf(longitudinal_speed) * (mass * 5.5 / float(rear_wheel_count)) * clampf(handbrake, 0.0, 1.0)
 
-        longitudinal_force = clampf(longitudinal_force, -grip_limit, grip_limit)
+        # A friction circle caps combined longitudinal and lateral tyre force.
+        var requested_force_length := Vector2(longitudinal_force, lateral_force).length()
+        if requested_force_length > grip_limit and requested_force_length > 0.001:
+            var grip_scale := grip_limit / requested_force_length
+            longitudinal_force *= grip_scale
+            lateral_force *= grip_scale
+
         debug_last_lateral_force += absf(lateral_force)
         debug_last_drive_force += absf(longitudinal_force)
         apply_force(wheel_forward * longitudinal_force + wheel_right * lateral_force, local_contact)
-
 
 func _maximum_speed_kmh() -> float:
     match vehicle_type.to_lower():

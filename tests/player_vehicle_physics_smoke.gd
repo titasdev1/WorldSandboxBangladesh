@@ -117,8 +117,9 @@ func _run() -> void:
     Input.action_release("vehicle_accelerate")
     var rightward_displacement := steering_body.global_position.x-steering_start.x
     var steering_yaw := steering_body.global_rotation.y
-    if rightward_displacement<=0.05 or steering_yaw>=-0.02:
-        push_error("VEHICLE_STEERING_FAIL: move_right should turn toward +X; displacement=%.3f yaw=%.3f." % [rightward_displacement,steering_yaw])
+    var steering_input := float(steering_body.get("debug_last_steering")) if _has_property(steering_body,"debug_last_steering") else 0.0
+    if rightward_displacement<=0.05 or steering_yaw>=-0.02 or steering_input<=0.0:
+        push_error("VEHICLE_STEERING_FAIL: move_right should turn toward +X; displacement=%.3f yaw=%.3f input=%.3f." % [rightward_displacement,steering_yaw,steering_input])
         quit(1)
         return
 
