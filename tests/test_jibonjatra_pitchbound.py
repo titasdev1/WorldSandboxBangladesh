@@ -38,7 +38,13 @@ class JibonJatraPitchboundTests(unittest.TestCase):
         self.assertIn("player_vehicle_dynamics.gd",self.vehicle)
         self.assertIn("apply_central_force",self.driving)
         self.assertIn("apply_torque",self.driving)
-        self.assertIn("lateral_grip",self.driving)
+        self.assertIn("func _build_wheel_states",self.driving)
+        self.assertIn("func _simulate_wheel_forces",self.driving)
+        self.assertIn("PhysicsRayQueryParameters3D.create",self.driving)
+        self.assertIn("SUSPENSION_STIFFNESS",self.driving) if "SUSPENSION_STIFFNESS" in self.driving else self.assertIn("SUSPENSION_TARGET_SAG",self.driving)
+        self.assertIn("apply_force(",self.driving)
+        self.assertIn("CORNERING_STIFFNESS",self.driving)
+        self.assertIn("debug_contact_wheels",self.driving)
         for action in ("vehicle_accelerate","vehicle_brake","vehicle_reverse","vehicle_handbrake"):
             self.assertIn(action,self.driving)
 

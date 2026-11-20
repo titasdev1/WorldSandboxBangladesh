@@ -56,5 +56,26 @@ func _run() -> void:
         quit(1)
         return
 
-    print("VEHICLE_PHYSICS_PASS • acceleration=%.2f m/s • braking=%.2f m/s • rigid-body collisions enabled" % [accelerated_speed,braked_speed])
+    if int(body.get("debug_contact_wheels")) < 2 or float(body.get("debug_last_suspension_force")) <= 0.0:
+        push_error("VEHICLE_PHYSICS_FAIL: wheel raycasts did not produce suspension support; contacts=%d." % int(body.get("debug_contact_wheels")))
+        quit(1)
+        return
+
+    # Steering must create a yaw response through the front tyre contact patches.
+    Input.action_press("vehicle_accelerate",1.0)
+    for _frame in range(24):
+        await physics_frame
+    Input.action_release("vehicle_accelerate")
+    var yaw_before := body.global_rotation.y
+    Input.action_press("move_right",1.0)
+    for _frame in range(36):
+        await physics_frame
+    Input.action_release("move_right")
+    var yaw_change := absf(wrapf(body.global_rotation.y-yaw_before,-PI,PI))
+    if yaw_change < 0.015 or float(body.get("debug_last_lateral_force")) <= 0.0:
+        push_error("VEHICLE_PHYSICS_FAIL: front-wheel steering/lateral tyre forces did not turn the chassis; yaw=%.4f." % yaw_change)
+        quit(1)
+        return
+
+    print("VEHICLE_PHYSICS_PASS • acceleration=%.2f m/s • braking=%.2f m/s • wheel_contacts=%d • suspension=%.1f N • steer_yaw=%.3f rad" % [accelerated_speed,braked_speed,int(body.get("debug_contact_wheels")),float(body.get("debug_last_suspension_force")),yaw_change])
     quit(0)
