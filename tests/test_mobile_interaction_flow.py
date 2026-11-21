@@ -133,6 +133,19 @@ class MobileInteractionFlowTests(unittest.TestCase):
         self.assertIn("door_placement_source", anchors)
         self.assertIn("A2_SHARIATPUR_EXPECTED_SEED_NOT_ANCHORED", anchors)
 
+    def test_large_osm_ids_are_normalized_before_seed_anchor_and_collision_matching(self):
+        normalize = function_block(self.loader, "_normalize_osm_id")
+        anchor_loader = function_block(self.loader, "_load_interior_anchors")
+        collision_builder = function_block(self.loader, "_add_seed_building_collisions")
+        interior_normalize = function_block(self.interior, "_normalize_osm_id")
+        closing = function_block(self.interior, "_close_interior")
+        self.assertIn("if value is float:", normalize)
+        self.assertIn("roundi(numeric_id)", normalize)
+        self.assertIn("_normalize_seed_osm_ids(seeds)", anchor_loader)
+        self.assertIn("_normalize_osm_id(seed.get(\"osm_id\", \"unknown\"))", collision_builder)
+        self.assertIn("roundi(numeric_id)", interior_normalize)
+        self.assertIn("_normalize_osm_id(active_seed.get(\"osm_id\", \"\"))", closing)
+
     def test_seed_building_collisions_follow_dem_ground_elevation(self):
         collision_builder = function_block(self.loader, "_add_seed_building_collisions")
         anchor_builder = function_block(self.loader, "_interior_anchor_placement")
