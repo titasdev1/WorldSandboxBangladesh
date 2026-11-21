@@ -88,8 +88,8 @@ jobs:
           MEDIUM="$(find build/ara_operator/medium -maxdepth 1 -type f -name '*.glb' -print -quit)"
           LOW="$(find build/ara_operator/low -maxdepth 1 -type f -name '*.glb' -print -quit)"
           mkdir -p build/ara_operator/previews
-          blender --background --factory-startup --python tools/ara3d/render_operator_contact_sheet.py -- \\
-            --high "$HIGH" --medium "$MEDIUM" --low "$LOW" \\
+          blender --background --factory-startup --python tools/ara3d/render_operator_contact_sheet.py -- \
+            --high "$HIGH" --medium "$MEDIUM" --low "$LOW" \
             --out-dir build/ara_operator/previews
           test -s build/ara_operator/previews/operator_lod_front.png
           test -s build/ara_operator/previews/operator_lod_three_quarter.png
