@@ -1491,6 +1491,15 @@ func _load_interior_anchors(record: Dictionary, player_position: Vector3) -> Arr
 		_add_entry_door(anchor, seed)
 		_add_mapped_exterior_sign(anchor, seed)
 		anchors.append(anchor)
+		var expected_osm_id := OS.get_environment("WSB_EXPECT_INTERIOR_OSM_ID").strip_edges()
+		if not expected_osm_id.is_empty() and str(seed.get("osm_id", "")) == expected_osm_id:
+			print("A2_REAL_SHARIATPUR_DOOR_ANCHOR_READY:" + JSON.stringify({
+				"osm_id": expected_osm_id,
+				"tile_id": tile_id,
+				"door_placement_source": str(seed.get("door_placement_source", "")),
+				"door_opening_available": is_instance_valid(anchor.get_node_or_null("DoorHinge")),
+				"ground_elevation_m": float(seed.get("ground_elevation_m", 0.0))
+			}))
 		if anchors.size() % 16 == 0:
 			await get_tree().process_frame
 	record["interior_anchor_center"] = player_position
