@@ -445,7 +445,7 @@ def render_preview(root: bpy.types.Object, preview_path: pathlib.Path) -> None:
     cam.location=(14,-22,12.8); target=Vector((0,-0.1,4.7)); cam.rotation_euler=(target- cam.location).to_track_quat("-Z","Y").to_euler()
     cam_data.type="ORTHO"; cam_data.ortho_scale=17.5
     scene=bpy.context.scene; scene.camera=cam
-    scene.render.engine="BLENDER_EEVEE_NEXT"
+    scene.render.engine="BLENDER_EEVEE"
     scene.eevee.taa_render_samples=48
     scene.render.resolution_x=1600; scene.render.resolution_y=1300; scene.render.resolution_percentage=100
     scene.render.image_settings.file_format="PNG"; scene.render.film_transparent=False
