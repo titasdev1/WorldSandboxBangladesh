@@ -136,6 +136,19 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertNotIn('load("res://', self.showcase)
         self.assertNotIn('Texture2D', self.showcase)
 
+
+    def test_lobby_requests_authored_idle_choreography_without_assuming_every_rig_has_each_clip(self):
+        self.assertIn('LOBBY_IDLE_ACTIONS: Array[String] = ["idle_look", "idle_fidget", "idle_breathe"]', self.showcase)
+        action_request = function_block(self.showcase, "_request_next_lobby_idle_action")
+        self.assertIn('has_method("play_action")', action_request)
+        self.assertIn('call("play_action", action_name)', action_request)
+        self.assertIn("if bool(", action_request)
+        process = function_block(self.showcase, "_process")
+        self.assertIn("_request_next_lobby_idle_action()", process)
+        self.assertIn('"idle_look"', read("character_visual.gd"))
+        self.assertIn('"idle_fidget"', read("character_visual.gd"))
+        self.assertIn('"idle_breathe"', read("character_visual.gd"))
+
     def test_showcase_and_player_visual_continue_while_tree_is_paused(self):
         self.assertIn('process_mode = Node.PROCESS_MODE_ALWAYS', self.showcase)
         self.assertIn('func _process(delta: float)', self.showcase)
