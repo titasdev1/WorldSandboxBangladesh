@@ -118,12 +118,15 @@ jobs:
           set -euo pipefail
           OUT_DIR="build/shariatpur-streetfront"
           mkdir -p "${OUT_DIR}"
-          blender --background --factory-startup \
+          if ! blender --background --factory-startup \
             --python tools/build_shariatpur_riverfront_shophouse.py -- \
             --out "${OUT_DIR}/shariatpur_riverfront_shophouse_hero.glb" \
             --textures "${OUT_DIR}/textures" \
             --preview "${OUT_DIR}/streetfront_preview.png" \
-            > "${OUT_DIR}/authoring.log" 2>&1
+            > "${OUT_DIR}/authoring.log" 2>&1; then
+            cat "${OUT_DIR}/authoring.log"
+            exit 1
+          fi
           cat "${OUT_DIR}/authoring.log"
           grep -Fq "A2_SHARIATPUR_STREETFRONT_READY:" "${OUT_DIR}/authoring.log"
 
@@ -139,6 +142,15 @@ jobs:
             --preview "${OUT_DIR}/streetfront_preview.png" \
             --out "${OUT_DIR}/streetfront_verification.json"
           python3 -m unittest discover -s tests -p "test_shariatpur_streetfront.py" -v
+
+      - name: Upload Shariatpur authoring diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Shariatpur-Authoring-Diagnostics
+          path: build/shariatpur-streetfront/authoring.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload Shariatpur streetfront art review package
         uses: actions/upload-artifact@v4
