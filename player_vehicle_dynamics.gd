@@ -485,7 +485,7 @@ func _simulate_wheel_forces(drive_force: float, brake_input: float, handbrake: f
         state["extension"] = extension
 
         # RigidBody3D.apply_force() takes a world-space offset from the body origin.
-		var force_offset := hit_position - global_position
+        var force_offset := hit_position - global_position
         var contact_velocity: Vector3 = _velocity_at_world_point(hit_position)
         var suspension_velocity: float = contact_velocity.dot(surface_normal)
         var spring_force: float = spring_stiffness * compression - spring_damping * suspension_velocity
