@@ -71,7 +71,9 @@ class ShariatpurStreetfrontAuthoringTests(unittest.TestCase):
     def test_blender_524_uses_supported_eevee_render_engine(self):
         self.assertIn('scene.render.engine="CYCLES"', self.builder)
         self.assertIn('scene.cycles.device="CPU"', self.builder)
-        self.assertIn("A2_PROGRESS: render CPU PBR preview", self.builder)
+        self.assertIn("A2_PROGRESS: render CPU PBR exterior preview", self.builder)
+        self.assertIn("A2_PROGRESS: render authored shop interior review preview", self.builder)
+        self.assertIn("render_interior_preview(root,args.interior_preview)", self.builder)
         self.assertNotIn("BLENDER_EEVEE_NEXT", self.builder)
 
     def test_blender_workflow_builds_and_uploads_the_streetfront_asset(self):
