@@ -1463,6 +1463,19 @@ func _load_interior_anchors(record: Dictionary, player_position: Vector3) -> Arr
 	var tile_position: Vector3 = record.get("world_position", Vector3.ZERO)
 	var tile_id := str(record.get("tile_id", "tile"))
 	var expected_osm_id := OS.get_environment("WSB_EXPECT_INTERIOR_OSM_ID").strip_edges()
+	var expected_seed_match_count := 0
+	for seed_variant in seeds:
+		if seed_variant is Dictionary and str(seed_variant.get("osm_id", "")) == expected_osm_id:
+			expected_seed_match_count += 1
+	print("A2_SHARIATPUR_SEED_SOURCE_DIAGNOSTIC:" + JSON.stringify({
+		"expected_osm_id": expected_osm_id,
+		"tile_id": tile_id,
+		"seed_count": seeds.size(),
+		"expected_seed_match_count": expected_seed_match_count,
+		"record_seed_path": str(record.get("interior_seeds", "")),
+		"map_root": MAP_ROOT,
+		"record_keys": record.keys()
+	}))
 	var nearby: Array[Dictionary] = []
 	var expected_seed_found := false
 	var expected_seed_distance := INF
