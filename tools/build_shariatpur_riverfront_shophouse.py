@@ -658,6 +658,7 @@ def main() -> int:
         "feature_inventory":["recessed timber and grilled windows","two ribbed shop roller shutters","Bengali shop sign and district lettering","upper balcony with metal balusters","corrugated awning and brackets","roof parapet and stair head","rooftop water tank and service pipes","AC condenser and cooling fan grille","utility meter, drain, downpipe and facade cables","wall lights and foundation stonework","authored grocery interior with shelving, counter, display case, stocked goods and Bengali shop signage","detailed side elevations with recessed grilled windows, rain chajjas and service wiring"],
         "texture_surfaces":[item.get("name") for item in texture_info.get("surfaces",[])],
         "interior_status":"AUTHORED_VISUAL_INTERIOR_INCLUDED_NOT_A_SURVEYED_PRIVATE_FLOOR_PLAN",
+        "interior_status":"AUTHORED_VISUAL_INTERIOR_INCLUDED_NOT_A_SURVEYED_PRIVATE_FLOOR_PLAN",
         "quality_status":"CI_STRUCTURAL_VALIDATION_PENDING_VISUAL_AND_ANDROID_REVIEW",
         "asset_file":args.out.name,"preview_file":args.preview.name,
     }
