@@ -113,9 +113,9 @@ class AraOperatorIntegrationTests(unittest.TestCase):
 
 
     def test_rifle_fire_is_a_filtered_upper_body_oneshot_over_locomotion(self):
-        builder = function_block(self.visual, "_build_authored_locomotion_blend_space")
-        fire_request = function_block(self.visual, "_request_authored_fire_layer")
-        updater = function_block(self.visual, "_update_authored_animation")
+        builder = block(self.visual, "func _build_authored_locomotion_blend_space(", "func _is_upper_body_animation_track(")
+        fire_request = block(self.visual, "func _request_authored_fire_layer(", "func _travel_authored_locomotion_state(")
+        updater = block(self.visual, "func _update_authored_animation(", "func _material(")
         self.assertIn("AnimationNodeBlendTree.new()", builder)
         self.assertIn("AnimationNodeOneShot.new()", builder)
         self.assertIn("fire_overlay.filter_enabled = true", builder)
@@ -138,7 +138,8 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         self.assertIn('state_machine.add_node("AimLocomotion", aim_space', self.visual)
         self.assertIn('state_machine.add_transition("GroundLocomotion", "AimLocomotion"', self.visual)
         self.assertIn('state_machine.add_transition("AimLocomotion", "GroundLocomotion"', self.visual)
-        self.assertIn("global_basis.orthonormalized().inverse()", self.visual)
+        self.assertIn("var facing_basis := global_basis.orthonormalized()", self.visual)
+        self.assertIn("facing_basis.inverse()", self.visual)
         self.assertIn("Vector2(local_velocity.x, -local_velocity.z)", self.visual)
         self.assertIn("parameters/Locomotion/AimLocomotion/blend_position", self.visual)
         self.assertIn("parameters/Locomotion/GroundLocomotion/blend_position", self.visual)
