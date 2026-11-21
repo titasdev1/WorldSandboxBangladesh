@@ -41,6 +41,7 @@ def args_from_cli() -> argparse.Namespace:
     parser.add_argument("--out", type=pathlib.Path, required=True)
     parser.add_argument("--textures", type=pathlib.Path, required=True)
     parser.add_argument("--preview", type=pathlib.Path, required=True)
+    parser.add_argument("--interior-preview", type=pathlib.Path, required=True)
     return parser.parse_args(raw)
 
 
@@ -616,9 +617,64 @@ def render_preview(root: bpy.types.Object, preview_path: pathlib.Path) -> None:
             bpy.data.objects.remove(obj,do_unlink=True)
 
 
+def render_interior_preview(root: bpy.types.Object, preview_path: pathlib.Path) -> None:
+    """Render a separate interior-facing camera pass for actual layout review."""
+    scene=bpy.context.scene
+    scene.render.engine="CYCLES"
+    scene.cycles.device="CPU"
+    scene.cycles.samples=32
+    scene.cycles.use_denoising=True
+    scene.render.resolution_x=1500
+    scene.render.resolution_y=1000
+    scene.render.resolution_percentage=100
+    scene.render.image_settings.file_format="PNG"
+    scene.view_settings.view_transform="AgX"
+    world=bpy.data.worlds.new("PREVIEW_Interior_World")
+    world.use_nodes=True
+    world.node_tree.nodes["Background"].inputs["Color"].default_value=(0.12,0.13,0.12,1)
+    world.node_tree.nodes["Background"].inputs["Strength"].default_value=0.22
+    scene.world=world
+
+    def interior_area(name: str, loc: tuple[float,float,float], energy: float,
+                      colour: tuple[float,float,float], size: float,
+                      target: tuple[float,float,float]) -> None:
+        data=bpy.data.lights.new(name,"AREA")
+        data.energy=energy
+        data.color=colour
+        data.shape="DISK"
+        data.size=size
+        obj=bpy.data.objects.new(name,data)
+        bpy.context.collection.objects.link(obj)
+        obj.location=loc
+        obj.rotation_euler=(Vector(target)-obj.location).to_track_quat("-Z","Y").to_euler()
+
+    interior_area("PREVIEW_Interior_Key",(0.0,-1.4,3.55),520,(1.0,0.79,0.58),3.0,(0.0,1.0,1.1))
+    interior_area("PREVIEW_Interior_Fill",(-3.8,1.8,3.15),360,(0.72,0.83,1.0),2.5,(-1.0,1.0,1.2))
+    interior_area("PREVIEW_Interior_Back",(3.4,2.7,3.2),300,(1.0,0.89,0.72),2.0,(1.0,1.5,1.1))
+    camera_data=bpy.data.cameras.new("PREVIEW_Interior_Review_Camera")
+    camera=bpy.data.objects.new("PREVIEW_Interior_Review_Camera",camera_data)
+    bpy.context.collection.objects.link(camera)
+    camera.location=(0.55,-3.15,2.15)
+    target=Vector((0.05,3.35,1.65))
+    camera.rotation_euler=(target- camera.location).to_track_quat("-Z","Y").to_euler()
+    camera_data.type="PERSP"
+    camera_data.lens=38
+    camera_data.clip_start=0.05
+    camera_data.clip_end=60
+    scene.camera=camera
+    scene.render.filepath=str(preview_path)
+    bpy.ops.object.select_all(action="DESELECT")
+    root.select_set(True)
+    bpy.context.view_layer.objects.active=root
+    bpy.ops.render.render(write_still=True)
+    for obj in list(bpy.data.objects):
+        if obj.name.startswith("PREVIEW_"):
+            bpy.data.objects.remove(obj,do_unlink=True)
+
+
 def main() -> int:
     args=args_from_cli()
-    args.out.parent.mkdir(parents=True,exist_ok=True); args.preview.parent.mkdir(parents=True,exist_ok=True)
+    args.out.parent.mkdir(parents=True,exist_ok=True); args.preview.parent.mkdir(parents=True,exist_ok=True); args.interior_preview.parent.mkdir(parents=True,exist_ok=True)
     print("A2_PROGRESS: reset scene", flush=True)
     reset_scene()
     print("A2_PROGRESS: load seven PBR material families", flush=True)
@@ -633,8 +689,10 @@ def main() -> int:
     if min(bounds.x,bounds.y,bounds.z) <= 0:
         raise RuntimeError(f"Invalid model bounds: {tuple(bounds)}")
     bpy.context.scene.render.resolution_percentage=100
-    print("A2_PROGRESS: render CPU PBR preview", flush=True)
+    print("A2_PROGRESS: render CPU PBR exterior preview", flush=True)
     render_preview(root,args.preview)
+    print("A2_PROGRESS: render authored shop interior review preview", flush=True)
+    render_interior_preview(root,args.interior_preview)
     print("A2_PROGRESS: export embedded GLB", flush=True)
     bpy.ops.object.select_all(action="DESELECT"); root.select_set(True); bpy.context.view_layer.objects.active=root
     bpy.ops.export_scene.gltf(filepath=str(args.out),export_format="GLB",use_selection=True,
@@ -657,8 +715,6 @@ def main() -> int:
         "interior_status":"AUTHORED_VISUAL_INTERIOR_INCLUDED_NOT_A_SURVEYED_PRIVATE_FLOOR_PLAN",
         "feature_inventory":["recessed timber and grilled windows","two ribbed shop roller shutters","Bengali shop sign and district lettering","upper balcony with metal balusters","corrugated awning and brackets","roof parapet and stair head","rooftop water tank and service pipes","AC condenser and cooling fan grille","utility meter, drain, downpipe and facade cables","wall lights and foundation stonework","authored grocery interior with shelving, counter, display case, stocked goods and Bengali shop signage","detailed side elevations with recessed grilled windows, rain chajjas and service wiring"],
         "texture_surfaces":[item.get("name") for item in texture_info.get("surfaces",[])],
-        "interior_status":"AUTHORED_VISUAL_INTERIOR_INCLUDED_NOT_A_SURVEYED_PRIVATE_FLOOR_PLAN",
-        "interior_status":"AUTHORED_VISUAL_INTERIOR_INCLUDED_NOT_A_SURVEYED_PRIVATE_FLOOR_PLAN",
         "quality_status":"CI_STRUCTURAL_VALIDATION_PENDING_VISUAL_AND_ANDROID_REVIEW",
         "asset_file":args.out.name,"preview_file":args.preview.name,
     }
