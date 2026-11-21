@@ -340,9 +340,7 @@ def _add_shop_interior(mats: dict[str,bpy.types.Material], font_path: str) -> No
     # Rice/dal sacks, beverage cooler and stacked returnable crates.
     for x,y in ((-3.75,2.48),(-3.12,2.52),(-3.47,1.92)):
         sack=cylinder("Shop_Rice_Sack",(x,y,0.56),0.27,0.92,mats["wood"],20)
-        sack.scale.x=1.12; sack.scale.y=0.94
-        bpy.context.view_layer.objects.active=sack
-        bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
+        # Cylindrical woven-sack approximation; keep original scale baked by cylinder dimensions.
     box("Shop_Beverage_Cooler_Housing",(3.60,1.55,1.34),(1.10,0.88,2.58),mats["steel"],0.035)
     box("Shop_Beverage_Cooler_Glass",(3.60,1.08,1.43),(0.84,0.035,2.05),mats["glass"],0.012)
     for z in (0.72,1.18,1.64,2.10):
@@ -567,7 +565,9 @@ def combine_asset() -> bpy.types.Object:
     root["a2_asset_category"]="Bangladesh river-town mixed-use shopfront"
     root["a2_geographic_status"]="AUTHORED_ARCHETYPE_NOT_A_SURVEYED_BUILDING"
     root["a2_gameplay_rule"]="Visual shell only; use OSM footprint, separate collision, entrance and floor graph"
-    root["a2_texture_policy"]="2K base colour; 2K normal and roughness; embedded GLB images"
+    root["a2_texture_policy"]="2K base-colour JPEG quality 92; 1K lossless normal and roughness; embedded GLB images"
+    root["a2_interior"]="Original same-building grocery-shop interior shell, display and furnishings included as authored visual geometry"
+
     for polygon in root.data.polygons: polygon.use_smooth=False
     return root
 
@@ -654,8 +654,10 @@ def main() -> int:
         "triangle_count":triangles,"mesh_object_count":1,
         "materials":[m.name for m in root.data.materials],"texture_manifest":str(texture_manifest),
         "texture_resolution_policy":"2K base-colour JPEG quality 92; 1K lossless normal and roughness PNGs; embedded in GLB.",
-        "feature_inventory":["recessed timber and grilled windows","two ribbed shop roller shutters","Bengali shop sign and district lettering","upper balcony with metal balusters","corrugated awning and brackets","roof parapet and stair head","rooftop water tank and service pipes","AC condenser and cooling fan grille","utility meter, drain, downpipe and facade cables","wall lights and foundation stonework"],
+        "interior_status":"AUTHORED_VISUAL_INTERIOR_INCLUDED_NOT_A_SURVEYED_PRIVATE_FLOOR_PLAN",
+        "feature_inventory":["recessed timber and grilled windows","two ribbed shop roller shutters","Bengali shop sign and district lettering","upper balcony with metal balusters","corrugated awning and brackets","roof parapet and stair head","rooftop water tank and service pipes","AC condenser and cooling fan grille","utility meter, drain, downpipe and facade cables","wall lights and foundation stonework","authored grocery interior with shelving, counter, display case, stocked goods and Bengali shop signage","detailed side elevations with recessed grilled windows, rain chajjas and service wiring"],
         "texture_surfaces":[item.get("name") for item in texture_info.get("surfaces",[])],
+        "interior_status":"AUTHORED_VISUAL_INTERIOR_INCLUDED_NOT_A_SURVEYED_PRIVATE_FLOOR_PLAN",
         "quality_status":"CI_STRUCTURAL_VALIDATION_PENDING_VISUAL_AND_ANDROID_REVIEW",
         "asset_file":args.out.name,"preview_file":args.preview.name,
     }
