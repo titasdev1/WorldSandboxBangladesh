@@ -23,6 +23,17 @@ var _building_collision_disabled := false
 func configure(target: Node3D) -> void:
     world = target
 
+func _normalize_osm_id(value: Variant) -> String:
+	if value is int:
+		return str(value)
+	if value is float:
+		var numeric_id := float(value)
+		var rounded_id := roundi(numeric_id)
+		if absf(numeric_id - float(rounded_id)) < 0.001:
+			return str(rounded_id)
+	return str(value)
+
+
 func _process(delta: float) -> void:
     # Small visible animation keeps generated rooms from feeling like frozen debug boxes.
     if is_instance_valid(fan_pivot) and is_inside():
@@ -60,7 +71,7 @@ func open_interior(seed: Dictionary, exterior_position: Vector3, direction: Vect
     )
     exterior_return_position = exterior_position + exit_direction * 0.35
 
-    var building_id := str(active_seed.get("osm_id", ""))
+    var building_id := _normalize_osm_id(active_seed.get("osm_id", ""))
     var loader: Node = world.get("real_dhaka_loader") as Node
     _building_collision_disabled = false
     if (
@@ -538,7 +549,7 @@ func _fictional_name() -> String:
         "Jannat", "Aminul Islam", "Rashed", "Shapla Begum", "Nayeem"
     ]
     var identity_key := "%s:%s:%s" % [
-        str(active_seed.get("osm_id", 0)),
+        _normalize_osm_id(active_seed.get("osm_id", 0)),
         str(active_seed.get("name", "")),
         str(active_seed.get("category", ""))
     ]
@@ -608,7 +619,7 @@ func _close_interior() -> void:
     fan_pivot = null
     var loader: Node = world.get("real_dhaka_loader") as Node if is_instance_valid(world) else null
     if _building_collision_disabled and is_instance_valid(loader) and loader.has_method("set_seed_building_collision_enabled"):
-        loader.call("set_seed_building_collision_enabled", str(active_seed.get("osm_id", "")), active_tile_id, true)
+        loader.call("set_seed_building_collision_enabled", _normalize_osm_id(active_seed.get("osm_id", "")), active_tile_id, true)
     _building_collision_disabled = false
     active_seed.clear()
     active_tile_id = ""
