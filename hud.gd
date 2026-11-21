@@ -586,10 +586,10 @@ func _build_settings_ui() -> void:
  quality_label.text = "Graphics quality / 3D render scale"
  column.add_child(quality_label)
  quality_option = OptionButton.new()
- quality_option.add_item("Low • 65% render scale")
- quality_option.add_item("Medium • 80% render scale")
- quality_option.add_item("High • 100% render scale")
- quality_option.add_item("Ultra • 100% + shadows")
+ quality_option.add_item("Low • 65% / lean lighting")
+ quality_option.add_item("Medium • 80% / fog")
+ quality_option.add_item("High • 100% / 2× MSAA + shadows")
+ quality_option.add_item("Ultra • 100% / 4× MSAA + shadows + glow")
  quality_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
  quality_option.item_selected.connect(_on_quality_selected)
  column.add_child(quality_option)
@@ -673,17 +673,39 @@ func _on_fps_selected(index: int) -> void:
  _save_graphics_settings()
 
 func _apply_quality(index: int) -> void:
- # These settings change real runtime render scale and the world sun/fog.
+ # Runtime profiles use features supported by the project's Godot 4.4 Mobile
+ # renderer. FSR2/TAA are not Mobile-renderer options in this engine version.
+ var profile := clampi(index, 0, 3)
  var scales := [0.65, 0.80, 1.0, 1.0]
- get_viewport().scaling_3d_scale = scales[clampi(index, 0, 3)]
- var shadows_enabled := index >= 3
- if w:
+ var msaa_modes := [
+  Viewport.MSAA_DISABLED,
+  Viewport.MSAA_DISABLED,
+  Viewport.MSAA_2X,
+  Viewport.MSAA_4X
+ ]
+ var shadows_enabled := profile >= 2
+ var shadow_distances := [0.0, 0.0, 55.0, 90.0]
+ var glow_enabled := profile >= 3
+
+ var viewport := get_viewport()
+ viewport.scaling_3d_scale = scales[profile]
+ viewport.msaa_3d = msaa_modes[profile]
+
+ if is_instance_valid(w):
   var sun := w.get_node_or_null("Sun") as DirectionalLight3D
-  if sun:
+  if is_instance_valid(sun):
    sun.shadow_enabled = shadows_enabled
+   if shadows_enabled:
+    sun.directional_shadow_max_distance = shadow_distances[profile]
   for child in w.get_children():
    if child is WorldEnvironment and child.environment:
-    child.environment.fog_enabled = index >= 1
+    var environment: Environment = child.environment
+    environment.fog_enabled = profile >= 1
+    environment.glow_enabled = glow_enabled
+    if glow_enabled:
+     environment.glow_hdr_threshold = 0.9
+     environment.glow_intensity = 1.2
+     environment.glow_strength = 1.0
 
 func _apply_fps(index: int) -> void:
  var limits := [30, 60, 90, 120, 144, 0]

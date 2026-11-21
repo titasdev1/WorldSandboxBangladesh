@@ -27,6 +27,26 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         cls.boot = read("boot.gd")
         cls.profile = read("career_profile.gd")
 
+    def test_graphics_presets_apply_mobile_renderer_controls(self):
+        settings = function_block(self.hud, "_apply_quality")
+        fps = function_block(self.hud, "_apply_fps")
+        for token in (
+            "viewport.scaling_3d_scale = scales[profile]",
+            "viewport.msaa_3d = msaa_modes[profile]",
+            "Viewport.MSAA_DISABLED",
+            "Viewport.MSAA_2X",
+            "Viewport.MSAA_4X",
+            "sun.shadow_enabled = shadows_enabled",
+            "sun.directional_shadow_max_distance = shadow_distances[profile]",
+            "environment.fog_enabled = profile >= 1",
+            "environment.glow_enabled = glow_enabled",
+            "environment.glow_hdr_threshold = 0.9",
+        ):
+            self.assertIn(token, settings)
+        self.assertIn("Engine.max_fps = limits[clampi(index, 0, 5)]", fps)
+        self.assertIn("[30, 60, 90, 120, 144, 0]", fps)
+        self.assertIn("Mobile", settings)
+
     def test_boot_has_animated_intro_local_guest_login_and_verified_map_handoff(self):
         for token in (
             "BOOT_SPLASH_DURATION_SECONDS",
