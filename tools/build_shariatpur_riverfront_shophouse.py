@@ -27,7 +27,7 @@ Authoring: Original geometry, composition, signage and materials authored with
 Blender 5.2.4 LTS and the source tools shipped in this repository.
 Copyright: Project A-Square / WorldSandboxBangladesh contributors.
 License: CC0 1.0 Universal for the generated mesh, textures, materials and preview.
-Provenance: No third-party game assets, satellite tiles, Google Earth/Maps 3D,
+Provenance: No third-party game assets; no Google Earth/Maps 3D or satellite tiles,
 Mapillary/KartaView imagery or copyrighted building photographs are included.
 Geographic status: A Bangladesh-rooted fictionalised architectural archetype.
 It is not a surveyed copy of a specific Shariatpur building. Snap to a verified
