@@ -105,6 +105,41 @@ def load_materials(texture_root: pathlib.Path) -> dict[str, bpy.types.Material]:
         links.new(normal_map.outputs["Normal"], principled.inputs["Normal"])
         links.new(principled.outputs["BSDF"], output.inputs["Surface"])
         result[key] = mat
+
+    # Properly shaped Bengali is baked with RAQM into wide sign-face textures.
+    # Do not rely on Blender's unshaped 3D text glyph sequence for conjuncts.
+    for key, folder_name in (("shop_sign_face", "shop_sign"), ("interior_sign_face", "interior_sign")):
+        folder_path = texture_root / folder_name
+        base_path = folder_path / "base_color.jpg"
+        normal_path = folder_path / "normal.png"
+        rough_path = folder_path / "roughness.png"
+        if not all(path.is_file() for path in (base_path, normal_path, rough_path)):
+            raise FileNotFoundError(f"Missing shaped Bengali sign artwork: {folder_path}")
+        mat = bpy.data.materials.new(f"A2_Baked_Bengali_{key}")
+        mat.diffuse_color = (0.05, 0.24, 0.19, 1.0)
+        mat.use_nodes = True
+        nodes = mat.node_tree.nodes; links = mat.node_tree.links
+        nodes.clear()
+        output = nodes.new("ShaderNodeOutputMaterial"); output.location = (560, 40)
+        principled = nodes.new("ShaderNodeBsdfPrincipled"); principled.location = (300, 40)
+        principled.inputs["Roughness"].default_value = 0.48
+        base_img = bpy.data.images.load(str(base_path), check_existing=True)
+        normal_img = bpy.data.images.load(str(normal_path), check_existing=True)
+        rough_img = bpy.data.images.load(str(rough_path), check_existing=True)
+        for image in (base_img, normal_img, rough_img): image.pack()
+        normal_img.colorspace_settings.name = "Non-Color"
+        rough_img.colorspace_settings.name = "Non-Color"
+        base_node = nodes.new("ShaderNodeTexImage"); base_node.image = base_img; base_node.location = (-520, 210)
+        rough_node = nodes.new("ShaderNodeTexImage"); rough_node.image = rough_img; rough_node.location = (-520, -30)
+        normal_node = nodes.new("ShaderNodeTexImage"); normal_node.image = normal_img; normal_node.location = (-520, -250)
+        normal_map = nodes.new("ShaderNodeNormalMap"); normal_map.location = (-90, -230)
+        links.new(base_node.outputs["Color"], principled.inputs["Base Color"])
+        links.new(rough_node.outputs["Color"], principled.inputs["Roughness"])
+        links.new(normal_node.outputs["Color"], normal_map.inputs["Color"])
+        links.new(normal_map.outputs["Normal"], principled.inputs["Normal"])
+        links.new(principled.outputs["BSDF"], output.inputs["Surface"])
+        result[key] = mat
+
     lettering = bpy.data.materials.new("A2_Warm_Ivory_Sign_Lettering")
     lettering.diffuse_color = (0.92, 0.82, 0.61, 1.0)
     lettering.use_nodes = True
@@ -126,6 +161,30 @@ def _register(obj: bpy.types.Object, role: str, material: bpy.types.Material | N
         obj.data.materials.append(material)
     ASSET_OBJECTS.append(obj)
     return obj
+
+
+def textured_quad(role: str, loc: tuple[float,float,float], width: float, height: float,
+                 mat: bpy.types.Material) -> bpy.types.Object:
+    """Front-facing, true-aspect UV quad for baked typography and sign graphics."""
+    vertices = [
+        (-width*0.5, 0.0, -height*0.5),
+        ( width*0.5, 0.0, -height*0.5),
+        ( width*0.5, 0.0,  height*0.5),
+        (-width*0.5, 0.0,  height*0.5),
+    ]
+    mesh = bpy.data.meshes.new(role + "_Mesh")
+    mesh.from_pydata(vertices, [], [(0,1,2,3)])
+    mesh.update()
+    uv_layer = mesh.uv_layers.new(name="UVMap")
+    uv_by_vertex = {0:(0.0,0.0),1:(1.0,0.0),2:(1.0,1.0),3:(0.0,1.0)}
+    for polygon in mesh.polygons:
+        for loop_index in polygon.loop_indices:
+            vertex_index = mesh.loops[loop_index].vertex_index
+            uv_layer.data[loop_index].uv = uv_by_vertex[vertex_index]
+    obj = bpy.data.objects.new(role, mesh)
+    bpy.context.collection.objects.link(obj)
+    obj.location = loc
+    return _register(obj, role, mat)
 
 
 def _cube_uv(obj: bpy.types.Object) -> None:
@@ -370,11 +429,9 @@ def _add_shop_interior(mats: dict[str,bpy.types.Material], font_path: str) -> No
         box("Shop_Ceiling_LED_Housing",(x,0.0,3.58),(1.05,0.13,0.08),mats["glass"],0.018)
         box("Shop_Ceiling_LED_Diffuser",(x,-0.01,3.535),(0.90,0.10,0.018),mats["concrete"],0.006)
 
-    # Bengali interior wayfinding and everyday retail cues.
-    box("Shop_Interior_Bangla_Signboard",(0.0,3.82,3.28),(3.35,0.10,0.42),mats["sign"],0.022)
-    text_mesh("Shop_Interior_Bangla_Sign","চাল • ডাল • তেল",(0.0,3.755,3.30),0.23,mats["letter"],font_path)
-    box("Shop_Interior_Notice_Plaque",(-3.65,3.82,3.28),(1.52,0.10,0.38),mats["wood"],0.018)
-    text_mesh("Shop_Interior_Notice","খুচরা বিক্রয়",(-3.65,3.755,3.30),0.14,mats["letter"],font_path)
+    # Shop interior uses the same shaped Bengali lettering pipeline as the exterior.
+    box("Shop_Interior_Bangla_Signboard",(0.0,3.82,3.28),(3.35,0.10,0.84),mats["sign"],0.022)
+    textured_quad("Shop_Interior_Baked_Bengali_Face",(0.0,3.763,3.28),3.25,0.74,mats["interior_sign_face"])
     # A short low counter return and a small wall shelf add depth at the entrance.
     box("Shop_Interior_Entry_Side_Counter",(2.25,-2.80,0.72),(1.08,0.55,1.32),mats["wood"],0.035)
     box("Shop_Interior_Entry_Side_Top",(2.25,-2.80,1.42),(1.18,0.62,0.12),mats["concrete"],0.022)
@@ -460,15 +517,11 @@ def build_shopfront(mats: dict[str,bpy.types.Material]) -> None:
     for x in (-3.45,3.45):
         curve("Awning_Bracket", ((x,-4.23,3.32),(x,-5.38,3.18),(x,-5.38,2.90)), 0.035,mats["steel"])
 
-    # Signboard with Bengali local identity and a legible English sub-line.
-    box("Shop_Signboard_Back", (0,-4.48,3.82), (4.55,0.20,0.92), mats["sign"], 0.045)
+    # Wide sign face is a single RAQM-shaped Bengali texture with true aspect UVs.
+    box("Shop_Signboard_Back", (0,-4.48,3.88), (4.55,0.20,1.08), mats["sign"], 0.045)
+    textured_quad("Shop_Signboard_Baked_Bengali_Face", (0,-4.588,3.88), 4.42, 0.98, mats["shop_sign_face"])
     for side in (-1,1):
-        box("Signboard_Border", (side*2.18,-4.60,3.82), (0.045,0.03,0.80), mats["steel"], 0.008)
-    font=find_bengali_font()
-    text_mesh("Bengali_Shop_Name", "মা স্টোর", (0,-4.605,3.90), 0.56,mats["letter"],font)
-    text_mesh("Bengali_District_Name", "শরীয়তপুর", (0,-4.608,3.55), 0.22,mats["letter"],font)
-    box("Shop_Name_Small_Plaque", (0,-4.55,4.40), (3.10,0.11,0.18), mats["wood"],0.02)
-    text_mesh("English_Shop_Subtitle", "DAILY NEEDS  •  RIVER TOWN", (0,-4.62,4.41), 0.105,mats["letter"],font)
+        box("Signboard_Brass_Fixing", (side*2.20,-4.60,3.88), (0.055,0.035,0.96), mats["steel"], 0.012)
 
     # Upper veranda soffit, parapet and roof stair head.
     box("Roof_Deck", (0,0,7.78), (11.15,8.4,0.28), mats["concrete"], 0.05)
@@ -654,11 +707,13 @@ def render_interior_preview(root: bpy.types.Object, preview_path: pathlib.Path) 
     camera_data=bpy.data.cameras.new("PREVIEW_Interior_Review_Camera")
     camera=bpy.data.objects.new("PREVIEW_Interior_Review_Camera",camera_data)
     bpy.context.collection.objects.link(camera)
-    camera.location=(0.55,-3.15,2.15)
-    target=Vector((0.05,3.35,1.65))
-    camera.rotation_euler=(target- camera.location).to_track_quat("-Z","Y").to_euler()
+    # Three-quarter entrance view: show the counter, cooler, rear stock wall,
+    # side rack and clear walking aisle instead of filling the frame with one shelf.
+    camera.location=(4.65,-4.65,2.05)
+    target=Vector((-0.85,1.55,1.55))
+    camera.rotation_euler=(target-camera.location).to_track_quat("-Z","Y").to_euler()
     camera_data.type="PERSP"
-    camera_data.lens=38
+    camera_data.lens=30
     camera_data.clip_start=0.05
     camera_data.clip_end=60
     scene.camera=camera
@@ -713,7 +768,7 @@ def main() -> int:
         "materials":[m.name for m in root.data.materials],"texture_manifest":str(texture_manifest),
         "texture_resolution_policy":"2K base-colour JPEG quality 92; 1K lossless normal and roughness PNGs; embedded in GLB.",
         "interior_status":"AUTHORED_VISUAL_INTERIOR_INCLUDED_NOT_A_SURVEYED_PRIVATE_FLOOR_PLAN",
-        "feature_inventory":["recessed timber and grilled windows","two ribbed shop roller shutters","Bengali shop sign and district lettering","upper balcony with metal balusters","corrugated awning and brackets","roof parapet and stair head","rooftop water tank and service pipes","AC condenser and cooling fan grille","utility meter, drain, downpipe and facade cables","wall lights and foundation stonework","authored grocery interior with shelving, counter, display case, stocked goods and Bengali shop signage","detailed side elevations with recessed grilled windows, rain chajjas and service wiring"],
+        "feature_inventory":["recessed timber and grilled windows","two ribbed shop roller shutters","RAQM-shaped baked Bengali exterior and interior sign faces","upper balcony with metal balusters","corrugated awning and brackets","roof parapet and stair head","rooftop water tank and service pipes","AC condenser and cooling fan grille","utility meter, drain, downpipe and facade cables","wall lights and foundation stonework","authored grocery interior with shelving, counter, display case, stocked goods and Bengali shop signage","detailed side elevations with recessed grilled windows, rain chajjas and service wiring"],
         "texture_surfaces":[item.get("name") for item in texture_info.get("surfaces",[])],
         "quality_status":"CI_STRUCTURAL_VALIDATION_PENDING_VISUAL_AND_ANDROID_REVIEW",
         "asset_file":args.out.name,"preview_file":args.preview.name,
