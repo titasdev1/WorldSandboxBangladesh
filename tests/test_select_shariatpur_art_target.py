@@ -61,7 +61,7 @@ class ShariatpurArtTargetSelectionTests(unittest.TestCase):
             manifest = {
                 "build_stage": "shariatpur_review",
                 "administrative_boundary": {"name":"Shariatpur"},
-                "game_origin_lat_lon": [23.2167, 90.3500],
+                "game_origin_lat_lon": [23.2500, 90.3800],
                 "tiles": tiles,
                 "tile_batch_count": 60,
                 "tile_count_total": 60,
@@ -77,6 +77,7 @@ class ShariatpurArtTargetSelectionTests(unittest.TestCase):
             self.assertEqual(selected["tile_id"], tile_id)
             self.assertEqual(selected["door_placement_source"], "MAPPED_ENTRANCE_NODE")
             self.assertAlmostEqual(selected["ground_elevation_m"], 2.15)
+            self.assertGreater(selected["distance_from_source_map_origin_m"], 2200.0)
             self.assertLess(selected["distance_from_game_origin_m"], 1.0)
 
             subset_path = out / "selected-map" / "map_tiles_manifest.json"
