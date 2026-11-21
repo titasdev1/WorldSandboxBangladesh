@@ -8,6 +8,7 @@ on:
     paths:
       - "tools/ara3d/**"
       - ".github/workflows/ara-operator-assets.yml"
+      - "tests/test_ara3d_operator_integration.py"
 
 permissions:
   contents: read
@@ -68,6 +69,32 @@ jobs:
           test -s "$HIGH" && test -s "$MEDIUM" && test -s "$LOW"
           python3 tools/ara3d/verify_ara_glb.py             --high "$HIGH" --medium "$MEDIUM" --low "$LOW"             --out build/ara_operator/verification.json
 
+      - name: Run Ara3D pipeline integration regression tests
+        shell: bash
+        run: python3 -m unittest discover -s tests -p "test_ara3d_operator_integration.py" -v
+
+      - name: Install checksum-verified Blender 5.2.4 LTS
+        shell: bash
+        run: |
+          set -euo pipefail
+          source tools/install_blender_ci.sh
+          blender --version
+
+      - name: Render inspectable operator LOD contact sheets
+        shell: bash
+        run: |
+          set -euo pipefail
+          HIGH="$(find build/ara_operator/high -maxdepth 1 -type f -name '*.glb' -print -quit)"
+          MEDIUM="$(find build/ara_operator/medium -maxdepth 1 -type f -name '*.glb' -print -quit)"
+          LOW="$(find build/ara_operator/low -maxdepth 1 -type f -name '*.glb' -print -quit)"
+          mkdir -p build/ara_operator/previews
+          blender --background --factory-startup --python tools/ara3d/render_operator_contact_sheet.py -- \\
+            --high "$HIGH" --medium "$MEDIUM" --low "$LOW" \\
+            --out-dir build/ara_operator/previews
+          test -s build/ara_operator/previews/operator_lod_front.png
+          test -s build/ara_operator/previews/operator_lod_three_quarter.png
+          test -s build/ara_operator/previews/preview_report.json
+
       - name: Record source and asset licences
         shell: bash
         run: |
@@ -77,7 +104,7 @@ jobs:
           Generator source code: MIT License.
           MakeHuman character mesh, morph targets, skins, hair, clothing and proxies: CC0 1.0.
           CMU motion capture: Graphics Lab Motion Capture Database; may be used in commercial products, must not be resold as a standalone converted motion asset. See upstream scripts/ASSETS_LICENSE.txt.
-          This generated operator is an evaluation candidate. It has not yet passed visual or Android-device QA.
+          This generated operator is an evaluation candidate. Blender contact sheets are supplied for human review; they are not automatic art approval or Android-device QA.
           EOF
 
       - name: Upload validated character candidates
@@ -89,6 +116,8 @@ jobs:
             build/ara_operator/medium/*.glb
             build/ara_operator/low/*.glb
             build/ara_operator/verification.json
+            build/ara_operator/previews/*.png
+            build/ara_operator/previews/preview_report.json
             build/ara_operator/ASSET-LICENSES.txt
           if-no-files-found: error
           retention-days: 14

@@ -24,6 +24,8 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         cls.android = read(".github/workflows/android.yml")
         cls.smoke = read("tests/ara_operator_runtime_smoke.gd")
         cls.profile = json.loads(read("tools/ara3d/asquare_operator.params.json"))
+        cls.asset_workflow = read(".github/workflows/ara-operator-assets.yml")
+        cls.preview_script = read("tools/ara3d/render_operator_contact_sheet.py")
 
     def test_validated_ara_glb_is_preferred_over_older_humanoid_candidates(self):
         self.assertIn('const ARA_HERO_PATH := "res://external_content/ara3d_operator/high/a_square_bangladesh_operator.glb"', self.visual)
@@ -97,6 +99,16 @@ class AraOperatorIntegrationTests(unittest.TestCase):
             "Use parachute (glide)", "Land parachute",
         ):
             self.assertIn(clip, self.visual)
+
+    def test_ci_renders_reviewable_blender_previews_for_all_operator_lods(self):
+        self.assertIn("source tools/install_blender_ci.sh", self.asset_workflow)
+        self.assertIn("render_operator_contact_sheet.py", self.asset_workflow)
+        self.assertIn("build/ara_operator/previews/*.png", self.asset_workflow)
+        self.assertIn("bpy.ops.import_scene.gltf", self.preview_script)
+        self.assertIn("operator_lod_front.png", self.preview_script)
+        self.assertIn("operator_lod_three_quarter.png", self.preview_script)
+        self.assertIn("ARA_OPERATOR_PREVIEW_PASS", self.preview_script)
+        self.assertIn("PREVIEW_RENDERED_NOT_ART_APPROVED", self.preview_script)
 
     def test_runtime_smoke_covers_rig_textures_weapon_and_real_animation(self):
         for marker in ("ARA3D_RUNTIME_PASS", "RightHand", "WeaponR", "textured_surface_count", "LOOP_LINEAR", "first_person_body=true", "BR_parachute_states=true"):
