@@ -44,6 +44,8 @@ class ShariatpurStreetfrontAuthoringTests(unittest.TestCase):
 
     def test_original_pbr_textures_are_2k_and_include_maps_for_each_material(self):
         self.assertIn("default=2048", self.texture_builder)
+        self.assertIn('format="JPEG",quality=92', self.texture_builder)
+        self.assertIn("normal_size=max(512,size//2)", self.texture_builder)
         for material in (
             "weathered_teal_plaster", "local_clay_brick", "galvanized_rust_wear",
             "weathered_cast_concrete", "smoked_shop_glass", "aged_teak_wood", "painted_signboard",
@@ -52,6 +54,8 @@ class ShariatpurStreetfrontAuthoringTests(unittest.TestCase):
         for kind in ("base_color", "normal", "roughness"):
             self.assertIn(kind, self.texture_builder)
         self.assertIn("no external image textures", self.texture_builder)
+        self.assertIn("2K base colour JPEG quality 92; 1K lossless PNG normal and roughness maps", self.texture_builder)
+        self.assertIn("45 MiB budget", self.verifier)
 
     def test_glb_verifier_requires_embedded_pbr_maps_and_review_preview(self):
         for marker in ("glTF", "bufferView", "material", "embedded", "preview", "Godot 4.4.1",
