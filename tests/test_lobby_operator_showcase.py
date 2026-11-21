@@ -142,7 +142,7 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         action_request = function_block(self.showcase, "_request_next_lobby_idle_action")
         self.assertIn('has_method("play_action")', action_request)
         self.assertIn('call("play_action", action_name)', action_request)
-        self.assertIn("if bool(", action_request)
+        self.assertIn("== true:", action_request)
         process = function_block(self.showcase, "_process")
         self.assertIn("_request_next_lobby_idle_action()", process)
         self.assertIn('"idle_look"', read("character_visual.gd"))

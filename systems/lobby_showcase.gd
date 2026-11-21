@@ -91,7 +91,7 @@ func _request_next_lobby_idle_action() -> void:
 	for offset in range(LOBBY_IDLE_ACTIONS.size()):
 		var index := (_idle_action_cursor + offset) % LOBBY_IDLE_ACTIONS.size()
 		var action_name := LOBBY_IDLE_ACTIONS[index]
-		if bool(_visual.call("play_action", action_name)):
+		if _visual.call("play_action", action_name) == true:
 			_idle_action_cursor = (index + 1) % LOBBY_IDLE_ACTIONS.size()
 			return
 
