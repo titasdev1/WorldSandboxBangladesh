@@ -240,6 +240,24 @@ func _run_smoke() -> void:
 		locomotion_playback.get_fading_from_node(),
 		str(locomotion_playback.is_playing())
 	])
+	# Let the forward cross-fade complete before requesting the reverse path.
+	# A state-machine travel request made during an active cross-fade is queued
+	# behind that transition, so the two phases must be tested independently.
+	var aim_transition_settled := false
+	for frame_index in range(18):
+		await process_frame
+		if String(locomotion_playback.get_current_node()) == "AimLocomotion" and String(locomotion_playback.get_fading_from_node()).is_empty():
+			aim_transition_settled = true
+			break
+	if not aim_transition_settled:
+		push_error("ARA3D_RUNTIME_FAIL: entering ADS did not finish its cross-fade. current=%s fading_from=%s path=%s" % [
+			String(locomotion_playback.get_current_node()),
+			locomotion_playback.get_fading_from_node(),
+			str(locomotion_playback.get_travel_path())
+		])
+		quit(1)
+		return
+
 	visual.call("_set_authored_locomotion_blend", 3.75)
 	var reached_ground := false
 	for frame_index in range(18):

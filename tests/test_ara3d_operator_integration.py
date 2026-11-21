@@ -139,13 +139,15 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         self.assertIn("absf(actual_aim_blend.x - aim_case[1].x) > 0.0001", self.smoke)
         self.assertIn("absf(actual_aim_blend.y - aim_case[1].y) > 0.0001", self.smoke)
 
-    def test_state_machine_starts_first_state_before_travelling_between_locomotion_modes(self):
+    def test_state_machine_smoke_settles_each_crossfade_before_reversing(self):
         travel = block(self.visual, "func _travel_authored_locomotion_state", "func _set_authored_locomotion_blend")
         self.assertIn("get_current_node()", travel)
         self.assertIn("current_state.is_empty()", travel)
         self.assertIn("playback.start(state_name)", travel)
         self.assertIn("playback.travel(state_name)", travel)
-        self.assertIn("await process_frame", self.smoke)
+        self.assertIn("get_fading_from_node()", self.smoke)
+        self.assertIn("aim_transition_settled", self.smoke)
+        self.assertIn("reached_ground", self.smoke)
         self.assertIn("visual.set_process(false)", self.smoke)
     def test_runtime_smoke_covers_rig_textures_weapon_and_real_animation(self):
         for marker in ("ARA3D_RUNTIME_PASS", "RightHand", "WeaponR", "textured_surface_count", "LOOP_LINEAR", "first_person_body=true", "BR_parachute_states=true"):
