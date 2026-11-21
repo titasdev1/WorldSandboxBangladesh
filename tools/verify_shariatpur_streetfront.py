@@ -57,6 +57,10 @@ def verify(glb_path: pathlib.Path, manifest_path: pathlib.Path, license_path: pa
     if len(meshes) < 1 or not primitives: failures.append("No exported building mesh primitives")
     if len(materials) < 7: failures.append(f"Only {len(materials)} materials; expected seven PBR surfaces plus lettering")
     if len(images) < 18 or len(textures) < 18: failures.append(f"Embedded texture library incomplete: images={len(images)}, textures={len(textures)}")
+    if byte_count > 45 * 1024 * 1024: failures.append(f"Mobile hero GLB exceeds 45 MiB budget: {byte_count} bytes")
+    image_mimes = {str(image.get("mimeType", "")) for image in images}
+    if "image/jpeg" not in image_mimes or "image/png" not in image_mimes:
+        failures.append(f"Expected JPEG colour plus lossless PNG detail maps, found: {sorted(image_mimes)}")
     if any("bufferView" not in image for image in images): failures.append("At least one GLB image is external rather than embedded")
     if not nodes or not scenes: failures.append("GLB has no scene nodes")
     if triangles < 8000: failures.append(f"Mesh detail is below the 8,000-triangle minimum: {triangles}")
@@ -89,6 +93,7 @@ def verify(glb_path: pathlib.Path, manifest_path: pathlib.Path, license_path: pa
         "embedded_texture_count": len(textures),
         "scene_node_count": len(nodes),
         "preview_bytes": preview_path.stat().st_size,
+        "glb_mobile_budget_mib": 45,
         "bounds_metres": bounds,
         "license": manifest.get("license"),
         "geographic_status": manifest.get("geographic_status"),
