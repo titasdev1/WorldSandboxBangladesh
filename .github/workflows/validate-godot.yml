@@ -45,6 +45,7 @@ on:
       - "systems/login_operator_actor.gd"
       - "tests/login_backdrop_runtime_smoke.gd"
       - "tests/test_login_backdrop.py"
+      - "tests/test_mobile_interaction_flow.py"
       - "project.godot"
       - "tests/test_dhaka_map_pipeline.py"
       - ".github/workflows/validate-godot.yml"
@@ -109,6 +110,9 @@ jobs:
 
       - name: Verify icon-led lobby navigation and page routing
         run: python3 -m unittest discover -s tests -p "test_lobby_operator_showcase.py" -v
+
+      - name: Verify mobile, building-door and same-world interior interaction flows
+        run: python3 -m unittest discover -s tests -p "test_mobile_interaction_flow.py" -v
 
       - name: Restore cached Quaternius CC0 hero and animation libraries
         uses: actions/cache@v4
