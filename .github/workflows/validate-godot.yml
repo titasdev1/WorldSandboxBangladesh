@@ -51,12 +51,14 @@ on:
   pull_request:
     branches:
       - main
+      - feature/lobby-operator-showcase
     paths:
       - "**.gd"
       - "tools/check_gdscript_bool_casts.py"
       - "tests/test_gdscript_bool_cast_checker.py"
       - "world.gd"
       - "character_visual.gd"
+      - "tests/test_ara3d_operator_integration.py"
       - "external_content/**"
       - "tools/fetch_quaternius_character.py"
       - "tools/merge_quaternius_character.mjs"
@@ -153,7 +155,7 @@ jobs:
             exit 1
           fi
           RUN_RECORD="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${PROFILE_COMMIT}&per_page=100" \
-            --jq ".workflow_runs | map(select(.workflow_id == 417330351 and .head_sha == \"${PROFILE_COMMIT}\" and .head_branch == \"${BRANCH}\")) | sort_by(.created_at) | last // empty | [.id, .status, (.conclusion // \"\")] | @tsv")"
+            --jq ".workflow_runs | map(select(.workflow_id == 417330351 and .head_sha == \"${PROFILE_COMMIT}\")) | sort_by(.created_at) | last // empty | [.id, .status, (.conclusion // \"\")] | @tsv")"
           if [[ -z "${RUN_RECORD}" ]]; then
             echo "No Ara operator build exists for profile ${PROFILE_COMMIT} on ${BRANCH}." >&2
             exit 1
