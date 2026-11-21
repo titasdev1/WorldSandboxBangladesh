@@ -172,12 +172,15 @@ func _run_smoke() -> void:
 	# gameplay actions. Values must clamp to the blend-space range, not leak into
 	# the AnimationPlayer's current one-shot action.
 	for speed in [0.0, 3.75, 7.5, 10.5, 14.0]:
+		# Inspect immediately, before the ungrounded smoke actor's regular process
+		# tick legitimately selects its fall state and disables ground locomotion.
 		visual.call("_set_authored_locomotion_blend", speed)
-		await process_frame
 		var expected_blend := clampf(speed, 0.0, 10.5)
 		var actual_blend := float(locomotion_tree.get("parameters/blend_position"))
 		if not locomotion_tree.active or not is_equal_approx(actual_blend, expected_blend):
-			push_error("ARA3D_RUNTIME_FAIL: locomotion blend position did not track/clamp speed.")
+			push_error("ARA3D_RUNTIME_FAIL: locomotion blend position did not track/clamp speed. expected=%s actual=%s active=%s" % [
+				str(expected_blend), str(actual_blend), str(locomotion_tree.active)
+			])
 			quit(1)
 			return
 
