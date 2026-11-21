@@ -226,7 +226,7 @@ func _run_smoke() -> void:
 			return
 		await process_frame
 		var actual_aim_blend := locomotion_tree.get("parameters/AimLocomotion/blend_position") as Vector2
-		if not is_equal_approx(actual_aim_blend.x, aim_case[1].x) or not is_equal_approx(actual_aim_blend.y, aim_case[1].y):
+		if absf(actual_aim_blend.x - aim_case[1].x) > 0.0001 or absf(actual_aim_blend.y - aim_case[1].y) > 0.0001:
 			push_error("ARA3D_RUNTIME_FAIL: directional aim blend mapped " + String(aim_case[2]) + " incorrectly. actual=" + str(actual_aim_blend))
 			quit(1)
 			return

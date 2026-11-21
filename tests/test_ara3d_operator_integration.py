@@ -131,6 +131,10 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         self.assertIn("parameters/AimLocomotion/blend_position", self.smoke)
 
 
+    def test_directional_blend_smoke_allows_small_exponential_filter_residual(self):
+        self.assertIn("absf(actual_aim_blend.x - aim_case[1].x) > 0.0001", self.smoke)
+        self.assertIn("absf(actual_aim_blend.y - aim_case[1].y) > 0.0001", self.smoke)
+
     def test_state_machine_starts_first_state_before_travelling_between_locomotion_modes(self):
         travel = block(self.visual, "func _travel_authored_locomotion_state", "func _set_authored_locomotion_blend")
         self.assertIn("get_current_node()", travel)
