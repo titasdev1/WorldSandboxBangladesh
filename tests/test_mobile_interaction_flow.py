@@ -103,6 +103,33 @@ class MobileInteractionFlowTests(unittest.TestCase):
         self.assertIn('set_meta("door_open", false)', closing)
         self.assertIn('tween_property(door_hinge, "rotation:y"', closing)
 
+    def test_interior_stays_at_the_buildings_world_coordinates(self):
+        opening = function_block(self.interior, "open_interior")
+        self.assertNotIn("-300.0", opening)
+        self.assertIn("doorway_world_position", opening)
+        self.assertIn("ground_y := exterior_position.y - 0.15", opening)
+        self.assertIn("SAME-WORLD INTERIOR", opening)
+        self.assertNotIn("player.global_position = active_root.to_global", opening)
+        self.assertIn("player.velocity = Vector3.ZERO", opening)
+
+    def test_same_world_room_restores_its_mapped_footprint_collision(self):
+        opening = function_block(self.interior, "open_interior")
+        closing = function_block(self.interior, "_close_interior")
+        collision = function_block(self.loader, "set_seed_building_collision_enabled")
+        self.assertIn("set_seed_building_collision_enabled", opening)
+        self.assertIn("world_space_interior", opening)
+        self.assertIn("set_seed_building_collision_enabled", closing)
+        self.assertIn("collision_layer = 0", collision)
+        self.assertIn("collision.disabled = true", collision)
+        self.assertIn("collision.disabled = false", collision)
+
+    def test_seed_building_collisions_follow_dem_ground_elevation(self):
+        collision_builder = function_block(self.loader, "_add_seed_building_collisions")
+        anchor_builder = function_block(self.loader, "_interior_anchor_placement")
+        self.assertIn('seed.get("ground_elevation_m", 0.0)', collision_builder)
+        self.assertIn("ground_elevation + height * 0.5", collision_builder)
+        self.assertIn("ground_y + 0.15", anchor_builder)
+
     def test_vehicle_has_separate_first_and_third_person_cameras(self):
         self.assertIn("var vehicle_first_person_camera: Camera3D", self.vehicle)
         self.assertIn("func toggle_vehicle_camera_mode() -> String:", self.vehicle)
