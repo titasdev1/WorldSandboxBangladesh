@@ -379,13 +379,22 @@ func _build_authored_hero(packed: PackedScene) -> void:
     var ground_blend_points := 0
     var aim_blend_points := 0
     if locomotion_blend_ready and is_instance_valid(_authored_locomotion_tree):
-        var blend_machine := _authored_locomotion_tree.tree_root as AnimationNodeStateMachine
-        var ground_space := blend_machine.get_node("GroundLocomotion") as AnimationNodeBlendSpace1D
-        if ground_space != null:
-            ground_blend_points = ground_space.get_blend_point_count()
-        var aim_space := blend_machine.get_node("AimLocomotion") as AnimationNodeBlendSpace2D
-        if aim_space != null:
-            aim_blend_points = aim_space.get_blend_point_count()
+        # The AnimationTree root is an AnimationNodeBlendTree. The state machine
+        # is its "Locomotion" child; casting the root directly to a state machine
+        # returns null and crashes the authored Ara operator activation path.
+        var blend_root := _authored_locomotion_tree.tree_root as AnimationNodeBlendTree
+        var blend_machine := blend_root.get_node("Locomotion") as AnimationNodeStateMachine if blend_root != null else null
+        if blend_machine != null:
+            if blend_machine.has_node("GroundLocomotion"):
+                var ground_space := blend_machine.get_node("GroundLocomotion") as AnimationNodeBlendSpace1D
+                if ground_space != null:
+                    ground_blend_points = ground_space.get_blend_point_count()
+            if blend_machine.has_node("AimLocomotion"):
+                var aim_space := blend_machine.get_node("AimLocomotion") as AnimationNodeBlendSpace2D
+                if aim_space != null:
+                    aim_blend_points = aim_space.get_blend_point_count()
+        else:
+            push_warning("AUTHORED_LOCOMOTION_DIAGNOSTIC: missing Locomotion state machine in the blend tree.")
     print("AUTHORED_LOCOMOTION_BLEND • ready=%s • ground_points=%d • aim_2d=%s • aim_points=%d • upper_body_fire=%s • filtered_tracks=%d" % [
         str(locomotion_blend_ready),
         ground_blend_points,
