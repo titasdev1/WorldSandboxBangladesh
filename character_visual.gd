@@ -51,6 +51,8 @@ var _authored_locomotion_playback: AnimationNodeStateMachinePlayback
 var _authored_locomotion_blend_max_speed := 10.5
 var _authored_aim_blend_ready := false
 var _authored_aim_blend_position := Vector2.ZERO
+var _authored_fire_layer_ready := false
+var _authored_fire_layer_track_count := 0
 var _authored_current_animation := ""
 var _authored_animation_lookup: Dictionary = {}
 var _authored_weapon_attachment: BoneAttachment3D
@@ -384,11 +386,13 @@ func _build_authored_hero(packed: PackedScene) -> void:
         var aim_space := blend_machine.get_node("AimLocomotion") as AnimationNodeBlendSpace2D
         if aim_space != null:
             aim_blend_points = aim_space.get_blend_point_count()
-    print("AUTHORED_LOCOMOTION_BLEND • ready=%s • ground_points=%d • aim_2d=%s • aim_points=%d" % [
+    print("AUTHORED_LOCOMOTION_BLEND • ready=%s • ground_points=%d • aim_2d=%s • aim_points=%d • upper_body_fire=%s • filtered_tracks=%d" % [
         str(locomotion_blend_ready),
         ground_blend_points,
         str(_authored_aim_blend_ready),
-        aim_blend_points
+        aim_blend_points,
+        str(_authored_fire_layer_ready),
+        _authored_fire_layer_track_count
     ])
 
     # Reparent the existing rifle and muzzle effects to an actual rigged right-hand
@@ -1046,18 +1050,71 @@ func _build_authored_locomotion_blend_space() -> bool:
         else:
             _authored_aim_blend_ready = false
 
+    # Keep locomotion as the uninterrupted base layer. Fire is a separate
+    # upper-body one-shot filtered to authored spine/arms/hands/weapon tracks.
+    var blend_tree := AnimationNodeBlendTree.new()
+    blend_tree.add_node("Locomotion", state_machine, Vector2(-300.0, 0.0))
+    var fire_clip_name := String(_authored_animation_lookup.get("shoot", ""))
+    if not fire_clip_name.is_empty():
+        var fire_clip := _authored_animation_player.get_animation(fire_clip_name)
+        if fire_clip != null:
+            var fire_overlay := AnimationNodeOneShot.new()
+            fire_overlay.mix_mode = AnimationNodeOneShot.MIX_MODE_BLEND
+            fire_overlay.fadein_time = 0.055
+            fire_overlay.fadeout_time = 0.10
+            fire_overlay.filter_enabled = true
+            for track_index in range(fire_clip.get_track_count()):
+                var track_path := fire_clip.track_get_path(track_index)
+                if _is_upper_body_animation_track(track_path):
+                    fire_overlay.set_filter_path(track_path, true)
+                    _authored_fire_layer_track_count += 1
+            if _authored_fire_layer_track_count > 0:
+                var fire_animation_node := AnimationNodeAnimation.new()
+                fire_animation_node.animation = StringName(fire_clip_name)
+                blend_tree.add_node("RifleFireClip", fire_animation_node, Vector2(-20.0, 220.0))
+                blend_tree.add_node("RifleFire", fire_overlay, Vector2(260.0, 0.0))
+                blend_tree.connect_node("RifleFire", 0, "Locomotion")
+                blend_tree.connect_node("RifleFire", 1, "RifleFireClip")
+                blend_tree.connect_node("output", 0, "RifleFire")
+                _authored_fire_layer_ready = true
+    if not _authored_fire_layer_ready:
+        blend_tree.connect_node("output", 0, "Locomotion")
+
     _authored_locomotion_tree = AnimationTree.new()
     _authored_locomotion_tree.name = "OperatorLocomotionTree"
-    _authored_locomotion_tree.tree_root = state_machine
+    _authored_locomotion_tree.tree_root = blend_tree
     _authored_hero.add_child(_authored_locomotion_tree)
     _authored_locomotion_tree.anim_player = _authored_locomotion_tree.get_path_to(_authored_animation_player)
     _authored_locomotion_tree.active = false
-    _authored_locomotion_playback = _authored_locomotion_tree.get("parameters/playback") as AnimationNodeStateMachinePlayback
+    _authored_locomotion_playback = _authored_locomotion_tree.get("parameters/Locomotion/playback") as AnimationNodeStateMachinePlayback
     return (
         not _authored_locomotion_tree.anim_player.is_empty()
         and is_instance_valid(_authored_locomotion_playback)
         and state_machine.has_node("GroundLocomotion")
     )
+
+
+func _is_upper_body_animation_track(track_path: NodePath) -> bool:
+    var path_text := String(track_path)
+    for token in [
+        "Spine", "Neck", "Head", "Shoulder", "Arm", "ForeArm",
+        "Hand", "Finger", "WeaponR"
+    ]:
+        if path_text.contains(token):
+            return true
+    return false
+
+
+func _request_authored_fire_layer() -> bool:
+    if not _authored_fire_layer_ready or not is_instance_valid(_authored_locomotion_tree):
+        return false
+    if bool(_authored_locomotion_tree.get("parameters/RifleFire/active")):
+        return true
+    _authored_locomotion_tree.set(
+        "parameters/RifleFire/request",
+        AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE
+    )
+    return true
 
 
 func _travel_authored_locomotion_state(state_name: String) -> void:
@@ -1076,7 +1133,7 @@ func _set_authored_locomotion_blend(planar_speed: float) -> void:
     _authored_locomotion_tree.active = true
     _travel_authored_locomotion_state("GroundLocomotion")
     _authored_locomotion_tree.set(
-        "parameters/GroundLocomotion/blend_position",
+        "parameters/Locomotion/GroundLocomotion/blend_position",
         clampf(planar_speed, 0.0, _authored_locomotion_blend_max_speed)
     )
     _authored_current_animation = ""
@@ -1109,7 +1166,7 @@ func _set_authored_aim_blend(body: CharacterBody3D, delta: float = -1.0) -> bool
     var blend_weight := 1.0 if delta <= 0.0 else clampf(1.0 - exp(-delta * 12.0), 0.0, 1.0)
     _authored_aim_blend_position = _authored_aim_blend_position.lerp(desired, blend_weight)
     _authored_locomotion_tree.set(
-        "parameters/AimLocomotion/blend_position",
+        "parameters/Locomotion/AimLocomotion/blend_position",
         _authored_aim_blend_position
     )
     _authored_current_animation = ""
@@ -1258,7 +1315,8 @@ func _update_authored_animation(body: CharacterBody3D, planar_speed: float) -> v
         state = "land"
     elif reloading and not String(_authored_animation_lookup.get("reload", "")).is_empty():
         state = "reload"
-    elif firing and not String(_authored_animation_lookup.get("shoot", "")).is_empty():
+    elif firing and not _authored_fire_layer_ready and not String(_authored_animation_lookup.get("shoot", "")).is_empty():
+        # Compatibility fallback if the imported fire clip has no usable upper-body tracks.
         state = "shoot"
     elif crouched:
         state = "crouch_walk" if planar_speed > 0.25 else "crouch_idle"
@@ -1290,13 +1348,27 @@ func _update_authored_animation(body: CharacterBody3D, planar_speed: float) -> v
                 var target_global_yaw := atan2(-look_direction.x, -look_direction.z)
                 var target_local_yaw := wrapf(target_global_yaw - body.global_rotation.y, -PI, PI)
                 rotation.y = lerp_angle(rotation.y, target_local_yaw, minf(get_process_delta_time() * 12.0, 1.0))
+    var locomotion_layer_active := false
     if requested_action.is_empty() and state in ["aim", "aim_walk"] and _authored_aim_blend_ready:
-        if not _set_authored_aim_blend(body):
+        locomotion_layer_active = _set_authored_aim_blend(body)
+        if not locomotion_layer_active:
             _play_authored_animation(state)
     elif requested_action.is_empty() and state in ["idle", "walk", "run", "sprint"] and is_instance_valid(_authored_locomotion_tree):
         _set_authored_locomotion_blend(planar_speed)
+        locomotion_layer_active = true
     else:
         _play_authored_animation(state)
+
+    # A held fire input retriggers only after the prior shot one-shot completes.
+    # The ground/aim base layer remains active under the upper-body fire clip.
+    if (
+        firing
+        and not reloading
+        and requested_action.is_empty()
+        and locomotion_layer_active
+        and _authored_fire_layer_ready
+    ):
+        _request_authored_fire_layer()
 
 
 func _material(color: Color, roughness: float = 0.78, metallic: float = 0.0) -> StandardMaterial3D:
