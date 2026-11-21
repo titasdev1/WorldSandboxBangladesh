@@ -42,7 +42,10 @@ def verify(glb_path: pathlib.Path, manifest_path: pathlib.Path, license_path: pa
     scenes = gltf.get("scenes", [])
     primitives = [primitive for mesh in meshes for primitive in mesh.get("primitives", [])]
     triangles = 0
+    tangent_primitive_count = 0
     for primitive in primitives:
+        if "TANGENT" in primitive.get("attributes", {}):
+            tangent_primitive_count += 1
         indices = primitive.get("indices")
         accessors = gltf.get("accessors", [])
         if isinstance(indices, int) and indices < len(accessors):
@@ -64,6 +67,8 @@ def verify(glb_path: pathlib.Path, manifest_path: pathlib.Path, license_path: pa
     if any("bufferView" not in image for image in images): failures.append("At least one GLB image is external rather than embedded")
     if not nodes or not scenes: failures.append("GLB has no scene nodes")
     if triangles < 8000: failures.append(f"Mesh detail is below the 8,000-triangle minimum: {triangles}")
+    if tangent_primitive_count != len(primitives):
+        failures.append(f"Only {tangent_primitive_count}/{len(primitives)} mesh primitives contain tangent vectors")
     if "CC0 1.0 Universal" not in license_text: failures.append("CC0 license text is missing")
     if manifest.get("license") != "CC0-1.0": failures.append("Manifest does not identify CC0-1.0")
     if manifest.get("geographic_status") != "AUTHORED_ARCHETYPE_NOT_A_SURVEYED_BUILDING": failures.append("Geographic status is not explicit")
@@ -77,7 +82,7 @@ def verify(glb_path: pathlib.Path, manifest_path: pathlib.Path, license_path: pa
     if manifest.get("interior_status") != "AUTHORED_VISUAL_INTERIOR_INCLUDED_NOT_A_SURVEYED_PRIVATE_FLOOR_PLAN":
         failures.append("Manifest does not declare the authored interior and its non-survey limitation")
     feature_inventory = manifest.get("feature_inventory", [])
-    for required in ("recessed timber and grilled windows", "Bengali shop sign and district lettering",
+    for required in ("recessed timber and grilled windows", "RAQM-shaped baked Bengali exterior and interior sign faces",
                      "corrugated awning and brackets", "rooftop water tank and service pipes",
                      "utility meter, drain, downpipe and facade cables"):
         if required not in feature_inventory: failures.append(f"Feature inventory omits: {required}")
@@ -91,6 +96,7 @@ def verify(glb_path: pathlib.Path, manifest_path: pathlib.Path, license_path: pa
         "triangle_count_from_glb_accessors": triangles,
         "mesh_count": len(meshes),
         "primitive_count": len(primitives),
+        "tangent_primitive_count": tangent_primitive_count,
         "material_count": len(materials),
         "embedded_image_count": len(images),
         "embedded_texture_count": len(textures),
