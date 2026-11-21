@@ -422,7 +422,7 @@ jobs:
             echo "The exact Shariatpur source tile did not become active in Godot."
             exit 1
           }
-          grep -Fq "A2_REAL_SHARIATPUR_DOOR_ANCHOR_READY:" "$RUNNER_TEMP/godot/startup.log" || {
+          grep -Fq "A2_SHARIATPUR_BUILDING_ENTRY_ANCHOR_READY:" "$RUNNER_TEMP/godot/startup.log" || {
             echo "The selected mapped OSM shop door anchor was not created in the streamed world."
             exit 1
           }
