@@ -123,6 +123,16 @@ class MobileInteractionFlowTests(unittest.TestCase):
         self.assertIn("collision.disabled = true", collision)
         self.assertIn("collision.disabled = false", collision)
 
+    def test_ci_selected_shariatpur_osm_anchor_is_prioritized_and_reports_provenance(self):
+        loader = read("real_dhaka_tile_loader.gd")
+        anchors = function_block(loader, "_load_interior_anchors")
+        self.assertIn('OS.get_environment("WSB_EXPECT_INTERIOR_OSM_ID")', anchors)
+        self.assertIn("A2_SHARIATPUR_EXPECTED_SEED_FOUND", anchors)
+        self.assertIn("a_expected != b_expected", anchors)
+        self.assertIn("A2_SHARIATPUR_BUILDING_ENTRY_ANCHOR_READY", anchors)
+        self.assertIn("door_placement_source", anchors)
+        self.assertIn("A2_SHARIATPUR_EXPECTED_SEED_NOT_ANCHORED", anchors)
+
     def test_seed_building_collisions_follow_dem_ground_elevation(self):
         collision_builder = function_block(self.loader, "_add_seed_building_collisions")
         anchor_builder = function_block(self.loader, "_interior_anchor_placement")
