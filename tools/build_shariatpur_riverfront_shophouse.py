@@ -66,7 +66,7 @@ def load_materials(texture_root: pathlib.Path) -> dict[str, bpy.types.Material]:
     result: dict[str, bpy.types.Material] = {}
     for key, (folder, roughness_default, metallic_default) in profiles.items():
         folder_path = texture_root / folder
-        base_path = folder_path / "base_color.png"
+        base_path = folder_path / "base_color.jpg"
         normal_path = folder_path / "normal.png"
         rough_path = folder_path / "roughness.png"
         if not all(p.is_file() for p in (base_path, normal_path, rough_path)):
@@ -502,7 +502,7 @@ def main() -> int:
         "bounds_metres":{"width":round(float(bounds.x),3),"depth":round(float(bounds.y),3),"height":round(float(bounds.z),3)},
         "triangle_count":triangles,"mesh_object_count":1,
         "materials":[m.name for m in root.data.materials],"texture_manifest":str(texture_manifest),
-        "texture_resolution_policy":"2K base-colour, normal and roughness maps; embedded in GLB.",
+        "texture_resolution_policy":"2K base-colour JPEG quality 92; 1K lossless normal and roughness PNGs; embedded in GLB.",
         "feature_inventory":["recessed timber and grilled windows","two ribbed shop roller shutters","Bengali shop sign and district lettering","upper balcony with metal balusters","corrugated awning and brackets","roof parapet and stair head","rooftop water tank and service pipes","AC condenser and cooling fan grille","utility meter, drain, downpipe and facade cables","wall lights and foundation stonework"],
         "texture_surfaces":[item.get("name") for item in texture_info.get("surfaces",[])],
         "quality_status":"CI_STRUCTURAL_VALIDATION_PENDING_VISUAL_AND_ANDROID_REVIEW",
