@@ -84,6 +84,8 @@ class ShariatpurArtTargetSelectionTests(unittest.TestCase):
             self.assertEqual(len(subset["tiles"]), 1)
             self.assertFalse(subset["complete_district_map"])
             self.assertEqual(subset["validation_subset"]["source_tile_count"], 60)
+            self.assertAlmostEqual(subset["game_origin_lat_lon"][0], selected["latitude"])
+            self.assertAlmostEqual(subset["game_origin_lat_lon"][1], selected["longitude"])
             self.assertTrue((out / "selected-map" / tile_id / "Dhaka_Explorable_Map.glb").is_file())
             self.assertTrue((out / "selected-map" / tile_id / "AI_Interior_Seeds.json").is_file())
             self.assertTrue((out / "shariatpur_art_target.json").is_file())
