@@ -738,6 +738,17 @@ def main() -> int:
     build_shopfront(mats)
     print("A2_PROGRESS: combine one hero mesh", flush=True)
     root=combine_asset()
+    # Export tangents reliably for Godot's normal-mapped PBR materials.
+    triangulate = root.modifiers.new("A2_GLTF_Triangulation", "TRIANGULATE")
+    triangulate.quad_method = "BEAUTY"
+    triangulate.ngon_method = "BEAUTY"
+    bpy.context.view_layer.objects.active = root
+    bpy.ops.object.modifier_apply(modifier=triangulate.name)
+    # Recalculate consistent outward normals after triangulation.
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.mesh.normals_make_consistent(inside=False)
+    bpy.ops.object.mode_set(mode="OBJECT")
     # Triangle count is the final evaluated source mesh count, not an arbitrary target claim.
     triangles=sum(len(poly.vertices)-2 for poly in root.data.polygons)
     bounds=root.dimensions.copy()
