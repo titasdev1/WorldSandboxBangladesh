@@ -1,6 +1,8 @@
 extends Node
 class_name InteriorFactory
 
+const BUILDING_ENTRY_APPROACH_DISTANCE_M := 1.25
+
 # Game-authored, fictional interiors generated from real OSM place/building anchors.
 # These are not scans of actual private homes and do not claim to show real occupants.
 var world: Node
@@ -16,6 +18,7 @@ var exit_world_position := Vector3.ZERO
 var dialogue_index := 0
 var fan_pivot: Node3D
 var active_entry_anchor: Node3D
+var _building_collision_disabled := false
 
 func configure(target: Node3D) -> void:
     world = target
@@ -40,35 +43,56 @@ func open_interior(seed: Dictionary, exterior_position: Vector3, direction: Vect
     active_tile_id = tile_id
     active_entry_anchor = entry_anchor
     exit_direction = direction.normalized() if direction.length_squared() > 0.01 else Vector3(0, 0, 1)
-    exterior_return_position = exterior_position + exit_direction * 4.0 + Vector3(0, 0.25, 0)
-    # Keep X/Z aligned to the real exterior tile so the map streamer retains
-    # the correct tile while the interior is instantiated below the terrain.
-    # Align the generated room's front doorway with the mapped exterior doorway.
-    # The interior occupies the same tile X/Z coordinates but is lowered below terrain.
-    var room_dimensions := _infer_room_dimensions()
-    var room_scale := _infer_interior_scale()
     var horizontal_exit_direction := Vector3(exit_direction.x, 0.0, exit_direction.z).normalized()
     if horizontal_exit_direction.length_squared() < 0.01:
         horizontal_exit_direction = Vector3(0, 0, 1)
-    var interior_origin := Vector3(exterior_position.x, -300.0, exterior_position.z) - horizontal_exit_direction * (room_dimensions.y * room_scale.z * 0.5)
+
+    # The interaction anchor is outside the mapped doorway. Place the interior
+    # behind the door, on the same world floor and in the same streamed tile.
+    # No underground room or detached-world relocation is used.
+    var room_dimensions := _infer_room_dimensions()
+    var room_scale := _infer_interior_scale()
+    var doorway_world_position := exterior_position - horizontal_exit_direction * BUILDING_ENTRY_APPROACH_DISTANCE_M
+    var ground_y := exterior_position.y - 0.15
+    var interior_origin := (
+        Vector3(doorway_world_position.x, ground_y, doorway_world_position.z)
+        - horizontal_exit_direction * (room_dimensions.y * room_scale.z * 0.5)
+    )
+    exterior_return_position = exterior_position + exit_direction * 0.35
+
+    var building_id := str(active_seed.get("osm_id", ""))
+    var loader: Node = world.get("real_dhaka_loader") as Node
+    _building_collision_disabled = false
+    if (
+        world.get("real_dhaka_loaded") == true
+        and is_instance_valid(loader)
+        and loader.has_method("set_seed_building_collision_enabled")
+        and not building_id.is_empty()
+    ):
+        _building_collision_disabled = loader.call(
+            "set_seed_building_collision_enabled", building_id, tile_id, false
+        ) == true
+        if not _building_collision_disabled:
+            push_warning("INTERIOR_COLLISION_NOT_FOUND: the same-world interior could not find the mapped footprint collider for OSM " + building_id)
+
     active_root = Node3D.new()
-    active_root.name = "GeneratedInterior_" + str(seed.get("osm_id", "place"))
+    active_root.name = "SameWorldInterior_" + building_id
     active_root.position = interior_origin
-    # The generated entrance faces the actual baked exterior-door normal.
-    # OSM identity still varies the interior layout, furniture, lighting and detailing.
-    var building_id: int = absi(int(seed.get("osm_id", 1)))
     active_root.rotation.y = atan2(horizontal_exit_direction.x, horizontal_exit_direction.z)
-    # Fit the generated shell/furniture to this building's measured OSM footprint
-    # and estimated storey height. The resident is counter-scaled in _add_resident.
     active_root.scale = room_scale
+    active_root.set_meta("osm_id", building_id)
+    active_root.set_meta("tile_id", tile_id)
+    active_root.set_meta("world_space_interior", true)
     world.add_child(active_root)
     _build_room()
-    var player := _player()
-    player.global_position = active_root.to_global(Vector3(0, 0.25, 1.5))
-    player.velocity = Vector3.ZERO
-    world.set("event_text", "ENTERED %s • FICTIONAL GAME INTERIOR" % _display_name())
-    world.set("event_time_left", 5.0)
 
+    # Preserve the player's position at the real doorway. The player now walks
+    # through the open door into the interior volume without a scene/world jump.
+    var player := _player()
+    player.velocity = Vector3.ZERO
+    world.set("event_text", "ENTERED %s • SAME-WORLD INTERIOR" % _display_name())
+    world.set("event_time_left", 5.0
+)
 func _build_room() -> void:
     var category := String(active_seed.get("category", "building")).to_lower()
     var building_id: int = absi(int(active_seed.get("osm_id", 1)))
@@ -581,9 +605,13 @@ func _close_interior() -> void:
         active_root.queue_free()
     active_root = null
     resident = null
+    fan_pivot = null
+    var loader: Node = world.get("real_dhaka_loader") as Node if is_instance_valid(world) else null
+    if _building_collision_disabled and is_instance_valid(loader) and loader.has_method("set_seed_building_collision_enabled"):
+        loader.call("set_seed_building_collision_enabled", str(active_seed.get("osm_id", "")), active_tile_id, true)
+    _building_collision_disabled = false
     active_seed.clear()
     active_tile_id = ""
-    fan_pivot = null
     if is_instance_valid(active_entry_anchor):
         active_entry_anchor.set_meta("door_open", false)
         var door_hinge := active_entry_anchor.get_node_or_null("DoorHinge") as Node3D
@@ -596,9 +624,9 @@ func _close_interior() -> void:
     if is_instance_valid(player):
         player.global_position = exterior_return_position
         player.velocity = Vector3.ZERO
-    world.set("event_text", "EXITED BUILDING • BACK TO THE REAL-WORLD STREET")
-    world.set("event_time_left", 4.0)
-
+    world.set("event_text", "EXITED BUILDING • BACK TO THE SAME WORLD STREET")
+    world.set("event_time_left", 4.0
+)
 func _solid_box(parent: Node3D, part_name: String, pos: Vector3, size: Vector3, color: Color) -> void:
     var body := StaticBody3D.new()
     body.name = part_name + "Body"
