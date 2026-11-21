@@ -35,7 +35,7 @@ class ShariatpurStreetfrontAuthoringTests(unittest.TestCase):
             "Roller_Shutter_Rib", "Balcony_Baluster", "Corrugated_Awning_Canopy",
             "Water_Tank_Lid", "AC_Condenser_Fin", "Utility_Meter_Cabinet",
             "Rainwater_Downpipe", "Window_Security_Grill_Vertical",
-            "Bengali_Shop_Name", "মা স্টোর", "শরীয়তপুর", "Roof_Parapet_Coping",
+            "Shop_Signboard_Baked_Bengali_Face", "Shop_Interior_Baked_Bengali_Face", "shop_sign_face", "interior_sign_face", "Roof_Parapet_Coping",
             "Shop_Interior_Ceramic_Floor", "Shop_Left_Rack_Shelf", "Shop_Rear_Stock_Carton",
             "Shop_Counter_Stone_Top", "Shop_Beverage_Cooler_Glass", "Shop_Ceiling_Fan_Blade",
             "Side_Window_Security_Grille", "Side_Window_Concrete_Chajja", "Side_Wall_Damp_Stain",
@@ -46,6 +46,18 @@ class ShariatpurStreetfrontAuthoringTests(unittest.TestCase):
         self.assertIn("AUTHORED_VISUAL_INTERIOR_INCLUDED_NOT_A_SURVEYED_PRIVATE_FLOOR_PLAN", self.builder)
         self.assertIn("Window_Recess_Shadow", self.builder)
         self.assertNotIn("teleport", self.builder.lower())
+
+    def test_bengali_signs_use_raqm_shaped_texture_faces_not_unshaped_3d_glyphs(self):
+        self.assertIn("ImageFont.Layout.RAQM", self.texture_builder)
+        self.assertIn('make_bengali_sign_art(args.out,"shop_sign"', self.texture_builder)
+        self.assertIn('make_bengali_sign_art(args.out,"interior_sign"', self.texture_builder)
+        self.assertIn("bengali_sign_art", self.texture_builder)
+        self.assertIn("textured_quad", self.builder)
+        self.assertIn("A2_Baked_Bengali_shop_sign_face", self.builder)
+        self.assertIn("A2_Baked_Bengali_interior_sign_face", self.builder)
+        self.assertNotIn('text_mesh("Bengali_Shop_Name"', self.builder)
+        self.assertIn("camera.location=(4.65,-4.65,2.05)", self.builder)
+        self.assertIn("camera_data.lens=30", self.builder)
 
     def test_original_pbr_textures_are_2k_and_include_maps_for_each_material(self):
         self.assertIn("default=2048", self.texture_builder)
