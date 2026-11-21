@@ -12,10 +12,15 @@ on:
       - "tools/install_blender_ci.sh"
       - "tests/test_blender_ci_toolchain.py"
       - "tests/test_battle_royale_parachute_artifact.py"
+      - "tools/make_shariatpur_frontage_textures.py"
+      - "tools/build_shariatpur_riverfront_shophouse.py"
+      - "tools/verify_shariatpur_streetfront.py"
+      - "tests/test_shariatpur_streetfront.py"
       - ".github/workflows/validate-blender-assets.yml"
   pull_request:
     branches:
       - main
+      - feature/lobby-operator-showcase
     paths:
       - "tools/build_battle_royale_parachute.py"
       - "tools/smoke_battle_royale_parachute_blender_api.py"
@@ -33,7 +38,7 @@ concurrency:
 jobs:
   validate-parachute:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - name: Checkout project
         uses: actions/checkout@v5
@@ -49,7 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y curl xz-utils python3-numpy
+          sudo apt-get install -y curl xz-utils python3-numpy python3-pil fontconfig fonts-noto-core
           source tools/install_blender_ci.sh
           blender --version
 
@@ -63,7 +68,10 @@ jobs:
           python3 -m py_compile \
             tools/build_battle_royale_parachute.py \
             tools/smoke_battle_royale_parachute_blender_api.py \
-            tools/verify_battle_royale_parachute.py
+            tools/verify_battle_royale_parachute.py \
+            tools/make_shariatpur_frontage_textures.py \
+            tools/verify_shariatpur_streetfront.py \
+            tools/build_shariatpur_riverfront_shophouse.py
 
       - name: Smoke-test Blender Action slots, F-curves, easing and cycle modifiers
         shell: bash
@@ -89,4 +97,54 @@ jobs:
             --license "${OUT_DIR}/LICENSE.txt" \
             --out "${OUT_DIR}/verification.json"
           python3 -m json.tool "${OUT_DIR}/asset_manifest.json" > /dev/null
-          python3 -m unittest discover -s tests -p "test_battle_royale_parachute_artifact.py" -v
+          python3 -m unittest discover -s tests -p "test_battle_royale_parachute_artifact.py" -v 
+      - name: Generate original 2K PBR textures for the Shariatpur streetfront
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/shariatpur-streetfront"
+          TEXTURE_DIR="${OUT_DIR}/textures"
+          python3 tools/make_shariatpur_frontage_textures.py --out "${TEXTURE_DIR}" --size 2048
+          python3 -m json.tool "${TEXTURE_DIR}/texture_manifest.json" > /dev/null
+
+      - name: Author the Shariatpur river-town shopfront in Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/shariatpur-streetfront"
+          mkdir -p "${OUT_DIR}"
+          blender --background --factory-startup \
+            --python tools/build_shariatpur_riverfront_shophouse.py -- \
+            --out "${OUT_DIR}/shariatpur_riverfront_shophouse_hero.glb" \
+            --textures "${OUT_DIR}/textures" \
+            --preview "${OUT_DIR}/streetfront_preview.png" \
+            > "${OUT_DIR}/authoring.log" 2>&1
+          cat "${OUT_DIR}/authoring.log"
+          grep -Fq "A2_SHARIATPUR_STREETFRONT_READY:" "${OUT_DIR}/authoring.log"
+
+      - name: Verify embedded PBR maps, mesh, dimensions, licence and preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/shariatpur-streetfront"
+          python3 tools/verify_shariatpur_streetfront.py \
+            --glb "${OUT_DIR}/shariatpur_riverfront_shophouse_hero.glb" \
+            --manifest "${OUT_DIR}/asset_manifest.json" \
+            --license "${OUT_DIR}/LICENSE.txt" \
+            --preview "${OUT_DIR}/streetfront_preview.png" \
+            --out "${OUT_DIR}/streetfront_verification.json"
+          python3 -m unittest discover -s tests -p "test_shariatpur_streetfront.py" -v
+
+      - name: Upload Shariatpur streetfront art review package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Shariatpur-Riverfront-Shopfront
+          path: |
+            build/shariatpur-streetfront/shariatpur_riverfront_shophouse_hero.glb
+            build/shariatpur-streetfront/asset_manifest.json
+            build/shariatpur-streetfront/LICENSE.txt
+            build/shariatpur-streetfront/streetfront_preview.png
+            build/shariatpur-streetfront/streetfront_verification.json
+            build/shariatpur-streetfront/authoring.log
+          retention-days: 30
+
