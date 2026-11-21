@@ -445,9 +445,13 @@ def render_preview(root: bpy.types.Object, preview_path: pathlib.Path) -> None:
     cam.location=(14,-22,12.8); target=Vector((0,-0.1,4.7)); cam.rotation_euler=(target- cam.location).to_track_quat("-Z","Y").to_euler()
     cam_data.type="ORTHO"; cam_data.ortho_scale=17.5
     scene=bpy.context.scene; scene.camera=cam
-    scene.render.engine="BLENDER_EEVEE"
-    scene.eevee.taa_render_samples=48
-    scene.render.resolution_x=1600; scene.render.resolution_y=1300; scene.render.resolution_percentage=100
+    # GitHub-hosted headless runners do not expose a dependable EEVEE GPU context.
+    # Cycles on CPU gives us a deterministic PBR preview with real material response.
+    scene.render.engine="CYCLES"
+    scene.cycles.device="CPU"
+    scene.cycles.samples=24
+    scene.cycles.use_denoising=True
+    scene.render.resolution_x=1400; scene.render.resolution_y=1100; scene.render.resolution_percentage=100
     scene.render.image_settings.file_format="PNG"; scene.render.film_transparent=False
     scene.view_settings.view_transform="AgX"
     scene.render.filepath=str(preview_path)
@@ -464,9 +468,13 @@ def render_preview(root: bpy.types.Object, preview_path: pathlib.Path) -> None:
 def main() -> int:
     args=args_from_cli()
     args.out.parent.mkdir(parents=True,exist_ok=True); args.preview.parent.mkdir(parents=True,exist_ok=True)
+    print("A2_PROGRESS: reset scene", flush=True)
     reset_scene()
+    print("A2_PROGRESS: load seven PBR material families", flush=True)
     mats=load_materials(args.textures)
+    print("A2_PROGRESS: author building facade and local details", flush=True)
     build_shopfront(mats)
+    print("A2_PROGRESS: combine one hero mesh", flush=True)
     root=combine_asset()
     # Triangle count is the final evaluated source mesh count, not an arbitrary target claim.
     triangles=sum(len(poly.vertices)-2 for poly in root.data.polygons)
@@ -474,7 +482,9 @@ def main() -> int:
     if min(bounds.x,bounds.y,bounds.z) <= 0:
         raise RuntimeError(f"Invalid model bounds: {tuple(bounds)}")
     bpy.context.scene.render.resolution_percentage=100
+    print("A2_PROGRESS: render CPU PBR preview", flush=True)
     render_preview(root,args.preview)
+    print("A2_PROGRESS: export embedded GLB", flush=True)
     bpy.ops.object.select_all(action="DESELECT"); root.select_set(True); bpy.context.view_layer.objects.active=root
     bpy.ops.export_scene.gltf(filepath=str(args.out),export_format="GLB",use_selection=True,
                               export_apply=True,export_materials="EXPORT",export_image_format="AUTO",
