@@ -131,7 +131,9 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         self.assertIn("parameters/AimLocomotion/blend_position", self.smoke)
 
 
-    def test_directional_state_transition_smoke_reports_playback_path_on_failure(self):
+    def test_directional_state_transition_smoke_advances_animation_tree_deterministically(self):
+        self.assertIn("AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL", self.smoke)
+        self.assertIn("locomotion_tree.advance(1.0 / 60.0)", self.smoke)
         self.assertIn("get_fading_from_node()", self.smoke)
         self.assertIn("get_travel_path()", self.smoke)
         self.assertIn("for frame_index in range(18)", self.smoke)

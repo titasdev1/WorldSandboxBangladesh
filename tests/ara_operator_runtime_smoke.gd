@@ -180,12 +180,13 @@ func _run_smoke() -> void:
 		push_error("ARA3D_RUNTIME_FAIL: urban patrol material preset could not be applied.")
 		quit(1)
 	visual.call("apply_operator_preset", "field_tactical")
-	# Keep the smoke's airborne controller from overriding the blend-space
-	# selection while the AnimationTree advances its first state/transition frame.
+	# Keep the smoke deterministic: the test actor's gameplay process is
+	# paused while AnimationTree is advanced manually at a fixed 60 Hz.
 	var visual_process_was_enabled := visual.is_processing()
 	var actor_physics_was_enabled := actor.is_physics_processing()
 	visual.set_process(false)
 	actor.set_physics_process(false)
+	locomotion_tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 
 	# Exercise the speed-driven blend space directly before testing discrete
 	# gameplay actions. Values must clamp to the blend-space range, not leak into
@@ -194,7 +195,7 @@ func _run_smoke() -> void:
 		# Inspect immediately, before the ungrounded smoke actor's regular process
 		# tick legitimately selects its fall state and disables ground locomotion.
 		visual.call("_set_authored_locomotion_blend", speed)
-		await process_frame
+		locomotion_tree.advance(1.0 / 60.0)
 		var expected_blend := clampf(speed, 0.0, 10.5)
 		var actual_blend := float(locomotion_tree.get("parameters/GroundLocomotion/blend_position"))
 		if (
@@ -224,7 +225,7 @@ func _run_smoke() -> void:
 			push_error("ARA3D_RUNTIME_FAIL: directional aim blend rejected the " + String(aim_case[2]) + " movement vector.")
 			quit(1)
 			return
-		await process_frame
+		locomotion_tree.advance(1.0 / 60.0)
 		var actual_aim_blend := locomotion_tree.get("parameters/AimLocomotion/blend_position") as Vector2
 		if absf(actual_aim_blend.x - aim_case[1].x) > 0.0001 or absf(actual_aim_blend.y - aim_case[1].y) > 0.0001:
 			push_error("ARA3D_RUNTIME_FAIL: directional aim blend mapped " + String(aim_case[2]) + " incorrectly. actual=" + str(actual_aim_blend))
@@ -245,7 +246,7 @@ func _run_smoke() -> void:
 	# behind that transition, so the two phases must be tested independently.
 	var aim_transition_settled := false
 	for frame_index in range(18):
-		await process_frame
+		locomotion_tree.advance(1.0 / 60.0)
 		if String(locomotion_playback.get_current_node()) == "AimLocomotion" and String(locomotion_playback.get_fading_from_node()).is_empty():
 			aim_transition_settled = true
 			break
@@ -261,7 +262,7 @@ func _run_smoke() -> void:
 	visual.call("_set_authored_locomotion_blend", 3.75)
 	var reached_ground := false
 	for frame_index in range(18):
-		await process_frame
+		locomotion_tree.advance(1.0 / 60.0)
 		if String(locomotion_playback.get_current_node()) == "GroundLocomotion":
 			reached_ground = true
 			break
