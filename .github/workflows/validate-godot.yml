@@ -467,7 +467,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Godot-Runtime-Validation-Logs
-          path: ${{ runner.temp }}/godot/*.log
-          if-no-files-found: ignore
+          path: |
+            ${{ runner.temp }}/godot/*.log
             build/shariatpur-art-map-smoke/shariatpur_art_target.json
+          if-no-files-found: ignore
           retention-days: 14
