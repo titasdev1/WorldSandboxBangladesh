@@ -26,6 +26,10 @@ on:
       - "tools/smoke_battle_royale_parachute_blender_api.py"
       - "tools/verify_battle_royale_parachute.py"
       - "tests/test_battle_royale_parachute_artifact.py"
+      - "tools/make_shariatpur_frontage_textures.py"
+      - "tools/build_shariatpur_riverfront_shophouse.py"
+      - "tools/verify_shariatpur_streetfront.py"
+      - "tests/test_shariatpur_streetfront.py"
       - ".github/workflows/validate-blender-assets.yml"
 
 permissions:
@@ -55,6 +59,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y curl xz-utils python3-numpy python3-pil fontconfig fonts-noto-core
+          # Noto Sans Bengali is used to bake the original shop lettering into the 3D mesh.
           source tools/install_blender_ci.sh
           blender --version
 
