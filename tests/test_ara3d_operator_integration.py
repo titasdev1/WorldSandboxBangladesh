@@ -110,6 +110,26 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         self.assertIn("ARA_OPERATOR_PREVIEW_PASS", self.preview_script)
         self.assertIn("PREVIEW_RENDERED_NOT_ART_APPROVED", self.preview_script)
 
+
+    def test_aiming_uses_camera_relative_2d_directional_locomotion(self):
+        self.assertIn("AnimationNodeStateMachine.new()", self.visual)
+        self.assertIn("AnimationNodeBlendSpace2D.new()", self.visual)
+        self.assertIn('state_machine.add_node("GroundLocomotion", ground_space', self.visual)
+        self.assertIn('state_machine.add_node("AimLocomotion", aim_space', self.visual)
+        self.assertIn('state_machine.add_transition("GroundLocomotion", "AimLocomotion"', self.visual)
+        self.assertIn('state_machine.add_transition("AimLocomotion", "GroundLocomotion"', self.visual)
+        self.assertIn("global_basis.orthonormalized().inverse()", self.visual)
+        self.assertIn("Vector2(local_velocity.x, -local_velocity.z)", self.visual)
+        self.assertIn("parameters/AimLocomotion/blend_position", self.visual)
+        self.assertIn("parameters/GroundLocomotion/blend_position", self.visual)
+        for state in ("strafe_left", "strafe_right", "walk_back", "aim_walk"):
+            self.assertIn(f'"{state}"', self.visual)
+        for direction in ("Vector2(-1.0, 0.0)", "Vector2(1.0, 0.0)", "Vector2(0.0, 1.0)", "Vector2(0.0, -1.0)"):
+            self.assertIn(direction, self.visual)
+        self.assertIn('"AimLocomotion"', self.smoke)
+        self.assertIn('"backward"', self.smoke)
+        self.assertIn("parameters/AimLocomotion/blend_position", self.smoke)
+
     def test_runtime_smoke_covers_rig_textures_weapon_and_real_animation(self):
         for marker in ("ARA3D_RUNTIME_PASS", "RightHand", "WeaponR", "textured_surface_count", "LOOP_LINEAR", "first_person_body=true", "BR_parachute_states=true"):
             self.assertIn(marker, self.smoke)

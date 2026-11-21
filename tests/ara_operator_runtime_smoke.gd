@@ -61,13 +61,25 @@ func _run_smoke() -> void:
 		push_error("ARA3D_RUNTIME_FAIL: player did not select the expected Ara3D resources.")
 		quit(1)
 		return
-	if locomotion_tree == null or not (locomotion_tree.tree_root is AnimationNodeBlendSpace1D):
-		push_error("ARA3D_RUNTIME_FAIL: idle/walk/run/sprint AnimationTree blend space is missing.")
+	if locomotion_tree == null or not (locomotion_tree.tree_root is AnimationNodeStateMachine):
+		push_error("ARA3D_RUNTIME_FAIL: locomotion AnimationTree state machine is missing.")
 		quit(1)
 		return
-	var locomotion_space := locomotion_tree.tree_root as AnimationNodeBlendSpace1D
-	if locomotion_space.get_blend_point_count() < 4 or locomotion_tree.anim_player.is_empty():
-		push_error("ARA3D_RUNTIME_FAIL: locomotion blend-space points or AnimationPlayer binding are incomplete.")
+	var locomotion_machine := locomotion_tree.tree_root as AnimationNodeStateMachine
+	var ground_space := locomotion_machine.get_node("GroundLocomotion") as AnimationNodeBlendSpace1D
+	var aim_space := locomotion_machine.get_node("AimLocomotion") as AnimationNodeBlendSpace2D
+	var locomotion_playback := locomotion_tree.get("parameters/playback") as AnimationNodeStateMachinePlayback
+	if (
+		ground_space == null
+		or ground_space.get_blend_point_count() < 4
+		or aim_space == null
+		or aim_space.get_blend_point_count() < 4
+		or not locomotion_machine.has_transition("GroundLocomotion", "AimLocomotion")
+		or not locomotion_machine.has_transition("AimLocomotion", "GroundLocomotion")
+		or locomotion_playback == null
+		or locomotion_tree.anim_player.is_empty()
+	):
+		push_error("ARA3D_RUNTIME_FAIL: ground/aim directional blend spaces or state transitions are incomplete.")
 		quit(1)
 		return
 
@@ -176,13 +188,50 @@ func _run_smoke() -> void:
 		# tick legitimately selects its fall state and disables ground locomotion.
 		visual.call("_set_authored_locomotion_blend", speed)
 		var expected_blend := clampf(speed, 0.0, 10.5)
-		var actual_blend := float(locomotion_tree.get("parameters/blend_position"))
-		if not locomotion_tree.active or not is_equal_approx(actual_blend, expected_blend):
-			push_error("ARA3D_RUNTIME_FAIL: locomotion blend position did not track/clamp speed. expected=%s actual=%s active=%s" % [
-				str(expected_blend), str(actual_blend), str(locomotion_tree.active)
+		var actual_blend := float(locomotion_tree.get("parameters/GroundLocomotion/blend_position"))
+		if (
+			not locomotion_tree.active
+			or not is_equal_approx(actual_blend, expected_blend)
+			or String(locomotion_playback.get_current_node()) != "GroundLocomotion"
+		):
+			push_error("ARA3D_RUNTIME_FAIL: ground locomotion blend did not track/clamp speed or travel to the correct state. expected=%s actual=%s node=%s active=%s" % [
+				str(expected_blend), str(actual_blend), String(locomotion_playback.get_current_node()), str(locomotion_tree.active)
 			])
 			quit(1)
 			return
+
+	# Directional aiming must select real left/right/back/forward authored gait
+	# clips using velocity in the operator's camera-facing local coordinate frame.
+	actor.global_rotation = Vector3.ZERO
+	visual.rotation = Vector3.ZERO
+	var aim_cases := [
+		[Vector3(-2.0, 0.0, 0.0), Vector2(-1.0, 0.0), "left"],
+		[Vector3(2.0, 0.0, 0.0), Vector2(1.0, 0.0), "right"],
+		[Vector3(0.0, 0.0, -2.0), Vector2(0.0, 1.0), "forward"],
+		[Vector3(0.0, 0.0, 2.0), Vector2(0.0, -1.0), "backward"]
+	]
+	for aim_case in aim_cases:
+		actor.velocity = aim_case[0]
+		if not (visual.call("_set_authored_aim_blend", actor, 1.0) == true):
+			push_error("ARA3D_RUNTIME_FAIL: directional aim blend rejected the " + String(aim_case[2]) + " movement vector.")
+			quit(1)
+			return
+		var actual_aim_blend := locomotion_tree.get("parameters/AimLocomotion/blend_position") as Vector2
+		if not is_equal_approx(actual_aim_blend.x, aim_case[1].x) or not is_equal_approx(actual_aim_blend.y, aim_case[1].y):
+			push_error("ARA3D_RUNTIME_FAIL: directional aim blend mapped " + String(aim_case[2]) + " incorrectly. actual=" + str(actual_aim_blend))
+			quit(1)
+			return
+		if String(locomotion_playback.get_current_node()) != "AimLocomotion":
+			push_error("ARA3D_RUNTIME_FAIL: aiming did not travel to the 2D directional state.")
+			quit(1)
+			return
+
+	visual.call("_set_authored_locomotion_blend", 3.75)
+	if String(locomotion_playback.get_current_node()) != "GroundLocomotion":
+		push_error("ARA3D_RUNTIME_FAIL: leaving ADS did not transition back to ground locomotion.")
+		quit(1)
+		return
+	actor.velocity = Vector3.ZERO
 
 	# Exercise the public gameplay action entry point. Calling the private player
 	# method directly is immediately superseded by _process() when the smoke actor

@@ -47,7 +47,10 @@ var _procedural_root: Node3D
 var _authored_hero: Node3D
 var _authored_animation_player: AnimationPlayer
 var _authored_locomotion_tree: AnimationTree
+var _authored_locomotion_playback: AnimationNodeStateMachinePlayback
 var _authored_locomotion_blend_max_speed := 10.5
+var _authored_aim_blend_ready := false
+var _authored_aim_blend_position := Vector2.ZERO
 var _authored_current_animation := ""
 var _authored_animation_lookup: Dictionary = {}
 var _authored_weapon_attachment: BoneAttachment3D
@@ -371,9 +374,21 @@ func _build_authored_hero(packed: PackedScene) -> void:
         return
 
     var locomotion_blend_ready := _build_authored_locomotion_blend_space()
-    print("AUTHORED_LOCOMOTION_BLEND • ready=%s • points=%d" % [
+    var ground_blend_points := 0
+    var aim_blend_points := 0
+    if locomotion_blend_ready and is_instance_valid(_authored_locomotion_tree):
+        var blend_machine := _authored_locomotion_tree.tree_root as AnimationNodeStateMachine
+        var ground_space := blend_machine.get_node("GroundLocomotion") as AnimationNodeBlendSpace1D
+        if ground_space != null:
+            ground_blend_points = ground_space.get_blend_point_count()
+        var aim_space := blend_machine.get_node("AimLocomotion") as AnimationNodeBlendSpace2D
+        if aim_space != null:
+            aim_blend_points = aim_space.get_blend_point_count()
+    print("AUTHORED_LOCOMOTION_BLEND • ready=%s • ground_points=%d • aim_2d=%s • aim_points=%d" % [
         str(locomotion_blend_ready),
-        (_authored_locomotion_tree.tree_root as AnimationNodeBlendSpace1D).get_blend_point_count() if locomotion_blend_ready else 0
+        ground_blend_points,
+        str(_authored_aim_blend_ready),
+        aim_blend_points
     ])
 
     # Reparent the existing rifle and muzzle effects to an actual rigged right-hand
@@ -935,9 +950,6 @@ func _build_charactercreator_combat_gear(skeleton: Skeleton3D) -> void:
 
 
 func _build_authored_locomotion_blend_space() -> bool:
-    if not is_instance_valid(_authored_hero) or not is_instance_valid(_authored_animation_player):
-        return false
-
     var idle_name := String(_authored_animation_lookup.get("idle", ""))
     var walk_name := String(_authored_animation_lookup.get("walk", ""))
     var run_name := String(_authored_animation_lookup.get("run", ""))
@@ -945,57 +957,168 @@ func _build_authored_locomotion_blend_space() -> bool:
     if idle_name.is_empty() or walk_name.is_empty() or run_name.is_empty():
         return false
 
-    # Keep the blend space private to this character instance. AnimationTree
-    # resources are mutable; sharing one root between operators would couple
-    # their blend positions and cause one actor's movement to drive another.
-    var blend_space := AnimationNodeBlendSpace1D.new()
-    blend_space.min_space = 0.0
-    blend_space.max_space = _authored_locomotion_blend_max_speed
-    blend_space.snap = 0.05
-    blend_space.sync = true
+    # Keep every mutable AnimationNode resource private to this operator. Each
+    # instance owns independent ground and armed-direction blend spaces.
+    var ground_space := AnimationNodeBlendSpace1D.new()
+    ground_space.min_space = 0.0
+    ground_space.max_space = _authored_locomotion_blend_max_speed
+    ground_space.snap = 0.05
+    ground_space.sync = true
 
-    var states: Array[String] = ["idle", "walk", "run"]
-    var positions: Array[float] = [0.0, 2.5, 5.5]
+    var ground_states: Array[String] = ["idle", "walk", "run"]
+    var ground_positions: Array[float] = [0.0, 2.5, 5.5]
     if not sprint_name.is_empty() and sprint_name != run_name:
-        states.append("sprint")
-        positions.append(_authored_locomotion_blend_max_speed)
+        ground_states.append("sprint")
+        ground_positions.append(_authored_locomotion_blend_max_speed)
     elif sprint_name == run_name:
         _authored_locomotion_blend_max_speed = 5.5
+        ground_space.max_space = _authored_locomotion_blend_max_speed
 
-    for index in range(states.size()):
-        var animation_name := String(_authored_animation_lookup.get(states[index], ""))
+    for index in range(ground_states.size()):
+        var animation_name := String(_authored_animation_lookup.get(ground_states[index], ""))
         if animation_name.is_empty():
             return false
         var animation_node := AnimationNodeAnimation.new()
         animation_node.animation = StringName(animation_name)
-        blend_space.add_blend_point(animation_node, positions[index])
+        ground_space.add_blend_point(animation_node, ground_positions[index])
+
+    # Armed movement is directional, not merely "walking while aiming". The
+    # imported Ara library contains true rifle strafes and a backwards gait.
+    # The 2D blend space turns camera-relative planar velocity into a smooth
+    # combination of forward, reverse, left and right authored clips.
+    var aim_idle_name := String(_authored_animation_lookup.get("aim", ""))
+    var aim_forward_name := String(_authored_animation_lookup.get("aim_walk", ""))
+    var aim_left_name := String(_authored_animation_lookup.get("strafe_left", ""))
+    var aim_right_name := String(_authored_animation_lookup.get("strafe_right", ""))
+    var aim_back_name := String(_authored_animation_lookup.get("walk_back", ""))
+    _authored_aim_blend_ready = (
+        not aim_idle_name.is_empty()
+        and not aim_forward_name.is_empty()
+        and not aim_left_name.is_empty()
+        and not aim_right_name.is_empty()
+    )
+
+    var state_machine := AnimationNodeStateMachine.new()
+    state_machine.add_node("GroundLocomotion", ground_space, Vector2(-250.0, 0.0))
+
+    if _authored_aim_blend_ready:
+        var aim_space := AnimationNodeBlendSpace2D.new()
+        aim_space.min_space = Vector2(-1.0, -1.0)
+        aim_space.max_space = Vector2(1.0, 1.0)
+        aim_space.snap = Vector2(0.02, 0.02)
+        aim_space.sync = true
+        aim_space.x_label = "Strafe (left / right)"
+        aim_space.y_label = "Travel (back / forward)"
+
+        var aim_nodes: Array[String] = ["aim", "aim_walk", "strafe_left", "strafe_right"]
+        var aim_positions: Array[Vector2] = [
+            Vector2.ZERO,
+            Vector2(0.0, 1.0),
+            Vector2(-1.0, 0.0),
+            Vector2(1.0, 0.0)
+        ]
+        if not aim_back_name.is_empty():
+            aim_nodes.append("walk_back")
+            aim_positions.append(Vector2(0.0, -1.0))
+
+        for index in range(aim_nodes.size()):
+            var animation_name := String(_authored_animation_lookup.get(aim_nodes[index], ""))
+            if animation_name.is_empty():
+                _authored_aim_blend_ready = false
+                break
+            var animation_node := AnimationNodeAnimation.new()
+            animation_node.animation = StringName(animation_name)
+            aim_space.add_blend_point(animation_node, aim_positions[index])
+
+        if _authored_aim_blend_ready and aim_space.get_blend_point_count() >= 4:
+            state_machine.add_node("AimLocomotion", aim_space, Vector2(250.0, 0.0))
+            var to_aim := AnimationNodeStateMachineTransition.new()
+            to_aim.xfade_time = 0.18
+            to_aim.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_IMMEDIATE
+            to_aim.reset = false
+            state_machine.add_transition("GroundLocomotion", "AimLocomotion", to_aim)
+
+            var to_ground := AnimationNodeStateMachineTransition.new()
+            to_ground.xfade_time = 0.20
+            to_ground.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_IMMEDIATE
+            to_ground.reset = false
+            state_machine.add_transition("AimLocomotion", "GroundLocomotion", to_ground)
+        else:
+            _authored_aim_blend_ready = false
 
     _authored_locomotion_tree = AnimationTree.new()
     _authored_locomotion_tree.name = "OperatorLocomotionTree"
-    _authored_locomotion_tree.tree_root = blend_space
+    _authored_locomotion_tree.tree_root = state_machine
     _authored_hero.add_child(_authored_locomotion_tree)
     _authored_locomotion_tree.anim_player = _authored_locomotion_tree.get_path_to(_authored_animation_player)
     _authored_locomotion_tree.active = false
-    return not _authored_locomotion_tree.anim_player.is_empty()
+    _authored_locomotion_playback = _authored_locomotion_tree.get("parameters/playback") as AnimationNodeStateMachinePlayback
+    return (
+        not _authored_locomotion_tree.anim_player.is_empty()
+        and is_instance_valid(_authored_locomotion_playback)
+        and state_machine.has_node("GroundLocomotion")
+    )
+
+
+func _travel_authored_locomotion_state(state_name: String) -> void:
+    if not is_instance_valid(_authored_locomotion_playback):
+        return
+    if not _authored_locomotion_playback.is_playing():
+        _authored_locomotion_playback.start(state_name)
+    elif String(_authored_locomotion_playback.get_current_node()) != state_name:
+        _authored_locomotion_playback.travel(state_name)
 
 
 func _set_authored_locomotion_blend(planar_speed: float) -> void:
     if not is_instance_valid(_authored_locomotion_tree):
         return
     _authored_locomotion_tree.active = true
+    _travel_authored_locomotion_state("GroundLocomotion")
     _authored_locomotion_tree.set(
-        "parameters/blend_position",
+        "parameters/GroundLocomotion/blend_position",
         clampf(planar_speed, 0.0, _authored_locomotion_blend_max_speed)
     )
-    # The blend tree now owns playback. Clear the discrete player cache so
-    # returning to an event clip always issues a fresh AnimationPlayer.play().
     _authored_current_animation = ""
+
+
+func _set_authored_aim_blend(body: CharacterBody3D, delta: float = -1.0) -> bool:
+    if (
+        not _authored_aim_blend_ready
+        or not is_instance_valid(_authored_locomotion_tree)
+        or not is_instance_valid(_authored_locomotion_playback)
+    ):
+        return false
+    if delta < 0.0:
+        delta = get_process_delta_time()
+
+    _authored_locomotion_tree.active = true
+    _travel_authored_locomotion_state("AimLocomotion")
+
+    # The featured visual turns toward the camera during ADS. Transform velocity
+    # into that same facing frame so input direction maps to the rifle gait:
+    # -X is left, +X is right, +Y is forward (-Z in Godot), -Y is backward.
+    var facing_basis := global_basis.orthonormalized()
+    var local_velocity := facing_basis.inverse() * Vector3(body.velocity.x, 0.0, body.velocity.z)
+    var desired := Vector2(local_velocity.x, -local_velocity.z)
+    if desired.length_squared() > 0.0225:
+        desired = desired.normalized()
+    else:
+        desired = Vector2.ZERO
+
+    var blend_weight := 1.0 if delta <= 0.0 else clampf(1.0 - exp(-delta * 12.0), 0.0, 1.0)
+    _authored_aim_blend_position = _authored_aim_blend_position.lerp(desired, blend_weight)
+    _authored_locomotion_tree.set(
+        "parameters/AimLocomotion/blend_position",
+        _authored_aim_blend_position
+    )
+    _authored_current_animation = ""
+    return true
 
 
 func _configure_authored_animation_loops() -> void:
     if not is_instance_valid(_authored_animation_player):
         return
-    for state in ["idle", "walk", "run", "sprint", "crouch_idle", "crouch_walk", "aim", "cover_idle", "skydive", "parachute_glide", "swim"]:
+    for state in ["idle", "walk", "run", "sprint", "crouch_idle", "crouch_walk", "aim", "aim_walk", "strafe_left", "strafe_right", "walk_back", "cover_idle", "skydive", "parachute_glide", "swim"]:
         var animation_name := String(_authored_animation_lookup.get(state, ""))
         if animation_name.is_empty():
             continue
@@ -1166,7 +1289,10 @@ func _update_authored_animation(body: CharacterBody3D, planar_speed: float) -> v
                 var target_global_yaw := atan2(-look_direction.x, -look_direction.z)
                 var target_local_yaw := wrapf(target_global_yaw - body.global_rotation.y, -PI, PI)
                 rotation.y = lerp_angle(rotation.y, target_local_yaw, minf(get_process_delta_time() * 12.0, 1.0))
-    if requested_action.is_empty() and state in ["idle", "walk", "run", "sprint"] and is_instance_valid(_authored_locomotion_tree):
+    if requested_action.is_empty() and state in ["aim", "aim_walk"] and _authored_aim_blend_ready:
+        if not _set_authored_aim_blend(body):
+            _play_authored_animation(state)
+    elif requested_action.is_empty() and state in ["idle", "walk", "run", "sprint"] and is_instance_valid(_authored_locomotion_tree):
         _set_authored_locomotion_blend(planar_speed)
     else:
         _play_authored_animation(state)
