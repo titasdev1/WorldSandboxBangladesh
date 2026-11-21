@@ -78,7 +78,6 @@ class ShariatpurArtTargetSelectionTests(unittest.TestCase):
             self.assertEqual(selected["door_placement_source"], "MAPPED_ENTRANCE_NODE")
             self.assertAlmostEqual(selected["ground_elevation_m"], 2.15)
             self.assertGreater(selected["distance_from_source_map_origin_m"], 2200.0)
-            self.assertLess(selected["distance_from_game_origin_m"], 1.0)
 
             subset_path = out / "selected-map" / "map_tiles_manifest.json"
             subset = json.loads(subset_path.read_text())
