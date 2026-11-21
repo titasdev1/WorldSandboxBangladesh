@@ -189,7 +189,6 @@ def select(map_root: pathlib.Path, out_dir: pathlib.Path, asset_width: float, as
             dlon = math.radians(lon - origin_lon)
             haversine = math.sin(dlat / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlon / 2) ** 2
             distance = 2 * EARTH_RADIUS_M * math.asin(min(1.0, math.sqrt(haversine)))
-            detail["distance_from_game_origin_m"] = round(distance, 2)
             # Preserve distance to the historical map origin as a diagnostic only.
             # The validation subset is re-centred on the selected building below,
             # because older Shariatpur map revisions had a documented origin offset.
