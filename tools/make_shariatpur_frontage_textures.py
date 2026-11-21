@@ -112,22 +112,38 @@ def make_maps(out: pathlib.Path, key: str, size: int) -> dict:
         height=np.full((size,size),0.5,dtype=np.float32)
         rough=np.full((size,size),96,dtype=np.float32)
 
-    base = Image.fromarray(np.dstack((rgb,np.full((size,size),255,dtype=np.uint8))),"RGBA")
+    # Keep the 2K colour master while lowering auxiliary maps to 1K for
+    # mobile memory/asset size. Base colour uses high-quality JPEG; normal and
+    # roughness remain lossless PNG to protect shading data.
+    base = Image.fromarray(rgb, "RGB")
     dy,dx=np.gradient(height.astype(np.float32))
     nx,ny,nz=-dx*5.0,-dy*5.0,np.ones_like(dx)
     length=np.sqrt(nx*nx+ny*ny+nz*nz)
     normal=np.stack(((nx/length*0.5+0.5)*255,(ny/length*0.5+0.5)*255,
-                     (nz/length*0.5+0.5)*255,np.full_like(nx,255)),axis=-1).clip(0,255).astype(np.uint8)
+                     (nz/length*0.5+0.5)*255),axis=-1).clip(0,255).astype(np.uint8)
     rough=np.clip(rough,0,255).astype(np.uint8)
-    rough_img=np.dstack((rough,rough,rough,np.full_like(rough,255)))
+    normal_size=max(512,size//2)
+    if normal_size != size:
+        normal=Image.fromarray(normal,"RGB").resize((normal_size,normal_size),Image.Resampling.LANCZOS)
+        rough_img=Image.fromarray(rough,"L").resize((normal_size,normal_size),Image.Resampling.LANCZOS)
+    else:
+        normal=Image.fromarray(normal,"RGB")
+        rough_img=Image.fromarray(rough,"L")
     folder=out/SURFACES[key]
     folder.mkdir(parents=True,exist_ok=True)
-    for name,image in (("base_color",base),("normal",Image.fromarray(normal,"RGBA")),
-                       ("roughness",Image.fromarray(rough_img,"RGBA"))):
-        image.save(folder/f"{name}.png",format="PNG",optimize=True,compress_level=7)
-    return {"name":SURFACES[key],"resolution":[size,size],
-            "maps":{kind:(folder/f"{kind}.png").as_posix()
-                    for kind in ("base_color","normal","roughness")}}
+    base_path=folder/"base_color.jpg"
+    normal_path=folder/"normal.png"
+    rough_path=folder/"roughness.png"
+    base.save(base_path,format="JPEG",quality=92,optimize=True,progressive=True,subsampling=0)
+    normal.save(normal_path,format="PNG",optimize=True,compress_level=9)
+    rough_img.save(rough_path,format="PNG",optimize=True,compress_level=9)
+    return {
+        "name":SURFACES[key],
+        "base_color_resolution":[size,size],
+        "normal_roughness_resolution":[normal_size,normal_size],
+        "maps":{"base_color":base_path.as_posix(),"normal":normal_path.as_posix(),"roughness":rough_path.as_posix()},
+        "formats":{"base_color":"JPEG_QUALITY_92","normal":"PNG_LOSSLESS","roughness":"PNG_LOSSLESS"},
+    }
 
 
 def main() -> int:
@@ -146,13 +162,19 @@ def main() -> int:
     for key in SURFACES:
         subprocess.run([sys.executable,str(pathlib.Path(__file__).resolve()),
                         "--out",str(args.out),"--size",str(args.size),"--surface",key],check=True)
-    manifest={"schema_version":1,"project":"Project A-Square",
+    manifest={"schema_version":2,"project":"Project A-Square",
               "asset":"Shariatpur river-town shopfront hero","license":"CC0-1.0",
               "source":"Original deterministic PBR texture artwork; no external image textures",
-              "resolution_policy":f"{args.size}px PBR master maps for mobile LOD variants",
-              "surfaces":[{"name":SURFACES[k],"resolution":[args.size,args.size],
-                           "maps":{m:(args.out/SURFACES[k]/f"{m}.png").as_posix()
-                                   for m in ("base_color","normal","roughness")}} for k in SURFACES]}
+              "resolution_policy":"2K base colour JPEG quality 92; 1K lossless PNG normal and roughness maps.",
+              "surfaces":[
+                  {"name":SURFACES[k],
+                   "base_color_resolution":[args.size,args.size],
+                   "normal_roughness_resolution":[max(512,args.size//2),max(512,args.size//2)],
+                   "maps":{"base_color":(args.out/SURFACES[k]/"base_color.jpg").as_posix(),
+                           "normal":(args.out/SURFACES[k]/"normal.png").as_posix(),
+                           "roughness":(args.out/SURFACES[k]/"roughness.png").as_posix()},
+                   "formats":{"base_color":"JPEG_QUALITY_92","normal":"PNG_LOSSLESS","roughness":"PNG_LOSSLESS"}}
+                  for k in SURFACES]}
     (args.out/"texture_manifest.json").write_text(json.dumps(manifest,indent=2,ensure_ascii=False)+"\n",encoding="utf-8")
     print(f"A2_SHARIATPUR_TEXTURES_READY: surfaces={len(SURFACES)} resolution={args.size} output={args.out}")
     return 0
