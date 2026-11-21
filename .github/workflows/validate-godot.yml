@@ -89,7 +89,6 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
     timeout-minutes: 40
     steps:
       - name: Checkout canonical project
