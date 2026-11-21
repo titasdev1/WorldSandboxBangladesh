@@ -1108,7 +1108,7 @@ func _is_upper_body_animation_track(track_path: NodePath) -> bool:
 func _request_authored_fire_layer() -> bool:
     if not _authored_fire_layer_ready or not is_instance_valid(_authored_locomotion_tree):
         return false
-    if bool(_authored_locomotion_tree.get("parameters/RifleFire/active")):
+    if _authored_locomotion_tree.get("parameters/RifleFire/active") == true:
         return true
     _authored_locomotion_tree.set(
         "parameters/RifleFire/request",

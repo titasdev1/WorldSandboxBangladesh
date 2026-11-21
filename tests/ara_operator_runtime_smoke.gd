@@ -81,7 +81,7 @@ func _run_smoke() -> void:
 		or locomotion_playback == null
 		or fire_overlay == null
 		or not fire_overlay.filter_enabled
-		or not bool(visual.get("_authored_fire_layer_ready"))
+		or visual.get("_authored_fire_layer_ready") != true
 		or int(visual.get("_authored_fire_layer_track_count")) < 1
 		or locomotion_tree.anim_player.is_empty()
 	):
@@ -296,7 +296,7 @@ func _run_smoke() -> void:
 	locomotion_tree.set("parameters/RifleFire/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 	locomotion_tree.advance(1.0 / 60.0)
 	if (
-		bool(locomotion_tree.get("parameters/RifleFire/active")) != true
+		locomotion_tree.get("parameters/RifleFire/active") != true
 		or String(locomotion_playback.get_current_node()) != "GroundLocomotion"
 		or not is_equal_approx(float(locomotion_tree.get("parameters/Locomotion/GroundLocomotion/blend_position")), 3.75)
 	):
