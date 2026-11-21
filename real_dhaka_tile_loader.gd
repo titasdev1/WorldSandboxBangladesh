@@ -1462,12 +1462,40 @@ func _load_interior_anchors(record: Dictionary, player_position: Vector3) -> Arr
 
 	var tile_position: Vector3 = record.get("world_position", Vector3.ZERO)
 	var tile_id := str(record.get("tile_id", "tile"))
+	var expected_osm_id := OS.get_environment("WSB_EXPECT_INTERIOR_OSM_ID").strip_edges()
 	var nearby: Array[Dictionary] = []
+	var expected_seed_found := false
+	var expected_seed_distance := INF
 	for seed in seeds:
 		var typed_seed: Dictionary = seed
-		if _interior_seed_distance(typed_seed, tile_position, player_position) <= INTERIOR_ANCHOR_RADIUS_M:
+		var seed_distance := _interior_seed_distance(typed_seed, tile_position, player_position)
+		if not expected_osm_id.is_empty() and str(typed_seed.get("osm_id", "")) == expected_osm_id:
+			expected_seed_found = true
+			expected_seed_distance = seed_distance
+			print("A2_SHARIATPUR_EXPECTED_SEED_FOUND:" + JSON.stringify({
+				"osm_id": expected_osm_id,
+				"tile_id": tile_id,
+				"distance_to_player_m": roundf(seed_distance * 100.0) / 100.0,
+				"anchor_local_m": typed_seed.get("anchor_local_m", []),
+				"footprint_local_m": typed_seed.get("footprint_local_m", []),
+				"door_placement_source": str(typed_seed.get("door_placement_source", ""))
+			}))
+		if seed_distance <= INTERIOR_ANCHOR_RADIUS_M:
 			nearby.append(typed_seed)
+	if not expected_osm_id.is_empty() and not expected_seed_found:
+		print("A2_SHARIATPUR_EXPECTED_SEED_NOT_IN_TILE: " + expected_osm_id)
+	elif not expected_osm_id.is_empty() and expected_seed_distance > INTERIOR_ANCHOR_RADIUS_M:
+		print("A2_SHARIATPUR_EXPECTED_SEED_OUTSIDE_ANCHOR_RADIUS: " + expected_osm_id)
+
 	nearby.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		# In the explicit CI smoke only, keep the selected source-backed OSM
+		# target ahead of other nearby anchors. Shipping gameplay leaves this
+		# environment variable unset and retains normal distance/priority order.
+		if not expected_osm_id.is_empty():
+			var a_expected := str(a.get("osm_id", "")) == expected_osm_id
+			var b_expected := str(b.get("osm_id", "")) == expected_osm_id
+			if a_expected != b_expected:
+				return a_expected
 		var distance_a := _interior_seed_distance(a, tile_position, player_position)
 		var distance_b := _interior_seed_distance(b, tile_position, player_position)
 		if absf(distance_a - distance_b) <= 2.0:
@@ -1475,7 +1503,8 @@ func _load_interior_anchors(record: Dictionary, player_position: Vector3) -> Arr
 		return distance_a < distance_b
 	)
 	var road_routes := _get_nearby_road_routes(player_position)
-	for seed in nearby.slice(0, mini(MAX_INTERIOR_ANCHORS_PER_TILE, nearby.size())):
+	var max_anchor_count := mini(MAX_INTERIOR_ANCHORS_PER_TILE, nearby.size())
+	for seed in nearby.slice(0, max_anchor_count):
 		var placement := _interior_anchor_placement(seed, tile_position, road_routes)
 		var anchor := Node3D.new()
 		anchor.name = "InteriorAnchor_" + str(seed.get("osm_id", anchors.size()))
@@ -1491,20 +1520,23 @@ func _load_interior_anchors(record: Dictionary, player_position: Vector3) -> Arr
 		_add_entry_door(anchor, seed)
 		_add_mapped_exterior_sign(anchor, seed)
 		anchors.append(anchor)
-		var expected_osm_id := OS.get_environment("WSB_EXPECT_INTERIOR_OSM_ID").strip_edges()
 		if not expected_osm_id.is_empty() and str(seed.get("osm_id", "")) == expected_osm_id:
-			print("A2_REAL_SHARIATPUR_DOOR_ANCHOR_READY:" + JSON.stringify({
+			print("A2_SHARIATPUR_BUILDING_ENTRY_ANCHOR_READY:" + JSON.stringify({
 				"osm_id": expected_osm_id,
 				"tile_id": tile_id,
 				"door_placement_source": str(seed.get("door_placement_source", "")),
-				"door_opening_available": is_instance_valid(anchor.get_node_or_null("DoorHinge")),
-				"ground_elevation_m": float(seed.get("ground_elevation_m", 0.0))
+				"door_leaf_created": is_instance_valid(anchor.get_node_or_null("DoorHinge")),
+				"ground_elevation_m": float(seed.get("ground_elevation_m", 0.0)),
+				"anchor_world_position": [anchor.global_position.x, anchor.global_position.y, anchor.global_position.z]
 			}))
 		if anchors.size() % 16 == 0:
 			await get_tree().process_frame
+	if not expected_osm_id.is_empty() and not anchors.any(func(anchor: Node3D) -> bool:
+		return str(anchor.get_meta("interior_seed", {}).get("osm_id", "")) == expected_osm_id
+	):
+		print("A2_SHARIATPUR_EXPECTED_SEED_NOT_ANCHORED:" + expected_osm_id)
 	record["interior_anchor_center"] = player_position
 	return anchors
-
 
 
 func _add_entry_door(anchor: Node3D, seed: Dictionary) -> void:
