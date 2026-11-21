@@ -25,6 +25,7 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
     def setUpClass(cls):
         cls.hud = read("hud.gd")
         cls.showcase = read("systems/lobby_showcase.gd")
+        cls.visual = read("character_visual.gd")
         cls.boot = read("boot.gd")
         cls.profile = read("career_profile.gd")
 
@@ -148,6 +149,20 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('"idle_look"', read("character_visual.gd"))
         self.assertIn('"idle_fidget"', read("character_visual.gd"))
         self.assertIn('"idle_breathe"', read("character_visual.gd"))
+
+    def test_authored_locomotion_uses_a_per_operator_blend_space(self):
+        builder = function_block(self.visual, "_build_authored_locomotion_blend_space")
+        setter = function_block(self.visual, "_set_authored_locomotion_blend")
+        updater = function_block(self.visual, "_update_authored_animation")
+        self.assertIn("AnimationNodeBlendSpace1D.new()", builder)
+        self.assertIn("blend_space.sync = true", builder)
+        self.assertIn("AnimationTree.new()", builder)
+        self.assertIn('get_path_to(_authored_animation_player)', builder)
+        self.assertIn('parameters/blend_position', setter)
+        self.assertIn('clampf(planar_speed, 0.0, _authored_locomotion_blend_max_speed)', setter)
+        self.assertIn('_set_authored_locomotion_blend(planar_speed)', updater)
+        self.assertIn('requested_action.is_empty()', updater)
+        self.assertIn('_authored_locomotion_tree.active = false', function_block(self.visual, "_play_authored_animation"))
 
     def test_showcase_and_player_visual_continue_while_tree_is_paused(self):
         self.assertIn('process_mode = Node.PROCESS_MODE_ALWAYS', self.showcase)

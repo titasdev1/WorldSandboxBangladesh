@@ -46,6 +46,8 @@ var _selected_operator_preset := "field_tactical"
 var _procedural_root: Node3D
 var _authored_hero: Node3D
 var _authored_animation_player: AnimationPlayer
+var _authored_locomotion_tree: AnimationTree
+var _authored_locomotion_blend_max_speed := 10.5
 var _authored_current_animation := ""
 var _authored_animation_lookup: Dictionary = {}
 var _authored_weapon_attachment: BoneAttachment3D
@@ -367,6 +369,12 @@ func _build_authored_hero(packed: PackedScene) -> void:
         _authored_animation_player = null
         push_warning("AUTHORED_HERO_FALLBACK: %d clips; minimum %d; jump/fall/land ready=%s." % [hero_clip_count, minimum_clip_count, str(has_air_motion)])
         return
+
+    var locomotion_blend_ready := _build_authored_locomotion_blend_space()
+    print("AUTHORED_LOCOMOTION_BLEND • ready=%s • points=%d" % [
+        str(locomotion_blend_ready),
+        (_authored_locomotion_tree.tree_root as AnimationNodeBlendSpace1D).get_blend_point_count() if locomotion_blend_ready else 0
+    ])
 
     # Reparent the existing rifle and muzzle effects to an actual rigged right-hand
     # bone only after the imported skeleton/animations have passed the validation gate.
@@ -926,6 +934,64 @@ func _build_charactercreator_combat_gear(skeleton: Skeleton3D) -> void:
 
 
 
+func _build_authored_locomotion_blend_space() -> bool:
+	if not is_instance_valid(_authored_hero) or not is_instance_valid(_authored_animation_player):
+		return false
+
+	var idle_name := String(_authored_animation_lookup.get("idle", ""))
+	var walk_name := String(_authored_animation_lookup.get("walk", ""))
+	var run_name := String(_authored_animation_lookup.get("run", ""))
+	var sprint_name := String(_authored_animation_lookup.get("sprint", ""))
+	if idle_name.is_empty() or walk_name.is_empty() or run_name.is_empty():
+		return false
+
+	# Keep the blend space private to this character instance. AnimationTree
+	# resources are mutable; sharing one root between operators would couple
+	# their blend positions and cause one actor's movement to drive another.
+	var blend_space := AnimationNodeBlendSpace1D.new()
+	blend_space.min_space = 0.0
+	blend_space.max_space = _authored_locomotion_blend_max_speed
+	blend_space.snap = 0.05
+	blend_space.sync = true
+
+	var states: Array[String] = ["idle", "walk", "run"]
+	var positions: Array[float] = [0.0, 2.5, 5.5]
+	if not sprint_name.is_empty() and sprint_name != run_name:
+		states.append("sprint")
+		positions.append(_authored_locomotion_blend_max_speed)
+	elif sprint_name == run_name:
+		_authored_locomotion_blend_max_speed = 5.5
+
+	for index in range(states.size()):
+		var animation_name := String(_authored_animation_lookup.get(states[index], ""))
+		if animation_name.is_empty():
+			return false
+		var animation_node := AnimationNodeAnimation.new()
+		animation_node.animation = StringName(animation_name)
+		blend_space.add_blend_point(animation_node, positions[index])
+
+	_authored_locomotion_tree = AnimationTree.new()
+	_authored_locomotion_tree.name = "OperatorLocomotionTree"
+	_authored_locomotion_tree.tree_root = blend_space
+	_authored_hero.add_child(_authored_locomotion_tree)
+	_authored_locomotion_tree.anim_player = _authored_locomotion_tree.get_path_to(_authored_animation_player)
+	_authored_locomotion_tree.active = false
+	return not _authored_locomotion_tree.anim_player.is_empty()
+
+
+func _set_authored_locomotion_blend(planar_speed: float) -> void:
+	if not is_instance_valid(_authored_locomotion_tree):
+		return
+	_authored_locomotion_tree.active = true
+	_authored_locomotion_tree.set(
+		"parameters/blend_position",
+		clampf(planar_speed, 0.0, _authored_locomotion_blend_max_speed)
+	)
+	# The blend tree now owns playback. Clear the discrete player cache so
+	# returning to an event clip always issues a fresh AnimationPlayer.play().
+	_authored_current_animation = ""
+
+
 func _configure_authored_animation_loops() -> void:
     if not is_instance_valid(_authored_animation_player):
         return
@@ -1021,6 +1087,9 @@ func _on_authored_animation_finished(animation_name: StringName) -> void:
 
 
 func _play_authored_animation(state: String) -> void:
+    if is_instance_valid(_authored_locomotion_tree):
+        _authored_locomotion_tree.active = false
+        _authored_current_animation = ""
     var animation_name := String(_authored_animation_lookup.get(state, ""))
     if animation_name.is_empty() or not is_instance_valid(_authored_animation_player):
         animation_name = String(_authored_animation_lookup.get("idle", ""))
@@ -1097,7 +1166,10 @@ func _update_authored_animation(body: CharacterBody3D, planar_speed: float) -> v
                 var target_global_yaw := atan2(-look_direction.x, -look_direction.z)
                 var target_local_yaw := wrapf(target_global_yaw - body.global_rotation.y, -PI, PI)
                 rotation.y = lerp_angle(rotation.y, target_local_yaw, minf(get_process_delta_time() * 12.0, 1.0))
-    _play_authored_animation(state)
+    if requested_action.is_empty() and state in ["idle", "walk", "run", "sprint"] and is_instance_valid(_authored_locomotion_tree):
+        _set_authored_locomotion_blend(planar_speed)
+    else:
+        _play_authored_animation(state)
 
 
 func _material(color: Color, roughness: float = 0.78, metallic: float = 0.0) -> StandardMaterial3D:

@@ -53,11 +53,21 @@ func _run_smoke() -> void:
 
 	var source := String(visual.get("_authored_hero_source"))
 	var player := visual.get("_authored_animation_player") as AnimationPlayer
+	var locomotion_tree := visual.get("_authored_locomotion_tree") as AnimationTree
 	var skeleton := visual.get("_authored_skeleton") as Skeleton3D
 	var hero := visual.get("_authored_hero") as Node3D
 	var lookup: Dictionary = visual.get("_authored_animation_lookup")
 	if source != "Ara3D" or player == null or skeleton == null or hero == null:
 		push_error("ARA3D_RUNTIME_FAIL: player did not select the expected Ara3D resources.")
+		quit(1)
+		return
+	if locomotion_tree == null or not (locomotion_tree.tree_root is AnimationNodeBlendSpace1D):
+		push_error("ARA3D_RUNTIME_FAIL: idle/walk/run/sprint AnimationTree blend space is missing.")
+		quit(1)
+		return
+	var locomotion_space := locomotion_tree.tree_root as AnimationNodeBlendSpace1D
+	if locomotion_space.get_blend_point_count() < 4 or locomotion_tree.anim_player.is_empty():
+		push_error("ARA3D_RUNTIME_FAIL: locomotion blend-space points or AnimationPlayer binding are incomplete.")
 		quit(1)
 		return
 
@@ -158,6 +168,19 @@ func _run_smoke() -> void:
 		push_error("ARA3D_RUNTIME_FAIL: urban patrol material preset could not be applied.")
 		quit(1)
 	visual.call("apply_operator_preset", "field_tactical")
+	# Exercise the speed-driven blend space directly before testing discrete
+	# gameplay actions. Values must clamp to the blend-space range, not leak into
+	# the AnimationPlayer's current one-shot action.
+	for speed in [0.0, 3.75, 7.5, 10.5, 14.0]:
+		visual.call("_set_authored_locomotion_blend", speed)
+		await process_frame
+		var expected_blend := clampf(speed, 0.0, 10.5)
+		var actual_blend := float(locomotion_tree.get("parameters/blend_position"))
+		if not locomotion_tree.active or not is_equal_approx(actual_blend, expected_blend):
+			push_error("ARA3D_RUNTIME_FAIL: locomotion blend position did not track/clamp speed.")
+			quit(1)
+			return
+
 	# Exercise the public gameplay action entry point. Calling the private player
 	# method directly is immediately superseded by _process() when the smoke actor
 	# has zero velocity; play_action() sets the same state metadata used in-game.
