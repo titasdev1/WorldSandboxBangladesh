@@ -123,6 +123,7 @@ jobs:
             --out "${OUT_DIR}/shariatpur_riverfront_shophouse_hero.glb" \
             --textures "${OUT_DIR}/textures" \
             --preview "${OUT_DIR}/streetfront_preview.png" \
+            --interior-preview "${OUT_DIR}/streetfront_interior_preview.png" \
             > "${OUT_DIR}/authoring.log" 2>&1; then
             cat "${OUT_DIR}/authoring.log"
             exit 1
@@ -140,6 +141,7 @@ jobs:
             --manifest "${OUT_DIR}/asset_manifest.json" \
             --license "${OUT_DIR}/LICENSE.txt" \
             --preview "${OUT_DIR}/streetfront_preview.png" \
+            --interior-preview "${OUT_DIR}/streetfront_interior_preview.png" \
             --out "${OUT_DIR}/streetfront_verification.json"
           python3 -m unittest discover -s tests -p "test_shariatpur_streetfront.py" -v
 
@@ -161,6 +163,7 @@ jobs:
             build/shariatpur-streetfront/asset_manifest.json
             build/shariatpur-streetfront/LICENSE.txt
             build/shariatpur-streetfront/streetfront_preview.png
+            build/shariatpur-streetfront/streetfront_interior_preview.png
             build/shariatpur-streetfront/streetfront_verification.json
             build/shariatpur-streetfront/authoring.log
           retention-days: 30
