@@ -26,8 +26,8 @@ def read_glb_json(path: pathlib.Path) -> tuple[dict, int]:
 
 
 def verify(glb_path: pathlib.Path, manifest_path: pathlib.Path, license_path: pathlib.Path,
-           preview_path: pathlib.Path, output_path: pathlib.Path) -> dict:
-    for path in (glb_path, manifest_path, license_path, preview_path):
+           preview_path: pathlib.Path, interior_preview_path: pathlib.Path, output_path: pathlib.Path) -> dict:
+    for path in (glb_path, manifest_path, license_path, preview_path, interior_preview_path):
         if not path.is_file():
             raise FileNotFoundError(f"Required asset output is missing: {path}")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -72,7 +72,10 @@ def verify(glb_path: pathlib.Path, manifest_path: pathlib.Path, license_path: pa
     bounds = manifest.get("bounds_metres", {})
     if not (float(bounds.get("width", 0)) >= 10.0 and float(bounds.get("depth", 0)) >= 7.0 and float(bounds.get("height", 0)) >= 8.5):
         failures.append(f"Unexpected hero asset dimensions: {bounds}")
-    if preview_path.stat().st_size < 40_000: failures.append("Rendered preview is absent or implausibly small")
+    if preview_path.stat().st_size < 40_000: failures.append("Exterior rendered preview is absent or implausibly small")
+    if interior_preview_path.stat().st_size < 40_000: failures.append("Interior rendered preview is absent or implausibly small")
+    if manifest.get("interior_status") != "AUTHORED_VISUAL_INTERIOR_INCLUDED_NOT_A_SURVEYED_PRIVATE_FLOOR_PLAN":
+        failures.append("Manifest does not declare the authored interior and its non-survey limitation")
     feature_inventory = manifest.get("feature_inventory", [])
     for required in ("recessed timber and grilled windows", "Bengali shop sign and district lettering",
                      "corrugated awning and brackets", "rooftop water tank and service pipes",
@@ -93,6 +96,8 @@ def verify(glb_path: pathlib.Path, manifest_path: pathlib.Path, license_path: pa
         "embedded_texture_count": len(textures),
         "scene_node_count": len(nodes),
         "preview_bytes": preview_path.stat().st_size,
+        "interior_preview_file": interior_preview_path.name,
+        "interior_preview_bytes": interior_preview_path.stat().st_size,
         "glb_mobile_budget_mib": 45,
         "bounds_metres": bounds,
         "license": manifest.get("license"),
@@ -113,10 +118,11 @@ def main() -> int:
     parser.add_argument("--manifest", type=pathlib.Path, required=True)
     parser.add_argument("--license", type=pathlib.Path, required=True)
     parser.add_argument("--preview", type=pathlib.Path, required=True)
+    parser.add_argument("--interior-preview", type=pathlib.Path, required=True)
     parser.add_argument("--out", type=pathlib.Path, required=True)
     args = parser.parse_args()
     try:
-        verify(args.glb, args.manifest, args.license, args.preview, args.out)
+        verify(args.glb, args.manifest, args.license, args.preview, args.interior_preview, args.out)
     except Exception as exc:
         print(f"A2_SHARIATPUR_STREETFRONT_STRUCTURAL_FAIL: {exc}", file=sys.stderr)
         return 2
