@@ -245,6 +245,142 @@ def make_window(x: float, z: float, width: float, height: float, mats: dict[str,
         box("Window_Cement_Chajja", (x,face_y-0.25,z+height*0.58), (width+0.5,0.52,0.12), mats["plaster"], 0.035)
 
 
+def _add_side_window(x_wall: float, center_y: float, center_z: float,
+                    width: float, height: float, side: float,
+                    mats: dict[str,bpy.types.Material]) -> None:
+    """Build a recessed side-elevation window with a projecting rain chajja."""
+    face_x = x_wall + side * 0.15
+    frame = 0.075
+    box("Side_Window_Recess", (face_x,center_y,center_z),
+        (0.16,width+0.24,height+0.24),mats["brick"],0.018)
+    box("Side_Window_Glazing", (face_x+side*0.035,center_y,center_z),
+        (0.055,width,height),mats["glass"],0.008)
+    for sign in (-1,1):
+        box("Side_Window_Teak_Jamb", (face_x+side*0.075,center_y+sign*(width*0.5+frame*0.5),center_z),
+            (0.11,frame,height+0.18),mats["wood"],0.012)
+        box("Side_Window_Teak_HeadSill", (face_x+side*0.075,center_y,center_z+sign*(height*0.5+frame*0.5)),
+            (0.11,width+0.18,frame),mats["wood"],0.012)
+    for i in range(5):
+        yy=center_y-width*0.40+i*width*0.20
+        curve("Side_Window_Security_Grille",(
+            (face_x+side*0.14,yy,center_z-height*0.46),
+            (face_x+side*0.14,yy,center_z+height*0.46)),0.016,mats["steel"])
+    for zoff in (-0.25,0.25):
+        curve("Side_Window_Grille_Crossbar",(
+            (face_x+side*0.14,center_y-width*0.46,center_z+zoff*height),
+            (face_x+side*0.14,center_y+width*0.46,center_z+zoff*height)),0.014,mats["steel"])
+    box("Side_Window_Concrete_Chajja",
+        (face_x+side*0.25,center_y,center_z+height*0.60),
+        (0.54,width+0.42,0.11),mats["concrete"],0.028)
+    # Small rust line below the sill breaks the otherwise uninterrupted wall plane.
+    curve("Side_Window_Rain_Streak",(
+        (face_x+side*0.085,center_y+width*0.31,center_z-height*0.58),
+        (face_x+side*0.086,center_y+width*0.29,center_z-height*0.94)),0.009,mats["brick"])
+
+
+def _add_shop_interior(mats: dict[str,bpy.types.Material], font_path: str) -> None:
+    """Authored grocery-shop interior fitted behind the real front entrance."""
+    # The room shares the exterior building's coordinate space and ground floor.
+    box("Shop_Interior_Ceramic_Floor",(0.0,0.02,0.105),(10.45,7.78,0.16),mats["concrete"],0.018)
+    for x in [(-4.92+i*0.62) for i in range(17)]:
+        curve("Interior_Floor_Grout_X",((x,-3.78,0.192),(x,3.78,0.192)),0.006,mats["brick"])
+    for y in [(-3.65+i*0.62) for i in range(13)]:
+        curve("Interior_Floor_Grout_Y",((-5.12,y,0.193),(5.12,y,0.193)),0.006,mats["brick"])
+    box("Shop_Entrance_Coirmat",(4.10,-3.72,0.205),(1.05,0.52,0.035),mats["wood"],0.018)
+
+    # Long left-wall grocery rack: powder-coated uprights and teak shelves.
+    for x in (-4.78,-4.22):
+        for y in (-2.82,-0.48,1.86):
+            box("Shop_Left_Rack_Upright",(x,y,1.45),(0.075,0.075,2.60),mats["steel"],0.012)
+    for z in (0.58,1.38,2.18,2.88):
+        box("Shop_Left_Rack_Shelf",(-4.50,-0.48,z),(0.62,4.85,0.10),mats["wood"],0.018)
+    for row_z in (0.83,1.62,2.42):
+        for i in range(8):
+            y=-2.58+i*0.60
+            if i%3==0:
+                cylinder("Shop_Left_Rack_Tin",( -4.48,y,row_z+0.17),0.105,0.34,mats["steel"],16)
+            elif i%3==1:
+                box("Shop_Left_Rack_Packet",(-4.48,y,row_z+0.17),(0.23,0.22,0.34),mats["sign"],0.018)
+            else:
+                cylinder("Shop_Left_Rack_Jar",(-4.48,y,row_z+0.14),0.085,0.27,mats["glass"],16)
+
+    # Rear-wall counter and stocked shelves, leaving a clear path from the entrance.
+    for x in (-2.85,-0.10,2.65):
+        box("Shop_Rear_Rack_Pillar",(x,3.54,1.72),(0.10,0.13,3.18),mats["steel"],0.012)
+    for z in (0.63,1.42,2.22,3.02):
+        box("Shop_Rear_Rack_Shelf",(0.0,3.48,z),(5.75,0.42,0.10),mats["wood"],0.018)
+    for row_z in (0.86,1.65,2.45):
+        for i in range(12):
+            x=-2.55+i*0.46
+            if i%4==0:
+                box("Shop_Rear_Stock_Carton",(x,3.28,row_z+0.16),(0.31,0.30,0.30),mats["brick"],0.018)
+            elif i%4==1:
+                cylinder("Shop_Rear_Stock_Tin",(x,3.25,row_z+0.17),0.095,0.33,mats["steel"],16)
+            elif i%4==2:
+                cylinder("Shop_Rear_Stock_Bottle",(x,3.27,row_z+0.14),0.075,0.27,mats["glass"],14)
+            else:
+                box("Shop_Rear_Stock_Packet",(x,3.28,row_z+0.17),(0.22,0.22,0.35),mats["sign"],0.012)
+
+    # Timber-and-concrete service counter, glass display case and weighing scale.
+    box("Shop_Counter_KickPlinth",(-1.52,-1.10,0.22),(2.85,0.92,0.22),mats["brick"],0.025)
+    box("Shop_Counter_Timber_Front",(-1.52,-1.10,0.66),(2.85,0.86,0.72),mats["wood"],0.028)
+    for x in (-2.40,-1.52,-0.64):
+        box("Shop_Counter_Front_Panel",(x,-1.545,0.68),(0.72,0.035,0.58),mats["plaster"],0.012)
+    box("Shop_Counter_Stone_Top",(-1.52,-1.10,1.07),(3.02,1.02,0.12),mats["concrete"],0.025)
+    box("Shop_Glass_Display_Base",(-1.52,-1.00,1.36),(1.86,0.68,0.42),mats["wood"],0.025)
+    box("Shop_Glass_Display_Front",(-1.52,-1.34,1.67),(1.84,0.035,0.32),mats["glass"],0.008)
+    box("Shop_Glass_Display_Side_L",(-2.44,-1.00,1.67),(0.035,0.66,0.32),mats["glass"],0.008)
+    box("Shop_Glass_Display_Side_R",(-0.60,-1.00,1.67),(0.035,0.66,0.32),mats["glass"],0.008)
+    for x in (-2.12,-1.72,-1.32,-0.92):
+        box("Shop_Display_Goods",(x,-1.05,1.55),(0.26,0.32,0.11),mats["sign"],0.012)
+    box("Shop_Weighing_Scale_Base",(-0.30,-1.02,1.18),(0.34,0.30,0.10),mats["steel"],0.018)
+    box("Shop_Weighing_Scale_Pan",(-0.30,-1.02,1.25),(0.26,0.22,0.04),mats["concrete"],0.012)
+    box("Shop_Price_Receipt_Book",(-2.58,-1.06,1.16),(0.26,0.32,0.05),mats["sign"],0.012)
+
+    # Rice/dal sacks, beverage cooler and stacked returnable crates.
+    for x,y in ((-3.75,2.48),(-3.12,2.52),(-3.47,1.92)):
+        sack=cylinder("Shop_Rice_Sack",(x,y,0.56),0.27,0.92,mats["wood"],20)
+        sack.scale.x=1.12; sack.scale.y=0.94
+        bpy.context.view_layer.objects.active=sack
+        bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
+    box("Shop_Beverage_Cooler_Housing",(3.60,1.55,1.34),(1.10,0.88,2.58),mats["steel"],0.035)
+    box("Shop_Beverage_Cooler_Glass",(3.60,1.08,1.43),(0.84,0.035,2.05),mats["glass"],0.012)
+    for z in (0.72,1.18,1.64,2.10):
+        box("Shop_Cooler_Shelf",(3.60,1.04,z),(0.78,0.035,0.045),mats["steel"],0.006)
+    for x in (2.85,3.55):
+        box("Shop_Returnable_Crate",(x,2.78,0.42),(0.58,0.52,0.68),mats["steel"],0.025)
+        for row in range(4):
+            curve("Shop_Crate_Vent_Slot",((x-0.24,2.49,0.24+row*0.14),(x+0.24,2.49,0.24+row*0.14)),0.012,mats["wood"])
+
+    # Locally familiar polypropylene chairs, low stool and ceiling fan.
+    for x,y in ((-2.95,-2.55),(2.55,-2.40)):
+        box("Shop_Plastic_Chair_Seat",(x,y,0.48),(0.62,0.58,0.12),mats["sign"],0.035)
+        box("Shop_Plastic_Chair_Back",(x,y+0.22,0.91),(0.62,0.12,0.78),mats["sign"],0.035)
+        for dx in (-0.24,0.24):
+            for dy in (-0.20,0.20):
+                box("Shop_Plastic_Chair_Leg",(x+dx,y+dy,0.24),(0.06,0.06,0.42),mats["steel"],0.012)
+    cylinder("Shop_Ceiling_Fan_Rod",(1.78,0.92,3.32),0.025,0.56,mats["steel"],12)
+    cylinder("Shop_Ceiling_Fan_Hub",(1.78,0.92,3.03),0.10,0.12,mats["steel"],20)
+    for i in range(3):
+        angle=2.0*math.pi*i/3.0
+        curve("Shop_Ceiling_Fan_Blade",(
+            (1.78,0.92,3.05),
+            (1.78+math.cos(angle)*0.64,0.92+math.sin(angle)*0.64,3.05)),
+            0.055,mats["steel"])
+    for x in (-2.7,1.3,4.0):
+        box("Shop_Ceiling_LED_Housing",(x,0.0,3.58),(1.05,0.13,0.08),mats["glass"],0.018)
+        box("Shop_Ceiling_LED_Diffuser",(x,-0.01,3.535),(0.90,0.10,0.018),mats["concrete"],0.006)
+
+    # Bengali interior wayfinding and everyday retail cues.
+    box("Shop_Interior_Bangla_Signboard",(0.0,3.82,3.28),(3.35,0.10,0.42),mats["sign"],0.022)
+    text_mesh("Shop_Interior_Bangla_Sign","চাল • ডাল • তেল",(0.0,3.755,3.30),0.23,mats["letter"],font_path)
+    box("Shop_Interior_Notice_Plaque",(-3.65,3.82,3.28),(1.52,0.10,0.38),mats["wood"],0.018)
+    text_mesh("Shop_Interior_Notice","খুচরা বিক্রয়",(-3.65,3.755,3.30),0.14,mats["letter"],font_path)
+    # A short low counter return and a small wall shelf add depth at the entrance.
+    box("Shop_Interior_Entry_Side_Counter",(2.25,-2.80,0.72),(1.08,0.55,1.32),mats["wood"],0.035)
+    box("Shop_Interior_Entry_Side_Top",(2.25,-2.80,1.42),(1.18,0.62,0.12),mats["concrete"],0.022)
+
+
 def build_shopfront(mats: dict[str,bpy.types.Material]) -> None:
     # Local coordinates: the public frontage faces -Y; the building sits on z=0.
     # Side and rear shell are intentionally open at the front to preserve the
@@ -393,6 +529,21 @@ def build_shopfront(mats: dict[str,bpy.types.Material]) -> None:
         box("Drain_Grille_Slot", (x,-5.05,0.115), (0.045,0.48,0.025), mats["wood"],0.004)
     for x in (-5.1,-3.0,0.0,3.0,5.1):
         box("Facade_Foundation_Stone", (x,-4.15,0.12), (0.52,0.38,0.24), mats["concrete"],0.025)
+
+    # Side elevations and shop interior are separately authored, not generated from random boxes.
+    for side_x,side in ((-5.47,-1.0),(5.47,1.0)):
+        for y,z in ((-2.42,5.92),(0.10,5.92),(2.62,5.92)):
+            _add_side_window(side_x,y,z,1.18,1.46,side,mats)
+        # Side-wall damp marks and cable saddles make the long elevation read as used concrete.
+        for i in range(9):
+            y=-3.45+i*0.82
+            box("Side_Wall_Damp_Stain",(side_x+side*0.148,y,1.18+(i%3)*0.17),
+                (0.018,0.16+(i%2)*0.10,0.56+(i%3)*0.18),mats["concrete"],0.004)
+        curve("Side_Elevation_Service_Cable",(
+            (side_x+side*0.17,-3.70,3.55),(side_x+side*0.17,-2.6,3.58),
+            (side_x+side*0.17,-0.8,3.60),(side_x+side*0.17,1.8,3.57),
+            (side_x+side*0.17,3.7,3.62)),0.018,mats["steel"])
+    _add_shop_interior(mats,find_bengali_font())
 
     # Rooftop service aerial with braced mast and simple dish.
     cylinder("Aerial_Mast",(4.85,2.9,9.24),0.028,1.6,mats["steel"],12)
