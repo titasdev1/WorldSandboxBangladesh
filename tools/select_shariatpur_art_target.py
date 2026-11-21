@@ -190,13 +190,10 @@ def select(map_root: pathlib.Path, out_dir: pathlib.Path, asset_width: float, as
             haversine = math.sin(dlat / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlon / 2) ** 2
             distance = 2 * EARTH_RADIUS_M * math.asin(min(1.0, math.sqrt(haversine)))
             detail["distance_from_game_origin_m"] = round(distance, 2)
-            # The one-tile smoke starts the player at the Shariatpur map origin.
-            # Exclude candidates outside the loader's default local stream radius.
-            candidate["score"] += distance / 12000.0
-        candidates = [candidate for candidate in candidates
-                      if candidate["details"].get("distance_from_game_origin_m", 1.0e9) <= 2200.0]
-        if not candidates:
-            raise RuntimeError("No retail/entrance candidate lies within 2.2 km of the Shariatpur game origin.")
+            # Preserve distance to the historical map origin as a diagnostic only.
+            # The validation subset is re-centred on the selected building below,
+            # because older Shariatpur map revisions had a documented origin offset.
+            candidate["details"]["distance_from_source_map_origin_m"] = round(distance, 2)
     candidates.sort(key=lambda item: item["score"])
     winner = candidates[0]
     tile = winner["tile"]
