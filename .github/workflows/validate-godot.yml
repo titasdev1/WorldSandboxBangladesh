@@ -48,6 +48,8 @@ on:
       - "tests/test_mobile_interaction_flow.py"
       - "project.godot"
       - "tests/test_dhaka_map_pipeline.py"
+      - "tools/select_shariatpur_art_target.py"
+      - "tests/test_select_shariatpur_art_target.py"
       - ".github/workflows/validate-godot.yml"
   pull_request:
     branches:
@@ -79,6 +81,8 @@ on:
       - "tests/test_login_backdrop.py"
       - "project.godot"
       - "tests/test_dhaka_map_pipeline.py"
+      - "tools/select_shariatpur_art_target.py"
+      - "tests/test_select_shariatpur_art_target.py"
       - ".github/workflows/validate-godot.yml"
 
 permissions:
@@ -113,6 +117,13 @@ jobs:
 
       - name: Verify mobile, building-door and same-world interior interaction flows
         run: python3 -m unittest discover -s tests -p "test_mobile_interaction_flow.py" -v
+
+      - name: Verify real Shariatpur shop footprint selector
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/select_shariatpur_art_target.py
+          python3 -m unittest discover -s tests -p "test_select_shariatpur_art_target.py" -v
 
       - name: Restore cached Quaternius CC0 hero and animation libraries
         uses: actions/cache@v4
@@ -260,6 +271,39 @@ jobs:
           unzip -q "$RUNNER_TEMP/godot/godot.zip" -d "$RUNNER_TEMP/godot"
           chmod +x "$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
 
+      - name: Restore exact Shariatpur source map and select one real retail building
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/shariatpur-source-map
+          gh run download 44264284704 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "Project-A-Square-Shariatpur-Review-Map-44257499872" \
+            --dir build/shariatpur-source-map
+          python3 tools/select_shariatpur_art_target.py \
+            --map-root build/shariatpur-source-map \
+            --out-dir build/shariatpur-art-map-smoke \
+            --source-run-id 44264284704 \
+            --source-commit 7a0d5831816e870004a1b45ac4d1f800d25653e1 \
+            --sequence-id 44257499872
+          mkdir -p assets/world/dhaka_tiles
+          cp -a build/shariatpur-art-map-smoke/selected-map/. assets/world/dhaka_tiles/
+          python3 tools/map_pipeline/build_real_world_navigation_index.py \
+            --source assets/world/dhaka_tiles \
+            --out assets/world/dhaka_tiles/real_world_navigation_index.json \
+            --runtime
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          import json
+          from pathlib import Path
+          report = json.loads(Path("build/shariatpur-art-map-smoke/shariatpur_art_target.json").read_text(encoding="utf-8"))
+          selected = report["selected_building"]
+          print("WSB_EXPECT_INTERIOR_OSM_ID=" + str(selected["osm_id"]))
+          print("WSB_SELECTED_SHARIATPUR_TILE_ID=" + str(selected["tile_id"]))
+          PY
+          cat build/shariatpur-art-map-smoke/shariatpur_art_target.json
+
       - name: Parse and import all project scripts
         shell: bash
         run: |
@@ -363,7 +407,7 @@ jobs:
           set -euo pipefail
           GODOT="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
           set +e
-          WSB_AUTOSTART_MAP_FOR_SMOKE=1 timeout 30s "$GODOT" --headless --path . --quit-after 600 > "$RUNNER_TEMP/godot/startup.log" 2>&1
+          WSB_AUTOSTART_MAP_FOR_SMOKE=1 WSB_EXPECT_INTERIOR_OSM_ID="$WSB_EXPECT_INTERIOR_OSM_ID" timeout 45s "$GODOT" --headless --path . --quit-after 900 > "$RUNNER_TEMP/godot/startup.log" 2>&1
           result=$?
           set -e
           cat "$RUNNER_TEMP/godot/startup.log"
@@ -373,6 +417,19 @@ jobs:
           if grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|Invalid call|Invalid get index|ERROR:" "$RUNNER_TEMP/godot/startup.log"; then
             exit 1
           fi
+
+          grep -Fq "REAL_MAP_TILE_ACTIVE:" "$RUNNER_TEMP/godot/startup.log" || {
+            echo "The exact Shariatpur source tile did not become active in Godot."
+            exit 1
+          }
+          grep -Fq "A2_REAL_SHARIATPUR_DOOR_ANCHOR_READY:" "$RUNNER_TEMP/godot/startup.log" || {
+            echo "The selected mapped OSM shop door anchor was not created in the streamed world."
+            exit 1
+          }
+          grep -Fq "$WSB_EXPECT_INTERIOR_OSM_ID" "$RUNNER_TEMP/godot/startup.log" || {
+            echo "The streamed door anchor did not match the exact selected OSM building."
+            exit 1
+          }
 
           if python3 -c 'import json,pathlib; p=pathlib.Path("external_content/ara3d_operator/ara_asset_manifest.json"); raise SystemExit(0 if p.exists() and json.loads(p.read_text(encoding="utf-8")).get("available") is True else 1)'; then
             grep -Fq "ARA3D_OPERATOR_READY" "$RUNNER_TEMP/godot/startup.log" || {
@@ -412,4 +469,5 @@ jobs:
           name: Godot-Runtime-Validation-Logs
           path: ${{ runner.temp }}/godot/*.log
           if-no-files-found: ignore
+            build/shariatpur-art-map-smoke/shariatpur_art_target.json
           retention-days: 14
