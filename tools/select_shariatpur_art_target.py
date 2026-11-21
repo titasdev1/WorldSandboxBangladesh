@@ -236,6 +236,12 @@ def select(map_root: pathlib.Path, out_dir: pathlib.Path, asset_width: float, as
     subset_manifest["tile_count_with_geometry"] = 1
     subset_manifest["tile_count_intersecting_boundary"] = 1
     subset_manifest["complete_district_map"] = False
+    # The validation-only world origin is shifted onto the chosen real shop so
+    # the current player's zero-position spawn exercises its actual entrance.
+    # This changes only the one-tile smoke manifest, never the source district.
+    subset_manifest["game_origin_lat_lon"] = [
+        winner["details"]["latitude"], winner["details"]["longitude"]
+    ]
     subset_manifest["validation_subset"] = {
         "kind": "ONE_TILE_ART_AND_DOOR_SMOKE_ONLY",
         "source_tile_count": 60,
