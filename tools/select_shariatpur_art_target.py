@@ -178,6 +178,25 @@ def select(map_root: pathlib.Path, out_dir: pathlib.Path, asset_width: float, as
     if not candidates:
         raise RuntimeError("No OSM/Overture retail footprint with a mapped entrance and usable geometry was found.")
 
+    game_origin = manifest.get("game_origin_lat_lon", [])
+    if isinstance(game_origin, list) and len(game_origin) == 2:
+        origin_lat, origin_lon = float(game_origin[0]), float(game_origin[1])
+        for candidate in candidates:
+            detail = candidate["details"]
+            lat, lon = float(detail["latitude"]), float(detail["longitude"])
+            p1, p2 = math.radians(origin_lat), math.radians(lat)
+            dlat = p2 - p1
+            dlon = math.radians(lon - origin_lon)
+            haversine = math.sin(dlat / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlon / 2) ** 2
+            distance = 2 * EARTH_RADIUS_M * math.asin(min(1.0, math.sqrt(haversine)))
+            detail["distance_from_game_origin_m"] = round(distance, 2)
+            # The one-tile smoke starts the player at the Shariatpur map origin.
+            # Exclude candidates outside the loader's default local stream radius.
+            candidate["score"] += distance / 12000.0
+        candidates = [candidate for candidate in candidates
+                      if candidate["details"].get("distance_from_game_origin_m", 1.0e9) <= 2200.0]
+        if not candidates:
+            raise RuntimeError("No retail/entrance candidate lies within 2.2 km of the Shariatpur game origin.")
     candidates.sort(key=lambda item: item["score"])
     winner = candidates[0]
     tile = winner["tile"]
