@@ -358,3 +358,152 @@ def build_shopfront(mats: dict[str,bpy.types.Material]) -> None:
 
     # Air-conditioning condenser with real grille depth and fan cage.
     box("AC_Condenser_Housing", (5.62,-3.36,5.25), (1.00,0.42,0.78), mats["steel"],0.055)
+    for i in range(13):
+        z=4.93+i*0.052
+        curve("AC_Condenser_Fin", ((5.13,-3.60,z),(6.11,-3.60,z)),0.009,mats["steel"])
+    cylinder("AC_Fan_Rim", (5.63,-3.62,5.26),0.255,0.04,mats["steel"],32,"Y")
+    cylinder("AC_Fan_Hub", (5.63,-3.66,5.26),0.065,0.06,mats["wood"],20,"Y")
+    for i in range(5):
+        angle=2*math.pi*i/5
+        curve("AC_Fan_Blade", ((5.63,-3.67,5.26),
+                                (5.63+math.cos(angle)*0.12,-3.67,5.26+math.sin(angle)*0.12),
+                                (5.63+math.cos(angle+0.55)*0.25,-3.67,5.26+math.sin(angle+0.55)*0.25)),0.025,mats["steel"])
+    curve("AC_Coolant_Conduit", ((5.25,-3.70,4.98),(5.20,-3.76,4.45),(5.50,-3.76,4.12)),0.028,mats["steel"])
+
+    # Meter cabinet, service cable, old drain and downpipe along the right edge.
+    box("Utility_Meter_Cabinet", (5.59,-3.92,2.82), (0.40,0.20,0.62), mats["wood"],0.03)
+    box("Electric_Meter_Glass", (5.59,-4.04,2.84), (0.25,0.03,0.30), mats["glass"],0.015)
+    for x in (5.46,5.72):
+        cylinder("Meter_Conduit",(x,-4.06,2.38),0.025,0.58,mats["steel"],12)
+    curve("Facade_Service_Cable", ((5.5,-4.02,3.18),(5.5,-4.10,3.55),(4.7,-4.12,3.62),(3.7,-4.11,3.64),(2.2,-4.10,3.62)),0.018,mats["steel"])
+    curve("Roof_Edge_Conduit", ((4.95,-4.08,7.45),(5.30,-4.08,7.65),(5.35,-4.08,8.15),(5.35,-4.08,8.62)),0.024,mats["steel"])
+    curve("Rainwater_Downpipe", ((-5.27,-4.08,8.58),(-5.27,-4.08,7.8),(-5.30,-4.08,4.3),(-5.27,-4.08,0.18)),0.045,mats["steel"])
+    for z in (1.0,3.0,5.0,7.0):
+        curve("Downpipe_Clips", ((-5.34,-4.12,z),(-5.19,-4.12,z)),0.025,mats["steel"])
+
+    # Front elevation wall lights, number plate, grille, drain and threshold details.
+    for x in (-4.15,4.15):
+        box("Wall_Light_Base", (x,-4.37,3.20), (0.16,0.08,0.23), mats["steel"],0.022)
+        cylinder("Wall_Light_Diffuser", (x,-4.43,3.03),0.105,0.13,mats["glass"],20,"Y")
+    box("Street_Number_Plate", (-5.02,-4.34,2.48), (0.35,0.08,0.42), mats["wood"],0.02)
+    text_mesh("Street_Number", "17", (-5.02,-4.40,2.49),0.22,mats["letter"],font)
+    # Drain grille aligned with the kerb at the frontage; gameplay collision comes from the map layer.
+    box("Front_Drain_Frame", (0,-5.05,0.055), (2.6,0.54,0.10), mats["steel"],0.025)
+    for x in [(-1.18+i*0.24) for i in range(11)]:
+        box("Drain_Grille_Slot", (x,-5.05,0.115), (0.045,0.48,0.025), mats["wood"],0.004)
+    for x in (-5.1,-3.0,0.0,3.0,5.1):
+        box("Facade_Foundation_Stone", (x,-4.15,0.12), (0.52,0.38,0.24), mats["concrete"],0.025)
+
+    # Rooftop service aerial with braced mast and simple dish.
+    cylinder("Aerial_Mast",(4.85,2.9,9.24),0.028,1.6,mats["steel"],12)
+    for z in (8.75,9.20,9.66):
+        curve("Aerial_Crossbar", ((4.35,2.9,z),(5.35,2.9,z)),0.018,mats["steel"])
+    curve("Aerial_Dish_Rim", ((4.15,2.65,9.15),(4.28,2.43,9.15),(4.52,2.32,9.15),(4.75,2.43,9.15),(4.88,2.65,9.15)),0.018,mats["steel"])
+
+
+def combine_asset() -> bpy.types.Object:
+    bpy.ops.object.select_all(action="DESELECT")
+    for obj in ASSET_OBJECTS: obj.select_set(True)
+    active=ASSET_OBJECTS[0]
+    bpy.context.view_layer.objects.active=active
+    bpy.ops.object.join()
+    root=bpy.context.object
+    root.name=ASSET_NAME
+    root.data.name=ASSET_NAME+"_Mesh"
+    bpy.context.scene.cursor.location=(0,0,0)
+    bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
+    root["a2_asset_id"]="shariatpur_riverfront_shophouse_hero"
+    root["a2_asset_category"]="Bangladesh river-town mixed-use shopfront"
+    root["a2_geographic_status"]="AUTHORED_ARCHETYPE_NOT_A_SURVEYED_BUILDING"
+    root["a2_gameplay_rule"]="Visual shell only; use OSM footprint, separate collision, entrance and floor graph"
+    root["a2_texture_policy"]="2K base colour; 2K normal and roughness; embedded GLB images"
+    for polygon in root.data.polygons: polygon.use_smooth=False
+    return root
+
+
+def render_preview(root: bpy.types.Object, preview_path: pathlib.Path) -> None:
+    # Temporary studio deck and lights are not part of the exported asset.
+    bpy.ops.mesh.primitive_plane_add(size=40, location=(0,0,-0.07))
+    floor=bpy.context.object; floor.name="PREVIEW_ONLY_StudioFloor"
+    floor_mat=bpy.data.materials.new("PREVIEW_ONLY_WarmNeutralDeck"); floor_mat.diffuse_color=(0.18,0.20,0.19,1); floor_mat.roughness=0.92
+    floor.data.materials.append(floor_mat)
+    world=bpy.data.worlds.new("A2_Preview_StudioWorld"); world.use_nodes=True
+    world.node_tree.nodes["Background"].inputs["Color"].default_value=(0.17,0.21,0.22,1)
+    world.node_tree.nodes["Background"].inputs["Strength"].default_value=0.38
+    bpy.context.scene.world=world
+
+    def area(name, loc, energy, colour, size, target=(0,0,4.5)):
+        data=bpy.data.lights.new(name,"AREA"); data.energy=energy; data.color=colour; data.shape="DISK"; data.size=size
+        obj=bpy.data.objects.new(name,data); bpy.context.collection.objects.link(obj); obj.location=loc
+        direction=Vector(target)-obj.location; obj.rotation_euler=direction.to_track_quat("-Z","Y").to_euler()
+        return obj
+    area("PREVIEW_Key_Softbox",(2,-12,15),2100,(1.0,0.82,0.66),9)
+    area("PREVIEW_Cool_Fill",(-12,-5,8),1450,(0.60,0.76,1.0),8)
+    area("PREVIEW_Rim",(3,8,12),2300,(1.0,0.88,0.70),7)
+    cam_data=bpy.data.cameras.new("PREVIEW_Front_ThreeQuarter_Camera")
+    cam=bpy.data.objects.new("PREVIEW_Front_ThreeQuarter_Camera",cam_data); bpy.context.collection.objects.link(cam)
+    cam.location=(14,-22,12.8); target=Vector((0,-0.1,4.7)); cam.rotation_euler=(target- cam.location).to_track_quat("-Z","Y").to_euler()
+    cam_data.type="ORTHO"; cam_data.ortho_scale=17.5
+    scene=bpy.context.scene; scene.camera=cam
+    scene.render.engine="BLENDER_EEVEE_NEXT"
+    scene.eevee.taa_render_samples=48
+    scene.render.resolution_x=1600; scene.render.resolution_y=1300; scene.render.resolution_percentage=100
+    scene.render.image_settings.file_format="PNG"; scene.render.film_transparent=False
+    scene.view_settings.view_transform="AgX"
+    scene.render.filepath=str(preview_path)
+    # The GLB remains a single mesh; preview-only ground, camera and lights are deselected.
+    bpy.ops.object.select_all(action="DESELECT"); root.select_set(True); bpy.context.view_layer.objects.active=root
+    bpy.ops.render.render(write_still=True)
+    for obj in (floor,cam):
+        bpy.data.objects.remove(obj,do_unlink=True)
+    for obj in list(bpy.data.objects):
+        if obj.name.startswith("PREVIEW_"):
+            bpy.data.objects.remove(obj,do_unlink=True)
+
+
+def main() -> int:
+    args=args_from_cli()
+    args.out.parent.mkdir(parents=True,exist_ok=True); args.preview.parent.mkdir(parents=True,exist_ok=True)
+    reset_scene()
+    mats=load_materials(args.textures)
+    build_shopfront(mats)
+    root=combine_asset()
+    # Triangle count is the final evaluated source mesh count, not an arbitrary target claim.
+    triangles=sum(len(poly.vertices)-2 for poly in root.data.polygons)
+    bounds=root.dimensions.copy()
+    if min(bounds.x,bounds.y,bounds.z) <= 0:
+        raise RuntimeError(f"Invalid model bounds: {tuple(bounds)}")
+    bpy.context.scene.render.resolution_percentage=100
+    render_preview(root,args.preview)
+    bpy.ops.object.select_all(action="DESELECT"); root.select_set(True); bpy.context.view_layer.objects.active=root
+    bpy.ops.export_scene.gltf(filepath=str(args.out),export_format="GLB",use_selection=True,
+                              export_apply=True,export_materials="EXPORT",export_image_format="AUTO",
+                              export_tangents=True)
+    license_path=args.out.parent/"LICENSE.txt"; license_path.write_text(LICENSE_TEXT,encoding="utf-8")
+    texture_manifest=args.textures/"texture_manifest.json"
+    texture_info=json.loads(texture_manifest.read_text(encoding="utf-8")) if texture_manifest.is_file() else {}
+    manifest={
+        "schema_version":1,"asset_id":"shariatpur_riverfront_shophouse_hero","asset_name":ASSET_NAME,
+        "description":"Original, detailed Bangladesh river-town mixed-use shopfront archetype for the Shariatpur visual slice.",
+        "geographic_status":"AUTHORED_ARCHETYPE_NOT_A_SURVEYED_BUILDING",
+        "runtime_placement":"Must be matched to a verified OSM building footprint and scaled only within documented tolerance; do not replace OSM navigation/collision/door graphs.",
+        "license":"CC0-1.0","license_file":"LICENSE.txt","source":"Original Blender authoring script and original PBR texture generator in this repository.",
+        "engine_target":"Godot 4.4.1","authoring_tool":"Blender 5.2.4 LTS","format":"glb",
+        "bounds_metres":{"width":round(float(bounds.x),3),"depth":round(float(bounds.y),3),"height":round(float(bounds.z),3)},
+        "triangle_count":triangles,"mesh_object_count":1,
+        "materials":[m.name for m in root.data.materials],"texture_manifest":str(texture_manifest),
+        "texture_resolution_policy":"2K base-colour, normal and roughness maps; embedded in GLB.",
+        "feature_inventory":["recessed timber and grilled windows","two ribbed shop roller shutters","Bengali shop sign and district lettering","upper balcony with metal balusters","corrugated awning and brackets","roof parapet and stair head","rooftop water tank and service pipes","AC condenser and cooling fan grille","utility meter, drain, downpipe and facade cables","wall lights and foundation stonework"],
+        "texture_surfaces":[item.get("name") for item in texture_info.get("surfaces",[])],
+        "quality_status":"CI_STRUCTURAL_VALIDATION_PENDING_VISUAL_AND_ANDROID_REVIEW",
+        "asset_file":args.out.name,"preview_file":args.preview.name,
+    }
+    manifest_path=args.out.parent/"asset_manifest.json"
+    manifest_path.write_text(json.dumps(manifest,indent=2,ensure_ascii=False)+"\n",encoding="utf-8")
+    print("A2_SHARIATPUR_STREETFRONT_READY: " + json.dumps({"asset":str(args.out),"triangles":triangles,
+          "bounds":manifest["bounds_metres"],"materials":len(root.data.materials),"preview":str(args.preview)}))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
