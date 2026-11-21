@@ -111,24 +111,44 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         self.assertIn("PREVIEW_RENDERED_NOT_ART_APPROVED", self.preview_script)
 
 
+
+    def test_rifle_fire_is_a_filtered_upper_body_oneshot_over_locomotion(self):
+        builder = function_block(self.visual, "_build_authored_locomotion_blend_space")
+        fire_request = function_block(self.visual, "_request_authored_fire_layer")
+        updater = function_block(self.visual, "_update_authored_animation")
+        self.assertIn("AnimationNodeBlendTree.new()", builder)
+        self.assertIn("AnimationNodeOneShot.new()", builder)
+        self.assertIn("fire_overlay.filter_enabled = true", builder)
+        self.assertIn("fire_overlay.set_filter_path(track_path, true)", builder)
+        self.assertIn('blend_tree.connect_node("RifleFire", 0, "Locomotion")', builder)
+        self.assertIn('blend_tree.connect_node("RifleFire", 1, "RifleFireClip")', builder)
+        self.assertIn('blend_tree.connect_node("output", 0, "RifleFire")', builder)
+        self.assertIn("parameters/RifleFire/request", fire_request)
+        self.assertIn("parameters/RifleFire/active", fire_request)
+        self.assertIn("_request_authored_fire_layer()", updater)
+        self.assertIn("not _authored_fire_layer_ready", updater)
+        self.assertIn("fire_overlay.is_path_filtered(track_path)", self.smoke)
+        self.assertIn("parameters/Locomotion/GroundLocomotion/blend_position", self.smoke)
+
     def test_aiming_uses_camera_relative_2d_directional_locomotion(self):
         self.assertIn("AnimationNodeStateMachine.new()", self.visual)
         self.assertIn("AnimationNodeBlendSpace2D.new()", self.visual)
+        self.assertIn("AnimationNodeBlendTree.new()", self.visual)
         self.assertIn('state_machine.add_node("GroundLocomotion", ground_space', self.visual)
         self.assertIn('state_machine.add_node("AimLocomotion", aim_space', self.visual)
         self.assertIn('state_machine.add_transition("GroundLocomotion", "AimLocomotion"', self.visual)
         self.assertIn('state_machine.add_transition("AimLocomotion", "GroundLocomotion"', self.visual)
         self.assertIn("global_basis.orthonormalized().inverse()", self.visual)
         self.assertIn("Vector2(local_velocity.x, -local_velocity.z)", self.visual)
-        self.assertIn("parameters/AimLocomotion/blend_position", self.visual)
-        self.assertIn("parameters/GroundLocomotion/blend_position", self.visual)
+        self.assertIn("parameters/Locomotion/AimLocomotion/blend_position", self.visual)
+        self.assertIn("parameters/Locomotion/GroundLocomotion/blend_position", self.visual)
         for state in ("strafe_left", "strafe_right", "walk_back", "aim_walk"):
             self.assertIn(f'"{state}"', self.visual)
         for direction in ("Vector2(-1.0, 0.0)", "Vector2(1.0, 0.0)", "Vector2(0.0, 1.0)", "Vector2(0.0, -1.0)"):
             self.assertIn(direction, self.visual)
         self.assertIn('"AimLocomotion"', self.smoke)
         self.assertIn('"backward"', self.smoke)
-        self.assertIn("parameters/AimLocomotion/blend_position", self.smoke)
+        self.assertIn("parameters/Locomotion/AimLocomotion/blend_position", self.smoke)
 
 
     def test_directional_state_transition_smoke_advances_animation_tree_deterministically(self):

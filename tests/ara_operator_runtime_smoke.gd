@@ -61,14 +61,16 @@ func _run_smoke() -> void:
 		push_error("ARA3D_RUNTIME_FAIL: player did not select the expected Ara3D resources.")
 		quit(1)
 		return
-	if locomotion_tree == null or not (locomotion_tree.tree_root is AnimationNodeStateMachine):
-		push_error("ARA3D_RUNTIME_FAIL: locomotion AnimationTree state machine is missing.")
+	if locomotion_tree == null or not (locomotion_tree.tree_root is AnimationNodeBlendTree):
+		push_error("ARA3D_RUNTIME_FAIL: layered locomotion AnimationTree blend tree is missing.")
 		quit(1)
 		return
-	var locomotion_machine := locomotion_tree.tree_root as AnimationNodeStateMachine
-	var ground_space := locomotion_machine.get_node("GroundLocomotion") as AnimationNodeBlendSpace1D
-	var aim_space := locomotion_machine.get_node("AimLocomotion") as AnimationNodeBlendSpace2D
-	var locomotion_playback := locomotion_tree.get("parameters/playback") as AnimationNodeStateMachinePlayback
+	var layered_tree := locomotion_tree.tree_root as AnimationNodeBlendTree
+	var locomotion_machine := layered_tree.get_node("Locomotion") as AnimationNodeStateMachine
+	var fire_overlay := layered_tree.get_node("RifleFire") as AnimationNodeOneShot
+	var ground_space := locomotion_machine.get_node("GroundLocomotion") as AnimationNodeBlendSpace1D if locomotion_machine != null else null
+	var aim_space := locomotion_machine.get_node("AimLocomotion") as AnimationNodeBlendSpace2D if locomotion_machine != null else null
+	var locomotion_playback := locomotion_tree.get("parameters/Locomotion/playback") as AnimationNodeStateMachinePlayback
 	if (
 		ground_space == null
 		or ground_space.get_blend_point_count() < 4
@@ -77,6 +79,10 @@ func _run_smoke() -> void:
 		or not locomotion_machine.has_transition("GroundLocomotion", "AimLocomotion")
 		or not locomotion_machine.has_transition("AimLocomotion", "GroundLocomotion")
 		or locomotion_playback == null
+		or fire_overlay == null
+		or not fire_overlay.filter_enabled
+		or not bool(visual.get("_authored_fire_layer_ready"))
+		or int(visual.get("_authored_fire_layer_track_count")) < 1
 		or locomotion_tree.anim_player.is_empty()
 	):
 		push_error("ARA3D_RUNTIME_FAIL: ground/aim directional blend spaces or state transitions are incomplete.")
@@ -197,7 +203,7 @@ func _run_smoke() -> void:
 		visual.call("_set_authored_locomotion_blend", speed)
 		locomotion_tree.advance(1.0 / 60.0)
 		var expected_blend := clampf(speed, 0.0, 10.5)
-		var actual_blend := float(locomotion_tree.get("parameters/GroundLocomotion/blend_position"))
+		var actual_blend := float(locomotion_tree.get("parameters/Locomotion/GroundLocomotion/blend_position"))
 		if (
 			not locomotion_tree.active
 			or not is_equal_approx(actual_blend, expected_blend)
@@ -226,7 +232,7 @@ func _run_smoke() -> void:
 			quit(1)
 			return
 		locomotion_tree.advance(1.0 / 60.0)
-		var actual_aim_blend := locomotion_tree.get("parameters/AimLocomotion/blend_position") as Vector2
+		var actual_aim_blend := locomotion_tree.get("parameters/Locomotion/AimLocomotion/blend_position") as Vector2
 		if absf(actual_aim_blend.x - aim_case[1].x) > 0.0001 or absf(actual_aim_blend.y - aim_case[1].y) > 0.0001:
 			push_error("ARA3D_RUNTIME_FAIL: directional aim blend mapped " + String(aim_case[2]) + " incorrectly. actual=" + str(actual_aim_blend))
 			quit(1)
@@ -275,6 +281,29 @@ func _run_smoke() -> void:
 		])
 		quit(1)
 		return
+	# Verify the fire clip contains upper-body-only filter entries, then trigger it
+	# while the ground blend is moving. The base state and speed blend must persist.
+	var fire_clip := player.get_animation(String(lookup["shoot"]))
+	var filtered_upper_tracks := 0
+	for track_index in range(fire_clip.get_track_count()):
+		var track_path := fire_clip.track_get_path(track_index)
+		if visual.call("_is_upper_body_animation_track", track_path) == true and fire_overlay.is_path_filtered(track_path):
+			filtered_upper_tracks += 1
+	if filtered_upper_tracks < 1:
+		push_error("ARA3D_RUNTIME_FAIL: rifle-fire one-shot has no filtered upper-body animation tracks.")
+		quit(1)
+		return
+	locomotion_tree.set("parameters/RifleFire/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+	locomotion_tree.advance(1.0 / 60.0)
+	if (
+		bool(locomotion_tree.get("parameters/RifleFire/active")) != true
+		or String(locomotion_playback.get_current_node()) != "GroundLocomotion"
+		or not is_equal_approx(float(locomotion_tree.get("parameters/Locomotion/GroundLocomotion/blend_position")), 3.75)
+	):
+		push_error("ARA3D_RUNTIME_FAIL: upper-body fire overlay did not preserve moving ground locomotion.")
+		quit(1)
+		return
+
 	actor.velocity = Vector3.ZERO
 	visual.set_process(visual_process_was_enabled)
 	actor.set_physics_process(actor_physics_was_enabled)
