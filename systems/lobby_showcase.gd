@@ -7,6 +7,8 @@ class_name LobbyOperatorShowcase
 
 const BASE_CAMERA_SWAY_DEGREES := 4.0
 const CHARACTER_IDLE_SWAY_RADIANS := 0.12
+const LOBBY_IDLE_ACTIONS: Array[String] = ["idle_look", "idle_fidget", "idle_breathe"]
+const LOBBY_IDLE_ACTION_INTERVAL_SECONDS := 9.0
 
 var _player: CharacterBody3D
 var _visual: Node3D
@@ -18,6 +20,8 @@ var _enabled := false
 var _elapsed := 0.0
 var _camera_yaw_origin := 24.0
 var _visual_yaw_origin := 0.0
+var _next_idle_action_at := 5.0
+var _idle_action_cursor := 0
 
 
 func configure(player: CharacterBody3D) -> void:
@@ -54,6 +58,7 @@ func set_enabled(value: bool) -> void:
 		_camera_yaw_origin = float(_player.get("camera_yaw"))
 	if is_instance_valid(_visual):
 		_visual_yaw_origin = _visual.rotation.y
+	_next_idle_action_at = _elapsed + 4.0
 
 
 func _process(delta: float) -> void:
@@ -61,6 +66,9 @@ func _process(delta: float) -> void:
 		return
 	_elapsed += delta
 	global_position = _player.global_position
+	if _elapsed >= _next_idle_action_at:
+		_request_next_lobby_idle_action()
+		_next_idle_action_at = _elapsed + LOBBY_IDLE_ACTION_INTERVAL_SECONDS
 	if is_instance_valid(_visual):
 		_visual.rotation.y = _visual_yaw_origin + sin(_elapsed * 0.34) * CHARACTER_IDLE_SWAY_RADIANS
 	_player.set("camera_yaw", _camera_yaw_origin + sin(_elapsed * 0.22) * BASE_CAMERA_SWAY_DEGREES)
@@ -72,6 +80,20 @@ func _process(delta: float) -> void:
 		_key_light.light_energy = 1.25 + sin(_elapsed * 1.1) * 0.08
 	if is_instance_valid(_fill_light):
 		_fill_light.light_energy = 0.42 + sin(_elapsed * 0.8 + 1.2) * 0.04
+
+
+
+func _request_next_lobby_idle_action() -> void:
+	# Use the real authored rig clips when the selected operator package contains
+	# them. CharacterCreator/Quaternius fallbacks safely skip unavailable actions.
+	if not is_instance_valid(_visual) or not _visual.has_method("play_action"):
+		return
+	for offset in range(LOBBY_IDLE_ACTIONS.size()):
+		var index := (_idle_action_cursor + offset) % LOBBY_IDLE_ACTIONS.size()
+		var action_name := LOBBY_IDLE_ACTIONS[index]
+		if bool(_visual.call("play_action", action_name)):
+			_idle_action_cursor = (index + 1) % LOBBY_IDLE_ACTIONS.size()
+			return
 
 
 func _build_stage() -> void:
