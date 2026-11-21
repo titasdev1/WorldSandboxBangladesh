@@ -574,7 +574,7 @@ def build_shopfront(mats: dict[str,bpy.types.Material]) -> None:
         box("Wall_Light_Base", (x,-4.37,3.20), (0.16,0.08,0.23), mats["steel"],0.022)
         cylinder("Wall_Light_Diffuser", (x,-4.43,3.03),0.105,0.13,mats["glass"],20,"Y")
     box("Street_Number_Plate", (-5.02,-4.34,2.48), (0.35,0.08,0.42), mats["wood"],0.02)
-    text_mesh("Street_Number", "17", (-5.02,-4.40,2.49),0.22,mats["letter"],font)
+    text_mesh("Street_Number", "17", (-5.02,-4.40,2.49),0.22,mats["letter"],find_bengali_font())
     # Drain grille aligned with the kerb at the frontage; gameplay collision comes from the map layer.
     box("Front_Drain_Frame", (0,-5.05,0.055), (2.6,0.54,0.10), mats["steel"],0.025)
     for x in [(-1.18+i*0.24) for i in range(11)]:
