@@ -1643,6 +1643,7 @@ func _interior_anchor_placement(seed: Dictionary, tile_position: Vector3, road_r
 	# New map batches export a door location from the same footprint geometry used
 	# by the visible facade door. Prefer it over the legacy nearest-vertex guess so
 	# the interact point appears outside that building's actual rendered entrance.
+	var ground_y := float(seed.get("ground_elevation_m", 0.0))
 	var door_anchor: Array = seed.get("door_anchor_local_m", [])
 	var door_outward: Array = seed.get("door_outward_xy", [])
 	if door_anchor.size() >= 2 and door_outward.size() >= 2:
@@ -1651,7 +1652,7 @@ func _interior_anchor_placement(seed: Dictionary, tile_position: Vector3, road_r
 			var approach_distance := 1.25
 			var local_position := Vector2(float(door_anchor[0]), float(door_anchor[1])) + outward_xy * approach_distance
 			return {
-				"position": tile_position + Vector3(local_position.x, 0.15, -local_position.y),
+				"position": tile_position + Vector3(local_position.x, ground_y + 0.15, -local_position.y),
 				"direction": Vector3(outward_xy.x, 0.0, -outward_xy.y).normalized(),
 			}
 	var footprint: Array = seed.get("footprint_local_m", [])
@@ -1680,13 +1681,13 @@ func _interior_anchor_placement(seed: Dictionary, tile_position: Vector3, road_r
 				outward = Vector2(0, -1)
 			var local_anchor := best_vertex + outward * 1.8
 			return {
-				"position": tile_position + Vector3(local_anchor.x, 0.15, -local_anchor.y),
+				"position": tile_position + Vector3(local_anchor.x, ground_y + 0.15, -local_anchor.y),
 				"direction": Vector3(outward.x, 0.0, -outward.y).normalized(),
 			}
 	var local_point: Array = seed.get("anchor_local_m", [])
 	if local_point.size() >= 2:
 		return {
-			"position": tile_position + Vector3(float(local_point[0]), 0.15, -float(local_point[1])),
+			"position": tile_position + Vector3(float(local_point[0]), ground_y + 0.15, -float(local_point[1])),
 			"direction": Vector3(0, 0, 1),
 		}
 	return {"position": tile_position, "direction": Vector3(0, 0, 1)}
@@ -1819,7 +1820,12 @@ func _add_seed_building_collisions(root: Node3D, record: Dictionary, player_posi
 			height = clampf(float(raw_height), 2.5, 120.0)
 		var static_body := StaticBody3D.new()
 		static_body.name = "BuildingCollisionSeed_" + str(seed.get("osm_id", "unknown"))
-		static_body.position = Vector3((float(item["min_x"]) + float(item["max_x"])) * 0.5, height * 0.5, -(float(item["min_y"]) + float(item["max_y"])) * 0.5)
+		var ground_elevation := float(seed.get("ground_elevation_m", 0.0))
+		static_body.position = Vector3(
+			(float(item["min_x"]) + float(item["max_x"])) * 0.5,
+			ground_elevation + height * 0.5,
+			-(float(item["min_y"]) + float(item["max_y"])) * 0.5
+		)
 		var collision := CollisionShape3D.new()
 		collision.name = "BuildingFootprintCollision"
 		var shape := BoxShape3D.new()
@@ -1829,3 +1835,47 @@ func _add_seed_building_collisions(root: Node3D, record: Dictionary, player_posi
 		root.add_child(static_body)
 		if (index + 1) % 16 == 0:
 			await get_tree().process_frame
+
+
+func set_seed_building_collision_enabled(osm_id: String, tile_id: String, enabled: bool) -> bool:
+	# Disable only the matching footprint collider while the player occupies
+	# this building's interior at its actual streamed world coordinates.
+	var expected_name := "BuildingCollisionSeed_" + osm_id
+	for tile_key_value in _loaded.keys():
+		var tile_key := str(tile_key_value)
+		var record_variant: Variant = _loaded.get(tile_key)
+		if not (record_variant is Dictionary):
+			continue
+		var record: Dictionary = record_variant
+		var record_tile_id := str(record.get("tile_id", tile_key))
+		if not tile_id.is_empty() and record_tile_id != tile_id and tile_key != tile_id:
+			continue
+		var root := record.get("instance") as Node3D
+		if not is_instance_valid(root):
+			continue
+		var body := root.get_node_or_null(expected_name) as StaticBody3D
+		if not is_instance_valid(body):
+			continue
+		if enabled:
+			body.collision_layer = int(body.get_meta("a2_previous_collision_layer", 1))
+			body.collision_mask = int(body.get_meta("a2_previous_collision_mask", 1))
+			for shape_node in body.find_children("*", "CollisionShape3D", true, false):
+				var collision := shape_node as CollisionShape3D
+				if is_instance_valid(collision):
+					collision.disabled = false
+			body.remove_meta("a2_previous_collision_layer")
+			body.remove_meta("a2_previous_collision_mask")
+			body.set_meta("a2_interior_collision_disabled", false)
+		else:
+			if not body.has_meta("a2_interior_collision_disabled") or body.get_meta("a2_interior_collision_disabled") != true:
+				body.set_meta("a2_previous_collision_layer", body.collision_layer)
+				body.set_meta("a2_previous_collision_mask", body.collision_mask)
+			body.collision_layer = 0
+			body.collision_mask = 0
+			for shape_node in body.find_children("*", "CollisionShape3D", true, false):
+				var collision := shape_node as CollisionShape3D
+				if is_instance_valid(collision):
+					collision.disabled = true
+			body.set_meta("a2_interior_collision_disabled", true)
+		return true
+	return false
