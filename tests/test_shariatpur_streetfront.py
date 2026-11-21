@@ -59,6 +59,10 @@ class ShariatpurStreetfrontAuthoringTests(unittest.TestCase):
             self.assertIn(marker, self.verifier)
         self.assertIn("STRUCTURAL_PASS_VISUAL_APPROVAL_AND_ANDROID_RUNTIME_STILL_REQUIRED", self.verifier)
 
+    def test_blender_524_uses_supported_eevee_render_engine(self):
+        self.assertIn('scene.render.engine="BLENDER_EEVEE"', self.builder)
+        self.assertNotIn('BLENDER_EEVEE_NEXT', self.builder)
+
     def test_blender_workflow_builds_and_uploads_the_streetfront_asset(self):
         for marker in (
             "build_shariatpur_riverfront_shophouse.py",
