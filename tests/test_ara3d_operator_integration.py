@@ -130,6 +130,15 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         self.assertIn('"backward"', self.smoke)
         self.assertIn("parameters/AimLocomotion/blend_position", self.smoke)
 
+
+    def test_state_machine_starts_first_state_before_travelling_between_locomotion_modes(self):
+        travel = block(self.visual, "func _travel_authored_locomotion_state", "func _set_authored_locomotion_blend")
+        self.assertIn("get_current_node()", travel)
+        self.assertIn("current_state.is_empty()", travel)
+        self.assertIn("playback.start(state_name)", travel)
+        self.assertIn("playback.travel(state_name)", travel)
+        self.assertIn("await process_frame", self.smoke)
+        self.assertIn("visual.set_process(false)", self.smoke)
     def test_runtime_smoke_covers_rig_textures_weapon_and_real_animation(self):
         for marker in ("ARA3D_RUNTIME_PASS", "RightHand", "WeaponR", "textured_surface_count", "LOOP_LINEAR", "first_person_body=true", "BR_parachute_states=true"):
             self.assertIn(marker, self.smoke)

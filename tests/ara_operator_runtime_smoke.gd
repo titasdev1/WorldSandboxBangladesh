@@ -180,6 +180,13 @@ func _run_smoke() -> void:
 		push_error("ARA3D_RUNTIME_FAIL: urban patrol material preset could not be applied.")
 		quit(1)
 	visual.call("apply_operator_preset", "field_tactical")
+	# Keep the smoke's airborne controller from overriding the blend-space
+	# selection while the AnimationTree advances its first state/transition frame.
+	var visual_process_was_enabled := visual.is_processing()
+	var actor_physics_was_enabled := actor.is_physics_processing()
+	visual.set_process(false)
+	actor.set_physics_process(false)
+
 	# Exercise the speed-driven blend space directly before testing discrete
 	# gameplay actions. Values must clamp to the blend-space range, not leak into
 	# the AnimationPlayer's current one-shot action.
@@ -187,6 +194,7 @@ func _run_smoke() -> void:
 		# Inspect immediately, before the ungrounded smoke actor's regular process
 		# tick legitimately selects its fall state and disables ground locomotion.
 		visual.call("_set_authored_locomotion_blend", speed)
+		await process_frame
 		var expected_blend := clampf(speed, 0.0, 10.5)
 		var actual_blend := float(locomotion_tree.get("parameters/GroundLocomotion/blend_position"))
 		if (
@@ -216,6 +224,7 @@ func _run_smoke() -> void:
 			push_error("ARA3D_RUNTIME_FAIL: directional aim blend rejected the " + String(aim_case[2]) + " movement vector.")
 			quit(1)
 			return
+		await process_frame
 		var actual_aim_blend := locomotion_tree.get("parameters/AimLocomotion/blend_position") as Vector2
 		if not is_equal_approx(actual_aim_blend.x, aim_case[1].x) or not is_equal_approx(actual_aim_blend.y, aim_case[1].y):
 			push_error("ARA3D_RUNTIME_FAIL: directional aim blend mapped " + String(aim_case[2]) + " incorrectly. actual=" + str(actual_aim_blend))
@@ -227,11 +236,14 @@ func _run_smoke() -> void:
 			return
 
 	visual.call("_set_authored_locomotion_blend", 3.75)
+	await process_frame
 	if String(locomotion_playback.get_current_node()) != "GroundLocomotion":
 		push_error("ARA3D_RUNTIME_FAIL: leaving ADS did not transition back to ground locomotion.")
 		quit(1)
 		return
 	actor.velocity = Vector3.ZERO
+	visual.set_process(visual_process_was_enabled)
+	actor.set_physics_process(actor_physics_was_enabled)
 
 	# Exercise the public gameplay action entry point. Calling the private player
 	# method directly is immediately superseded by _process() when the smoke actor

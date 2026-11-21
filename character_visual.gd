@@ -1063,9 +1063,10 @@ func _build_authored_locomotion_blend_space() -> bool:
 func _travel_authored_locomotion_state(state_name: String) -> void:
     if not is_instance_valid(_authored_locomotion_playback):
         return
-    if not _authored_locomotion_playback.is_playing():
+    var current_state := String(_authored_locomotion_playback.get_current_node())
+    if current_state.is_empty() or not _authored_locomotion_playback.is_playing():
         _authored_locomotion_playback.start(state_name)
-    elif String(_authored_locomotion_playback.get_current_node()) != state_name:
+    elif current_state != state_name:
         _authored_locomotion_playback.travel(state_name)
 
 
