@@ -935,61 +935,61 @@ func _build_charactercreator_combat_gear(skeleton: Skeleton3D) -> void:
 
 
 func _build_authored_locomotion_blend_space() -> bool:
-	if not is_instance_valid(_authored_hero) or not is_instance_valid(_authored_animation_player):
-		return false
+    if not is_instance_valid(_authored_hero) or not is_instance_valid(_authored_animation_player):
+        return false
 
-	var idle_name := String(_authored_animation_lookup.get("idle", ""))
-	var walk_name := String(_authored_animation_lookup.get("walk", ""))
-	var run_name := String(_authored_animation_lookup.get("run", ""))
-	var sprint_name := String(_authored_animation_lookup.get("sprint", ""))
-	if idle_name.is_empty() or walk_name.is_empty() or run_name.is_empty():
-		return false
+    var idle_name := String(_authored_animation_lookup.get("idle", ""))
+    var walk_name := String(_authored_animation_lookup.get("walk", ""))
+    var run_name := String(_authored_animation_lookup.get("run", ""))
+    var sprint_name := String(_authored_animation_lookup.get("sprint", ""))
+    if idle_name.is_empty() or walk_name.is_empty() or run_name.is_empty():
+        return false
 
-	# Keep the blend space private to this character instance. AnimationTree
-	# resources are mutable; sharing one root between operators would couple
-	# their blend positions and cause one actor's movement to drive another.
-	var blend_space := AnimationNodeBlendSpace1D.new()
-	blend_space.min_space = 0.0
-	blend_space.max_space = _authored_locomotion_blend_max_speed
-	blend_space.snap = 0.05
-	blend_space.sync = true
+    # Keep the blend space private to this character instance. AnimationTree
+    # resources are mutable; sharing one root between operators would couple
+    # their blend positions and cause one actor's movement to drive another.
+    var blend_space := AnimationNodeBlendSpace1D.new()
+    blend_space.min_space = 0.0
+    blend_space.max_space = _authored_locomotion_blend_max_speed
+    blend_space.snap = 0.05
+    blend_space.sync = true
 
-	var states: Array[String] = ["idle", "walk", "run"]
-	var positions: Array[float] = [0.0, 2.5, 5.5]
-	if not sprint_name.is_empty() and sprint_name != run_name:
-		states.append("sprint")
-		positions.append(_authored_locomotion_blend_max_speed)
-	elif sprint_name == run_name:
-		_authored_locomotion_blend_max_speed = 5.5
+    var states: Array[String] = ["idle", "walk", "run"]
+    var positions: Array[float] = [0.0, 2.5, 5.5]
+    if not sprint_name.is_empty() and sprint_name != run_name:
+        states.append("sprint")
+        positions.append(_authored_locomotion_blend_max_speed)
+    elif sprint_name == run_name:
+        _authored_locomotion_blend_max_speed = 5.5
 
-	for index in range(states.size()):
-		var animation_name := String(_authored_animation_lookup.get(states[index], ""))
-		if animation_name.is_empty():
-			return false
-		var animation_node := AnimationNodeAnimation.new()
-		animation_node.animation = StringName(animation_name)
-		blend_space.add_blend_point(animation_node, positions[index])
+    for index in range(states.size()):
+        var animation_name := String(_authored_animation_lookup.get(states[index], ""))
+        if animation_name.is_empty():
+            return false
+        var animation_node := AnimationNodeAnimation.new()
+        animation_node.animation = StringName(animation_name)
+        blend_space.add_blend_point(animation_node, positions[index])
 
-	_authored_locomotion_tree = AnimationTree.new()
-	_authored_locomotion_tree.name = "OperatorLocomotionTree"
-	_authored_locomotion_tree.tree_root = blend_space
-	_authored_hero.add_child(_authored_locomotion_tree)
-	_authored_locomotion_tree.anim_player = _authored_locomotion_tree.get_path_to(_authored_animation_player)
-	_authored_locomotion_tree.active = false
-	return not _authored_locomotion_tree.anim_player.is_empty()
+    _authored_locomotion_tree = AnimationTree.new()
+    _authored_locomotion_tree.name = "OperatorLocomotionTree"
+    _authored_locomotion_tree.tree_root = blend_space
+    _authored_hero.add_child(_authored_locomotion_tree)
+    _authored_locomotion_tree.anim_player = _authored_locomotion_tree.get_path_to(_authored_animation_player)
+    _authored_locomotion_tree.active = false
+    return not _authored_locomotion_tree.anim_player.is_empty()
 
 
 func _set_authored_locomotion_blend(planar_speed: float) -> void:
-	if not is_instance_valid(_authored_locomotion_tree):
-		return
-	_authored_locomotion_tree.active = true
-	_authored_locomotion_tree.set(
-		"parameters/blend_position",
-		clampf(planar_speed, 0.0, _authored_locomotion_blend_max_speed)
-	)
-	# The blend tree now owns playback. Clear the discrete player cache so
-	# returning to an event clip always issues a fresh AnimationPlayer.play().
-	_authored_current_animation = ""
+    if not is_instance_valid(_authored_locomotion_tree):
+        return
+    _authored_locomotion_tree.active = true
+    _authored_locomotion_tree.set(
+        "parameters/blend_position",
+        clampf(planar_speed, 0.0, _authored_locomotion_blend_max_speed)
+    )
+    # The blend tree now owns playback. Clear the discrete player cache so
+    # returning to an event clip always issues a fresh AnimationPlayer.play().
+    _authored_current_animation = ""
 
 
 func _configure_authored_animation_loops() -> void:
