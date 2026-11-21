@@ -60,8 +60,10 @@ class ShariatpurStreetfrontAuthoringTests(unittest.TestCase):
         self.assertIn("STRUCTURAL_PASS_VISUAL_APPROVAL_AND_ANDROID_RUNTIME_STILL_REQUIRED", self.verifier)
 
     def test_blender_524_uses_supported_eevee_render_engine(self):
-        self.assertIn('scene.render.engine="BLENDER_EEVEE"', self.builder)
-        self.assertNotIn('BLENDER_EEVEE_NEXT', self.builder)
+        self.assertIn('scene.render.engine="CYCLES"', self.builder)
+        self.assertIn('scene.cycles.device="CPU"', self.builder)
+        self.assertIn("A2_PROGRESS: render CPU PBR preview", self.builder)
+        self.assertNotIn("BLENDER_EEVEE_NEXT", self.builder)
 
     def test_blender_workflow_builds_and_uploads_the_streetfront_asset(self):
         for marker in (
