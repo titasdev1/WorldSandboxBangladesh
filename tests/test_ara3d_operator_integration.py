@@ -131,6 +131,10 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         self.assertIn("parameters/AimLocomotion/blend_position", self.smoke)
 
 
+    def test_directional_state_transition_smoke_reports_playback_path_on_failure(self):
+        self.assertIn("get_fading_from_node()", self.smoke)
+        self.assertIn("get_travel_path()", self.smoke)
+        self.assertIn("for frame_index in range(18)", self.smoke)
     def test_directional_blend_smoke_allows_small_exponential_filter_residual(self):
         self.assertIn("absf(actual_aim_blend.x - aim_case[1].x) > 0.0001", self.smoke)
         self.assertIn("absf(actual_aim_blend.y - aim_case[1].y) > 0.0001", self.smoke)

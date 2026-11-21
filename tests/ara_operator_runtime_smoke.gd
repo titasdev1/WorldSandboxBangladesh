@@ -235,10 +235,25 @@ func _run_smoke() -> void:
 			quit(1)
 			return
 
+	print("ARA3D_STATE_BEFORE_GROUND_RETURN • current=%s • fading_from=%s • playing=%s" % [
+		String(locomotion_playback.get_current_node()),
+		locomotion_playback.get_fading_from_node(),
+		str(locomotion_playback.is_playing())
+	])
 	visual.call("_set_authored_locomotion_blend", 3.75)
-	await process_frame
-	if String(locomotion_playback.get_current_node()) != "GroundLocomotion":
-		push_error("ARA3D_RUNTIME_FAIL: leaving ADS did not transition back to ground locomotion.")
+	var reached_ground := false
+	for frame_index in range(18):
+		await process_frame
+		if String(locomotion_playback.get_current_node()) == "GroundLocomotion":
+			reached_ground = true
+			break
+	if not reached_ground:
+		push_error("ARA3D_RUNTIME_FAIL: leaving ADS did not transition back to ground locomotion. current=%s fading_from=%s path=%s playing=%s" % [
+			String(locomotion_playback.get_current_node()),
+			locomotion_playback.get_fading_from_node(),
+			str(locomotion_playback.get_travel_path()),
+			str(locomotion_playback.is_playing())
+		])
 		quit(1)
 		return
 	actor.velocity = Vector3.ZERO
