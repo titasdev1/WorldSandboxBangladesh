@@ -32,12 +32,12 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
     def test_godot_validation_job_has_one_unambiguous_timeout(self):
         workflow = read(".github/workflows/validate-godot.yml")
         match = re.search(
-            r"(?ms)^  validate:\\n(?P<job>.*?)(?=^  [A-Za-z0-9_-]+:\\n|\\Z)",
+            r"(?ms)^  validate:\n(?P<job>.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
             workflow,
         )
         self.assertIsNotNone(match, "Missing Godot validation job")
         timeout_values = re.findall(
-            r"(?m)^    timeout-minutes:\\s*(\\d+)\\s*$",
+            r"(?m)^    timeout-minutes:\s*(\d+)\s*$",
             match.group("job"),
         )
         self.assertEqual(["40"], timeout_values)
