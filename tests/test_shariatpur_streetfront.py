@@ -36,9 +36,14 @@ class ShariatpurStreetfrontAuthoringTests(unittest.TestCase):
             "Water_Tank_Lid", "AC_Condenser_Fin", "Utility_Meter_Cabinet",
             "Rainwater_Downpipe", "Window_Security_Grill_Vertical",
             "Bengali_Shop_Name", "মা স্টোর", "শরীয়তপুর", "Roof_Parapet_Coping",
+            "Shop_Interior_Ceramic_Floor", "Shop_Left_Rack_Shelf", "Shop_Rear_Stock_Carton",
+            "Shop_Counter_Stone_Top", "Shop_Beverage_Cooler_Glass", "Shop_Ceiling_Fan_Blade",
+            "Side_Window_Security_Grille", "Side_Window_Concrete_Chajja", "Side_Wall_Damp_Stain",
         ):
             self.assertIn(marker, self.builder)
         self.assertIn("window_bay", self.builder)
+        self.assertIn("_add_shop_interior(mats,find_bengali_font())", self.builder)
+        self.assertIn("AUTHORED_VISUAL_INTERIOR_INCLUDED_NOT_A_SURVEYED_PRIVATE_FLOOR_PLAN", self.builder)
         self.assertIn("Window_Recess_Shadow", self.builder)
         self.assertNotIn("teleport", self.builder.lower())
 
