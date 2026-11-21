@@ -25,7 +25,7 @@ class ShariatpurStreetfrontAuthoringTests(unittest.TestCase):
             "Godot 4.4.1",
             "CC0 1.0 Universal",
             "No third-party game assets",
-            "No Google Earth/Maps 3D",
+            "no Google Earth/Maps 3D",
         ):
             self.assertIn(marker, self.builder)
         self.assertIn("Blender 5.2.4 LTS", self.builder)
