@@ -134,8 +134,10 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('TorusMesh.new()', self.showcase)
         self.assertIn('SpotLight3D.new()', self.showcase)
         self.assertIn('OmniLight3D.new()', self.showcase)
-        self.assertNotIn('load("res://', self.showcase)
-        self.assertNotIn('Texture2D', self.showcase)
+        self.assertIn('load("res://external_content/a_square_cinematic_lobby_stage.glb")', self.showcase)
+        self.assertIn("if stage_resource != null:", self.showcase)
+        self.assertIn("child.queue_free()", self.showcase)
+        self.assertNotIn("Texture2D", self.showcase)
 
 
     def test_lobby_requests_authored_idle_choreography_without_assuming_every_rig_has_each_clip(self):
