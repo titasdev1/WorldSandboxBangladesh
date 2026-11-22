@@ -191,7 +191,7 @@ func _show_guest_login_screen() -> void:
 	var panel := PanelContainer.new()
 	panel.name = "GuestLoginPanel"
 	panel.custom_minimum_size = Vector2(minf(440.0, maxf(280.0, get_viewport_rect().size.x - 44.0)), 0.0)
-	panel.add_theme_stylebox_override("panel", _panel_style(Color("#0b2032"), Color("#28b8d3"), 2, 18))
+	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.008, 0.026, 0.043, 0.78), Color(0.16, 0.62, 0.72, 0.92), 2, 18))
 	center.add_child(panel)
 
 	var content := VBoxContainer.new()
@@ -326,6 +326,26 @@ func _build_screen() -> void:
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(background)
+
+	# Keep one live cinematic street scene running beneath both the map installer
+	# and the guest-login presentation. The loading UI becomes translucent glass
+	# instead of cutting abruptly to a flat dark screen.
+	var cinematic_backdrop := SubViewportContainer.new()
+	cinematic_backdrop.name = "BootCinematicBackdrop"
+	cinematic_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	cinematic_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cinematic_backdrop.stretch = true
+	var backdrop_script := load("res://systems/login_backdrop_view.gd") as Script
+	if backdrop_script != null:
+		cinematic_backdrop.set_script(backdrop_script)
+	add_child(cinematic_backdrop)
+
+	var backdrop_shade := ColorRect.new()
+	backdrop_shade.name = "BootCinematicShade"
+	backdrop_shade.color = Color(0.008, 0.018, 0.03, 0.42)
+	backdrop_shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	backdrop_shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(backdrop_shade)
 
 	var shell := MarginContainer.new()
 	shell.name = "BootSafeMargins"
