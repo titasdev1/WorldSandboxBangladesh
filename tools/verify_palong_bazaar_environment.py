@@ -39,6 +39,12 @@ def verify(glb_path, manifest_path, license_path, preview_path, out_path):
         if not path.is_file():
             raise FileNotFoundError(f"Required corridor output is missing: {path}")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    polyhaven_manifest_path = pathlib.Path(str(manifest.get("texture_provenance_manifest", "")))
+    if not polyhaven_manifest_path.is_absolute():
+        polyhaven_manifest_path = pathlib.Path.cwd() / polyhaven_manifest_path
+    if not polyhaven_manifest_path.is_file():
+        raise FileNotFoundError(f"Poly Haven PBR provenance is required: {polyhaven_manifest_path}")
+    polyhaven_manifest = json.loads(polyhaven_manifest_path.read_text(encoding="utf-8"))
     gltf = read_glb(glb_path)
     raw_bytes = glb_path.stat().st_size
     images = gltf.get("images", [])
@@ -91,6 +97,9 @@ def verify(glb_path, manifest_path, license_path, preview_path, out_path):
         "preview_mean_channel_stddev": round(std, 2),
         "source_images_embedded": manifest.get("source_images_embedded"),
         "google_maps_3d_tiles_copied": manifest.get("google_maps_3d_tiles_copied"),
+        "pbr_material_provider": polyhaven_manifest.get("provider"),
+        "pbr_material_credit": polyhaven_manifest.get("provider_credit"),
+        "pbr_scan_material_count": len(polyhaven_manifest.get("materials", {})),
         "road_width_reference_m": manifest.get("road_width_reference_m"),
         "limitations": manifest.get("limitations", []),
     }
@@ -120,6 +129,22 @@ def verify(glb_path, manifest_path, license_path, preview_path, out_path):
         failures.append("Reference imagery/Google 3D data must not be embedded")
     if manifest.get("license") != "CC0-1.0" or "CC0 1.0 Universal" not in license_text:
         failures.append("Original asset licence is missing or unexpected")
+    if polyhaven_manifest.get("provider") != "Poly Haven" or polyhaven_manifest.get("asset_license") != "CC0-1.0":
+        failures.append("Poly Haven provider/CC0 provenance is missing or unexpected")
+    if polyhaven_manifest.get("provider_credit") != "Powered by Poly Haven":
+        failures.append("Required Poly Haven provider credit is missing")
+    pbr_sets = polyhaven_manifest.get("materials", {})
+    if len(pbr_sets) < 6:
+        failures.append(f"Expected at least six photo-scanned PBR sets, found {len(pbr_sets)}")
+    for material_name, pbr in pbr_sets.items():
+        if pbr.get("license") != "CC0-1.0":
+            failures.append(f"Poly Haven material {material_name} is missing a CC0 licence record")
+        maps = pbr.get("maps", {})
+        for semantic in ("base_color", "normal", "roughness"):
+            record = maps.get(semantic, {})
+            path = pathlib.Path(str(record.get("path", "")))
+            if not path.is_file() or not record.get("md5"):
+                failures.append(f"Poly Haven material {material_name} lacks verified {semantic} map file")
     if "No Google Maps/Street View" not in license_text and "No Google Maps/Street View" not in manifest_path.read_text(encoding="utf-8"):
         failures.append("Source provenance/licence statement does not exclude copied map imagery")
 
