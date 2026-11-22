@@ -58,7 +58,8 @@ def verify(path: Path) -> dict:
     expected = [
         "A_SQUARE_CINEMATIC_COMMAND_HALL",
         "ANIM | Orbit ring",
-        "Panoramic smoked window",
+        "Window | upper bronze lintel",
+        "ANIM | Operator halo outer",
         "Operator dais | satin crown",
     ]
     missing = [name for name in expected if name not in named_nodes]
