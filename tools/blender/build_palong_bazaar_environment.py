@@ -401,9 +401,9 @@ def add_store_interior(side: int, y: float, width: float, front: float,
     if kind in ("grocery", "hardware", "pharmacy", "stationery"):
         for shelf_y in (y - width * 0.32, y, y + width * 0.32):
             box("Shop_Left_Rack_Shelf", (side * (front + 0.02), shelf_y, 1.35),
-                (0.65, 0.10, 0.08), mats["wood"], root, 0.012)
+                (0.65, 0.10, 0.08), mats["aged_wood"], root, 0.012)
             box("Shop_Left_Rack_Shelf", (side * (front + 0.02), shelf_y, 2.02),
-                (0.65, 0.10, 0.08), mats["wood"], root, 0.012)
+                (0.65, 0.10, 0.08), mats["aged_wood"], root, 0.012)
             for item in range(3):
                 col = [mats["goods_red"], mats["goods_green"], mats["goods_gold"]][(item + int(shelf_y * 10)) % 3]
                 box("Shop_Stock_Packaging", (side * (front + 0.08), shelf_y + (item - 1) * 0.14, 1.68),
@@ -428,7 +428,7 @@ def add_store_interior(side: int, y: float, width: float, front: float,
         (0.88, width * 0.62, 0.12), mats["aged_concrete"], root, 0.025)
     if kind == "sweets":
         box("Sweets_Display_Case_Base", (side * (front + 0.31), y, 1.34),
-            (0.55, width * 0.55, 0.36), mats["wood"], root, 0.025)
+            (0.55, width * 0.55, 0.36), mats["aged_wood"], root, 0.025)
         for yy in (y - width * 0.25, y + width * 0.25):
             box("Sweets_Display_Glass", (side * (front + 0.09), yy, 1.55),
                 (0.45, 0.025, 0.38), mats["glass"], root, 0.01)
@@ -497,7 +497,8 @@ def add_shop_front(side: int, y: float, width: float, height: float,
     add_shop_sign(side, y, front, width, 3.18, sign_key, sign_mats, mats, root)
     if awning:
         make_awning(side, y - width * 0.12, front, min(width * 0.88, 5.3),
-                    2.86, mats, root, stripe=(kind in ("produce", "sweets", "grocery")))
+                    2.86, mats, root, stripe=(kind in ("produce", "sweets", "grocery")),
+                    metal=(kind in ("hardware", "stationery")))
     # Shop fascia and weathered concrete sill.
     box("Shopfront_Concrete_Sill", (side * (front - 0.10), y, 0.20),
         (0.18, width + 0.08, 0.25), mats["aged_concrete"], root, 0.02)
