@@ -1327,10 +1327,18 @@ func _geo_to_world(lat: float, lon: float) -> Vector3:
 	return Vector3(x, 0.0, -northing)
 
 func _find_predictive_prefetch_record(player_position: Vector3) -> Dictionary:
-	var player := _world.get("player") as CharacterBody3D if is_instance_valid(_world) else null
-	if not is_instance_valid(player):
+	if not is_instance_valid(_world):
 		return {}
-	var flat_velocity := Vector2(player.velocity.x, player.velocity.z)
+	var player := _world.get("player") as CharacterBody3D
+	var movement_source: CharacterBody3D = player
+	# While driving, the operator can remain seated and stationary relative to the
+	# vehicle. Use the actual vehicle velocity so high-speed roads prefetch ahead.
+	var occupied_vehicle := _world.get("occupied_vehicle") as CharacterBody3D
+	if is_instance_valid(occupied_vehicle) and bool(occupied_vehicle.get("occupied")):
+		movement_source = occupied_vehicle
+	if not is_instance_valid(movement_source):
+		return {}
+	var flat_velocity := Vector2(movement_source.velocity.x, movement_source.velocity.z)
 	var speed := flat_velocity.length()
 	if speed < PREDICTIVE_PREFETCH_MIN_SPEED_MPS:
 		return {}
@@ -1361,7 +1369,7 @@ func _find_predictive_prefetch_record(player_position: Vector3) -> Dictionary:
 			best_score = score
 			best_record = record
 	if not best_record.is_empty():
-		print("REAL_MAP_PREDICTIVE_PREFETCH: tile=", str(best_record.get("tile_id", "")), " speed_mps=", snappedf(speed, 0.1), " lookahead_m=", snappedf(lookahead, 1.0))
+		print("REAL_MAP_PREDICTIVE_PREFETCH: tile=", str(best_record.get("tile_id", "")), " mover=", movement_source.name, " speed_mps=", snappedf(speed, 0.1), " lookahead_m=", snappedf(lookahead, 1.0))
 	return best_record
 
 
