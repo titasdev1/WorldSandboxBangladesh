@@ -45,6 +45,7 @@ on:
       - "systems/login_operator_actor.gd"
       - "tests/login_backdrop_runtime_smoke.gd"
       - "tests/test_login_backdrop.py"
+      - "tests/login_backdrop_runtime_smoke.gd"
       - "tests/test_mobile_interaction_flow.py"
       - "project.godot"
       - "tests/test_dhaka_map_pipeline.py"
