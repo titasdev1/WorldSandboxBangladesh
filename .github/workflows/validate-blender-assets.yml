@@ -32,6 +32,10 @@ on:
       - "tests/test_cinematic_art_assets.py"
       - "tests/cinematic_art_runtime_smoke.gd"
       - "tests/test_shariatpur_streetfront.py"
+      - "tools/make_palong_bazaar_textures.py"
+      - "tools/blender/build_palong_bazaar_environment.py"
+      - "tools/verify_palong_bazaar_environment.py"
+      - "tests/test_palong_bazaar_environment.py"
       - ".github/workflows/validate-blender-assets.yml"
   pull_request:
     branches:
@@ -46,6 +50,10 @@ on:
       - "tools/build_shariatpur_riverfront_shophouse.py"
       - "tools/verify_shariatpur_streetfront.py"
       - "tests/test_shariatpur_streetfront.py"
+      - "tools/make_palong_bazaar_textures.py"
+      - "tools/blender/build_palong_bazaar_environment.py"
+      - "tools/verify_palong_bazaar_environment.py"
+      - "tests/test_palong_bazaar_environment.py"
       - ".github/workflows/validate-blender-assets.yml"
 
 permissions:
@@ -161,6 +169,66 @@ jobs:
             --out "${OUT_DIR}/streetfront_verification.json"
           python3 -m unittest discover -s tests -p "test_shariatpur_streetfront.py" -v
 
+      - name: Generate original PBR surfaces and shaped Bengali signs for Palong Bazar
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/palong-bazaar"
+          python3 tools/make_palong_bazaar_textures.py --out "${OUT_DIR}/textures" --size 2048
+          python3 -m json.tool "${OUT_DIR}/textures/texture_manifest.json" > /dev/null
+          grep -Fq "A2_PALONG_TEXTURES_READY" "${OUT_DIR}/textures/texture_manifest.json" || true
+
+      - name: Author the Palong Bazar market corridor in Blender 5.2.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/palong-bazaar"
+          mkdir -p "${OUT_DIR}"
+          if ! blender --background --factory-startup \
+            --python tools/blender/build_palong_bazaar_environment.py -- \
+            --out "${OUT_DIR}/palong_bazaar_market_corridor.glb" \
+            --textures "${OUT_DIR}/textures" \
+            --preview "${OUT_DIR}/palong_bazaar_preview.png" \
+            --blend "${OUT_DIR}/palong_bazaar_environment.blend" \
+            --manifest "${OUT_DIR}/asset_manifest.json" \
+            > "${OUT_DIR}/authoring.log" 2>&1; then
+            cat "${OUT_DIR}/authoring.log"
+            exit 1
+          fi
+          cat "${OUT_DIR}/authoring.log"
+          grep -Fq "A2_PALONG_BAZAAR_READY:" "${OUT_DIR}/authoring.log"
+          cp "${OUT_DIR}/textures/LICENSE.txt" "${OUT_DIR}/LICENSE.txt"
+          python3 tools/verify_palong_bazaar_environment.py \
+            --glb "${OUT_DIR}/palong_bazaar_market_corridor.glb" \
+            --manifest "${OUT_DIR}/asset_manifest.json" \
+            --license "${OUT_DIR}/LICENSE.txt" \
+            --preview "${OUT_DIR}/palong_bazaar_preview.png" \
+            --out "${OUT_DIR}/verification.json"
+          A2_PALONG_BAZAAR_OUTPUT="${OUT_DIR}" python3 -m unittest discover -s tests -p "test_palong_bazaar_environment.py" -v
+
+      - name: Upload Palong Bazar authoring diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Palong-Bazar-Authoring-Diagnostics
+          path: build/palong-bazaar/authoring.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload Palong Bazar market corridor art review package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Palong-Bazaar-Market-Corridor-Study
+          path: |
+            build/palong-bazaar/palong_bazaar_market_corridor.glb
+            build/palong-bazaar/asset_manifest.json
+            build/palong-bazaar/LICENSE.txt
+            build/palong-bazaar/palong_bazaar_preview.png
+            build/palong-bazaar/palong_bazaar_environment.blend
+            build/palong-bazaar/verification.json
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Upload Shariatpur authoring diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -244,6 +312,12 @@ jobs:
             build/shariatpur-streetfront/streetfront_preview.png
             build/shariatpur-streetfront/streetfront_interior_preview.png
             build/shariatpur-streetfront/streetfront_verification.json
+            build/palong-bazaar/palong_bazaar_market_corridor.glb
+            build/palong-bazaar/asset_manifest.json
+            build/palong-bazaar/LICENSE.txt
+            build/palong-bazaar/palong_bazaar_preview.png
+            build/palong-bazaar/palong_bazaar_environment.blend
+            build/palong-bazaar/verification.json
             build/asquare_lobby/asquare_command_hall.glb
             build/asquare_lobby/asquare_command_hall.blend
             build/asquare_lobby/command_hall_preview.png
