@@ -1264,7 +1264,7 @@ func _show_lobby_page(page: String) -> void:
    {"eyebrow":"ELIMINATION","title":"STREET SKIRMISH","detail":"Ten AI opponents","accent":Color("#d68c76"),"callback":Callable(self, "_choose_mode").bind("street_skirmish")},
    {"eyebrow":"BATTLE ROYALE","title":"SOLO DROP","detail":"Aircraft • freefall • parachute • AI","accent":Color("#d6b36d"),"callback":Callable(self, "_choose_mode").bind("battle_royale_solo"),"available":br_assets_ready,"locked_detail":"Waiting for the verified aircraft and parachute art"}
   ])
-  _lobby_add_section("ONLINE  /  SERVICES NOT CONNECTED")
+  _lobby_add_section("ONLINE • NOT CONNECTED  /  SERVICES")
   _lobby_add_mode_grid([
    {"eyebrow":"ONLINE","title":"MULTIPLAYER QUICK PLAY","detail":"Requires real-time player servers","available":false},
    {"eyebrow":"RANKED","title":"MULTIPLAYER RANKED","detail":"Requires accounts and matchmaking","available":false},
