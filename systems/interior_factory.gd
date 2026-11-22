@@ -24,14 +24,14 @@ func configure(target: Node3D) -> void:
     world = target
 
 func _normalize_osm_id(value: Variant) -> String:
-	if value is int:
-		return str(value)
-	if value is float:
-		var numeric_id := float(value)
-		var rounded_id := roundi(numeric_id)
-		if absf(numeric_id - float(rounded_id)) < 0.001:
-			return str(rounded_id)
-	return str(value)
+    if value is int:
+        return str(value)
+    if value is float:
+        var numeric_id := float(value)
+        var rounded_id := roundi(numeric_id)
+        if absf(numeric_id - float(rounded_id)) < 0.001:
+            return str(rounded_id)
+    return str(value)
 
 
 func _process(delta: float) -> void:
