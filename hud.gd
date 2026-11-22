@@ -39,6 +39,7 @@ var navigation_mode_button: Button
 var mode_menu_button: Button
 var replay_round_button: Button
 var save_feedback_label: Label
+var lobby_attribution_label: Label
 var downloads_status_label: Label
 var downloads_detail_label: Label
 var downloads_progress_bar: ProgressBar
@@ -1043,6 +1044,15 @@ func _build_lobby_ui() -> void:
  save_feedback_label.add_theme_font_size_override("font_size", 12)
  save_feedback_label.add_theme_color_override("font_color", Color("#b3c9d6"))
  lobby_overlay.add_child(save_feedback_label)
+ lobby_attribution_label = Label.new()
+ lobby_attribution_label.name = "WorldMaterialAttribution"
+ lobby_attribution_label.position = Vector2(205.0, viewport_size.y - 38.0)
+ lobby_attribution_label.size = Vector2(viewport_size.x - 225.0, 22.0)
+ lobby_attribution_label.text = "ENVIRONMENT MATERIAL SCANS  •  POWERED BY POLY HAVEN (CC0)"
+ lobby_attribution_label.add_theme_font_size_override("font_size", 9)
+ lobby_attribution_label.add_theme_color_override("font_color", Color("#89a6b8"))
+ lobby_attribution_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+ lobby_overlay.add_child(lobby_attribution_label)
  if is_instance_valid(w) and is_instance_valid(w.player):
   w.player.set_camera_view_mode("third_person")
   w.player.camera_yaw = 24.0
