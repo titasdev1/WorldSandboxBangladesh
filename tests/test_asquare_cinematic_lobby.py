@@ -37,7 +37,9 @@ class ASquareCinematicLobbyTests(unittest.TestCase):
         for token in (
             "A_SQUARE_CINEMATIC_COMMAND_HALL",
             "Operator dais | satin crown",
-            "Panoramic smoked window",
+            "Open panoramic architecture",
+            "Window | upper bronze lintel",
+            "ANIM | Operator halo outer",
             "BANGLADESH  •  RIVER DELTA OPERATIONS",
             "Ceiling | acoustic rib",
             "Left theatre display",
