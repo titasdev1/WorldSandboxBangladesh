@@ -271,7 +271,12 @@ def build_scene(out_path: Path, preview_path: Path, blend_path: Path):
     gold = create_material("05 | Warm brass", (0.54, 0.34, 0.12), 0.78, 0.26)
     teal = create_material("06 | Delta signal", (0.025, 0.36, 0.39), 0.24, 0.24, ((0.04, 0.83, 0.91), 2.7))
     amber = create_material("07 | Mission amber", (0.62, 0.36, 0.08), 0.32, 0.30, ((1.0, 0.48, 0.12), 1.9))
-    glass = create_material("08 | Smoked glass", (0.012, 0.07, 0.09), 0.38, 0.13, ((0.02, 0.18, 0.22), 0.20))
+    glass = create_material("08 | Smoked glass", (0.025, 0.095, 0.12), 0.06, 0.12, ((0.015, 0.095, 0.12), 0.18))
+    glass_shader = glass.node_tree.nodes.get("Principled BSDF")
+    if glass_shader is not None:
+        if "Transmission Weight" in glass_shader.inputs:
+            glass_shader.inputs["Transmission Weight"].default_value = 0.62
+        glass_shader.inputs["IOR"].default_value = 1.43
     white = create_material("09 | Warm ivory lettering", (0.78, 0.84, 0.80), 0.12, 0.3, ((0.38, 0.46, 0.43), 0.25))
     river = create_material("10 | Delta water", (0.018, 0.12, 0.15), 0.42, 0.18, ((0.015, 0.12, 0.17), 0.42))
     city = create_material("11 | Distant river-town silhouette", (0.12, 0.17, 0.18), 0.08, 0.88)
@@ -386,9 +391,11 @@ def build_scene(out_path: Path, preview_path: Path, blend_path: Path):
             obj.scale = (0.78, 0.78, 1.4)
 
     # Distant ceiling spotlights create a live hero-character lighting pocket.
-    add_area_light("Hero | cool softbox", (0, -3.6, 7.5), (0, 0, 1.2), (0.55, 0.80, 1.0), 1250, 5.2, root)
-    add_area_light("Hero | warm shoulder", (4.5, 1.8, 6.6), (0, 0, 1.3), (1.0, 0.55, 0.26), 950, 3.8, root)
-    add_area_light("Hero | teal rim", (-4.2, 2.8, 5.2), (0, 0, 1.4), (0.12, 0.78, 0.86), 1150, 3.4, root)
+    add_area_light("Hero | cool softbox", (0, -3.6, 7.5), (0, 0, 1.2), (0.55, 0.80, 1.0), 1650, 5.8, root)
+    add_area_light("Hero | warm shoulder", (4.5, 1.8, 6.6), (0, 0, 1.3), (1.0, 0.62, 0.34), 1450, 4.2, root)
+    add_area_light("Hero | teal rim", (-4.2, 2.8, 5.2), (0, 0, 1.4), (0.12, 0.78, 0.86), 1500, 3.8, root)
+    add_area_light("Hall | front cinematic fill", (0, -13.5, 6.3), (0, 1.5, 3.5), (0.76, 0.84, 0.88), 2200, 9.5, root)
+    add_area_light("Hall | overhead soft fill", (0, 1.2, 7.6), (0, 0, 0.2), (0.68, 0.84, 0.88), 1700, 8.0, root)
     add_spot("Deck | left sweep", (-7.4, -2.0, 7.2), (0, 0, 0), (0.13, 0.62, 0.80), 1250, 48, root)
     add_spot("Deck | right sweep", (7.4, -1.0, 7.4), (0, 0, 0), (1.0, 0.52, 0.22), 1150, 44, root)
 
@@ -397,16 +404,18 @@ def build_scene(out_path: Path, preview_path: Path, blend_path: Path):
     camera_data = bpy.data.cameras.new("Review Camera | command hall")
     camera = bpy.data.objects.new("Review Camera | command hall", camera_data)
     collection.objects.link(camera)
-    camera.location = (15.7, -21.8, 11.2)
-    camera.rotation_euler = (Vector((0.0, 0.2, 3.55)) - camera.location).to_track_quat("-Z", "Y").to_euler()
-    camera_data.lens = 39
+    # Front-on hero composition keeps the operator on the dais, the city visible
+    # through the glass, and both command displays readable in one 16:9 frame.
+    camera.location = (0.0, -24.0, 6.2)
+    camera.rotation_euler = (Vector((0.0, 2.2, 3.75)) - camera.location).to_track_quat("-Z", "Y").to_euler()
+    camera_data.lens = 31
     scene.camera = camera
 
     world = bpy.data.worlds.new("A-Square | blue-hour world") if not bpy.data.worlds else bpy.data.worlds[0]
     scene.world = world
     world.use_nodes = True
     world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.009, 0.021, 0.034, 1)
-    world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.32
+    world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.48
 
     # Low-count original light accents animate independently so the lobby never
     # looks like a still render; the operator animation stays on the live rig.
