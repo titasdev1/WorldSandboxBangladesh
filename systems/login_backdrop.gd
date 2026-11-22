@@ -8,6 +8,8 @@ var real_dhaka_loaded := false
 
 var _elapsed := 0.0
 var _vehicle_root: Node3D
+var _vehicle_wheels: Array[MeshInstance3D] = []
+var _camera: Camera3D
 var _tree_pivots: Array[Node3D] = []
 var _wind_cloth_pivot: Node3D
 var _operator_visual: Node3D
@@ -29,6 +31,9 @@ func _process(delta: float) -> void:
 	if is_instance_valid(_vehicle_root):
 		# The three-wheeler loops behind the login card and never blocks input.
 		_vehicle_root.position.x = fposmod(_elapsed * 3.8 + 5.0, 34.0) - 17.0
+		for wheel in _vehicle_wheels:
+			if is_instance_valid(wheel):
+				wheel.rotation.z -= delta * 15.2
 
 	for index in range(_tree_pivots.size()):
 		var branch := _tree_pivots[index]
@@ -40,10 +45,14 @@ func _process(delta: float) -> void:
 		_wind_cloth_pivot.rotation.z = sin(_elapsed * 1.55) * 0.035
 		_wind_cloth_pivot.rotation.x = cos(_elapsed * 1.18) * 0.025
 
+	if is_instance_valid(_camera):
+		# Slow cinematic parallax, barely perceptible so the login form remains easy to use.
+		_camera.position = Vector3(sin(_elapsed * 0.075) * 0.28, 3.6 + sin(_elapsed * 0.11) * 0.035, 12.8)
+		_camera.look_at(Vector3(0.0, 1.45, -2.1), Vector3.UP)
+
 	if is_instance_valid(_operator_visual):
-		# The production rig supplies the actual idle/breathing animation; this
-		# very small presentation sway adds a calm lobby-style camera presence.
-		_operator_visual.rotation.y = PI + sin(_elapsed * 0.28) * 0.025
+		# Let the imported idle animation carry the body; retain only a tiny pose drift.
+		_operator_visual.rotation.y = PI + sin(_elapsed * 0.18) * 0.012
 
 
 func _build_lighting() -> void:
@@ -74,13 +83,13 @@ func _build_lighting() -> void:
 	sun.shadow_enabled = false
 	add_child(sun)
 
-	var camera := Camera3D.new()
-	camera.name = "LoginBackdropCamera"
-	camera.position = Vector3(0.0, 3.6, 12.8)
-	camera.fov = 48.0
-	add_child(camera)
-	camera.look_at(Vector3(0.0, 1.45, -2.1), Vector3.UP)
-	camera.current = true
+	_camera = Camera3D.new()
+	_camera.name = "LoginBackdropCamera"
+	_camera.position = Vector3(0.0, 3.6, 12.8)
+	_camera.fov = 46.0
+	add_child(_camera)
+	_camera.look_at(Vector3(0.0, 1.45, -2.1), Vector3.UP)
+	_camera.current = true
 
 
 func _build_ground_and_road() -> void:
@@ -177,6 +186,17 @@ func _build_city_silhouette() -> void:
 				)
 				window.material_override = _material(Color("#294655"), 0.28, 0.12)
 				window.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				if index % 3 == 0 and row_index > 0 and column_index == 0:
+					var balcony_deck := _box(building, "BalconyDeck_%d" % row_index, Vector3(0.0, 0.62 + float(row_index) * 0.92, depth * 0.5 + 0.12), Vector3(width * 0.84, 0.075, 0.34), Color("#424b4c"))
+					balcony_deck.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+					var balcony_rail := _box(building, "BalconyRail_%d" % row_index, Vector3(0.0, 0.91 + float(row_index) * 0.92, depth * 0.5 + 0.27), Vector3(width * 0.80, 0.045, 0.045), Color("#a2a29a"))
+					balcony_rail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+		if index % 2 == 0:
+			var rooftop_tank := _box(building, "RoofWaterTank", Vector3(width * 0.25, height + 0.48, 0.0), Vector3(0.62, 0.68, 0.58), Color("#354b53"))
+			rooftop_tank.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var rooftop_rim := _box(building, "RoofTankRim", Vector3(width * 0.25, height + 0.84, 0.0), Vector3(0.66, 0.045, 0.62), Color("#83908b"))
+			rooftop_rim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	var sign_post := _box(
 		self,
@@ -197,12 +217,16 @@ func _build_city_silhouette() -> void:
 
 	var sign_text := Label3D.new()
 	sign_text.name = "ShariatpurSignText"
-	sign_text.text = "SHARIATPUR  •  BANGLADESH"
+	sign_text.text = "SHARIATPUR  /  01"
 	sign_text.font_size = 36
 	sign_text.pixel_size = 0.006
 	sign_text.modulate = Color("#f2e5bd")
 	sign_text.position = Vector3(-7.6, 2.88, -4.44)
 	add_child(sign_text)
+	var regional_green := _box(self, "RegionalAccentGreen", Vector3(-6.28, 2.9, -4.43), Vector3(0.055, 0.38, 0.035), Color("#1f7655"))
+	regional_green.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var regional_red := _box(self, "RegionalAccentRed", Vector3(-6.28, 2.9, -4.405), Vector3(0.11, 0.11, 0.028), Color("#bd554b"))
+	regional_red.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 func _build_trees() -> void:
@@ -319,6 +343,14 @@ func _build_cng() -> void:
 		wheel.material_override = _material(Color("#15191c"), 0.98)
 		wheel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_vehicle_root.add_child(wheel)
+		_vehicle_wheels.append(wheel)
+
+	var lower_trim := _box(_vehicle_root, "CNGBodyTrim", Vector3(-0.12, 0.32, 0.57), Vector3(1.28, 0.055, 0.035), Color("#d2b96d"))
+	lower_trim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var front_grille := _box(_vehicle_root, "CNGFrontGrille", Vector3(1.005, 0.30, 0.0), Vector3(0.035, 0.14, 0.42), Color("#15282b"))
+	front_grille.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var rear_lamp := _box(_vehicle_root, "CNGRearLamp", Vector3(-1.0, 0.43, -0.34), Vector3(0.035, 0.13, 0.18), Color("#d45b45"))
+	rear_lamp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	var cng_label := Label3D.new()
 	cng_label.name = "CNGSideLabel"
