@@ -6,6 +6,7 @@ class_name LobbyOperatorShowcase
 # lobby screenshot, external render, or generated character image is used.
 
 const BASE_CAMERA_SWAY_DEGREES := 4.0
+const AUTHORED_COMMAND_HALL_PATH := "res://assets/lobby/asquare_command_hall.glb"
 const CHARACTER_IDLE_SWAY_RADIANS := 0.12
 const LOBBY_IDLE_ACTIONS: Array[String] = ["idle_look", "idle_fidget", "idle_breathe"]
 const LOBBY_IDLE_ACTION_INTERVAL_SECONDS := 9.0
@@ -13,6 +14,8 @@ const LOBBY_IDLE_ACTION_INTERVAL_SECONDS := 9.0
 var _player: CharacterBody3D
 var _visual: Node3D
 var _stage_root: Node3D
+var _authored_stage: Node3D
+var _authored_stage_players: Array[AnimationPlayer] = []
 var _orbit_rig: Node3D
 var _key_light: SpotLight3D
 var _fill_light: OmniLight3D
@@ -44,6 +47,9 @@ func set_enabled(value: bool) -> void:
 	_enabled = value
 	visible = value
 	if not value:
+		for animation_player in _authored_stage_players:
+			if is_instance_valid(animation_player):
+				animation_player.pause()
 		if is_instance_valid(_visual):
 			_visual.rotation.y = _visual_yaw_origin
 		if is_instance_valid(_player):
@@ -58,6 +64,7 @@ func set_enabled(value: bool) -> void:
 		_camera_yaw_origin = float(_player.get("camera_yaw"))
 	if is_instance_valid(_visual):
 		_visual_yaw_origin = _visual.rotation.y
+	_play_authored_stage_animation()
 	_next_idle_action_at = _elapsed + 4.0
 
 
@@ -102,6 +109,19 @@ func _build_stage() -> void:
 	_stage_root = Node3D.new()
 	_stage_root.name = "OperatorDisplayPlatform"
 	add_child(_stage_root)
+
+	# Prefer the Blender-authored stage when the reviewed GLB has been promoted.
+	# The live player rig remains outside the GLB and is never baked into a poster.
+	if ResourceLoader.exists(AUTHORED_COMMAND_HALL_PATH):
+		var authored_pack := load(AUTHORED_COMMAND_HALL_PATH) as PackedScene
+		if authored_pack != null:
+			var authored_instance := authored_pack.instantiate() as Node3D
+			if authored_instance != null:
+				authored_instance.name = "A2CinematicCommandHall"
+				_authored_stage = authored_instance
+				_stage_root.add_child(_authored_stage)
+				_play_authored_stage_animation()
+				return
 
 	# The podium stays just below the operator's feet and is shadowless, so it
 	# does not fight the world collision or add a costly shadow map.
@@ -205,3 +225,26 @@ func _surface(color: Color, metallic: float, roughness: float, emission: float =
 		material.emission = color
 		material.emission_energy_multiplier = emission
 	return material
+
+
+
+func _play_authored_stage_animation() -> void:
+	if not is_instance_valid(_authored_stage):
+		return
+	_authored_stage_players.clear()
+	var players := _authored_stage.find_children("*", "AnimationPlayer", true, false)
+	for candidate in players:
+		var animation_player := candidate as AnimationPlayer
+		if not is_instance_valid(animation_player):
+			continue
+		var animation_names := animation_player.get_animation_list()
+		if animation_names.is_empty():
+			continue
+		var selected_animation := String(animation_names[0])
+		for animation_name in animation_names:
+			var lowered := String(animation_name).to_lower()
+			if "lobby" in lowered or "orbit" in lowered or "ring" in lowered:
+				selected_animation = String(animation_name)
+				break
+		animation_player.play(selected_animation)
+		_authored_stage_players.append(animation_player)
