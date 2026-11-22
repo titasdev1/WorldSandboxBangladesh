@@ -20,7 +20,7 @@ class CareerLobbyIntegrationTests(unittest.TestCase):
         self.assertIn("ONLINE • NOT CONNECTED", source)
         self.assertIn("No real-player server is connected", source)
         self.assertIn("MULTIPLAYER QUICK PLAY", source)
-        self.assertIn("Callable(), false", source)
+        self.assertIn('"available":false', source)
 
     def test_combat_victory_and_defeat_reach_results(self):
         combat = (ROOT / "systems" / "combat_mode_controller.gd").read_text(encoding="utf-8")
