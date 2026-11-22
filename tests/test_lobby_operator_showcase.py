@@ -94,6 +94,19 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('button.pressed.connect(_show_lobby_page.bind("play"))', featured)
         self.assertIn('Vector2(0.0, 94.0)', featured)
 
+    def test_play_screen_uses_tiered_experience_cards_and_truthful_locked_modes(self):
+        pages = function_block(self.hud, "_show_lobby_page")
+        card = function_block(self.hud, "_lobby_add_experience_card")
+        self.assertIn('elif page == "play":', pages)
+        for title in ("JIBONJATRA", "DESHI STORIES", "CITY SANDBOX", "STREET LIFE", "LAST STAND", "COMBAT LAB", "STREET SKIRMISH", "SOLO DROP", "QUICK PLAY", "RANKED", "ZOMBIES"):
+            self.assertIn('"' + title + '"', pages)
+        self.assertIn('func _lobby_add_experience_grid() -> GridContainer:', self.hud)
+        self.assertIn('grid.columns = 2', self.hud)
+        self.assertIn('card.custom_minimum_size = Vector2(226.0 if compact else 0.0, 116.0 if compact else 126.0)', card)
+        self.assertIn('action.disabled = not available', card)
+        self.assertIn('action.text = "OPEN" if available else "LOCKED"', card)
+        self.assertIn('if available and callback.is_valid():', card)
+
     def test_primary_play_navigation_is_visually_prominent(self):
         lobby = function_block(self.hud, "_build_lobby_ui")
         self.assertIn('var is_play_navigation := page_id == "play"', lobby)
