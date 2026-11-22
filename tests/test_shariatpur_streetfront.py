@@ -59,6 +59,30 @@ class ShariatpurStreetfrontAuthoringTests(unittest.TestCase):
         self.assertIn("camera.location=(2.2,-2.65,1.95)", self.builder)
         self.assertIn("camera_data.lens=30", self.builder)
 
+    def test_bengali_sign_art_requires_raqm_and_fits_long_product_line_without_clipping(self):
+        from PIL import Image
+        from tools.make_shariatpur_frontage_textures import make_bengali_sign_art
+
+        with pathlib.Path(__file__).resolve().parents[1].joinpath("build").joinpath("test-bengali-sign").parent as _:
+            pass
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir:
+            report = make_bengali_sign_art(
+                pathlib.Path(temp_dir),
+                "interior_sign",
+                "চাল, ডাল, তেল, মসলা",
+                "খুচরা বিক্রয়",
+                width=2048,
+                height=512,
+            )
+            image = Image.open(report["maps"]["base_color"])
+            self.assertEqual((2048, 512), image.size)
+            self.assertEqual("RAQM", report["font_layout_engine"])
+            self.assertIn("NotoSansBengali", report["font_file"])
+            self.assertLessEqual(report["title_width_px"], report["max_text_width_px"])
+            self.assertLessEqual(report["subtitle_width_px"], report["max_text_width_px"])
+            self.assertLess(report["title_font_px"], int(512 * 0.38))
+
     def test_original_pbr_textures_are_2k_and_include_maps_for_each_material(self):
         self.assertIn("default=2048", self.texture_builder)
         self.assertIn('format="JPEG",quality=92', self.texture_builder)

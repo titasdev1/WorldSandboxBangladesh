@@ -13,7 +13,7 @@ import subprocess
 import sys
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, features
 
 
 SURFACES = {
@@ -146,67 +146,150 @@ def make_maps(out: pathlib.Path, key: str, size: int) -> dict:
     }
 
 
-def make_bengali_sign_art(out: pathlib.Path, name: str, title: str, subtitle: str, width: int = 2048, height: int = 512) -> dict:
-    """Create shaped, high-resolution Bengali sign artwork with RAQM/HarfBuzz."""
-    out.mkdir(parents=True,exist_ok=True)
-    rng=np.random.default_rng(271828 + sum(ord(ch) for ch in name))
-    yy,xx=np.mgrid[0:height,0:width]
-    vertical=yy.astype(np.float32)/max(1,height-1)
-    grain=rng.normal(0,1.8,(height,width)).astype(np.float32)
-    light=np.clip(1.0-0.10*vertical+grain/255.0,0.82,1.06)
-    base=np.zeros((height,width,3),dtype=np.uint8)
-    base[:,:,0]=np.clip(12*light,0,255).astype(np.uint8)
-    base[:,:,1]=np.clip(67*light,0,255).astype(np.uint8)
-    base[:,:,2]=np.clip(56*light,0,255).astype(np.uint8)
-    image=Image.fromarray(base,"RGB").convert("RGBA")
-    draw=ImageDraw.Draw(image)
-    gold=(207,174,105,255)
-    ivory=(250,235,201,255)
-    dark=(7,37,31,255)
-    outer=max(9,width//170)
-    inner=max(4,width//360)
-    draw.rounded_rectangle((outer,outer,width-outer,height-outer),radius=height//18,outline=gold,width=outer)
-    draw.rounded_rectangle((outer*2,outer*2,width-outer*2,height-outer*2),radius=height//24,outline=(154,125,73,255),width=inner)
-    for x in (outer*3,width-outer*3):
-        for y in (outer*3,height-outer*3):
-            draw.ellipse((x-5,y-5,x+5,y+5),fill=gold)
-    font_path=""
+def _find_raqm_bengali_font() -> str:
+    """Resolve a real Bengali-capable Noto font; never silently fall back to tofu glyphs."""
+    if not features.check("raqm"):
+        raise RuntimeError("Pillow was built without RAQM/HarfBuzz; Bengali sign shaping is not safe.")
+    candidates: list[str] = []
     try:
-        found=subprocess.run(["fc-match","Noto Sans Bengali","-f","%{file}"],capture_output=True,text=True,check=False).stdout.strip()
-        if found and pathlib.Path(found).is_file():
-            font_path=found
-    except Exception:
+        found = subprocess.run(
+            ["fc-match", "Noto Sans Bengali", "-f", "%{file}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+        if found:
+            candidates.append(found)
+    except (OSError, subprocess.SubprocessError):
         pass
-    if font_path:
-        title_font=ImageFont.truetype(font_path,int(height*0.38),layout_engine=ImageFont.Layout.RAQM)
-        subtitle_font=ImageFont.truetype(font_path,int(height*0.15),layout_engine=ImageFont.Layout.RAQM)
-    else:
-        title_font=ImageFont.load_default()
-        subtitle_font=ImageFont.load_default()
-    # RAQM shapes conjuncts, vowel marks and reph before baking the texture.
-    draw.text((width//2,int(height*0.43)),title,font=title_font,fill=ivory,anchor="mm",
-              direction="ltr",language="bn",stroke_width=1,stroke_fill=dark)
-    draw.text((width//2,int(height*0.76)),subtitle,font=subtitle_font,fill=gold,anchor="mm",
-              direction="ltr",language="bn")
-    rgb=np.asarray(image.convert("RGB"),dtype=np.uint8)
-    color=Image.fromarray(rgb,"RGB")
-    folder=out/name
-    folder.mkdir(parents=True,exist_ok=True)
-    color_path=folder/"base_color.jpg"
-    normal_path=folder/"normal.png"
-    rough_path=folder/"roughness.png"
-    color.save(color_path,format="JPEG",quality=94,optimize=True,progressive=True,subsampling=0)
-    normal_size=(width//2,height//2)
-    flat_normal=np.zeros((normal_size[1],normal_size[0],3),dtype=np.uint8)
-    flat_normal[:,:,:]=(128,128,255)
-    Image.fromarray(flat_normal,"RGB").save(normal_path,format="PNG",optimize=True,compress_level=9)
-    Image.new("L",normal_size,110).save(rough_path,format="PNG",optimize=True,compress_level=9)
+    candidates.extend((
+        "/usr/share/fonts/truetype/noto/NotoSansBengali-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansBengaliUI-Regular.ttf",
+    ))
+    for candidate in candidates:
+        path = pathlib.Path(candidate)
+        if not path.is_file() or "notosansbengali" not in path.name.lower():
+            continue
+        try:
+            ImageFont.truetype(str(path), 32, layout_engine=ImageFont.Layout.RAQM)
+            return str(path)
+        except OSError:
+            continue
+    raise RuntimeError("Noto Sans Bengali with RAQM shaping is required; refusing to generate missing-glyph sign art.")
+
+
+def _fit_raqm_font(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font_path: str,
+    base_size: int,
+    min_size: int,
+    max_width: int,
+) -> tuple[ImageFont.FreeTypeFont, tuple[int, int, int, int]]:
+    """Choose the largest RAQM font that fits the available sign width."""
+    for size in range(base_size, min_size - 1, -2):
+        font = ImageFont.truetype(font_path, size, layout_engine=ImageFont.Layout.RAQM)
+        bounds = draw.textbbox((0, 0), text, font=font, direction="ltr", language="bn")
+        if (bounds[2] - bounds[0]) <= max_width:
+            return font, bounds
+    raise ValueError(
+        f"Bengali sign text cannot fit its canvas without clipping: "
+        f"{text!r} (max_width={max_width}px, min_font={min_size}px)"
+    )
+
+
+def make_bengali_sign_art(out: pathlib.Path, name: str, title: str, subtitle: str, width: int = 2048, height: int = 512) -> dict:
+    """Create fitted, high-resolution Bengali sign artwork with Noto Sans Bengali + RAQM."""
+    out.mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(271828 + sum(ord(ch) for ch in name))
+    yy, xx = np.mgrid[0:height, 0:width]
+    vertical = yy.astype(np.float32) / max(1, height - 1)
+    grain = rng.normal(0, 1.8, (height, width)).astype(np.float32)
+    light = np.clip(1.0 - 0.10 * vertical + grain / 255.0, 0.82, 1.06)
+    base = np.zeros((height, width, 3), dtype=np.uint8)
+    base[:, :, 0] = np.clip(12 * light, 0, 255).astype(np.uint8)
+    base[:, :, 1] = np.clip(67 * light, 0, 255).astype(np.uint8)
+    base[:, :, 2] = np.clip(56 * light, 0, 255).astype(np.uint8)
+    image = Image.fromarray(base, "RGB").convert("RGBA")
+    draw = ImageDraw.Draw(image)
+    gold = (207, 174, 105, 255)
+    ivory = (250, 235, 201, 255)
+    dark = (7, 37, 31, 255)
+    outer = max(9, width // 170)
+    inner = max(4, width // 360)
+    draw.rounded_rectangle((outer, outer, width - outer, height - outer), radius=height // 18, outline=gold, width=outer)
+    draw.rounded_rectangle((outer * 2, outer * 2, width - outer * 2, height - outer * 2), radius=height // 24, outline=(154, 125, 73, 255), width=inner)
+    for x in (outer * 3, width - outer * 3):
+        for y in (outer * 3, height - outer * 3):
+            draw.ellipse((x - 5, y - 5, x + 5, y + 5), fill=gold)
+
+    font_path = _find_raqm_bengali_font()
+    horizontal_margin = max(outer * 5, int(width * 0.08))
+    title_font, title_bounds = _fit_raqm_font(
+        draw, title, font_path, int(height * 0.38), max(42, int(height * 0.17)),
+        width - horizontal_margin * 2,
+    )
+    subtitle_font, subtitle_bounds = _fit_raqm_font(
+        draw, subtitle, font_path, int(height * 0.15), max(28, int(height * 0.075)),
+        width - horizontal_margin * 2,
+    )
+
+    # RAQM/HarfBuzz shapes conjuncts, vowel marks and reph before baking the texture.
+    # The fitted sizes prevent long product lists from spilling beyond the sign face.
+    draw.text(
+        (width // 2, int(height * 0.43)),
+        title,
+        font=title_font,
+        fill=ivory,
+        anchor="mm",
+        direction="ltr",
+        language="bn",
+        stroke_width=1,
+        stroke_fill=dark,
+    )
+    draw.text(
+        (width // 2, int(height * 0.76)),
+        subtitle,
+        font=subtitle_font,
+        fill=gold,
+        anchor="mm",
+        direction="ltr",
+        language="bn",
+    )
+    rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
+    color = Image.fromarray(rgb, "RGB")
+    folder = out / name
+    folder.mkdir(parents=True, exist_ok=True)
+    color_path = folder / "base_color.jpg"
+    normal_path = folder / "normal.png"
+    rough_path = folder / "roughness.png"
+    color.save(color_path, format="JPEG", quality=94, optimize=True, progressive=True, subsampling=0)
+    normal_size = (width // 2, height // 2)
+    flat_normal = np.zeros((normal_size[1], normal_size[0], 3), dtype=np.uint8)
+    flat_normal[:, :, :] = (128, 128, 255)
+    Image.fromarray(flat_normal, "RGB").save(normal_path, format="PNG", optimize=True, compress_level=9)
+    Image.new("L", normal_size, 110).save(rough_path, format="PNG", optimize=True, compress_level=9)
     return {
-        "name":name,
-        "base_color_resolution":[width,height],
-        "normal_roughness_resolution":list(normal_size),
-        "maps":{"base_color":color_path.as_posix(),"normal":normal_path.as_posix(),"roughness":rough_path.as_posix()},
-        "formats":{"base_color":"JPEG_QUALITY_94_BAKED_RAqm_BENGALI","normal":"PNG_LOSSLESS","roughness":"PNG_LOSSLESS"},
+        "name": name,
+        "base_color_resolution": [width, height],
+        "normal_roughness_resolution": list(normal_size),
+        "font_file": pathlib.Path(font_path).name,
+        "font_layout_engine": "RAQM",
+        "title_font_px": title_font.size,
+        "subtitle_font_px": subtitle_font.size,
+        "title_width_px": title_bounds[2] - title_bounds[0],
+        "subtitle_width_px": subtitle_bounds[2] - subtitle_bounds[0],
+        "max_text_width_px": width - horizontal_margin * 2,
+        "maps": {
+            "base_color": color_path.as_posix(),
+            "normal": normal_path.as_posix(),
+            "roughness": rough_path.as_posix(),
+        },
+        "formats": {
+            "base_color": "JPEG_QUALITY_94_BAKED_RAQM_BENGALI",
+            "normal": "PNG_LOSSLESS",
+            "roughness": "PNG_LOSSLESS",
+        },
     }
 
 
@@ -227,8 +310,8 @@ def main() -> int:
         subprocess.run([sys.executable,str(pathlib.Path(__file__).resolve()),
                         "--out",str(args.out),"--size",str(args.size),"--surface",key],check=True)
     sign_art=[
-        make_bengali_sign_art(args.out,"shop_sign","মা স্টোর","শরীয়তপুর  •  নিত্যপ্রয়োজনীয় পণ্য"),
-        make_bengali_sign_art(args.out,"interior_sign","চাল  •  ডাল  •  তেল  •  মসলা","খুচরা বিক্রয়"),
+        make_bengali_sign_art(args.out,"shop_sign","মা স্টোর","শরীয়তপুর — নিত্যপ্রয়োজনীয় পণ্য"),
+        make_bengali_sign_art(args.out,"interior_sign","চাল, ডাল, তেল, মসলা","খুচরা বিক্রয়"),
     ]
     manifest={"schema_version":3,"project":"Project A-Square",
               "asset":"Shariatpur river-town shopfront hero","license":"CC0-1.0",
