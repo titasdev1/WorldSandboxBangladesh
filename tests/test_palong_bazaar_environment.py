@@ -20,6 +20,7 @@ class PalongBazaarEnvironmentTests(unittest.TestCase):
         cls.builder = (ROOT / "tools/blender/build_palong_bazaar_environment.py").read_text(encoding="utf-8")
         cls.verifier = (ROOT / "tools/verify_palong_bazaar_environment.py").read_text(encoding="utf-8")
         cls.workflow = (ROOT / ".github/workflows/validate-blender-assets.yml").read_text(encoding="utf-8")
+        cls.hud = (ROOT / "hud.gd").read_text(encoding="utf-8")
 
     def test_reference_is_a_real_palong_market_corridor_not_a_named_building_survey(self):
         for marker in (
@@ -116,6 +117,10 @@ class PalongBazaarEnvironmentTests(unittest.TestCase):
             self.assertIn(marker, self.builder)
         self.assertIn("export_lights=False", self.builder)
         self.assertIn("export_cameras=False", self.builder)
+
+    def test_lobby_visibly_credits_polyhaven_environment_scans(self):
+        self.assertIn("WorldMaterialAttribution", self.hud)
+        self.assertIn("POWERED BY POLY HAVEN (CC0)", self.hud)
 
     def test_verifier_rejects_flat_or_unembedded_visual_asset(self):
         for marker in (
