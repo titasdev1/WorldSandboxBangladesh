@@ -209,7 +209,10 @@ func _build_stage() -> void:
 	# Prefer the original Blender-authored GLB stage when the pinned asset
 	# pipeline has generated it. The live-Godot stage above remains a safe
 	# visual fallback for editor sessions without the Blender artifact.
-	var stage_resource := load("res://external_content/a_square_cinematic_lobby_stage.glb") as PackedScene
+	var stage_path := "res://external_content/a_square_cinematic_lobby_stage.glb"
+	var stage_resource: PackedScene
+	if ResourceLoader.exists(stage_path):
+		stage_resource = load(stage_path) as PackedScene
 	if stage_resource != null:
 		_authored_stage = stage_resource.instantiate() as Node3D
 		if is_instance_valid(_authored_stage):
