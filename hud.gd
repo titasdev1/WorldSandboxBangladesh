@@ -1260,105 +1260,75 @@ func _show_lobby_page(page: String) -> void:
  if not is_instance_valid(lobby_content):
   return
  lobby_section = page
+ var play_branch := page in ["play", "jibonjatra", "strikefront", "greenwake", "briefing"]
  for page_id in lobby_nav_buttons.keys():
   var nav_button := lobby_nav_buttons[page_id] as Button
   if is_instance_valid(nav_button):
-   nav_button.button_pressed = String(page_id) == page
+   nav_button.button_pressed = String(page_id) == page or (String(page_id) == "play" and play_branch)
  _lobby_clear_content()
  if is_instance_valid(save_feedback_label):
   save_feedback_label.text = "SHARIATPUR  /  PROJECT A-SQUARE"
  if page == "home":
-  _lobby_add_heading("FIELD COMMAND", "Select an experience. Your Bangladesh world is the centre of operations.")
+  _lobby_add_heading("A-SQUARE COMMAND", "Three connected game families. Choose the experience you want to enter.")
   _lobby_add_featured_play()
-  var installed: bool = is_instance_valid(w) and (w.get("real_dhaka_loaded") == true)
-  _lobby_add_section("DEPLOYMENT  /  BANGLADESH")
-  var world_grid := _lobby_add_experience_grid()
-  _lobby_add_experience_card(
-   "JIBONJATRA",
-   "LIVING OPEN WORLD",
-   "Start in the lightweight local city. Install Shariatpur from Downloads when you want the full district-scale world.",
-   Callable(self, "_choose_mode").bind("jibon_jatra"),
-   Color("#4aa99c"),
-   true,
-   true,
-   world_grid
-  )
-  _lobby_add_experience_card(
-   "DESHI STORIES",
-   "LOCAL MISSIONS",
-   "Transport fares, markets, work and connected destinations.",
-   Callable(self, "_choose_mode").bind("deshi_story"),
-   Color("#c1a064"),
-   true,
-   true,
-   world_grid
-  )
-  _lobby_add_section("ACTION  /  OFFLINE")
-  var action_grid := _lobby_add_experience_grid()
-  _lobby_add_experience_card(
-   "CITY SANDBOX",
-   "FREE ROAM",
-   "Explore the installed world without a mission objective.",
-   Callable(self, "_choose_mode").bind("free_roam"),
-   Color("#6096ae"),
-   true,
-   true,
-   action_grid
-  )
-  _lobby_add_experience_card(
-   "COMBAT LAB",
-   "AI TRAINING",
-   "Offline practice for movement, aim and weapons.",
-   Callable(self, "_choose_mode").bind("arena_training"),
-   Color("#8498ad"),
-   true,
-   true,
-   action_grid
-  )
+  _lobby_add_section("EXPERIENCE FAMILIES")
+  var family_grid_home := _lobby_add_experience_grid()
+  _lobby_add_experience_card("JIBONJATRA", "LIVING BANGLADESH  /  OPEN WORLD", "Explore, work, drive, race and follow local stories. Shariatpur is an optional regional download.", Callable(self, "_show_lobby_page").bind("jibonjatra"), Color("#4aa99c"), true, true, family_grid_home)
+  _lobby_add_experience_card("STRIKEFRONT", "COMBAT  /  OFFLINE FIRST", "Enter the available solo and AI combat experiences. Online queues remain locked until real services exist.", Callable(self, "_show_lobby_page").bind("strikefront"), Color("#b17c58"), true, true, family_grid_home)
+  _lobby_add_experience_card("GREENWAKE", "ACTION  /  ADVENTURE", "A Bangladesh-rooted mystery and exploration pillar. Its first playable chapter is still in development.", Callable(self, "_show_lobby_page").bind("greenwake"), Color("#7a9b75"), true, true, family_grid_home)
   _lobby_add_section("WORLD INTELLIGENCE")
-  _lobby_add_info("SHARIATPUR WORLD", "District map mounted and ready." if installed else "The local starter world is active; Shariatpur remains a separate verified map download.")
-  _lobby_add_info("ONLINE SERVICES", "No real-player server is connected in this build. Online queues are not simulated.")
+  var installed_home: bool = is_instance_valid(w) and (w.get("real_dhaka_loaded") == true)
+  _lobby_add_info("SHARIATPUR WORLD", "District map mounted and ready." if installed_home else "The lightweight starter world is active; Shariatpur remains a separate verified download.")
+  _lobby_add_info("ONLINE SERVICES", "No public real-player matchmaking is connected in this build. No online population is simulated.")
  elif page == "play":
-  _lobby_add_heading("PLAY", "Choose your next deployment.")
-  _lobby_add_section("FEATURED EXPERIENCE")
-  _lobby_add_experience_card(
-   "JIBONJATRA",
-   "LIVING OPEN WORLD  /  SHARIATPUR",
-   "Explore the active starter region, then expand into Shariatpur with the optional district download.",
-   Callable(self, "_choose_mode").bind("jibon_jatra"),
-   Color("#4aa99c"),
-   true,
-   false
-  )
-  _lobby_add_section("OPEN WORLD")
-  var world_grid := _lobby_add_experience_grid()
-  _lobby_add_experience_card("DESHI STORIES", "40 CHAPTERS", "Connected local jobs and destinations.", Callable(self, "_choose_mode").bind("deshi_story"), Color("#a58b5c"), true, true, world_grid)
-  _lobby_add_experience_card("CITY SANDBOX", "FREE ROAM", "Traffic, shops, vehicles and exploration.", Callable(self, "_choose_mode").bind("free_roam"), Color("#6096ae"), true, true, world_grid)
-  _lobby_add_experience_card("STREET LIFE", "LOCAL ACTIVITIES", "Markets, transport and city routines.", Callable(self, "_choose_mode").bind("street_life"), Color("#7a9b75"), true, true, world_grid)
-  _lobby_add_section("STRIKEFRONT  /  COMBAT")
-  var combat_grid := _lobby_add_experience_grid()
-  _lobby_add_experience_card("LAST STAND", "OFFLINE  /  AI", "Three escalating enemy waves.", Callable(self, "_choose_mode").bind("survival"), Color("#b17c58"), true, true, combat_grid)
-  _lobby_add_experience_card("COMBAT LAB", "TRAINING", "Weapon and movement practice.", Callable(self, "_choose_mode").bind("arena_training"), Color("#8498ad"), true, true, combat_grid)
-  _lobby_add_experience_card("STREET SKIRMISH", "ELIMINATION", "Ten AI opponents.", Callable(self, "_choose_mode").bind("street_skirmish"), Color("#9b6f69"), true, true, combat_grid)
-  var br_controller: Node = w.get("battle_royale_controller") as Node if is_instance_valid(w) else null
-  var br_assets_ready: bool = is_instance_valid(br_controller) and (br_controller.call("can_start_solo_deployment") == true)
-  _lobby_add_section("BATTLE ROYALE")
-  _lobby_add_experience_card(
-   "SOLO DROP",
-   "OFFLINE  /  AI OPERATORS",
-   "Aircraft insertion, freefall, canopy glide and a closing safe zone.",
-   Callable(self, "_choose_mode").bind("battle_royale_solo"),
-   Color("#8e9c72"),
-   br_assets_ready,
-   false
-  )
-  if not br_assets_ready:
-   _lobby_add_info("SOLO DROP STATUS", "Unlocks when the verified aircraft and parachute assets are installed.")
-  _lobby_add_section("ONLINE SERVICES")
-  var online_grid := _lobby_add_experience_grid()
-  _lobby_add_experience_card("QUICK PLAY", "MULTIPLAYER", "Real-player servers are not connected.", Callable(), Color("#5c7484"), false, true, online_grid)
-  _lobby_add_experience_card("RANKED", "BATTLE ROYALE", "Matchmaking and authoritative servers required.", Callable(), Color("#5c7484"), false, true, online_grid)
-  _lobby_add_experience_card("ZOMBIES", "SPECIAL MODE", "Mode logic and its dedicated world are not ready.", Callable(), Color("#5c7484"), false, true, online_grid)
+  _lobby_add_heading("CHOOSE YOUR EXPERIENCE", "A-Square is organised into three distinct families.")
+  _lobby_add_section("01  /  JIBONJATRA")
+  var family_grid_play := _lobby_add_experience_grid()
+  _lobby_add_experience_card("JIBONJATRA", "OPEN WORLD  /  STORY  /  LIFE", "Bangladesh-rooted exploration, missions, daily activities and transport.", Callable(self, "_show_lobby_page").bind("jibonjatra"), Color("#4aa99c"), true, false, family_grid_play)
+  _lobby_add_section("02  /  STRIKEFRONT")
+  _lobby_add_experience_card("STRIKEFRONT", "COMBAT  /  BATTLE ROYALE", "Offline combat modes are available; connected multiplayer is not yet online.", Callable(self, "_show_lobby_page").bind("strikefront"), Color("#b17c58"), true)
+  _lobby_add_section("03  /  GREENWAKE")
+  _lobby_add_experience_card("GREENWAKE", "CINEMATIC ACTION  /  ADVENTURE", "The original adventure pillar is in production. Open its brief to review the planned experience.", Callable(self, "_show_lobby_page").bind("greenwake"), Color("#7a9b75"), true)
+ elif page == "jibonjatra":
+  _lobby_add_heading("JIBONJATRA", "A living Bangladesh open world: stories, local life, transport and exploration.")
+  _lobby_add_section("OPEN WORLD EXPERIENCES")
+  var jibon_grid := _lobby_add_experience_grid()
+  _lobby_add_experience_card("ENTER JIBONJATRA", "LIVING OPEN WORLD", "Start the current local world. Install Shariatpur from Downloads when you want the district-scale map.", Callable(self, "_choose_mode").bind("jibon_jatra"), Color("#4aa99c"), true, false, jibon_grid)
+  _lobby_add_experience_card("DESHI STORIES", "LOCAL MISSIONS", "Connected destinations, work, transport fares and chapter-style jobs.", Callable(self, "_choose_mode").bind("deshi_story"), Color("#c1a064"), true, true, jibon_grid)
+  _lobby_add_experience_card("CITY SANDBOX", "FREE ROAM", "Explore the currently installed city area without a mission objective.", Callable(self, "_choose_mode").bind("free_roam"), Color("#6096ae"), true, true, jibon_grid)
+  _lobby_add_experience_card("STREET LIFE", "LOCAL ACTIVITIES", "Discover shops, markets, transport and local routines.", Callable(self, "_choose_mode").bind("street_life"), Color("#7a9b75"), true, true, jibon_grid)
+  _lobby_add_section("ACTIVITIES  /  INSIDE JIBONJATRA")
+  var jibon_activity_grid := _lobby_add_experience_grid()
+  _lobby_add_experience_card("ROADLINE", "RACING  /  DRIVING", "Open the Roadline race and time-attack hub.", Callable(self, "_open_roadline_event"), Color("#c18e57"), true, true, jibon_activity_grid)
+  _lobby_add_experience_card("PITCHBOUND", "STADIUM  /  FOOTBALL", "Open the football hub for the 3D and 2D match experiences.", Callable(self, "_open_pitchbound_event"), Color("#74a779"), true, true, jibon_activity_grid)
+  _lobby_add_info("FAMILY RULE", "Roadline and Pitchbound are JibonJatra activities, not separate top-level game families.")
+  _lobby_add_action("ALL EXPERIENCE FAMILIES", "Return to the JibonJatra / Strikefront / Greenwake selector.", Callable(self, "_show_lobby_page").bind("play"))
+ elif page == "strikefront":
+  _lobby_add_heading("STRIKEFRONT", "The combat family. Offline modes are clearly separated from future online services.")
+  _lobby_add_section("AVAILABLE OFFLINE MODES")
+  var strike_grid := _lobby_add_experience_grid()
+  _lobby_add_experience_card("LAST STAND", "OFFLINE  /  AI WAVES", "Three escalating enemy waves.", Callable(self, "_choose_mode").bind("survival"), Color("#b17c58"), true, true, strike_grid)
+  _lobby_add_experience_card("COMBAT LAB", "TRAINING", "Practice movement, aiming and weapon handling.", Callable(self, "_choose_mode").bind("arena_training"), Color("#8498ad"), true, true, strike_grid)
+  _lobby_add_experience_card("STREET SKIRMISH", "ELIMINATION  /  AI", "Ten AI opponents in a local elimination round.", Callable(self, "_choose_mode").bind("street_skirmish"), Color("#9b6f69"), true, true, strike_grid)
+  var br_controller_family: Node = w.get("battle_royale_controller") as Node if is_instance_valid(w) else null
+  var br_assets_ready_family: bool = is_instance_valid(br_controller_family) and (br_controller_family.call("can_start_solo_deployment") == true)
+  _lobby_add_experience_card("SOLO DROP", "BATTLE ROYALE  /  OFFLINE AI", "Aircraft insertion, freefall, canopy glide and a closing safe zone.", Callable(self, "_choose_mode").bind("battle_royale_solo"), Color("#8e9c72"), br_assets_ready_family, true, strike_grid)
+  if not br_assets_ready_family:
+   _lobby_add_info("SOLO DROP STATUS", "Locked until the verified aircraft and parachute assets are available.")
+  _lobby_add_section("CONNECTED PLAY  /  NOT AVAILABLE")
+  var strike_online_grid := _lobby_add_experience_grid()
+  _lobby_add_experience_card("QUICK PLAY", "MULTIPLAYER", "No real-player server is connected.", Callable(), Color("#5c7484"), false, true, strike_online_grid)
+  _lobby_add_experience_card("RANKED", "COMPETITIVE", "Requires authoritative matchmaking, server scoring and anti-cheat.", Callable(), Color("#5c7484"), false, true, strike_online_grid)
+  _lobby_add_experience_card("ZOMBIES", "SPECIAL MODE", "Dedicated mode rules, enemies and content are not ready.", Callable(), Color("#5c7484"), false, true, strike_online_grid)
+  _lobby_add_action("ALL EXPERIENCE FAMILIES", "Return to the family selector.", Callable(self, "_show_lobby_page").bind("play"))
+ elif page == "greenwake":
+  _lobby_add_heading("GREENWAKE", "An original Bangladesh-rooted action-adventure pillar.")
+  _lobby_add_section("DEVELOPMENT STATUS")
+  _lobby_add_info("CURRENT STATE", "IN DEVELOPMENT  •  NO PLAYABLE CHAPTER IN THIS BUILD")
+  _lobby_add_info("FIRST VERTICAL SLICE", "Arrival → narrative hook → exploration → clue discovery → traversal challenge → environmental puzzle → reveal → consequence → chapter end.")
+  _lobby_add_info("WORLD DIRECTION", "River ports, wetlands, floodplains, old trade routes, lost settlements and living communities. Historical claims and real locations must be researched; fictional story elements will be labelled as fiction.")
+  _lobby_add_experience_card("FIRST CHAPTER", "NOT PLAYABLE YET", "The chapter must be authored, integrated, saved and tested before this card can be unlocked.", Callable(), Color("#5c7484"), false)
+  _lobby_add_action("ALL EXPERIENCE FAMILIES", "Return to the family selector.", Callable(self, "_show_lobby_page").bind("play"))
  elif page == "downloads":
   _build_downloads_page()
  elif page == "briefing":
@@ -1958,6 +1928,15 @@ func _open_roadline_event() -> void:
  var director: Node = w.get_node_or_null("WorldActivityDirector")
  if is_instance_valid(director) and director.has_method("open_race_menu"):
   director.call("open_race_menu")
+
+func _open_pitchbound_event() -> void:
+ if not is_instance_valid(w):
+  return
+ var director: Node = w.get_node_or_null("WorldActivityDirector")
+ if is_instance_valid(director) and director.has_method("open_pitchbound_menu"):
+  director.call("open_pitchbound_menu")
+ else:
+  _set_save_feedback("PITCHBOUND HUB IS NOT READY", false)
 
 
 func _update_interaction_prompt() -> void:

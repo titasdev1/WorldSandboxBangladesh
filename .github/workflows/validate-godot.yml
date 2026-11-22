@@ -30,6 +30,7 @@ on:
       - "vehicle.gd"
       - "hud.gd"
       - "tests/test_lobby_operator_showcase.py"
+      - "tests/test_lobby_experience_families.py"
       - "assets/ui/icons/**"
       - "district_map_display.gd"
       - "real_dhaka_tile_loader.gd"
@@ -119,6 +120,9 @@ jobs:
 
       - name: Verify icon-led lobby navigation and page routing
         run: python3 -m unittest discover -s tests -p "test_lobby_operator_showcase.py" -v
+
+      - name: Verify the JibonJatra / Strikefront / Greenwake family hierarchy
+        run: python3 -m unittest discover -s tests -p "test_lobby_experience_families.py" -v
 
       - name: Verify mobile, building-door and same-world interior interaction flows
         run: python3 -m unittest discover -s tests -p "test_mobile_interaction_flow.py" -v
