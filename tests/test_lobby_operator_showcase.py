@@ -190,6 +190,11 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
             "RegionalMarkerRed",
         ):
             self.assertIn(token, self.showcase)
+        self.assertIn('_stage_timeline.name = "LobbyArtDirectionTimeline"', self.showcase)
+        self.assertIn('animation.loop_mode = Animation.LOOP_LINEAR', self.showcase)
+        self.assertIn('Animation.INTERPOLATION_CUBIC', self.showcase)
+        self.assertIn('track_insert_key(track_index, keyframe.x, keyframe.y)', self.showcase)
+        self.assertIn('_stage_timeline.play("lobby/PresentationIdle")', self.showcase)
         self.assertIn("_camera.fov = _camera_fov_origin + sin", self.showcase)
         self.assertIn("LOBBY_IDLE_ACTION_INTERVAL_SECONDS := 11.5", self.showcase)
 
