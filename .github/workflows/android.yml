@@ -73,7 +73,7 @@ jobs:
 
       - name: Validate asset pipeline Python syntax
         shell: bash
-        run: python3 -m py_compile tools/convert_charactercreator_glbs.py tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/fetch_charactercreator_hero.py tools/kenney_pack_utils.py tools/fetch_battle_royale_aircraft.py tools/verify_medium_stage_assets.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py tools/map_pack_build.py tools/verify_core_apk_contents.py tools/verify_final_distribution.py tools/ara3d/verify_ara_glb.py tools/build_battle_royale_parachute.py tools/verify_battle_royale_parachute.py
+        run: python3 -m py_compile tools/convert_charactercreator_glbs.py tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/fetch_charactercreator_hero.py tools/kenney_pack_utils.py tools/fetch_battle_royale_aircraft.py tools/verify_medium_stage_assets.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py tools/map_pack_build.py tools/verify_core_apk_contents.py tools/verify_final_distribution.py tools/ara3d/verify_ara_glb.py tools/build_battle_royale_parachute.py tools/verify_battle_royale_parachute.py tools/build_cinematic_lobby_stage.py
 
       - name: Test pinned Blender CI toolchain
         run: python3 -m unittest discover -s tests -p "test_blender_ci_toolchain.py" -v
@@ -791,6 +791,21 @@ jobs:
           sudo apt-get install -y curl xz-utils python3-numpy
           source tools/install_blender_ci.sh
           blender --version
+
+      - name: Build the original Blender cinematic operator stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p external_content build/cinematic-lobby-stage
+          blender --background --factory-startup --python tools/build_cinematic_lobby_stage.py -- \
+            --out external_content/a_square_cinematic_lobby_stage.glb \
+            --preview build/cinematic-lobby-stage/a_square_cinematic_lobby_stage_preview.png \
+            --blend build/cinematic-lobby-stage/a_square_cinematic_lobby_stage.blend \
+            > build/cinematic-lobby-stage/authoring.log 2>&1
+          cat build/cinematic-lobby-stage/authoring.log
+          grep -Fq "A2_CINEMATIC_LOBBY_STAGE_READY:" build/cinematic-lobby-stage/authoring.log
+          cp external_content/lobby_stage_manifest.json build/cinematic-lobby-stage/lobby_stage_manifest.json
+          python3 -m unittest discover -s tests -p "test_cinematic_lobby_stage_artifact.py" -v
 
       - name: Build and structurally verify the original CC0 ram-air parachute
         shell: bash
