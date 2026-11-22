@@ -63,8 +63,6 @@ class ShariatpurStreetfrontAuthoringTests(unittest.TestCase):
         from PIL import Image
         from tools.make_shariatpur_frontage_textures import make_bengali_sign_art
 
-        with pathlib.Path(__file__).resolve().parents[1].joinpath("build").joinpath("test-bengali-sign").parent as _:
-            pass
         import tempfile
         with tempfile.TemporaryDirectory() as temp_dir:
             report = make_bengali_sign_art(
