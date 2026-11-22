@@ -56,6 +56,10 @@ on:
       - main
       - feature/lobby-operator-showcase
     paths:
+      - "systems/lobby_showcase.gd"
+      - "tests/test_lobby_operator_showcase.py"
+      - "boot.gd"
+      - "tests/test_login_backdrop.py"
       - "**.gd"
       - "tools/check_gdscript_bool_casts.py"
       - "tests/test_gdscript_bool_cast_checker.py"
