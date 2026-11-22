@@ -56,7 +56,7 @@ class ShariatpurStreetfrontAuthoringTests(unittest.TestCase):
         self.assertIn("Shop_Signboard_Baked_Bengali_Face", self.builder)
         self.assertIn("Shop_Interior_Baked_Bengali_Face", self.builder)
         self.assertNotIn('text_mesh("Bengali_Shop_Name"', self.builder)
-        self.assertIn("camera.location=(4.65,-4.65,2.05)", self.builder)
+        self.assertIn("camera.location=(2.2,-2.65,1.95)", self.builder)
         self.assertIn("camera_data.lens=30", self.builder)
 
     def test_original_pbr_textures_are_2k_and_include_maps_for_each_material(self):
@@ -79,8 +79,10 @@ class ShariatpurStreetfrontAuthoringTests(unittest.TestCase):
                        "AUTHORED_ARCHETYPE_NOT_A_SURVEYED_BUILDING", "triangle_count_from_glb_accessors"):
             self.assertIn(marker, self.verifier)
         self.assertIn("STRUCTURAL_PASS_VISUAL_APPROVAL_AND_ANDROID_RUNTIME_STILL_REQUIRED", self.verifier)
+        self.assertIn("interior_preview_mean_luminance", self.verifier)
+        self.assertIn("interior_bright_ratio < 0.18", self.verifier)
 
-    def test_blender_524_uses_supported_eevee_render_engine(self):
+    def test_blender_524_uses_supported_cycles_cpu_preview_renderer(self):
         self.assertIn('scene.render.engine="CYCLES"', self.builder)
         self.assertIn('scene.cycles.device="CPU"', self.builder)
         self.assertIn("A2_PROGRESS: render CPU PBR exterior preview", self.builder)

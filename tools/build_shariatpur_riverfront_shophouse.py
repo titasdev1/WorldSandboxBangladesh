@@ -707,9 +707,9 @@ def render_interior_preview(root: bpy.types.Object, preview_path: pathlib.Path) 
     camera_data=bpy.data.cameras.new("PREVIEW_Interior_Review_Camera")
     camera=bpy.data.objects.new("PREVIEW_Interior_Review_Camera",camera_data)
     bpy.context.collection.objects.link(camera)
-    # Three-quarter entrance view: show the counter, cooler, rear stock wall,
-    # side rack and clear walking aisle instead of filling the frame with one shelf.
-    camera.location=(4.65,-4.65,2.05)
+    # Place the review camera inside the modeled public shop room. An exterior
+    # camera cannot see through the closed roller shutters and opaque entrance door.
+    camera.location=(2.2,-2.65,1.95)
     target=Vector((-0.85,1.55,1.55))
     camera.rotation_euler=(target-camera.location).to_track_quat("-Z","Y").to_euler()
     camera_data.type="PERSP"

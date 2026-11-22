@@ -8,6 +8,8 @@ import pathlib
 import struct
 import sys
 
+from PIL import Image, ImageStat
+
 JSON_CHUNK = 0x4E4F534A
 
 
@@ -79,6 +81,17 @@ def verify(glb_path: pathlib.Path, manifest_path: pathlib.Path, license_path: pa
         failures.append(f"Unexpected hero asset dimensions: {bounds}")
     if preview_path.stat().st_size < 40_000: failures.append("Exterior rendered preview is absent or implausibly small")
     if interior_preview_path.stat().st_size < 40_000: failures.append("Interior rendered preview is absent or implausibly small")
+    # A PNG existing on disk is not enough: catch obstructed/near-black interior
+    # camera renders before the asset can be accepted for visual review.
+    with Image.open(interior_preview_path) as interior_image:
+        interior_luminance = interior_image.convert("L")
+        interior_mean_luminance = float(ImageStat.Stat(interior_luminance).mean[0])
+        interior_bright_ratio = sum(value >= 32 for value in interior_luminance.getdata()) / float(interior_luminance.width * interior_luminance.height)
+    if interior_mean_luminance < 22.0 or interior_bright_ratio < 0.18:
+        failures.append(
+            "Interior preview is too dark for visual approval: "
+            f"mean_luminance={interior_mean_luminance:.2f}, bright_pixel_ratio={interior_bright_ratio:.3f}"
+        )
     if manifest.get("interior_status") != "AUTHORED_VISUAL_INTERIOR_INCLUDED_NOT_A_SURVEYED_PRIVATE_FLOOR_PLAN":
         failures.append("Manifest does not declare the authored interior and its non-survey limitation")
     feature_inventory = manifest.get("feature_inventory", [])
@@ -104,6 +117,8 @@ def verify(glb_path: pathlib.Path, manifest_path: pathlib.Path, license_path: pa
         "preview_bytes": preview_path.stat().st_size,
         "interior_preview_file": interior_preview_path.name,
         "interior_preview_bytes": interior_preview_path.stat().st_size,
+        "interior_preview_mean_luminance": round(interior_mean_luminance, 2),
+        "interior_preview_bright_pixel_ratio": round(interior_bright_ratio, 4),
         "glb_mobile_budget_mib": 45,
         "bounds_metres": bounds,
         "license": manifest.get("license"),
