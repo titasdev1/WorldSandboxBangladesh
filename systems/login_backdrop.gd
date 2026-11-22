@@ -10,6 +10,7 @@ var _elapsed := 0.0
 var _vehicle_root: Node3D
 var _vehicle_wheels: Array[MeshInstance3D] = []
 var _camera: Camera3D
+var _timeline: AnimationPlayer
 var _tree_pivots: Array[Node3D] = []
 var _wind_cloth_pivot: Node3D
 var _operator_visual: Node3D
@@ -23,36 +24,19 @@ func _ready() -> void:
 	_build_trees()
 	_build_cng()
 	_build_operator()
+	_build_login_timeline()
 
 
 func _process(delta: float) -> void:
 	_elapsed += delta
 
 	if is_instance_valid(_vehicle_root):
-		# The three-wheeler loops behind the login card and never blocks input.
+		# The three-wheeler follows a continuous street pass; wheel rotation is
+		# tied to its travel speed rather than an unrelated decorative spin.
 		_vehicle_root.position.x = fposmod(_elapsed * 3.8 + 5.0, 34.0) - 17.0
 		for wheel in _vehicle_wheels:
 			if is_instance_valid(wheel):
 				wheel.rotation.z -= delta * 15.2
-
-	for index in range(_tree_pivots.size()):
-		var branch := _tree_pivots[index]
-		if is_instance_valid(branch):
-			branch.rotation.z = sin(_elapsed * 0.78 + float(index) * 0.83) * 0.045
-			branch.rotation.x = cos(_elapsed * 0.62 + float(index) * 0.71) * 0.022
-
-	if is_instance_valid(_wind_cloth_pivot):
-		_wind_cloth_pivot.rotation.z = sin(_elapsed * 1.55) * 0.035
-		_wind_cloth_pivot.rotation.x = cos(_elapsed * 1.18) * 0.025
-
-	if is_instance_valid(_camera):
-		# Slow cinematic parallax, barely perceptible so the login form remains easy to use.
-		_camera.position = Vector3(sin(_elapsed * 0.075) * 0.28, 3.6 + sin(_elapsed * 0.11) * 0.035, 12.8)
-		_camera.look_at(Vector3(0.0, 1.45, -2.1), Vector3.UP)
-
-	if is_instance_valid(_operator_visual):
-		# Let the imported idle animation carry the body; retain only a tiny pose drift.
-		_operator_visual.rotation.y = PI + sin(_elapsed * 0.18) * 0.012
 
 
 func _build_lighting() -> void:
@@ -386,6 +370,7 @@ func _build_operator() -> void:
 		return
 	_operator_visual = Node3D.new()
 	_operator_visual.name = "HumanoidVisual"
+	_operator_visual.rotation.y = PI
 	_operator_visual.set_script(visual_script)
 	_operator_visual.set("is_player_character", true)
 	actor.add_child(_operator_visual)
@@ -405,6 +390,69 @@ func _build_operator() -> void:
 	)
 	cloth.rotation.x = -0.16
 	cloth.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+
+func _build_login_timeline() -> void:
+	_timeline = AnimationPlayer.new()
+	_timeline.name = "LoginArtDirectionTimeline"
+	_timeline.root_node = NodePath("..")
+	add_child(_timeline)
+
+	var animation := Animation.new()
+	animation.resource_name = "StreetReveal"
+	animation.length = 10.0
+	animation.step = 1.0 / 30.0
+	animation.loop_mode = Animation.LOOP_LINEAR
+
+	# A restrained, hand-shaped camera drift and environmental breeze. The
+	# imported operator rig retains ownership of its authored idle motion.
+	_add_float_track(animation, NodePath("LoginBackdropCamera:position:x"), [
+		Vector2(0.0, 0.0), Vector2(2.5, 0.22), Vector2(5.0, 0.0),
+		Vector2(7.5, -0.22), Vector2(10.0, 0.0)
+	])
+	_add_float_track(animation, NodePath("LoginBackdropCamera:position:y"), [
+		Vector2(0.0, 3.6), Vector2(2.5, 3.65), Vector2(5.0, 3.6),
+		Vector2(7.5, 3.56), Vector2(10.0, 3.6)
+	])
+	_add_float_track(animation, NodePath("LoginBackdropCamera:fov"), [
+		Vector2(0.0, 46.0), Vector2(3.0, 45.5), Vector2(6.0, 46.4), Vector2(10.0, 46.0)
+	])
+
+	for index in range(_tree_pivots.size()):
+		var branch := _tree_pivots[index]
+		if not is_instance_valid(branch):
+			continue
+		var branch_path := str(get_path_to(branch))
+		var direction := 1.0 if index % 2 == 0 else -1.0
+		_add_float_track(animation, NodePath(branch_path + ":rotation:z"), [
+			Vector2(0.0, 0.0), Vector2(2.5, 0.038 * direction),
+			Vector2(5.0, 0.0), Vector2(7.5, -0.038 * direction), Vector2(10.0, 0.0)
+		])
+		_add_float_track(animation, NodePath(branch_path + ":rotation:x"), [
+			Vector2(0.0, 0.0), Vector2(3.0, 0.018 * direction),
+			Vector2(6.0, 0.0), Vector2(8.0, -0.018 * direction), Vector2(10.0, 0.0)
+		])
+
+	if is_instance_valid(_wind_cloth_pivot):
+		var cloth_path := str(get_path_to(_wind_cloth_pivot))
+		_add_float_track(animation, NodePath(cloth_path + ":rotation:z"), [
+			Vector2(0.0, 0.0), Vector2(2.0, 0.035), Vector2(5.0, 0.0),
+			Vector2(8.0, -0.035), Vector2(10.0, 0.0)
+		])
+
+	var library := AnimationLibrary.new()
+	library.add_animation("StreetReveal", animation)
+	_timeline.add_animation_library("login", library)
+	_timeline.play("login/StreetReveal")
+
+
+func _add_float_track(animation: Animation, track_path: NodePath, keyframes: Array[Vector2]) -> void:
+	var track_index := animation.add_track(Animation.TYPE_VALUE)
+	animation.track_set_path(track_index, track_path)
+	animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_CUBIC)
+	for keyframe in keyframes:
+		animation.track_insert_key(track_index, keyframe.x, keyframe.y)
 
 
 func _box(parent: Node3D, node_name: String, local_position: Vector3, box_size: Vector3, color: Color) -> MeshInstance3D:
