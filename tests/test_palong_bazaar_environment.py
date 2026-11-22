@@ -33,7 +33,7 @@ class PalongBazaarEnvironmentTests(unittest.TestCase):
             "CC0 1.0 Universal",
         ):
             self.assertIn(marker, self.builder + self.texture_script)
-        self.assertIn("3.9", self.builder)
+        self.assertIn("3.7", self.builder)
         self.assertIn("12", self.builder)  # Twelve separate, authored frontage records.
 
     def test_street_slice_contains_varied_frontages_and_grounded_market_props(self):
@@ -66,6 +66,7 @@ class PalongBazaarEnvironmentTests(unittest.TestCase):
     def test_bengali_sign_art_requires_raqm_and_original_local_wording(self):
         self.assertIn('ImageFont.Layout.RAQM', self.texture_script)
         self.assertIn("নক্ষত্র ফ্যাশন", self.texture_script)
+        self.assertIn("হার্ডওয়্যার", self.texture_script)
         self.assertIn("হারু ঘোষ মিষ্টান্ন ভাণ্ডার", self.texture_script)
         self.assertIn("সোনালী ব্যাংক", self.texture_script)
         self.assertIn("source_images_embedded", self.builder)
@@ -80,7 +81,7 @@ class PalongBazaarEnvironmentTests(unittest.TestCase):
             root = pathlib.Path(temp_dir)
             manifest = build(root, 512)
             self.assertEqual(8, len(manifest["materials"]))
-            self.assertEqual(7, len(manifest["signs"]))
+            self.assertEqual(8, len(manifest["signs"]))
             self.assertEqual("RAQM", manifest["font"]["layout_engine"])
             for material in manifest["materials"].values():
                 for key in ("base_color", "normal", "roughness"):
