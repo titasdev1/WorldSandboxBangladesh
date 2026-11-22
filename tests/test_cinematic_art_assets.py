@@ -55,6 +55,7 @@ class CinematicArtPipelineTests(unittest.TestCase):
         self.assertIn("tools/verify_cinematic_art_apk.py", android)
         self.assertIn("tests/cinematic_art_runtime_smoke.gd", android)
         self.assertIn("verify_cinematic_art_apk.py --apk", android)
+        self.assertIn("cinematic-art-core-apk-verification.txt", android)
         self.assertIn("assets/login/shariatpur_riverfront_shophouse_hero.glb", android)
         self.assertIn("assets/lobby/asquare_command_hall.glb", android)
 

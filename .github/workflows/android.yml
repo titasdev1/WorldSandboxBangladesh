@@ -1076,6 +1076,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/verify_core_apk_contents.py --apk build/Android/world_sandbox_bangladesh.apk | tee build/core-apk-content-verification.txt
+          python3 tools/verify_cinematic_art_apk.py --apk build/Android/world_sandbox_bangladesh.apk | tee build/cinematic-art-core-apk-verification.txt
 
       - name: Restore map pack files for release upload
         shell: bash
@@ -1316,6 +1317,8 @@ jobs:
             build/apk-content-verification.txt
             build/full-map-apk-content-verification.txt
             build/core-apk-content-verification.txt
+            build/cinematic-art-apk-verification.txt
+            build/cinematic-art-core-apk-verification.txt
             build/map-pack-verification.txt
             build/MapPacks/*.json
             build/asset_build_report.json
