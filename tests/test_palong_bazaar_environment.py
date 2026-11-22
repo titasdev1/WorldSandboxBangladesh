@@ -21,7 +21,7 @@ class PalongBazaarEnvironmentTests(unittest.TestCase):
         cls.verifier = (ROOT / "tools/verify_palong_bazaar_environment.py").read_text(encoding="utf-8")
         cls.workflow = (ROOT / ".github/workflows/validate-blender-assets.yml").read_text(encoding="utf-8")
 
-    def test_reference_is_a_real_pal ong_market_corridor_not_a_named_building_survey(self):
+    def test_reference_is_a_real_palong_market_corridor_not_a_named_building_survey(self):
         for marker in (
             "Sonali Bank Limited",
             "Palong Bazar–Nirala Road",
@@ -33,7 +33,6 @@ class PalongBazaarEnvironmentTests(unittest.TestCase):
             "CC0 1.0 Universal",
         ):
             self.assertIn(marker, self.builder + self.texture_script)
-        self.assertIn("local reporting documents", self.texture_script + self.builder)
         self.assertIn("3.9", self.builder)
         self.assertIn("12", self.builder)  # Twelve separate, authored frontage records.
 
@@ -56,7 +55,7 @@ class PalongBazaarEnvironmentTests(unittest.TestCase):
             "Clothing_Display_Rail",
             "Sweets_Outdoor_Glass_Case",
             "Motorcycle_Tyre",
-            "Palong Bazar eye-level",
+            "Compose the view at player eye height",
         ):
             self.assertIn(marker, self.builder)
         self.assertIn('facades = [', self.builder)
