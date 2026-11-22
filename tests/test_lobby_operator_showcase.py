@@ -111,6 +111,10 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('Callable(self, "_start_shariatpur_download")', downloads)
         self.assertIn('Callable(self, "_restart_to_apply_shariatpur")', downloads)
         self.assertIn('ContentDownloadManager.start_shariatpur_download()', start)
+        self.assertIn('ContentDownloadManager.refresh_shariatpur_info()', self.hud)
+        self.assertIn('VERIFIED PACKAGE SIZE', downloads)
+        self.assertIn('catalogue_checked', downloads)
+        self.assertIn('part_count', downloads)
         self.assertIn('change_scene_to_file("res://Main.tscn")', restart)
         icon_path = ROOT / "assets" / "ui" / "icons" / "downloads.svg"
         self.assertTrue(icon_path.is_file())
