@@ -20,6 +20,7 @@ var _rim_light: OmniLight3D
 var _scan_bar: MeshInstance3D
 var _scan_material: StandardMaterial3D
 var _camera: Camera3D
+var _stage_timeline: AnimationPlayer
 var _enabled := false
 var _elapsed := 0.0
 var _camera_yaw_origin := 24.0
@@ -51,6 +52,11 @@ func set_enabled(value: bool) -> void:
 		return
 	_enabled = value
 	visible = value
+	if is_instance_valid(_stage_timeline):
+		if value:
+			_stage_timeline.play("lobby/PresentationIdle")
+		else:
+			_stage_timeline.pause()
 	if not value:
 		if is_instance_valid(_visual):
 			_visual.rotation.y = _visual_yaw_origin
@@ -91,18 +97,6 @@ func _process(delta: float) -> void:
 		_player.call("_update_camera")
 	if is_instance_valid(_camera):
 		_camera.fov = _camera_fov_origin + sin(_elapsed * 0.11) * 0.75
-	if is_instance_valid(_orbit_rig):
-		_orbit_rig.rotation.y = _elapsed * 0.045
-	if is_instance_valid(_key_light):
-		_key_light.light_energy = 1.52 + sin(_elapsed * 0.72) * 0.07
-	if is_instance_valid(_fill_light):
-		_fill_light.light_energy = 0.55 + sin(_elapsed * 0.54 + 1.2) * 0.045
-	if is_instance_valid(_rim_light):
-		_rim_light.light_energy = 0.82 + sin(_elapsed * 0.62 + 2.0) * 0.08
-	if is_instance_valid(_scan_bar):
-		_scan_bar.position.y = 2.12 + sin(_elapsed * 0.58) * 0.62
-	if is_instance_valid(_scan_material):
-		_scan_material.emission_energy_multiplier = 0.42 + (0.5 + 0.5 * sin(_elapsed * 0.85)) * 0.32
 
 
 func _request_next_lobby_idle_action() -> void:
@@ -264,6 +258,56 @@ func _build_stage() -> void:
 	_rim_light.omni_range = 5.2
 	_rim_light.shadow_enabled = false
 	_stage_root.add_child(_rim_light)
+
+	_build_stage_timeline()
+
+
+func _build_stage_timeline() -> void:
+	_stage_timeline = AnimationPlayer.new()
+	_stage_timeline.name = "LobbyArtDirectionTimeline"
+	_stage_timeline.root_node = NodePath("..")
+	_stage_root.add_child(_stage_timeline)
+
+	var animation := Animation.new()
+	animation.resource_name = "PresentationIdle"
+	animation.length = 12.0
+	animation.step = 1.0 / 30.0
+	animation.loop_mode = Animation.LOOP_LINEAR
+
+	# These cubic keyframes animate the environment as a designed loop:
+	# slow orbit accents, a deliberate telemetry scan and restrained light pulses.
+	_add_float_track(animation, NodePath("OperatorOrbitAccents:rotation:y"), [
+		Vector2(0.0, 0.0), Vector2(6.0, PI), Vector2(12.0, TAU)
+	])
+	_add_float_track(animation, NodePath("VerticalHangarHalo:rotation:z"), [
+		Vector2(0.0, -0.035), Vector2(6.0, 0.045), Vector2(12.0, -0.035)
+	])
+	_add_float_track(animation, NodePath("TelemetryScan:position:y"), [
+		Vector2(0.0, 1.50), Vector2(3.0, 2.72), Vector2(6.0, 1.50),
+		Vector2(9.0, 2.72), Vector2(12.0, 1.50)
+	])
+	_add_float_track(animation, NodePath("OperatorKeyLight:light_energy"), [
+		Vector2(0.0, 1.43), Vector2(5.0, 1.62), Vector2(9.0, 1.50), Vector2(12.0, 1.43)
+	])
+	_add_float_track(animation, NodePath("OperatorRimLight:light_energy"), [
+		Vector2(0.0, 0.48), Vector2(6.0, 0.62), Vector2(12.0, 0.48)
+	])
+	_add_float_track(animation, NodePath("WarmOperatorRim:light_energy"), [
+		Vector2(0.0, 0.72), Vector2(6.0, 0.88), Vector2(12.0, 0.72)
+	])
+
+	var library := AnimationLibrary.new()
+	library.add_animation("PresentationIdle", animation)
+	_stage_timeline.add_animation_library("lobby", library)
+	_stage_timeline.play("lobby/PresentationIdle")
+
+
+func _add_float_track(animation: Animation, track_path: NodePath, keyframes: Array[Vector2]) -> void:
+	var track_index := animation.add_track(Animation.TYPE_VALUE)
+	animation.track_set_path(track_index, track_path)
+	animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_CUBIC)
+	for keyframe in keyframes:
+		animation.track_insert_key(track_index, keyframe.x, keyframe.y)
 
 
 func _add_box(node_name: String, size: Vector3, position: Vector3, material: Material) -> MeshInstance3D:
