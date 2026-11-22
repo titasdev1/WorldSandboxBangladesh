@@ -306,6 +306,30 @@ jobs:
           PY
           cat build/shariatpur-art-map-smoke/shariatpur_art_target.json
 
+      - name: Cache Blender 5.2.4 cinematic-stage toolchain
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/blender-5.2.4
+          key: blender-linux-5.2.4-lts
+          
+      - name: Install pinned Blender and author the A-Square lobby stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl xz-utils python3-numpy python3-pil fontconfig fonts-noto-core
+          source tools/install_blender_ci.sh
+          mkdir -p external_content build/cinematic-lobby-stage
+          blender --background --factory-startup --python tools/build_cinematic_lobby_stage.py -- \
+            --out external_content/a_square_cinematic_lobby_stage.glb \
+            --preview build/cinematic-lobby-stage/a_square_cinematic_lobby_stage_preview.png \
+            --blend build/cinematic-lobby-stage/a_square_cinematic_lobby_stage.blend \
+            > build/cinematic-lobby-stage/authoring.log 2>&1
+          cat build/cinematic-lobby-stage/authoring.log
+          grep -Fq "A2_CINEMATIC_LOBBY_STAGE_READY:" build/cinematic-lobby-stage/authoring.log
+          cp external_content/lobby_stage_manifest.json build/cinematic-lobby-stage/lobby_stage_manifest.json
+          python3 -m unittest discover -s tests -p "test_cinematic_lobby_stage_artifact.py" -v
+
       - name: Parse and import all project scripts
         shell: bash
         run: |
@@ -472,5 +496,6 @@ jobs:
           path: |
             ${{ runner.temp }}/godot/*.log
             build/shariatpur-art-map-smoke/shariatpur_art_target.json
+            build/cinematic-lobby-stage/**
           if-no-files-found: ignore
           retention-days: 14
