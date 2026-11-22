@@ -54,6 +54,7 @@ on:
       - "tools/make_palong_bazaar_textures.py"
       - "tools/blender/build_palong_bazaar_environment.py"
       - "tools/verify_palong_bazaar_environment.py"
+      - "tools/fetch_polyhaven_pbr_materials.py"
       - "tests/test_palong_bazaar_environment.py"
       - ".github/workflows/validate-blender-assets.yml"
 
