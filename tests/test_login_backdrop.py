@@ -27,11 +27,13 @@ class LoginBackdropTests(unittest.TestCase):
         cls.backdrop = read("systems/login_backdrop.gd")
         cls.actor = read("systems/login_operator_actor.gd")
 
-    def test_first_run_login_mounts_live_backdrop_before_shade_and_controls(self):
+    def test_first_run_login_reuses_the_persistent_cinematic_backdrop(self):
         login = function_block(self.boot, "_show_guest_login_screen")
-        self.assertIn('backdrop.name = "LoginBackdrop"', login)
-        self.assertIn('load("res://systems/login_backdrop_view.gd")', login)
-        self.assertLess(login.index("login_overlay.add_child(backdrop)"), login.index("login_overlay.add_child(background)"))
+        build = function_block(self.boot, "_build_screen")
+        self.assertIn('cinematic_backdrop.name = "BootCinematicBackdrop"', build)
+        self.assertIn('load("res://systems/login_backdrop_view.gd")', build)
+        self.assertIn('get_node_or_null("BootCinematicBackdrop")', login)
+        self.assertNotIn("SubViewportContainer.new()", login)
         self.assertLess(login.index("login_overlay.add_child(background)"), login.index("login_overlay.add_child(center)"))
         self.assertIn('guest_button.pressed.connect(_continue_as_guest)', login)
         self.assertIn('callsign_input.grab_focus()', login)
