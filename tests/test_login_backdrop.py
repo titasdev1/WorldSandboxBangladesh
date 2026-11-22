@@ -72,6 +72,14 @@ class LoginBackdropTests(unittest.TestCase):
         self.assertIn("RegionalAccentGreen", self.backdrop)
         self.assertIn("RegionalAccentRed", self.backdrop)
 
+    def test_map_loading_keeps_the_same_live_cinematic_backdrop(self):
+        build = function_block(self.boot, "_build_screen")
+        self.assertIn('cinematic_backdrop.name = "BootCinematicBackdrop"', build)
+        self.assertIn('load("res://systems/login_backdrop_view.gd")', build)
+        self.assertIn('backdrop_shade.name = "BootCinematicShade"', build)
+        self.assertIn('Color(0.008, 0.026, 0.043, 0.78)', build)
+        self.assertLess(build.index("add_child(cinematic_backdrop)"), build.index("add_child(shell)"))
+
     def test_map_install_screen_remains_separate_from_the_animated_login_scene(self):
         install = function_block(self.boot, "_show_map_install_screen")
         self.assertNotIn("LoginBackdrop", install)
