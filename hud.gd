@@ -1255,6 +1255,8 @@ func _show_lobby_page(page: String) -> void:
    {"eyebrow":"FREE EXPLORATION","title":"OPEN CITY SANDBOX","detail":"Traffic, characters, shops and transport","accent":Color("#6cb8d9"),"callback":Callable(self, "_choose_mode").bind("free_roam")},
    {"eyebrow":"LOCAL ACTIVITIES","title":"STREET LIFE","detail":"Markets, fares and city activities","accent":Color("#86b58b"),"callback":Callable(self, "_choose_mode").bind("street_life")}
   ])
+  var br_controller: Node = w.get("battle_royale_controller") as Node if is_instance_valid(w) else null
+  var br_assets_ready: bool = is_instance_valid(br_controller) and (br_controller.call("can_start_solo_deployment") == true)
   _lobby_add_section("STRIKEFRONT  /  OFFLINE AI")
   _lobby_add_mode_grid([
    {"eyebrow":"SURVIVAL","title":"LAST STAND","detail":"Three escalating AI waves","accent":Color("#d68c76"),"callback":Callable(self, "_choose_mode").bind("survival")},
@@ -1262,9 +1264,6 @@ func _show_lobby_page(page: String) -> void:
    {"eyebrow":"ELIMINATION","title":"STREET SKIRMISH","detail":"Ten AI opponents","accent":Color("#d68c76"),"callback":Callable(self, "_choose_mode").bind("street_skirmish")},
    {"eyebrow":"BATTLE ROYALE","title":"SOLO DROP","detail":"Aircraft • freefall • parachute • AI","accent":Color("#d6b36d"),"callback":Callable(self, "_choose_mode").bind("battle_royale_solo"),"available":br_assets_ready,"locked_detail":"Waiting for the verified aircraft and parachute art"}
   ])
-  var br_controller: Node = w.get("battle_royale_controller") as Node if is_instance_valid(w) else null
-  var br_assets_ready: bool = is_instance_valid(br_controller) and (br_controller.call("can_start_solo_deployment") == true)
-  # Rebuild the mode tiles after resolving BR asset availability.
   _lobby_add_section("ONLINE  /  SERVICES NOT CONNECTED")
   _lobby_add_mode_grid([
    {"eyebrow":"ONLINE","title":"MULTIPLAYER QUICK PLAY","detail":"Requires real-time player servers","available":false},
