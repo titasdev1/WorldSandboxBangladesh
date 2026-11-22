@@ -205,7 +205,7 @@ def build_scene(out: Path, preview: Path, blend: Path) -> dict:
 
     # Preview-only camera and softboxes. They are not included in the GLB.
     scene = bpy.context.scene
-    scene.render.engine = "BLENDER_EEVEE_NEXT"
+    scene.render.engine = "BLENDER_EEVEE"
     scene.render.resolution_x = 1440
     scene.render.resolution_y = 900
     scene.render.resolution_percentage = 100
