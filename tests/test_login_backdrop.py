@@ -93,12 +93,16 @@ class LoginBackdropTests(unittest.TestCase):
         self.assertIn('Color(0.008, 0.026, 0.043, 0.78)', build)
         self.assertLess(build.index("add_child(cinematic_backdrop)"), build.index("add_child(shell)"))
 
-    def test_map_install_screen_remains_separate_from_the_animated_login_scene(self):
-        install = function_block(self.boot, "_show_map_install_screen")
-        self.assertNotIn("LoginBackdrop", install)
-        self.assertIn('entrance.tween_property(boot_content, "modulate:a", 1.0, 0.32)', install)
-        self.assertIn("_show_map_install_screen()", function_block(self.boot, "_continue_as_guest"))
-
+    def test_guest_login_handoff_opens_the_lobby_without_a_mandatory_map_installer(self):
+        boot_flow = function_block(self.boot, "_run_boot_sequence")
+        handoff = function_block(self.boot, "_continue_as_guest")
+        launch = function_block(self.boot, "_launch_main_lobby")
+        self.assertIn('call_deferred("_launch_main_lobby")', boot_flow)
+        self.assertIn("_launch_main_lobby()", handoff)
+        self.assertNotIn("_show_map_install_screen()", boot_flow)
+        self.assertNotIn("_show_map_install_screen()", handoff)
+        self.assertIn('change_scene_to_file("res://Main.tscn")', launch)
+        self.assertIn("optional and is not required to launch the starter experience", launch)
 
     def test_login_street_prefers_authored_shariatpur_frontage_and_keeps_safe_fallback(self):
         self.assertIn('SHARIATPUR_SHOPFRONT_PATH := "res://assets/login/shariatpur_riverfront_shophouse_hero.glb"', self.backdrop)
@@ -124,12 +128,16 @@ class LoginBackdropTests(unittest.TestCase):
         self.assertIn('exit_tween.tween_property(login_overlay, "modulate:a"', handoff)
         self.assertIn("await exit_tween.finished", handoff)
 
-    def test_map_install_screen_keeps_the_cinematic_backdrop_visible_under_glass(self):
+    def test_cinematic_login_is_followed_by_a_lobby_owned_download_centre(self):
         build = function_block(self.boot, "_build_screen")
         self.assertIn("Color(0.008, 0.026, 0.043, 0.78)", build)
         self.assertIn("backdrop_shade.color = Color(0.008, 0.018, 0.03, 0.30)", build)
-        install = function_block(self.boot, "_show_map_install_screen")
-        self.assertIn('entrance.tween_property(boot_content, "scale", Vector2.ONE, 0.36)', install)
+        hud = read("hud.gd")
+        lobby = function_block(hud, "_build_lobby_ui")
+        downloads = function_block(hud, "_build_downloads_page")
+        self.assertIn('["DOWNLOADS", "downloads", "res://assets/ui/icons/downloads.svg"]', lobby)
+        self.assertIn('"DOWNLOAD CENTRE"', downloads)
+        self.assertIn("starter lobby and local city remain available", downloads)
 
 
 if __name__ == "__main__":
