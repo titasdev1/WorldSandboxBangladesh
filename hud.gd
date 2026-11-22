@@ -1137,7 +1137,7 @@ func _lobby_add_mode_grid(cards: Array) -> void:
  for index in range(cards.size()):
   var data: Dictionary = cards[index]
   var accent: Color = data.get("accent", Color("#63cad3"))
-  var available := bool(data.get("available", true))
+  var available: bool = data.get("available", true) == true
   var card := Button.new()
   card.name = "ModeCard_%02d" % index
   card.custom_minimum_size = Vector2(0.0, 108.0)
