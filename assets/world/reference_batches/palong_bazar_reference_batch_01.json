@@ -1,0 +1,340 @@
+{
+  "schema_version": 1,
+  "batch_id": "palong_bazar_reference_batch_01",
+  "research_date": "2026-11-22",
+  "area": {
+    "name": "Palong Bazar / Shariatpur Sadar",
+    "center_reference": {
+      "latitude": 23.22004,
+      "longitude": 90.34926
+    },
+    "center_source": "https://mapcarta.com/N5759840117",
+    "center_source_note": "Marketplace location only; not a survey marker."
+  },
+  "policy": {
+    "reference_only": true,
+    "no_ai_generated_art": true,
+    "no_google_or_news_imagery_repacked": true,
+    "preserve_canonical_osm_road_topology_and_building_footprints": true,
+    "business_pins_are_not_building_footprints": true,
+    "unknown_floors_entrances_and_interiors_must_remain_null": true,
+    "street_view_360_verified": false
+  },
+  "records": [
+    {
+      "id": "palong_kacha_bazar",
+      "listing_name": "Kacha Bazar (কাঁচা বাজার)",
+      "category": "market",
+      "listed_address": "689X+XP6, Palong Moddho Bazar, Road, Shariatpur, Bangladesh",
+      "plus_code": "689X+XP6",
+      "source_url": "https://www.google.com/maps/search/?api=1&query=Kacha+Bazar+Palong+Shariatpur",
+      "evidence": [
+        {
+          "type": "business_map_listing",
+          "url": "https://mapcarta.com/N5759840117",
+          "note": "The market area is nearby; business result provides the 689X+XP6 listing."
+        },
+        {
+          "type": "market_visual_context",
+          "url": "https://www.somoynews.tv/news/2025-03-12/Ox72Qt49",
+          "note": "Press photo shows dense produce stalls and pedestrian/vehicle congestion."
+        }
+      ],
+      "host_building_id": null,
+      "osm_feature_id": null,
+      "footprint_match_status": "UNMATCHED",
+      "facade_photo_status": "STREET_CONTEXT_ONLY",
+      "floor_count": null,
+      "height_m": null,
+      "entrance_status": "UNVERIFIED",
+      "interior_status": "UNVERIFIED",
+      "reviewer_notes": "Keep as market-area node until individual shop plots are separated from the marketplace listing."
+    },
+    {
+      "id": "spain_plaza",
+      "listing_name": "Spain Plaza",
+      "category": "shopping_complex",
+      "listed_address": "689X+WHC, Palong Moddho Bazar, Road, Shariatpur 8000, Bangladesh",
+      "plus_code": "689X+WHC",
+      "source_url": "https://www.google.com/maps/search/?api=1&query=Spain+Plaza+Palong+Bazar+Shariatpur",
+      "evidence": [
+        {
+          "type": "business_map_listing",
+          "url": "https://www.google.com/maps/search/?api=1&query=Spain+Plaza+Palong+Bazar+Shariatpur",
+          "note": "Named shopping complex map listing."
+        },
+        {
+          "type": "tenant_level_listing",
+          "url": "https://www.google.com/maps/search/?api=1&query=Uttara+Bank+Spain+Plaza+Shariatpur",
+          "note": "Uttara Bank Shariatpur Branch is listed on the first floor of this plaza."
+        }
+      ],
+      "host_building_id": null,
+      "osm_feature_id": null,
+      "footprint_match_status": "UNMATCHED",
+      "facade_photo_status": "NOT_YET_FOUND",
+      "floor_count": null,
+      "height_m": null,
+      "entrance_status": "UNVERIFIED",
+      "interior_status": "UNVERIFIED",
+      "reviewer_notes": "Keep plaza as one potential building asset. Do not treat bank tenant as a separate building."
+    },
+    {
+      "id": "uttara_bank_spain_plaza",
+      "listing_name": "Uttara Bank Limited — Shariatpur Branch",
+      "category": "bank_tenant",
+      "listed_address": "1st floor, Spain Plaza, Palong Bazar–Nirala Road, Shariatpur 8000, Bangladesh",
+      "plus_code": null,
+      "source_url": "https://www.google.com/maps/search/?api=1&query=Uttara+Bank+Spain+Plaza+Shariatpur",
+      "evidence": [
+        {
+          "type": "tenant_level_listing",
+          "url": "https://www.google.com/maps/search/?api=1&query=Uttara+Bank+Spain+Plaza+Shariatpur",
+          "note": "The listing identifies a first-floor tenant within Spain Plaza."
+        }
+      ],
+      "host_building_id": "spain_plaza",
+      "osm_feature_id": null,
+      "footprint_match_status": "HOST_BUILDING_UNMATCHED",
+      "facade_photo_status": "NOT_YET_FOUND",
+      "floor_count": null,
+      "height_m": null,
+      "entrance_status": "UNVERIFIED",
+      "interior_status": "UNVERIFIED",
+      "reviewer_notes": "The tenant's first-floor placement is not the total height or total floor count of Spain Plaza."
+    },
+    {
+      "id": "ghosh_mistanno_vandar",
+      "listing_name": "Ghosh Mistanno Vandar (ঘোষ মিষ্টান্ন ভান্ডার)",
+      "category": "sweet_shop",
+      "listed_address": "689X+PHV, Palong Bazar–Nirala Road, Shariatpur, Bangladesh",
+      "plus_code": "689X+PHV",
+      "source_url": "https://www.google.com/maps/search/?api=1&query=Ghosh+Mistanno+Vandar+Palong+Bazar+Shariatpur",
+      "evidence": [
+        {
+          "type": "business_map_listing",
+          "url": "https://www.google.com/maps/search/?api=1&query=Ghosh+Mistanno+Vandar+Palong+Bazar+Shariatpur",
+          "note": "Named sweets-shop listing with plus code."
+        },
+        {
+          "type": "historical_business_article",
+          "url": "https://en.prothomalo.com/amp/story/bangladesh/local-news/giqxr3h9aw",
+          "note": "Documents the Ghosh family sweets business in Palong Bazar and says Haru Ghosh took the original shop at the northern end in 1974."
+        },
+        {
+          "type": "shop_photograph",
+          "url": "https://www.jagonews24.com/country/news/881973",
+          "note": "Public photograph visibly shows a Bengali shop fascia, glass sweets display and a modest tiled sales interior."
+        }
+      ],
+      "host_building_id": null,
+      "osm_feature_id": null,
+      "footprint_match_status": "UNMATCHED",
+      "facade_photo_status": "PHOTO_AVAILABLE_IDENTITY_LINK_UNCONFIRMED",
+      "floor_count": null,
+      "height_m": null,
+      "entrance_status": "VISIBLE_IN_PHOTO_NOT_GEOREFERENCED",
+      "interior_status": "PARTIAL_SALES_AREA_PHOTO_ONLY",
+      "reviewer_notes": "Do not assume this exact plus-code listing is the same premises as the photographed Haru Ghosh Mishtanno Bhandar until the pin, sign and footprint are reconciled."
+    },
+    {
+      "id": "sonali_bank_shariatpur",
+      "listing_name": "Sonali Bank Limited — Shariatpur Branch",
+      "category": "bank",
+      "listed_address": "689X+6CX, Road, Shariatpur, Bangladesh",
+      "plus_code": "689X+6CX",
+      "source_url": "https://www.google.com/maps/search/?api=1&query=Sonali+Bank+Shariatpur+Branch",
+      "evidence": [
+        {
+          "type": "business_map_listing",
+          "url": "https://www.google.com/maps/search/?api=1&query=Sonali+Bank+Shariatpur+Branch",
+          "note": "Named branch listing and plus code."
+        }
+      ],
+      "host_building_id": null,
+      "osm_feature_id": null,
+      "footprint_match_status": "UNMATCHED",
+      "facade_photo_status": "NOT_YET_FOUND",
+      "floor_count": null,
+      "height_m": null,
+      "entrance_status": "UNVERIFIED",
+      "interior_status": "UNVERIFIED",
+      "reviewer_notes": "A business pin and road description alone do not identify the exact host building."
+    },
+    {
+      "id": "agrani_bank_shariatpur",
+      "listing_name": "Agrani Bank PLC — Shariatpur Branch",
+      "category": "bank",
+      "listed_address": "Thana Road / Palong Bazar–Nirala Road, Shariatpur 8000, Bangladesh",
+      "plus_code": null,
+      "source_url": "https://www.google.com/maps/search/?api=1&query=Agrani+Bank+Shariatpur+Branch",
+      "evidence": [
+        {
+          "type": "business_map_listing",
+          "url": "https://www.google.com/maps/search/?api=1&query=Agrani+Bank+Shariatpur+Branch",
+          "note": "Named branch listing with a bazar-road location description."
+        }
+      ],
+      "host_building_id": null,
+      "osm_feature_id": null,
+      "footprint_match_status": "UNMATCHED",
+      "facade_photo_status": "NOT_YET_FOUND",
+      "floor_count": null,
+      "height_m": null,
+      "entrance_status": "UNVERIFIED",
+      "interior_status": "UNVERIFIED",
+      "reviewer_notes": "Need exact public map pin / OSM place-feature correlation before placing the branch."
+    },
+    {
+      "id": "sohana_tower",
+      "listing_name": "Sohana Tower",
+      "category": "shopping_complex",
+      "listed_address": "R861, Shariatpur, Bangladesh",
+      "plus_code": null,
+      "source_url": "https://www.google.com/maps/search/?api=1&query=Sohana+Tower+Shariatpur",
+      "evidence": [
+        {
+          "type": "business_map_listing",
+          "url": "https://www.google.com/maps/search/?api=1&query=Sohana+Tower+Shariatpur",
+          "note": "Named shopping-complex listing along R861; a public directory describes it near the Chowrongi Bridge area."
+        }
+      ],
+      "host_building_id": null,
+      "osm_feature_id": null,
+      "footprint_match_status": "UNMATCHED",
+      "facade_photo_status": "NOT_YET_FOUND",
+      "floor_count": null,
+      "height_m": null,
+      "entrance_status": "UNVERIFIED",
+      "interior_status": "UNVERIFIED",
+      "reviewer_notes": "No building dimensions or total floor count verified."
+    },
+    {
+      "id": "mazid_jarina_foundation_plaza",
+      "listing_name": "Mazid Jarina Foundation Plaza",
+      "category": "shopping_complex",
+      "listed_address": "68FX+2CV, Main Road, Shariatpur, Bangladesh",
+      "plus_code": "68FX+2CV",
+      "source_url": "https://www.google.com/maps/search/?api=1&query=Mazid+Jarina+Foundation+Plaza+Shariatpur",
+      "evidence": [
+        {
+          "type": "business_map_listing",
+          "url": "https://www.google.com/maps/search/?api=1&query=Mazid+Jarina+Foundation+Plaza+Shariatpur",
+          "note": "Named plaza listing."
+        },
+        {
+          "type": "tenant_level_listing",
+          "url": "https://www.google.com/maps/search/?api=1&query=Suruchi+Food+Valley+Mazid+Jarina+Foundation+Plaza",
+          "note": "Suruchi Food Valley is listed on the first floor of this plaza."
+        }
+      ],
+      "host_building_id": null,
+      "osm_feature_id": null,
+      "footprint_match_status": "UNMATCHED",
+      "facade_photo_status": "NOT_YET_FOUND",
+      "floor_count": null,
+      "height_m": null,
+      "entrance_status": "UNVERIFIED",
+      "interior_status": "TENANT_LEVEL_LISTING_ONLY",
+      "reviewer_notes": "Tenant listing establishes first-floor placement only; it does not establish total plaza floors or room layout."
+    },
+    {
+      "id": "national_bank_s_r_plaza",
+      "listing_name": "National Bank Limited — Shariatpur Branch",
+      "category": "bank_tenant",
+      "listed_address": "689W+8X9, R861, Shariatpur, Bangladesh",
+      "plus_code": "689W+8X9",
+      "source_url": "https://www.google.com/maps/search/?api=1&query=National+Bank+Shariatpur+Branch+S+R+Plaza",
+      "evidence": [
+        {
+          "type": "business_map_listing",
+          "url": "https://www.google.com/maps/search/?api=1&query=National+Bank+Shariatpur+Branch+S+R+Plaza",
+          "note": "Public listing locates the branch on the first floor of S.R. Plaza."
+        }
+      ],
+      "host_building_id": "s_r_plaza",
+      "osm_feature_id": null,
+      "footprint_match_status": "HOST_BUILDING_UNMATCHED",
+      "facade_photo_status": "NOT_YET_FOUND",
+      "floor_count": null,
+      "height_m": null,
+      "entrance_status": "UNVERIFIED",
+      "interior_status": "TENANT_LEVEL_LISTING_ONLY",
+      "reviewer_notes": "S.R. Plaza should be resolved as the building; National Bank is an interior tenant POI, not another exterior building."
+    },
+    {
+      "id": "karmokar_market",
+      "listing_name": "Karmokar Market",
+      "category": "market",
+      "listed_address": "689X+VH7, Palong Bazar–Nirala Road, Shariatpur, Bangladesh",
+      "plus_code": "689X+VH7",
+      "source_url": "https://www.google.com/maps/search/?api=1&query=Karmokar+Market+Palong+Bazar+Shariatpur",
+      "evidence": [
+        {
+          "type": "business_map_listing",
+          "url": "https://www.google.com/maps/search/?api=1&query=Karmokar+Market+Palong+Bazar+Shariatpur",
+          "note": "Named market listing on the bazar road."
+        }
+      ],
+      "host_building_id": null,
+      "osm_feature_id": null,
+      "footprint_match_status": "UNMATCHED",
+      "facade_photo_status": "NOT_YET_FOUND",
+      "floor_count": null,
+      "height_m": null,
+      "entrance_status": "UNVERIFIED",
+      "interior_status": "UNVERIFIED",
+      "reviewer_notes": "Need to determine whether the listing refers to one building or a group of market plots before modelling."
+    }
+  ],
+  "supplementary_photo_targets": [
+    {
+      "id": "nakshatra_fashion_photo_target",
+      "name": "Nakshatra Fashion (নক্ষত্র ফ্যাশন)",
+      "osm_feature_id": null,
+      "footprint_match_status": "UNMATCHED",
+      "reference_url": "https://dhakamail.com/country/219334",
+      "photo_notes": "Public photograph shows a Bengali fascia, narrow shop opening, clothes hung across the front, hanging interior merchandise and customers.",
+      "evidence_status": "PHOTO_REFERENCE_ONLY",
+      "production_use": "Do not copy the press photo into the game. Re-author a shop after exact map-pin and footprint matching."
+    },
+    {
+      "id": "palong_bazar_haru_ghosh_photo_target",
+      "name": "Haru Ghosh Mishtanno Bhandar",
+      "osm_feature_id": null,
+      "footprint_match_status": "UNMATCHED",
+      "reference_url": "https://www.jagonews24.com/country/news/881973",
+      "secondary_reference_url": "https://en.prothomalo.com/amp/story/bangladesh/local-news/giqxr3h9aw",
+      "photo_notes": "Signboard, street threshold, glass sweets cases, visible sales/counter zone and tiled interior surface cues.",
+      "evidence_status": "PHOTO_AND_HISTORICAL_BUSINESS_REFERENCE",
+      "production_use": "Do not assume the 689X+PHV Ghosh listing is identical until confirmed."
+    }
+  ],
+  "street_evidence": {
+    "reported_road_width_ft": 12,
+    "source_url": "https://www.somoynews.tv/news/2025-03-12/Ox72Qt49",
+    "evidence_type": "JOURNALISTIC_DESCRIPTION_NOT_SURVEY",
+    "observations": [
+      "dense street-side produce stalls",
+      "hawkers and shopkeepers occupy sidewalk areas",
+      "municipal drains along the road",
+      "awnings and hanging cloth shade parts of the street",
+      "high pedestrian and vehicle congestion"
+    ],
+    "do_not_use_as_survey": true
+  },
+  "market_scale": {
+    "reported_shop_plot_count_approx": 500,
+    "source_url": "https://sadar.shariatpur.gov.bd/pages/hatbazar",
+    "evidence_type": "UPAZILA_HATBAZAR_DIRECTORY",
+    "do_not_generate_exact_plot_geometry_from_count": true
+  },
+  "next_required_actions": [
+    "Resolve the ten place pins to exact coordinates or plus-code centroids.",
+    "Join each coordinate/name to the canonical OSM source GeoJSON feature and verify way/relation ID.",
+    "Store source footprint geometry and tile ID without altering roads or water.",
+    "Check host-building groups so tenant bank/restaurant points do not create duplicate exterior meshes.",
+    "Obtain independent facade/floor/entrance evidence before adding those properties.",
+    "Inspect and visually review the exact target footprint in Godot before creating detailed interiors."
+  ]
+}
