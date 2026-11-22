@@ -51,6 +51,7 @@ var lobby_profile_label: Label
 var lobby_section := "home"
 var lobby_nav_buttons: Dictionary = {}
 var lobby_showcase: Node3D
+var _lobby_page_tween: Tween
 var _shown_result_token := ""
 
 func _ready():
@@ -918,6 +919,12 @@ func _build_lobby_ui() -> void:
  lobby_overlay.z_index = 100
  lobby_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
  add_child(lobby_overlay)
+
+ # This layer adds a cinematic HUD finish without intercepting controls.
+ var cinematic_fx := Control.new()
+ cinematic_fx.set_script(load("res://systems/lobby_cinematic_fx.gd"))
+ lobby_overlay.add_child(cinematic_fx)
+ lobby_overlay.move_child(cinematic_fx, 0)
  var viewport_size := get_viewport().get_visible_rect().size
  var header := PanelContainer.new()
  header.name = "LobbyTopBar"
@@ -1111,7 +1118,7 @@ func _lobby_add_featured_play() -> void:
  var button := Button.new()
  button.name = "FeaturedPlayNow"
  button.text = "▶  PLAY NOW\nChoose your experience"
- button.custom_minimum_size = Vector2(0.0, 94.0)
+ button.custom_minimum_size = Vector2(0.0, 108.0)
  button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
  button.alignment = HORIZONTAL_ALIGNMENT_LEFT
  button.add_theme_font_size_override("font_size", 21)
@@ -1173,7 +1180,7 @@ func _show_lobby_page(page: String) -> void:
  if is_instance_valid(save_feedback_label):
   save_feedback_label.text = "SHARIATPUR  /  PROJECT A-SQUARE"
  if page == "home":
-  _lobby_add_heading("WORLD COMMAND", "Your local world, career and deployments are gathered here.")
+  _lobby_add_heading("FIELD COMMAND", "BANGLADESH  /  YOUR WORLD, YOUR OPERATIONS.")
   _lobby_add_featured_play()
   var installed: bool = is_instance_valid(w) and (w.get("real_dhaka_loaded") == true)
   _lobby_add_section("FEATURED • BANGLADESH")
@@ -1260,6 +1267,23 @@ func _show_lobby_page(page: String) -> void:
  else:
   _lobby_add_heading("WORLD COMMAND", "Choose a section from the navigation rail.")
  _update_lobby_header()
+
+ # Stagger the rebuilt page into view like a tactical operations console.
+ # The overlay runs while gameplay is paused, so the transition remains live.
+ if is_instance_valid(_lobby_page_tween):
+  _lobby_page_tween.kill()
+ _lobby_page_tween = lobby_overlay.create_tween()
+ _lobby_page_tween.set_parallel(true)
+ var page_children := lobby_content.get_children()
+ for index in range(page_children.size()):
+  var page_item := page_children[index] as Control
+  if not is_instance_valid(page_item):
+   continue
+  page_item.modulate.a = 0.0
+  page_item.scale = Vector2(0.985, 0.985)
+  var delay := minf(float(index) * 0.028, 0.28)
+  _lobby_page_tween.tween_property(page_item, "modulate:a", 1.0, 0.23).set_delay(delay).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+  _lobby_page_tween.tween_property(page_item, "scale", Vector2.ONE, 0.25).set_delay(delay).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func _select_operator_preset(preset_id: String) -> void:
