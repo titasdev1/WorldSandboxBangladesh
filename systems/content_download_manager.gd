@@ -26,6 +26,9 @@ var _status_text := "SHARIATPUR MAP NOT INSTALLED"
 var _detail_text := "The starter experience is available now. Install the full Shariatpur district from Downloads whenever you are ready."
 var _progress := 0.0
 var _last_progress_bucket := -1
+var catalogue_checked := false
+var catalogue_loading := false
+var catalogue_part_count := 0
 
 
 func _ready() -> void:
@@ -59,7 +62,7 @@ func get_shariatpur_state() -> Dictionary:
 	elif not download_active and status == "SHARIATPUR MAP NOT INSTALLED" and retained_bytes > 0:
 		status = "VERIFIED SECTIONS SAVED"
 		detail = "%.1f MB is retained locally. Resume will re-check every saved section before continuing." % (float(retained_bytes) / 1048576.0)
-	elif not download_active and not status.contains("PAUSED") and not status.contains("SAVED") and retained_bytes == 0:
+	elif not download_active and status == "SHARIATPUR MAP NOT INSTALLED" and retained_bytes == 0:
 		status = "SHARIATPUR MAP NOT INSTALLED"
 		detail = "Your starter city and lobby are available without this download. Install the district only when you want the larger Shariatpur world."
 	return {
@@ -70,14 +73,33 @@ func get_shariatpur_state() -> Dictionary:
 		"resumable": retained_bytes > 0 and not installed,
 		"downloaded_bytes": live_bytes if download_active else retained_bytes,
 		"total_bytes": total_bytes,
+		"part_count": catalogue_part_count,
+		"catalogue_checked": catalogue_checked,
+		"catalogue_loading": catalogue_loading,
 		"progress": progress if download_active or installed else (100.0 * float(retained_bytes) / float(maxi(1, total_bytes)) if total_bytes > 0 else 0.0),
 		"status": status,
 		"detail": detail
 	}
 
 
+func refresh_shariatpur_info() -> bool:
+	if catalogue_checked or catalogue_loading or download_active or request_phase != "":
+		return false
+	request_phase = "catalogue"
+	catalogue_loading = true
+	_set_status("CHECKING SHARIATPUR PACKAGE", "Fetching the signed release manifest to show the actual package size before you download it.", 0.0)
+	http.download_file = ""
+	var error := http.request(REMOTE_METADATA_URL)
+	if error != OK:
+		catalogue_loading = false
+		request_phase = ""
+		_set_status("PACKAGE INFO UNAVAILABLE", "Could not request the package manifest (error %d). Check your connection and retry." % error, 0.0)
+		return false
+	return true
+
+
 func start_shariatpur_download() -> bool:
-	if download_active or _is_local_pack_ready():
+	if download_active or catalogue_loading or _is_local_pack_ready():
 		return false
 	_begin_metadata_request()
 	return download_active
@@ -165,6 +187,54 @@ func _begin_metadata_request() -> void:
 
 
 func _on_http_request_completed(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	if request_phase == "catalogue":
+		request_phase = ""
+		catalogue_loading = false
+		if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
+			_set_status("PACKAGE INFO UNAVAILABLE", "Could not fetch the release manifest (HTTP %d, result %d). Retry when connected." % [response_code, result], 0.0)
+			return
+		var catalogue_value: Variant = JSON.parse_string(body.get_string_from_utf8())
+		if not (catalogue_value is Dictionary):
+			_set_status("PACKAGE INFO UNAVAILABLE", "The release manifest was not valid JSON. Retry package information.", 0.0)
+			return
+		var catalogue: Dictionary = catalogue_value
+		var catalogue_size := int(catalogue.get("size_bytes", 0))
+		var catalogue_sha := str(catalogue.get("sha256", "")).to_lower()
+		var catalogue_parts: Variant = catalogue.get("parts", [])
+		if int(catalogue.get("schema_version", 0)) != 2 or str(catalogue.get("asset_filename", "")) != MAP_PACK_FILENAME or str(catalogue.get("release_tag", "")) != "shariatpur-review-candidate":
+			_set_status("PACKAGE INFO UNAVAILABLE", "The manifest does not match the supported Shariatpur release. No download was started.", 0.0)
+			return
+		if not _is_sha256_hex(catalogue_sha) or catalogue_size <= 0 or catalogue_size > 8_000_000_000 or not (catalogue_parts is Array) or catalogue_parts.is_empty() or catalogue_parts.size() > 32:
+			_set_status("PACKAGE INFO UNAVAILABLE", "The manifest size, checksum or section list failed validation.", 0.0)
+			return
+		var catalogue_sum := 0
+		for index in range(catalogue_parts.size()):
+			var item: Variant = catalogue_parts[index]
+			if not (item is Dictionary):
+				_set_status("PACKAGE INFO UNAVAILABLE", "A package section record is malformed.", 0.0)
+				return
+			var expected_name := MAP_PACK_FILENAME + ".part%03d" % (index + 1)
+			var expected_url := ALLOWED_ASSET_BASE_URL + ".part%03d" % (index + 1)
+			var item_size := int(item.get("size_bytes", 0))
+			var item_sha := str(item.get("sha256", "")).to_lower()
+			if str(item.get("asset_filename", "")) != expected_name or str(item.get("asset_url", "")) != expected_url or item_size <= 0 or item_size >= 2_000_000_000 or not _is_sha256_hex(item_sha):
+				_set_status("PACKAGE INFO UNAVAILABLE", "A package section failed its filename, size, URL or checksum validation.", 0.0)
+				return
+			catalogue_sum += item_size
+		if catalogue_sum != catalogue_size or int(catalogue.get("part_count", 0)) != catalogue_parts.size():
+			_set_status("PACKAGE INFO UNAVAILABLE", "The section sizes do not equal the complete package size.", 0.0)
+			return
+		expected_size = catalogue_size
+		expected_sha256 = catalogue_sha
+		catalogue_part_count = catalogue_parts.size()
+		catalogue_checked = true
+		_set_status(
+			"SHARIATPUR PACKAGE AVAILABLE",
+			"%.1f MB across %d verified sections. Download is optional; the lobby and starter city stay available." % [float(catalogue_size) / 1048576.0, catalogue_part_count],
+			0.0
+		)
+		return
+
 	if request_phase == "metadata":
 		if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
 			_fail_download("Could not fetch the map-pack information (HTTP %d, result %d)." % [response_code, result])
