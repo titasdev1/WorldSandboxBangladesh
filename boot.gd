@@ -85,7 +85,7 @@ func _run_boot_sequence() -> void:
 		_show_guest_login_screen()
 	else:
 		guest_display_name = _sanitize_callsign(str(identity.get("display_name", "OPERATOR")))
-		_show_map_install_screen()
+		call_deferred("_launch_main_lobby")
 
 
 func _create_intro_overlay() -> Control:
@@ -346,7 +346,28 @@ func _continue_as_guest() -> void:
 		exit_tween.tween_property(login_overlay, "modulate:a", 0.0, 0.22)
 		exit_tween.tween_property(login_overlay, "scale", Vector2(1.015, 1.015), 0.22)
 		await exit_tween.finished
-	_show_map_install_screen()
+	_launch_main_lobby()
+
+
+func _launch_main_lobby() -> void:
+	if is_instance_valid(login_overlay):
+		login_overlay.queue_free()
+	login_overlay = null
+	if is_instance_valid(boot_content):
+		boot_content.visible = false
+	await get_tree().process_frame
+	var error := get_tree().change_scene_to_file("res://Main.tscn")
+	if error != OK:
+		push_error("BOOT HANDOFF FAILED: could not open the starter lobby (error %d)." % error)
+		if is_instance_valid(boot_content):
+			boot_content.visible = true
+		if is_instance_valid(status_label):
+			status_label.text = "THE LOBBY COULD NOT OPEN"
+		if is_instance_valid(detail_label):
+			detail_label.text = "Please retry. The regional map is optional and is not required to launch the starter experience."
+		if is_instance_valid(enter_button):
+			enter_button.text = "RETRY OPENING LOBBY"
+			enter_button.disabled = false
 
 
 func _show_map_install_screen() -> void:
