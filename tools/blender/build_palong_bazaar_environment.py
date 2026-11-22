@@ -445,7 +445,7 @@ def add_shop_sign(side: int, y: float, front: float, width: float, z: float,
                   key: str, sign_mats: dict, mats: dict, root: bpy.types.Object) -> None:
     sign_width = min(width * 0.94, 4.3)
     sign_height = 1.18 if key in ("haru_ghosh_sweets", "sonali_bank") else 0.95
-    center_front = front - 0.17
+    center_front = front - 0.28
     box("Shop_Signboard_Wood_Frame",
         (side * (front - 0.11), y, z),
         (0.20, sign_width + 0.18, sign_height + 0.16),
@@ -604,7 +604,7 @@ def add_building(side: int, center_y: float, width: float, floors: int,
 
 
 def make_drain_and_walkway(mats: dict, root: bpy.types.Object) -> None:
-    road_width = 3.9
+    road_width = 3.7
     box("Uneven_Street_Asphalt", (0, 13.0, -0.13), (road_width, 47.0, 0.23),
         mats["wet_asphalt"], root, 0.006)
     for side in (-1, 1):
@@ -922,7 +922,7 @@ def create_materials(texture_root: pathlib.Path) -> tuple[dict, dict]:
     mats["motorcycle_paint"] = simple_material("Motorcycle Deep Teal Paint", (0.025, 0.17, 0.16), 0.30, 0.45)
     mats["puddle"] = simple_material("Thin Monsoon Puddle", (0.10, 0.14, 0.15), 0.08, 0.04)
     sign_keys = ["sonali_bank", "nakkhatra_fashion", "haru_ghosh_sweets", "maa_store",
-                 "fresh_produce", "pharmacy", "stationery"]
+                 "fresh_produce", "pharmacy", "stationery", "hardware"]
     sign_mats = {key: sign_material(key, texture_root) for key in sign_keys}
     return mats, sign_mats
 
@@ -946,7 +946,7 @@ def build_environment(out_path: pathlib.Path, texture_root: pathlib.Path,
         (-1, -5.0, 6.8, 4, "bank", "sonali_bank", "plaster_blue", 1),
         (-1, 2.0, 5.9, 3, "sweets", "haru_ghosh_sweets", "plaster_yellow", 2),
         (-1, 8.4, 6.2, 4, "grocery", "maa_store", "plaster_mint", 3),
-        (-1, 15.2, 5.7, 3, "hardware", "stationery", "weathered_plaster", 4),
+        (-1, 15.2, 5.7, 3, "hardware", "hardware", "weathered_plaster", 4),
         (-1, 21.4, 6.0, 4, "pharmacy", "pharmacy", "plaster_blue", 5),
         (-1, 28.0, 7.0, 3, "stationery", "stationery", "plaster_yellow", 6),
         (1, -5.5, 6.1, 3, "fashion", "nakkhatra_fashion", "plaster_mint", 7),
@@ -1021,7 +1021,7 @@ def build_environment(out_path: pathlib.Path, texture_root: pathlib.Path,
     # runtime camera, ambient lighting and the existing live player/operator actor.
     root["geographic_status"] = "PALONG_BAZAAR_INSPIRED_CORRIDOR_STUDY_NOT_A_SURVEY"
     root["reference_coordinate_lat_lon"] = [23.2181182, 90.3486077]
-    root["approximate_market_road_width_m"] = 3.9
+    root["approximate_market_road_width_m"] = 3.7
     root["facade_count"] = len(facade_records)
     root["original_material_texture_count"] = len(mats)
     root["no_google_map_assets_copied"] = True
@@ -1080,7 +1080,7 @@ def build_environment(out_path: pathlib.Path, texture_root: pathlib.Path,
             "Exim Bank Shariatpur",
             "District Scouts Office"
         ],
-        "road_width_reference_m": 3.9,
+        "road_width_reference_m": 3.7,
         "facade_count": len(facade_records),
         "facades": facade_records,
         "material_count": len(mats) + len(sign_mats),
