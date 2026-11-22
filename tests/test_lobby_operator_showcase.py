@@ -176,6 +176,23 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('requested_action.is_empty()', updater)
         self.assertIn('_authored_locomotion_tree.active = false', function_block(self.visual, "_play_authored_animation"))
 
+    def test_command_hangar_has_authored_backdrop_panels_and_cinematic_lighting(self):
+        for token in (
+            "CommandHangarFloor",
+            "HangarHeaderBeam",
+            "RearCommandWall",
+            "CommandDisplayGlass",
+            "TelemetryPanel_",
+            "VerticalHangarHalo",
+            "WarmOperatorRim",
+            "TelemetryScan",
+            "RegionalMarkerGreen",
+            "RegionalMarkerRed",
+        ):
+            self.assertIn(token, self.showcase)
+        self.assertIn("_camera.fov = _camera_fov_origin + sin", self.showcase)
+        self.assertIn("LOBBY_IDLE_ACTION_INTERVAL_SECONDS := 11.5", self.showcase)
+
     def test_showcase_and_player_visual_continue_while_tree_is_paused(self):
         self.assertIn('process_mode = Node.PROCESS_MODE_ALWAYS', self.showcase)
         self.assertIn('func _process(delta: float)', self.showcase)
