@@ -61,6 +61,17 @@ class LoginBackdropTests(unittest.TestCase):
         self.assertIn("move_and_slide()", self.actor)
         self.assertIn("_wind_cloth_pivot.rotation.z = sin", function_block(self.backdrop, "_process"))
 
+    def test_login_shot_uses_camera_parallax_and_animated_cng_wheels(self):
+        process = function_block(self.backdrop, "_process")
+        self.assertIn("_camera.position = Vector3(sin(_elapsed * 0.075)", process)
+        self.assertIn("wheel.rotation.z -= delta * 15.2", process)
+        self.assertIn("_vehicle_wheels.append(wheel)", self.backdrop)
+        self.assertIn("BalconyDeck_", self.backdrop)
+        self.assertIn("RoofWaterTank", self.backdrop)
+        self.assertIn('sign_text.text = "SHARIATPUR  /  01"', self.backdrop)
+        self.assertIn("RegionalAccentGreen", self.backdrop)
+        self.assertIn("RegionalAccentRed", self.backdrop)
+
     def test_map_install_screen_remains_separate_from_the_animated_login_scene(self):
         install = function_block(self.boot, "_show_map_install_screen")
         self.assertNotIn("LoginBackdrop", install)
