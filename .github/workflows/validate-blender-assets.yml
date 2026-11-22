@@ -36,6 +36,7 @@ on:
       - "tools/blender/build_palong_bazaar_environment.py"
       - "tools/verify_palong_bazaar_environment.py"
       - "tools/fetch_polyhaven_pbr_materials.py"
+      - "tests/test_polyhaven_material_fetcher.py"
       - "tests/test_palong_bazaar_environment.py"
       - ".github/workflows/validate-blender-assets.yml"
   pull_request:
@@ -55,6 +56,7 @@ on:
       - "tools/blender/build_palong_bazaar_environment.py"
       - "tools/verify_palong_bazaar_environment.py"
       - "tools/fetch_polyhaven_pbr_materials.py"
+      - "tests/test_polyhaven_material_fetcher.py"
       - "tests/test_palong_bazaar_environment.py"
       - ".github/workflows/validate-blender-assets.yml"
 
@@ -92,6 +94,9 @@ jobs:
       - name: Test pinned Blender CI toolchain
         run: python3 -m unittest discover -s tests -p "test_blender_ci_toolchain.py" -v
 
+      - name: Unit-test Poly Haven PBR map selection and checksum validation
+        run: python3 -m unittest discover -s tests -p "test_polyhaven_material_fetcher.py" -v
+
       - name: Compile authoring and verification scripts
         shell: bash
         run: |
@@ -107,6 +112,7 @@ jobs:
             tools/blender/build_palong_bazaar_environment.py \
             tools/verify_palong_bazaar_environment.py \
             tools/fetch_polyhaven_pbr_materials.py \
+            tests/test_polyhaven_material_fetcher.py \
             tests/test_palong_bazaar_environment.py
 
       - name: Smoke-test Blender Action slots, F-curves, easing and cycle modifiers
