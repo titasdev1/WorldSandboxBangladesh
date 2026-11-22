@@ -240,16 +240,18 @@ class MobileInteractionFlowTests(unittest.TestCase):
         self.assertIn("teleport_status.text = \"Selected \"", self.hud)
 
     def test_large_map_pack_is_chunked_verified_and_reassembled_before_mount(self):
-        self.assertIn('get("schema_version", 0)) != 2', self.boot)
-        self.assertIn('downloaded_metadata.get("parts", [])', self.boot)
-        self.assertIn("ALLOWED_ASSET_BASE_URL + \".part%03d\"", self.boot)
-        self.assertIn("func _verify_and_append_part() -> bool:", self.boot)
-        self.assertIn("context.update(chunk)", self.boot)
-        self.assertIn("output.store_buffer(chunk)", self.boot)
-        self.assertIn("func _verify_and_install_pack() -> bool:", self.boot)
-        self.assertIn('context.finish().hex_encode().to_lower() != expected_sha256', self.boot)
-        self.assertIn("MERGED_PART_PATH", self.boot)
+        manager = read("systems/content_download_manager.gd")
+        self.assertIn('get("schema_version", 0)) != 2', manager)
+        self.assertIn('downloaded_metadata.get("parts", [])', manager)
+        self.assertIn("ALLOWED_ASSET_BASE_URL + \".part%03d\"", manager)
+        self.assertIn("func _verify_and_append_part() -> bool:", manager)
+        self.assertIn("context.update(chunk)", manager)
+        self.assertIn("output.store_buffer(chunk)", manager)
+        self.assertIn("func _verify_and_install_pack() -> bool:", manager)
+        self.assertIn('context.finish().hex_encode().to_lower() != expected_sha256', manager)
+        self.assertIn("MERGED_PART_PATH", manager)
         self.assertIn('ProjectSettings.load_resource_pack', self.loader)
+        self.assertIn('ContentDownloadManager="*res://systems/content_download_manager.gd"', read("project.godot"))
 
     def test_pck_verifier_uses_the_actual_manifest_schema(self):
         self.assertIn('manifest.get("tile_batch_count", tiles.size())', self.pack_verifier)
