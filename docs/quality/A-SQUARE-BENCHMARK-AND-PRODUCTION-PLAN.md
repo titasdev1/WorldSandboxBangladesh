@@ -31,7 +31,7 @@ First launch must be:
 
 The core APK carries the engine, base gameplay, small starter experience, login/lobby, local profile and download manager. The large Shariatpur region is optional and separate. Do not block the lobby on a district package. Do not imply that a future package is ready simply because its card is visible.
 
-**Current implementation checkpoint (2026-11-22):** boot.gd now hands off from splash/local guest login directly to Main.tscn. The ContentDownloadManager autoload owns the split-PCK download, resume, per-part SHA-256 and full-pack SHA-256 verification. The HUD has a Downloads page for Shariatpur. A completed package currently requires a world-scene restart to be mounted. Dhaka, Greenwake and other package cards are roadmap categories, not available downloads. This code still requires exact-head Godot CI, Android APK and target-device validation.
+**Current implementation checkpoint (2026-11-22):** boot.gd now hands off from splash/local guest login directly to Main.tscn. The ContentDownloadManager autoload owns manifest preflight, split-PCK download, resume, per-part SHA-256 and full-pack SHA-256 verification. The HUD has a Downloads page for Shariatpur and displays the manifest-derived package size and section count before a large transfer begins. A completed package currently requires a world-scene restart to be mounted. Dhaka, Greenwake and other package cards are roadmap categories, not available downloads. Exact-head Godot CI is running; Android APK and target-device validation are still required.
 
 ## 3. Character animation: present foundation versus the target
 
@@ -65,6 +65,14 @@ The core APK carries the engine, base gameplay, small starter experience, login/
 
 AI NPCs should be a coherent simulation, not just moving actors or target dummies. Use layered, data-driven behaviour so the player can have an engaging offline mission experience without claiming the unpredictability of real multiplayer.
 
+### Existing NPC baseline audit (do not mistake this for advanced AI)
+
+- `world.gd` currently spawns a modest crowd of generic residents and places them around road routes when a real map is mounted.
+- `npc.gd` gives each resident a random nearby waypoint and wait time. It has no real work/home schedule, social relationships, dialogue memory, sound/vision perception, group behaviour or persistent mission personality.
+- `NpcSimulationLODManager` refreshes distance tiers every 0.5 seconds. `npc.gd` keeps full physics near the player (0–55 m), reduces update rate in the middle band (55–145 m), and disables physics/collision farther away; visual hiding begins at about 175 m and reappears inside 150 m. This is a performance foundation, not realistic cognition.
+- `combat_enemy.gd` currently checks direct line of sight with a ray, closes distance or backs away around a preferred firing range, and uses a short shot wind-up. It has no real cover search, squad communication, coordinated flanks, suppression tactics, morale, mission memory or authored role-specific combat behaviour.
+- The data-driven mission factory and offline modes provide an existing mission/combat scaffold, but current bots cannot honestly be described as a substitute for human players or as GTA 6 / Modern Warfare campaign NPCs.
+
 ### Civilian and mission-character layers
 - **Identity/context:** role, name, home/work location, relationships, current mission role, schedule and permitted knowledge.
 - **Perception:** line of sight, distance, occlusion, sound events, nearby vehicles, danger and interaction context.
@@ -87,6 +95,13 @@ Build scenario tests for: civilian daily routines; hearing a nearby crash; witne
 ## 5. Hotspot and world streaming
 
 The full region can remain indexed on disk while only the relevant simulation and visual detail are active. The target is high perceived detail near the player without parsing every district object at once.
+
+### Existing streaming baseline and new prefetch step
+
+- `real_dhaka_tile_loader.gd` currently keeps a distance-based desired tile set, sorts missing tiles by proximity and activates at most one new GLB tile at a time. Tile scene activation yields between mesh/PBR setup, nearby walkable collision, road indexing and interior-anchor generation.
+- Building collision and interior-anchor work are limited to nearby player zones. Civilian simulation uses the distance tiers documented above. These are useful hotspot foundations.
+- A first predictive-prefetch step now uses the player's horizontal velocity, or the occupied vehicle's velocity while driving. Above 11 m/s it estimates an 8-second arrival point (capped at 1.8 km), identifies one tile in the forward corridor and gives that tile priority. It does not increase the one-GLB-at-a-time activation budget.
+- This is source-level logic only. It has no measured Android FPS, memory, thermal or tile-arrival benchmark yet; test fast driving across cell boundaries before calling it a performance improvement.
 
 - Split geography and authored content into stable, independently verifiable cells with origin, adjacency, dependencies, checksums and asset provenance.
 - Use distance rings plus gameplay importance: immediate interaction zone; active combat/mission zone; nearby traffic/civilians; distant visual background.
