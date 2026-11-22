@@ -68,5 +68,23 @@ class LoginBackdropTests(unittest.TestCase):
         self.assertIn("_show_map_install_screen()", function_block(self.boot, "_continue_as_guest"))
 
 
+    def test_login_camera_uses_deliberate_three_pass_cinematic_choreography(self):
+        camera = function_block(self.backdrop, "_start_login_camera_choreography")
+        self.assertIn("create_tween()", camera)
+        self.assertIn("set_loops()", camera)
+        self.assertIn("Tween.TRANS_CUBIC", camera)
+        self.assertIn('tween_property(_login_camera, "position"', camera)
+        self.assertIn('tween_property(_login_camera, "fov"', camera)
+        process = function_block(self.backdrop, "_process")
+        self.assertIn('_login_camera.look_at', process)
+        self.assertNotIn('sin(_elapsed * 0.28)', process)
+
+    def test_login_layout_keeps_the_operator_scene_visible_to_the_right(self):
+        login = function_block(self.boot, "_show_guest_login_screen")
+        self.assertIn("center.anchor_right = 0.48", login)
+        self.assertIn("login_panel_style.bg_color.a = 0.88", login)
+        self.assertIn("background.color.a = 0.24", login)
+
+
 if __name__ == "__main__":
     unittest.main()
