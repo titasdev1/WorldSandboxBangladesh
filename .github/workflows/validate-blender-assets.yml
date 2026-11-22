@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feature/lobby-operator-showcase
+      - feature/cinematic-login-lobby
     paths:
       - "tools/build_battle_royale_parachute.py"
       - "tools/smoke_battle_royale_parachute_blender_api.py"
@@ -16,6 +17,8 @@ on:
       - "tools/build_shariatpur_riverfront_shophouse.py"
       - "tools/verify_shariatpur_streetfront.py"
       - "tests/test_shariatpur_streetfront.py"
+      - "tools/build_cinematic_lobby_stage.py"
+      - "tests/test_cinematic_lobby_stage_artifact.py"
       - ".github/workflows/validate-blender-assets.yml"
   pull_request:
     branches:
@@ -76,7 +79,8 @@ jobs:
             tools/verify_battle_royale_parachute.py \
             tools/make_shariatpur_frontage_textures.py \
             tools/verify_shariatpur_streetfront.py \
-            tools/build_shariatpur_riverfront_shophouse.py
+            tools/build_shariatpur_riverfront_shophouse.py \
+            tools/build_cinematic_lobby_stage.py
 
       - name: Smoke-test Blender Action slots, F-curves, easing and cycle modifiers
         shell: bash
@@ -84,6 +88,22 @@ jobs:
           set -euo pipefail
           blender --background --factory-startup \
             --python tools/smoke_battle_royale_parachute_blender_api.py
+
+      - name: Author the cinematic A-Square operator stage in Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/cinematic-lobby-stage"
+          mkdir -p "${OUT_DIR}" external_content
+          blender --background --factory-startup --python tools/build_cinematic_lobby_stage.py -- \
+            --out external_content/a_square_cinematic_lobby_stage.glb \
+            --preview "${OUT_DIR}/a_square_cinematic_lobby_stage_preview.png" \
+            --blend "${OUT_DIR}/a_square_cinematic_lobby_stage.blend" \
+            > "${OUT_DIR}/authoring.log" 2>&1
+          cat "${OUT_DIR}/authoring.log"
+          grep -Fq "A2_CINEMATIC_LOBBY_STAGE_READY:" "${OUT_DIR}/authoring.log"
+          cp external_content/lobby_stage_manifest.json "${OUT_DIR}/lobby_stage_manifest.json"
+          python3 -m unittest discover -s tests -p "test_cinematic_lobby_stage_artifact.py" -v
 
       - name: Author and structurally verify the high-detail CC0 parachute
         shell: bash
@@ -144,6 +164,19 @@ jobs:
             --interior-preview "${OUT_DIR}/streetfront_interior_preview.png" \
             --out "${OUT_DIR}/streetfront_verification.json"
           python3 -m unittest discover -s tests -p "test_shariatpur_streetfront.py" -v
+
+
+      - name: Upload cinematic lobby stage art review package
+        uses: actions/upload-artifact@v4
+        with:
+          name: A-Square-Cinematic-Lobby-Stage
+          path: |
+            external_content/a_square_cinematic_lobby_stage.glb
+            build/cinematic-lobby-stage/a_square_cinematic_lobby_stage_preview.png
+            build/cinematic-lobby-stage/a_square_cinematic_lobby_stage.blend
+            build/cinematic-lobby-stage/lobby_stage_manifest.json
+            build/cinematic-lobby-stage/authoring.log
+          retention-days: 30
 
       - name: Upload Shariatpur authoring diagnostics
         if: always()
