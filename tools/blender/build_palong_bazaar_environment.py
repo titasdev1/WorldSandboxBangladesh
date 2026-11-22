@@ -841,6 +841,133 @@ def make_small_motorcycle(side: int, y: float, mats: dict, root: bpy.types.Objec
         (0.31, 0.27, 0.05), mats["painted_steel"], root, 0.015)
 
 
+def make_cycle_rickshaw(center_x: float, y: float, mats: dict, root: bpy.types.Object) -> None:
+    """A Bangladesh cycle-rickshaw silhouette with passenger hood and decorated rear panel."""
+    wheel_z = 0.49
+    rear_y = y + 0.76
+    front_y = y - 1.08
+    for wx in (center_x - 0.71, center_x + 0.71):
+        cylinder("Rickshaw_Rear_Tyre", (wx, rear_y, wheel_z), 0.49, 0.115,
+                 mats["rubber"], root, 48, rotation=(math.pi / 2, 0, 0), bevel=0.02)
+        cylinder("Rickshaw_Rear_Rim", (wx, rear_y - 0.068, wheel_z), 0.34, 0.028,
+                 mats["painted_steel"], root, 48, rotation=(math.pi / 2, 0, 0), bevel=0.007)
+        cylinder("Rickshaw_Rear_Hub", (wx, rear_y - 0.090, wheel_z), 0.095, 0.05,
+                 mats["aged_concrete"], root, 24, rotation=(math.pi / 2, 0, 0), bevel=0.008)
+        for spoke in range(16):
+            angle = spoke * math.tau / 16.0
+            sx = wx + math.cos(angle) * 0.31
+            sz = wheel_z + math.sin(angle) * 0.31
+            curve_mesh("Rickshaw_Rear_Wheel_Spoke",
+                       [(wx, rear_y - 0.112, wheel_z), (sx, rear_y - 0.112, sz)],
+                       0.0075, mats["painted_steel"], root, 2)
+        # Thin formed mudguard follows the tyre arc.
+        points = []
+        for step in range(13):
+            angle = math.radians(205 + step * 130 / 12)
+            points.append((wx, rear_y + math.cos(angle) * 0.56,
+                           wheel_z + math.sin(angle) * 0.56))
+        curve_mesh("Rickshaw_Rear_Mudguard", points, 0.034, mats["painted_steel"], root, 3)
+
+    cylinder("Rickshaw_Front_Tyre", (center_x, front_y, wheel_z), 0.41, 0.105,
+             mats["rubber"], root, 48, rotation=(math.pi / 2, 0, 0), bevel=0.018)
+    cylinder("Rickshaw_Front_Rim", (center_x, front_y - 0.064, wheel_z), 0.27, 0.026,
+             mats["painted_steel"], root, 40, rotation=(math.pi / 2, 0, 0), bevel=0.006)
+    cylinder("Rickshaw_Front_Hub", (center_x, front_y - 0.082, wheel_z), 0.072, 0.045,
+             mats["aged_concrete"], root, 20, rotation=(math.pi / 2, 0, 0), bevel=0.006)
+    for spoke in range(14):
+        angle = spoke * math.tau / 14.0
+        sx = center_x + math.cos(angle) * 0.245
+        sz = wheel_z + math.sin(angle) * 0.245
+        curve_mesh("Rickshaw_Front_Wheel_Spoke",
+                   [(center_x, front_y - 0.102, wheel_z), (sx, front_y - 0.102, sz)],
+                   0.007, mats["painted_steel"], root, 2)
+
+    # Bent steel frame and pedals.
+    curve_mesh("Rickshaw_Main_Frame",
+               [(center_x, front_y + 0.12, 0.68),
+                (center_x, y - 0.34, 0.92),
+                (center_x, rear_y - 0.15, 0.70),
+                (center_x - 0.55, rear_y, 0.83),
+                (center_x + 0.55, rear_y, 0.83)],
+               0.047, mats["painted_steel"], root, 4)
+    curve_mesh("Rickshaw_Down_Tube",
+               [(center_x, front_y + 0.10, 0.72),
+                (center_x + 0.48, y - 0.05, 1.08),
+                (center_x, rear_y - 0.18, 0.78)],
+               0.041, mats["rickshaw_green"], root, 3)
+    curve_mesh("Rickshaw_Front_Fork",
+               [(center_x, front_y + 0.06, 1.28),
+                (center_x, front_y, 0.56)],
+               0.045, mats["painted_steel"], root, 3)
+    cylinder("Rickshaw_Pedal_Crank", (center_x, y - 0.12, 0.76),
+             0.075, 0.08, mats["aged_concrete"], root, 18, rotation=(0, math.pi / 2, 0))
+    for side in (-1, 1):
+        curve_mesh("Rickshaw_Pedal_Arm",
+                   [(center_x, y - 0.12, 0.76),
+                    (center_x + side * 0.25, y - 0.12, 0.68)],
+                   0.018, mats["painted_steel"], root, 2)
+        box("Rickshaw_Pedal_Rubber", (center_x + side * 0.27, y - 0.12, 0.68),
+            (0.13, 0.24, 0.045), mats["rubber"], root, 0.012)
+    curve_mesh("Rickshaw_Handlebar_Stem",
+               [(center_x, front_y + 0.15, 0.88),
+                (center_x, front_y + 0.02, 1.45)],
+               0.035, mats["painted_steel"], root, 3)
+    curve_mesh("Rickshaw_Handlebar",
+               [(center_x - 0.42, front_y + 0.02, 1.44),
+                (center_x, front_y + 0.02, 1.49),
+                (center_x + 0.42, front_y + 0.02, 1.44)],
+               0.034, mats["painted_steel"], root, 3)
+    for side in (-1, 1):
+        sphere("Rickshaw_Handle_Grip",
+               (center_x + side * 0.43, front_y + 0.02, 1.44),
+               (0.05, 0.11, 0.05), mats["rubber"], root, 12)
+
+    # Passenger platform, seat and upholstered back.
+    box("Rickshaw_Passenger_Floor", (center_x, y + 0.48, 1.00),
+        (1.28, 1.50, 0.14), mats["aged_wood"], root, 0.05)
+    box("Rickshaw_Passenger_Seat_Cushion", (center_x, y + 0.56, 1.20),
+        (1.14, 0.78, 0.20), mats["rickshaw_red"], root, 0.08)
+    box("Rickshaw_Passenger_Back_Cushion", (center_x, y + 1.03, 1.66),
+        (1.10, 0.14, 0.80), mats["rickshaw_green"], root, 0.065)
+    for side in (-1, 1):
+        curve_mesh("Rickshaw_Passenger_Grab_Rail",
+                   [(center_x + side * 0.58, y - 0.12, 1.15),
+                    (center_x + side * 0.58, y + 0.92, 1.42),
+                    (center_x + side * 0.52, y + 1.02, 1.78)],
+                   0.026, mats["painted_steel"], root, 3)
+    # Painted rear panel with original geometric floral medallions and pinstriping.
+    box("Rickshaw_Hand_Painted_Rear_Panel", (center_x, y + 1.19, 1.72),
+        (1.12, 0.10, 0.90), mats["rickshaw_red"], root, 0.045)
+    for index, shade in enumerate((mats["rickshaw_gold"], mats["fabric_blue"], mats["rickshaw_gold"])):
+        cylinder("Rickshaw_Decorative_Medallion",
+                 (center_x + (index - 1) * 0.34, y + 1.252, 1.72),
+                 0.105 if index != 1 else 0.13, 0.025, shade, root, 24,
+                 rotation=(math.pi / 2, 0, 0))
+    for side in (-1, 1):
+        for z in (1.37, 2.05):
+            box("Rickshaw_Painted_Panel_Pinstripe",
+                (center_x + side * 0.51, y + 1.252, z),
+                (0.025, 0.024, 0.12), mats["rickshaw_gold"], root, 0.004)
+    # Passenger canopy with arched supports, scalloped front edge and cloth ribs.
+    for side in (-1, 1):
+        curve_mesh("Rickshaw_Canopy_Arch",
+                   [(center_x + side * 0.56, y - 0.06, 1.86),
+                    (center_x + side * 0.60, y + 0.20, 2.48),
+                    (center_x + side * 0.52, y + 0.78, 2.57),
+                    (center_x + side * 0.48, y + 1.20, 2.24)],
+                   0.026, mats["painted_steel"], root, 4)
+    sphere("Rickshaw_Canopy_Fabric", (center_x, y + 0.54, 2.45),
+           (0.67, 0.90, 0.13), mats["market_canvas"], root, 24)
+    box("Rickshaw_Canopy_Front_Valance", (center_x, y - 0.12, 2.28),
+        (1.35, 0.10, 0.28), mats["fabric_blue"], root, 0.035)
+    for index in range(9):
+        x = center_x - 0.58 + index * 0.145
+        box("Rickshaw_Canopy_Valance_Stripe", (x, y - 0.18, 2.27),
+            (0.035, 0.018, 0.25), mats["rickshaw_gold"], root, 0.005)
+    cylinder("Rickshaw_Rear_Reflector", (center_x, y + 1.29, 1.17),
+             0.055, 0.028, mats["warm_light"], root, 16, rotation=(math.pi / 2, 0, 0))
+
+
 def make_cng_auto_rickshaw(center_x: float, y: float, mats: dict, root: bpy.types.Object) -> None:
     """A compact Bangladesh CNG three-wheeler used as a street-scale anchor."""
     body_z = 0.94
@@ -1040,6 +1167,9 @@ def create_materials(texture_root: pathlib.Path) -> tuple[dict, dict]:
     mats["stool_red"] = simple_material("Old Plastic Stool Red", (0.49, 0.08, 0.055), 0.48)
     mats["stool_blue"] = simple_material("Old Plastic Stool Blue", (0.055, 0.20, 0.40), 0.48)
     mats["motorcycle_paint"] = simple_material("Motorcycle Deep Teal Paint", (0.025, 0.17, 0.16), 0.30, 0.45)
+    mats["rickshaw_green"] = simple_material("Rickshaw Deep Green Enamel", (0.025, 0.16, 0.105), 0.34, 0.40)
+    mats["rickshaw_red"] = simple_material("Rickshaw Painted Vermilion", (0.52, 0.075, 0.045), 0.44, 0.12)
+    mats["rickshaw_gold"] = simple_material("Rickshaw Hand Painted Gold", (0.91, 0.55, 0.13), 0.42, 0.14)
     mats["puddle"] = simple_material("Thin Monsoon Puddle", (0.10, 0.14, 0.15), 0.08, 0.04)
     sign_keys = ["sonali_bank", "nakkhatra_fashion", "haru_ghosh_sweets", "maa_store",
                  "fresh_produce", "pharmacy", "stationery", "hardware"]
@@ -1087,6 +1217,7 @@ def build_environment(out_path: pathlib.Path, texture_root: pathlib.Path,
     make_market_props(mats, root)
     make_utility_poles_and_wires(mats, root)
     make_small_motorcycle(1, 5.1, mats, root)
+    make_cycle_rickshaw(-0.58, -3.8, mats, root)
     make_cng_auto_rickshaw(0.48, 11.9, mats, root)
 
     # Low-height curbside details give the scene scale: bollards, paper, water and cable ties.
