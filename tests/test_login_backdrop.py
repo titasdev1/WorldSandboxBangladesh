@@ -111,5 +111,26 @@ class LoginBackdropTests(unittest.TestCase):
         self.assertIn("continue", city)
 
 
+    def test_guest_login_uses_operator_visible_left_dock_and_animated_handoff(self):
+        login = function_block(self.boot, "_show_guest_login_screen")
+        handoff = function_block(self.boot, "_continue_as_guest")
+        self.assertIn("center.anchor_right = 0.48", login)
+        self.assertIn('brand_tile.add_theme_stylebox_override("panel"', login)
+        self.assertIn('brand_mark.text = "A²"', login)
+        self.assertIn('accent_line.name = "LoginRevealAccent"', login)
+        self.assertIn("panel.custom_minimum_size = Vector2(minf(440.0", login)
+        self.assertIn('entrance.tween_property(login_overlay, "modulate:a"', login)
+        self.assertIn('entrance.tween_property(panel, "scale"', login)
+        self.assertIn('exit_tween.tween_property(login_overlay, "modulate:a"', handoff)
+        self.assertIn("await exit_tween.finished", handoff)
+
+    def test_map_install_screen_keeps_the_cinematic_backdrop_visible_under_glass(self):
+        build = function_block(self.boot, "_build_screen")
+        self.assertIn("Color(0.008, 0.026, 0.043, 0.78)", build)
+        self.assertIn("backdrop_shade.color = Color(0.008, 0.018, 0.03, 0.30)", build)
+        install = function_block(self.boot, "_show_map_install_screen")
+        self.assertIn('entrance.tween_property(boot_content, "scale", Vector2.ONE, 0.36)', install)
+
+
 if __name__ == "__main__":
     unittest.main()

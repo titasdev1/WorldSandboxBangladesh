@@ -260,5 +260,29 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn("_rim_light.shadow_enabled = false", lights)
 
 
+    def test_home_landing_uses_a_featured_deployment_and_experience_card_hierarchy(self):
+        page = function_block(self.hud, "_show_lobby_page")
+        home_start = page.index('if page == "home":')
+        play_start = page.index('elif page == "play":', home_start)
+        home = page[home_start:play_start]
+        self.assertIn('_lobby_add_featured_play()', home)
+        self.assertIn('var world_grid := _lobby_add_experience_grid()', home)
+        self.assertIn('"JIBONJATRA"', home)
+        self.assertIn('"DESHI STORIES"', home)
+        self.assertIn('"CITY SANDBOX"', home)
+        self.assertIn('"COMBAT LAB"', home)
+        self.assertIn('"WORLD INTELLIGENCE"', home)
+        self.assertIn('"No real-player server is connected', home)
+        self.assertNotIn('_lobby_add_action("SHARIATPUR WORLD"', home)
+
+    def test_lobby_page_sections_reveal_with_a_staggered_cinematic_fade(self):
+        page = function_block(self.hud, "_show_lobby_page")
+        reveal = function_block(self.hud, "_animate_lobby_page_reveal")
+        self.assertIn("_animate_lobby_page_reveal()", page)
+        self.assertIn('item.modulate.a = 0.0', reveal)
+        self.assertIn('tween_property(item, "modulate:a", 1.0, 0.18)', reveal)
+        self.assertIn('set_delay(minf(float(index) * 0.028, 0.22))', reveal)
+
+
 if __name__ == "__main__":
     unittest.main()

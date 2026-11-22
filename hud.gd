@@ -1110,7 +1110,8 @@ func _lobby_add_section(section_text: String) -> void:
 func _lobby_add_featured_play() -> void:
  var button := Button.new()
  button.name = "FeaturedPlayNow"
- button.text = "▶  PLAY NOW\nChoose your experience"
+ button.text = "DEPLOY  /  PLAY NOW\nChoose your next experience"
+ button.tooltip_text = "Open the deployment selector"
  button.custom_minimum_size = Vector2(0.0, 94.0)
  button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
  button.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -1250,19 +1251,56 @@ func _show_lobby_page(page: String) -> void:
  if is_instance_valid(save_feedback_label):
   save_feedback_label.text = "SHARIATPUR  /  PROJECT A-SQUARE"
  if page == "home":
-  _lobby_add_heading("WORLD COMMAND", "Your local world, career and deployments are gathered here.")
+  _lobby_add_heading("FIELD COMMAND", "Select an experience. Your Bangladesh world is the centre of operations.")
   _lobby_add_featured_play()
   var installed: bool = is_instance_valid(w) and (w.get("real_dhaka_loaded") == true)
-  _lobby_add_section("FEATURED • BANGLADESH")
-  _lobby_add_action("SHARIATPUR WORLD", "60 district tile records • full-resolution local streaming", Callable(self, "_show_map_information"))
-  _lobby_add_action("DESHI STORIES", "Local missions, transport fares, markets and connected jobs", Callable(self, "_choose_mode").bind("deshi_story"))
-  _lobby_add_action("OPEN WORLD SANDBOX", "Explore the currently installed district and local activities", Callable(self, "_choose_mode").bind("free_roam"))
-  _lobby_add_action("COMBAT LAB", "Offline AI practice • six targets • movement and weapon training", Callable(self, "_choose_mode").bind("arena_training"))
-  _lobby_add_section("LIVING OPEN WORLD")
-  _lobby_add_action("JIBONJATRA", "Walk, meet, drive and race on the same district roads", Callable(self, "_choose_mode").bind("jibon_jatra"))
-  _lobby_add_section("WORLD STATUS")
-  _lobby_add_info("MAP STATUS", "Shariatpur is active." if installed else "Local starter world is active; Shariatpur data remains a separate installable map pack.")
-  _lobby_add_info("ONLINE SERVICES", "No real-player server is connected in this build. Online matchmaking is not simulated.")
+  _lobby_add_section("DEPLOYMENT  /  BANGLADESH")
+  var world_grid := _lobby_add_experience_grid()
+  _lobby_add_experience_card(
+   "JIBONJATRA",
+   "LIVING OPEN WORLD",
+   "Walk, drive, meet people and explore the connected Shariatpur district.",
+   Callable(self, "_choose_mode").bind("jibon_jatra"),
+   Color("#4aa99c"),
+   true,
+   true,
+   world_grid
+  )
+  _lobby_add_experience_card(
+   "DESHI STORIES",
+   "LOCAL MISSIONS",
+   "Transport fares, markets, work and connected destinations.",
+   Callable(self, "_choose_mode").bind("deshi_story"),
+   Color("#c1a064"),
+   true,
+   true,
+   world_grid
+  )
+  _lobby_add_section("ACTION  /  OFFLINE")
+  var action_grid := _lobby_add_experience_grid()
+  _lobby_add_experience_card(
+   "CITY SANDBOX",
+   "FREE ROAM",
+   "Explore the installed world without a mission objective.",
+   Callable(self, "_choose_mode").bind("free_roam"),
+   Color("#6096ae"),
+   true,
+   true,
+   action_grid
+  )
+  _lobby_add_experience_card(
+   "COMBAT LAB",
+   "AI TRAINING",
+   "Offline practice for movement, aim and weapons.",
+   Callable(self, "_choose_mode").bind("arena_training"),
+   Color("#8498ad"),
+   true,
+   true,
+   action_grid
+  )
+  _lobby_add_section("WORLD INTELLIGENCE")
+  _lobby_add_info("SHARIATPUR WORLD", "District map mounted and ready." if installed else "The local starter world is active; Shariatpur remains a separate verified map download.")
+  _lobby_add_info("ONLINE SERVICES", "No real-player server is connected in this build. Online queues are not simulated.")
  elif page == "play":
   _lobby_add_heading("PLAY", "Choose your next deployment.")
   _lobby_add_section("FEATURED EXPERIENCE")
@@ -1354,6 +1392,19 @@ func _show_lobby_page(page: String) -> void:
  else:
   _lobby_add_heading("WORLD COMMAND", "Choose a section from the navigation rail.")
  _update_lobby_header()
+ _animate_lobby_page_reveal()
+
+
+func _animate_lobby_page_reveal() -> void:
+ if not is_instance_valid(lobby_content):
+  return
+ for index in range(lobby_content.get_child_count()):
+  var item := lobby_content.get_child(index) as Control
+  if not is_instance_valid(item):
+   continue
+  item.modulate.a = 0.0
+  var reveal := create_tween()
+  reveal.tween_property(item, "modulate:a", 1.0, 0.18).set_delay(minf(float(index) * 0.028, 0.22)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 
 func _select_operator_preset(preset_id: String) -> void:

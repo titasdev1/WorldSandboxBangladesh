@@ -177,47 +177,90 @@ func _show_guest_login_screen() -> void:
 
 	var center := CenterContainer.new()
 	center.name = "GuestLoginCenter"
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.anchor_right = 0.48
+	center.offset_left = 28.0
+	center.offset_right = -22.0
+	center.anchor_bottom = 1.0
+	center.offset_top = 18.0
+	center.offset_bottom = -18.0
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	login_overlay.add_child(center)
 
 	var panel := PanelContainer.new()
 	panel.name = "GuestLoginPanel"
-	panel.custom_minimum_size = Vector2(minf(440.0, maxf(280.0, get_viewport_rect().size.x - 44.0)), 0.0)
-	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.008, 0.026, 0.043, 0.78), Color(0.16, 0.62, 0.72, 0.92), 2, 18))
+	panel.custom_minimum_size = Vector2(minf(440.0, maxf(260.0, get_viewport_rect().size.x * 0.35)), 0.0)
+	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.008, 0.026, 0.043, 0.84), Color(0.16, 0.62, 0.72, 0.92), 2, 18))
 	center.add_child(panel)
 
 	var content := VBoxContainer.new()
-	content.add_theme_constant_override("separation", 13)
+	content.add_theme_constant_override("separation", 12)
 	panel.add_child(content)
 
+	var brand_row := HBoxContainer.new()
+	brand_row.add_theme_constant_override("separation", 14)
+	brand_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	content.add_child(brand_row)
+
+	var brand_tile := PanelContainer.new()
+	brand_tile.custom_minimum_size = Vector2(66.0, 66.0)
+	brand_tile.add_theme_stylebox_override("panel", _panel_style(Color("#123d50"), Color("#69e1ed"), 1, 12))
+	brand_row.add_child(brand_tile)
+
+	var brand_mark := Label.new()
+	brand_mark.text = "A²"
+	brand_mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	brand_mark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	brand_mark.add_theme_font_size_override("font_size", 31)
+	brand_mark.add_theme_color_override("font_color", Color("#8df1fb"))
+	brand_tile.add_child(brand_mark)
+
+	var brand_copy := VBoxContainer.new()
+	brand_copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	brand_copy.add_theme_constant_override("separation", 2)
+	brand_row.add_child(brand_copy)
+
+	var brand_title := Label.new()
+	brand_title.text = "PROJECT A-SQUARE"
+	brand_title.add_theme_font_size_override("font_size", 16)
+	brand_title.add_theme_color_override("font_color", Color("#f5f9ff"))
+	brand_copy.add_child(brand_title)
+
+	var brand_subtitle := Label.new()
+	brand_subtitle.text = "WORLD SANDBOX  /  BANGLADESH"
+	brand_subtitle.add_theme_font_size_override("font_size", 10)
+	brand_subtitle.add_theme_color_override("font_color", Color("#9bb8cb"))
+	brand_copy.add_child(brand_subtitle)
+
+	var accent_line := ColorRect.new()
+	accent_line.name = "LoginRevealAccent"
+	accent_line.color = Color("#58dce9")
+	accent_line.custom_minimum_size = Vector2(0.0, 2.0)
+	content.add_child(accent_line)
+
 	var eyebrow := Label.new()
-	eyebrow.text = "PROJECT A-SQUARE  /  LOCAL PROFILE"
-	eyebrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	eyebrow.text = "FIRST DEPLOYMENT  /  LOCAL PROFILE"
 	eyebrow.add_theme_color_override("font_color", Color("#51d9ed"))
-	eyebrow.add_theme_font_size_override("font_size", 12)
+	eyebrow.add_theme_font_size_override("font_size", 11)
 	content.add_child(eyebrow)
 
 	var title := Label.new()
 	title.text = "WELCOME, OPERATOR"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	title.add_theme_color_override("font_color", Color("#f4f8ff"))
-	title.add_theme_font_size_override("font_size", 25)
+	title.add_theme_font_size_override("font_size", 27)
 	content.add_child(title)
 
 	var description := Label.new()
-	description.text = "Create a local guest profile to save your callsign and career progress on this device."
-	description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	description.text = "Your Bangladesh-rooted world is ready to begin. Set a callsign and create a local career on this device."
 	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	description.add_theme_color_override("font_color", Color("#a9c3d5"))
-	description.add_theme_font_size_override("font_size", 14)
+	description.add_theme_color_override("font_color", Color("#b5c9d8"))
+	description.add_theme_font_size_override("font_size", 13)
 	content.add_child(description)
 
 	var callsign_label := Label.new()
 	callsign_label.text = "OPERATOR CALLSIGN"
 	callsign_label.add_theme_color_override("font_color", Color("#73e9fa"))
-	callsign_label.add_theme_font_size_override("font_size", 12)
+	callsign_label.add_theme_font_size_override("font_size", 11)
 	content.add_child(callsign_label)
 
 	callsign_input = LineEdit.new()
@@ -232,8 +275,8 @@ func _show_guest_login_screen() -> void:
 	var guest_button := Button.new()
 	guest_button.name = "ContinueAsGuestButton"
 	guest_button.text = "CONTINUE AS GUEST  →"
-	guest_button.custom_minimum_size = Vector2(0, 56)
-	guest_button.add_theme_font_size_override("font_size", 18)
+	guest_button.custom_minimum_size = Vector2(0, 58)
+	guest_button.add_theme_font_size_override("font_size", 17)
 	guest_button.add_theme_color_override("font_color", Color("#061724"))
 	guest_button.add_theme_stylebox_override("normal", _panel_style(Color("#51d9ed"), Color("#51d9ed"), 1, 10))
 	guest_button.add_theme_stylebox_override("hover", _panel_style(Color("#8beafa"), Color("#ffffff"), 2, 10))
@@ -245,20 +288,22 @@ func _show_guest_login_screen() -> void:
 	online_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	online_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	online_note.add_theme_color_override("font_color", Color("#e0b47b"))
-	online_note.add_theme_font_size_override("font_size", 11)
+	online_note.add_theme_font_size_override("font_size", 10)
 	content.add_child(online_note)
 
 	var local_note := Label.new()
-	local_note.text = "GUEST PROFILE • SAVED PRIVATELY ON THIS DEVICE"
+	local_note.text = "LOCAL CAREER  •  SAVED PRIVATELY ON THIS DEVICE"
 	local_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	local_note.add_theme_color_override("font_color", Color("#819aac"))
 	local_note.add_theme_font_size_override("font_size", 10)
 	content.add_child(local_note)
 
+	panel.pivot_offset = panel.size * 0.5
 	var entrance := create_tween()
 	entrance.set_parallel(true)
-	entrance.tween_property(login_overlay, "modulate:a", 1.0, 0.28)
-	entrance.tween_property(panel, "scale", Vector2.ONE, 0.32).from(Vector2(0.96, 0.96)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	entrance.tween_property(login_overlay, "modulate:a", 1.0, 0.34)
+	entrance.tween_property(panel, "scale", Vector2.ONE, 0.42).from(Vector2(0.94, 0.94)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	entrance.tween_property(accent_line, "modulate:a", 1.0, 0.26).from(0.0).set_delay(0.14)
 	callsign_input.grab_focus()
 
 
@@ -295,6 +340,12 @@ func _continue_as_guest() -> void:
 		file.close()
 	else:
 		push_warning("GUEST_PROFILE_SAVE_FAILED: " + str(FileAccess.get_open_error()))
+	if is_instance_valid(login_overlay):
+		var exit_tween := create_tween()
+		exit_tween.set_parallel(true)
+		exit_tween.tween_property(login_overlay, "modulate:a", 0.0, 0.22)
+		exit_tween.tween_property(login_overlay, "scale", Vector2(1.015, 1.015), 0.22)
+		await exit_tween.finished
 	_show_map_install_screen()
 
 
@@ -306,8 +357,12 @@ func _show_map_install_screen() -> void:
 		return
 	boot_content.visible = true
 	boot_content.modulate.a = 0.0
+	boot_content.scale = Vector2(0.985, 0.985)
+	boot_content.pivot_offset = get_viewport_rect().size * 0.5
 	var entrance := create_tween()
+	entrance.set_parallel(true)
 	entrance.tween_property(boot_content, "modulate:a", 1.0, 0.32)
+	entrance.tween_property(boot_content, "scale", Vector2.ONE, 0.36).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 
 func _build_screen() -> void:
@@ -335,7 +390,7 @@ func _build_screen() -> void:
 
 	var backdrop_shade := ColorRect.new()
 	backdrop_shade.name = "BootCinematicShade"
-	backdrop_shade.color = Color(0.008, 0.018, 0.03, 0.42)
+	backdrop_shade.color = Color(0.008, 0.018, 0.03, 0.30)
 	backdrop_shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	backdrop_shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(backdrop_shade)
@@ -354,7 +409,7 @@ func _build_screen() -> void:
 	panel.name = "BootPanel"
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	panel.add_theme_stylebox_override("panel", _panel_style(Color("#0b2032"), Color("#28b8d3"), 2, 18))
+	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.008, 0.026, 0.043, 0.78), Color("#28b8d3"), 2, 18))
 	shell.add_child(panel)
 
 	var column := VBoxContainer.new()
