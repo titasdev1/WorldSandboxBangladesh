@@ -104,7 +104,7 @@ def torus(name: str, loc: tuple[float, float, float], major: float, minor: float
 
 def text_mesh(name: str, body: str, loc: tuple[float, float, float],
               size: float, mat: bpy.types.Material,
-              rotation: tuple[float, float, float] = (math.pi / 2, 0, 0)) -> bpy.types.Object:
+              rotation: tuple[float, float, float] = (0, 0, 0)) -> bpy.types.Object:
     data = bpy.data.curves.new(name, "FONT")
     data.body = body
     data.size = size
