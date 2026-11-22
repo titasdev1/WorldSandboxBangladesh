@@ -8,6 +8,8 @@ var real_dhaka_loaded := false
 
 var _elapsed := 0.0
 var _vehicle_root: Node3D
+var _login_camera: Camera3D
+var _camera_choreography: Tween
 var _tree_pivots: Array[Node3D] = []
 var _wind_cloth_pivot: Node3D
 var _operator_visual: Node3D
@@ -21,6 +23,7 @@ func _ready() -> void:
 	_build_trees()
 	_build_cng()
 	_build_operator()
+	_start_login_camera_choreography()
 
 
 func _process(delta: float) -> void:
@@ -40,10 +43,10 @@ func _process(delta: float) -> void:
 		_wind_cloth_pivot.rotation.z = sin(_elapsed * 1.55) * 0.035
 		_wind_cloth_pivot.rotation.x = cos(_elapsed * 1.18) * 0.025
 
-	if is_instance_valid(_operator_visual):
-		# The production rig supplies the actual idle/breathing animation; this
-		# very small presentation sway adds a calm lobby-style camera presence.
-		_operator_visual.rotation.y = PI + sin(_elapsed * 0.28) * 0.025
+	if is_instance_valid(_login_camera):
+		_login_camera.look_at(Vector3(0.0, 1.45, -2.1), Vector3.UP)
+	# Keep the operator's authored rig animation in charge of body motion.
+	# Do not layer a second procedural whole-body sway over the imported clip.
 
 
 func _build_lighting() -> void:
@@ -74,13 +77,30 @@ func _build_lighting() -> void:
 	sun.shadow_enabled = false
 	add_child(sun)
 
-	var camera := Camera3D.new()
-	camera.name = "LoginBackdropCamera"
-	camera.position = Vector3(0.0, 3.6, 12.8)
-	camera.fov = 48.0
-	add_child(camera)
-	camera.look_at(Vector3(0.0, 1.45, -2.1), Vector3.UP)
-	camera.current = true
+	_login_camera = Camera3D.new()
+	_login_camera.name = "LoginBackdropCamera"
+	_login_camera.position = Vector3(0.0, 3.6, 12.8)
+	_login_camera.fov = 48.0
+	add_child(_login_camera)
+	_login_camera.look_at(Vector3(0.0, 1.45, -2.1), Vector3.UP)
+	_login_camera.current = true
+
+
+func _start_login_camera_choreography() -> void:
+	if not is_instance_valid(_login_camera):
+		return
+	if is_instance_valid(_camera_choreography) and _camera_choreography.is_running():
+		_camera_choreography.kill()
+	# A slow editorial drift reveals the street, then settles on the operator.
+	# Smooth authored camera passes replace a repeating sine shake.
+	_camera_choreography = create_tween()
+	_camera_choreography.set_loops()
+	_camera_choreography.tween_property(_login_camera, "position", Vector3(-0.62, 3.48, 12.55), 5.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	_camera_choreography.parallel().tween_property(_login_camera, "fov", 49.5, 5.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_camera_choreography.tween_property(_login_camera, "position", Vector3(0.42, 3.72, 12.88), 5.8).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	_camera_choreography.parallel().tween_property(_login_camera, "fov", 47.0, 5.8).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_camera_choreography.tween_property(_login_camera, "position", Vector3(0.0, 3.6, 12.8), 4.4).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	_camera_choreography.parallel().tween_property(_login_camera, "fov", 48.0, 4.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
 func _build_ground_and_road() -> void:
