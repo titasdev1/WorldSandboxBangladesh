@@ -95,11 +95,14 @@ jobs:
           set -euo pipefail
           OUT_DIR="build/cinematic-lobby-stage"
           mkdir -p "${OUT_DIR}" external_content
-          blender --background --factory-startup --python tools/build_cinematic_lobby_stage.py -- \
+          if ! blender --background --factory-startup --python tools/build_cinematic_lobby_stage.py -- \
             --out external_content/a_square_cinematic_lobby_stage.glb \
             --preview "${OUT_DIR}/a_square_cinematic_lobby_stage_preview.png" \
             --blend "${OUT_DIR}/a_square_cinematic_lobby_stage.blend" \
-            > "${OUT_DIR}/authoring.log" 2>&1
+            > "${OUT_DIR}/authoring.log" 2>&1; then
+            cat "${OUT_DIR}/authoring.log"
+            exit 1
+          fi
           cat "${OUT_DIR}/authoring.log"
           grep -Fq "A2_CINEMATIC_LOBBY_STAGE_READY:" "${OUT_DIR}/authoring.log"
           cp external_content/lobby_stage_manifest.json "${OUT_DIR}/lobby_stage_manifest.json"
