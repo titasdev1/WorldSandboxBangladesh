@@ -250,8 +250,8 @@ func _relayout_mobile_controls() -> void:
   driving_status.position = Vector2(view_width - 390.0, view_height - 220.0)
  var lobby_content_panel := get_node_or_null("ModeLobby/LobbyContentPanel") as Control
  if is_instance_valid(lobby_content_panel):
-  lobby_content_panel.position = Vector2(view_width - 555.0, 100.0)
-  lobby_content_panel.size = Vector2(535.0, view_height - 194.0)
+  lobby_content_panel.position = Vector2(view_width - 475.0, 100.0)
+  lobby_content_panel.size = Vector2(455.0, view_height - 194.0)
  var lobby_nav_panel := get_node_or_null("ModeLobby/LobbyNavigation") as Control
  if is_instance_valid(lobby_nav_panel):
   lobby_nav_panel.size.y = view_height - 194.0
@@ -1015,8 +1015,8 @@ func _build_lobby_ui() -> void:
   nav.add_child(button)
  var content_panel := PanelContainer.new()
  content_panel.name = "LobbyContentPanel"
- content_panel.position = Vector2(viewport_size.x - 555.0, 100.0)
- content_panel.size = Vector2(535.0, viewport_size.y - 194.0)
+ content_panel.position = Vector2(viewport_size.x - 475.0, 100.0)
+ content_panel.size = Vector2(455.0, viewport_size.y - 194.0)
  content_panel.add_theme_stylebox_override("panel", _lobby_style(Color(0.008, 0.022, 0.038, 0.93), Color(0.16, 0.56, 0.68, 0.82), 1, 12))
  lobby_overlay.add_child(content_panel)
  var scroll := ScrollContainer.new()
@@ -1036,6 +1036,9 @@ func _build_lobby_ui() -> void:
  save_feedback_label.add_theme_font_size_override("font_size", 12)
  save_feedback_label.add_theme_color_override("font_color", Color("#b3c9d6"))
  lobby_overlay.add_child(save_feedback_label)
+ lobby_overlay.modulate.a = 0.0
+ var lobby_entrance := create_tween()
+ lobby_entrance.tween_property(lobby_overlay, "modulate:a", 1.0, 0.52).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
  if is_instance_valid(w) and is_instance_valid(w.player):
   w.player.set_camera_view_mode("third_person")
   w.player.camera_yaw = 24.0
@@ -1123,6 +1126,63 @@ func _lobby_add_featured_play() -> void:
  lobby_content.add_child(button)
 
 
+func _lobby_add_mode_grid(cards: Array) -> void:
+ var grid := GridContainer.new()
+ grid.name = "LobbyModeCardGrid"
+ grid.columns = 2
+ grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ grid.add_theme_constant_override("h_separation", 10)
+ grid.add_theme_constant_override("v_separation", 10)
+ lobby_content.add_child(grid)
+ for index in range(cards.size()):
+  var data: Dictionary = cards[index]
+  var accent: Color = data.get("accent", Color("#63cad3"))
+  var available := bool(data.get("available", true))
+  var card := Button.new()
+  card.name = "ModeCard_%02d" % index
+  card.custom_minimum_size = Vector2(0.0, 108.0)
+  card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+  card.alignment = HORIZONTAL_ALIGNMENT_LEFT
+  card.disabled = not available
+  card.add_theme_color_override("font_color", Color("#f2f5f4"))
+  card.add_theme_stylebox_override("normal", _lobby_style(Color("#0c202d"), accent, 1, 9))
+  card.add_theme_stylebox_override("hover", _lobby_style(Color("#173748"), Color("#e6c37f"), 2, 9))
+  card.add_theme_stylebox_override("pressed", _lobby_style(Color("#1c4657"), Color("#f3d89a"), 2, 9))
+  card.add_theme_stylebox_override("disabled", _lobby_style(Color("#101a23"), Color("#31424c"), 1, 9))
+  var stack := VBoxContainer.new()
+  stack.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+  stack.offset_left = 12.0
+  stack.offset_top = 8.0
+  stack.offset_right = -10.0
+  stack.offset_bottom = -7.0
+  stack.add_theme_constant_override("separation", 2)
+  stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+  card.add_child(stack)
+  var eyebrow := Label.new()
+  eyebrow.text = str(data.get("eyebrow", "FIELD SELECT"))
+  eyebrow.add_theme_font_size_override("font_size", 9)
+  eyebrow.add_theme_color_override("font_color", accent if available else Color("#7d8b93"))
+  eyebrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+  stack.add_child(eyebrow)
+  var title := Label.new()
+  title.text = str(data.get("title", "EXPERIENCE"))
+  title.add_theme_font_size_override("font_size", 16)
+  title.add_theme_color_override("font_color", Color("#f3f5f3") if available else Color("#a4afb4"))
+  title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+  stack.add_child(title)
+  var detail := Label.new()
+  detail.text = str(data.get("detail", "")) if available else str(data.get("locked_detail", "NOT CONNECTED"))
+  detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+  detail.add_theme_font_size_override("font_size", 10)
+  detail.add_theme_color_override("font_color", Color("#a9bdc5") if available else Color("#71818a"))
+  detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+  stack.add_child(detail)
+  var callback: Callable = data.get("callback", Callable())
+  if available and callback.is_valid():
+   card.pressed.connect(callback)
+  grid.add_child(card)
+
+
 func _lobby_add_action(title_text: String, detail_text: String, callback: Callable, available: bool = true) -> Button:
  var button := Button.new()
  button.text = title_text + "\n" + detail_text
@@ -1173,43 +1233,45 @@ func _show_lobby_page(page: String) -> void:
  if is_instance_valid(save_feedback_label):
   save_feedback_label.text = "SHARIATPUR  /  PROJECT A-SQUARE"
  if page == "home":
-  _lobby_add_heading("WORLD COMMAND", "Your local world, career and deployments are gathered here.")
+  _lobby_add_heading("WORLD COMMAND", "Your world is waiting. Choose a local experience and enter the Bangladesh sector.")
   _lobby_add_featured_play()
-  var installed: bool = is_instance_valid(w) and (w.get("real_dhaka_loaded") == true)
-  _lobby_add_section("FEATURED • BANGLADESH")
-  _lobby_add_action("SHARIATPUR WORLD", "60 district tile records • full-resolution local streaming", Callable(self, "_show_map_information"))
-  _lobby_add_action("DESHI STORIES", "Local missions, transport fares, markets and connected jobs", Callable(self, "_choose_mode").bind("deshi_story"))
-  _lobby_add_action("OPEN WORLD SANDBOX", "Explore the currently installed district and local activities", Callable(self, "_choose_mode").bind("free_roam"))
-  _lobby_add_action("COMBAT LAB", "Offline AI practice • six targets • movement and weapon training", Callable(self, "_choose_mode").bind("arena_training"))
-  _lobby_add_section("LIVING OPEN WORLD")
-  _lobby_add_action("JIBONJATRA", "Walk, meet, drive and race on the same district roads", Callable(self, "_choose_mode").bind("jibon_jatra"))
+  _lobby_add_section("SELECT YOUR EXPERIENCE")
+  _lobby_add_mode_grid([
+   {"eyebrow":"LIVING WORLD","title":"JIBONJATRA","detail":"Walk • drive • meet • explore","accent":Color("#58c9bb"),"callback":Callable(self, "_choose_mode").bind("jibon_jatra")},
+   {"eyebrow":"STORY CAMPAIGN","title":"DESHI STORIES","detail":"Local chapters and destination jobs","accent":Color("#d7b46d"),"callback":Callable(self, "_choose_mode").bind("deshi_story")},
+   {"eyebrow":"OPEN CITY","title":"FREE ROAM","detail":"Explore the active city without a mission","accent":Color("#6cb8d9"),"callback":Callable(self, "_choose_mode").bind("free_roam")},
+   {"eyebrow":"OFFLINE TACTICAL","title":"COMBAT LAB","detail":"Solo AI practice and weapon training","accent":Color("#d68c76"),"callback":Callable(self, "_choose_mode").bind("arena_training")}
+  ])
   _lobby_add_section("WORLD STATUS")
-  _lobby_add_info("MAP STATUS", "Shariatpur is active." if installed else "Local starter world is active; Shariatpur data remains a separate installable map pack.")
+  var installed: bool = is_instance_valid(w) and (w.get("real_dhaka_loaded") == true)
+  _lobby_add_info("ACTIVE ENVIRONMENT", "Shariatpur district data is active." if installed else "Starter city is active. Shariatpur remains available as a separate high-detail install.")
   _lobby_add_info("ONLINE SERVICES", "No real-player server is connected in this build. Online matchmaking is not simulated.")
  elif page == "play":
-  _lobby_add_heading("PLAY", "Choose a real local experience. Online queues remain unavailable until a multiplayer service is connected.")
-  _lobby_add_section("LIVING WORLD • JIBONJATRA")
-  _lobby_add_action("JIBONJATRA  /  ENTER WORLD", "Walk, meet, drive, open a private room and race on city roads", Callable(self, "_choose_mode").bind("jibon_jatra"))
-  _lobby_add_section("OPEN WORLD • LOCAL")
-  _lobby_add_action("DESHI STORIES", "40 chapters • connected local destination jobs", Callable(self, "_choose_mode").bind("deshi_story"))
-  _lobby_add_action("OPEN CITY SANDBOX", "Free roam • traffic, local characters, shops and transport", Callable(self, "_choose_mode").bind("free_roam"))
-  _lobby_add_action("STREET LIFE", "Markets, local economy, transport and city activities", Callable(self, "_choose_mode").bind("street_life"))
-  _lobby_add_section("STRIKEFRONT  /  COMBAT • OFFLINE AI")
-  _lobby_add_action("LAST STAND", "Three escalating waves against armed AI opponents", Callable(self, "_choose_mode").bind("survival"))
-  _lobby_add_action("COMBAT LAB", "Six practice targets • solo training", Callable(self, "_choose_mode").bind("arena_training"))
-  _lobby_add_action("STREET SKIRMISH", "Ten AI opponents • elimination objective", Callable(self, "_choose_mode").bind("street_skirmish"))
-  _lobby_add_section("ONLINE • NOT CONNECTED")
-  _lobby_add_action("MULTIPLAYER QUICK PLAY", "Requires a real-time multiplayer server", Callable(), false)
-  _lobby_add_action("MULTIPLAYER RANKED", "Requires accounts, matchmaking and authoritative servers", Callable(), false)
+  _lobby_add_heading("CHOOSE A MODE", "Local experiences are selectable. Online queues stay visibly locked until real services exist.")
+  _lobby_add_section("LIVING WORLD  /  JIBONJATRA")
+  _lobby_add_mode_grid([
+   {"eyebrow":"OPEN WORLD","title":"JIBONJATRA","detail":"Walk, drive, meet and explore","accent":Color("#58c9bb"),"callback":Callable(self, "_choose_mode").bind("jibon_jatra")},
+   {"eyebrow":"CHAPTER MISSIONS","title":"DESHI STORIES","detail":"Local jobs and destination routes","accent":Color("#d7b46d"),"callback":Callable(self, "_choose_mode").bind("deshi_story")},
+   {"eyebrow":"FREE EXPLORATION","title":"OPEN CITY SANDBOX","detail":"Traffic, characters, shops and transport","accent":Color("#6cb8d9"),"callback":Callable(self, "_choose_mode").bind("free_roam")},
+   {"eyebrow":"LOCAL ACTIVITIES","title":"STREET LIFE","detail":"Markets, fares and city activities","accent":Color("#86b58b"),"callback":Callable(self, "_choose_mode").bind("street_life")}
+  ])
+  _lobby_add_section("STRIKEFRONT  /  OFFLINE AI")
+  _lobby_add_mode_grid([
+   {"eyebrow":"SURVIVAL","title":"LAST STAND","detail":"Three escalating AI waves","accent":Color("#d68c76"),"callback":Callable(self, "_choose_mode").bind("survival")},
+   {"eyebrow":"TRAINING","title":"COMBAT LAB","detail":"Six practice targets • solo","accent":Color("#d68c76"),"callback":Callable(self, "_choose_mode").bind("arena_training")},
+   {"eyebrow":"ELIMINATION","title":"STREET SKIRMISH","detail":"Ten AI opponents","accent":Color("#d68c76"),"callback":Callable(self, "_choose_mode").bind("street_skirmish")},
+   {"eyebrow":"BATTLE ROYALE","title":"SOLO DROP","detail":"Aircraft • freefall • parachute • AI","accent":Color("#d6b36d"),"callback":Callable(self, "_choose_mode").bind("battle_royale_solo"),"available":br_assets_ready,"locked_detail":"Waiting for the verified aircraft and parachute art"}
+  ])
   var br_controller: Node = w.get("battle_royale_controller") as Node if is_instance_valid(w) else null
   var br_assets_ready: bool = is_instance_valid(br_controller) and (br_controller.call("can_start_solo_deployment") == true)
-  _lobby_add_section("BATTLE ROYALE • OFFLINE SOLO")
-  _lobby_add_action("BATTLE ROYALE • SOLO DROP", "Cargo flight • freefall • authored ram-air canopy • local AI operators • shrinking safe zone", Callable(self, "_choose_mode").bind("battle_royale_solo"), br_assets_ready)
-  if not br_assets_ready:
-   _lobby_add_info("BR ASSET STATUS", "Solo drop unlocks after the verified cargo aircraft and original parachute GLB are imported.")
-  _lobby_add_section("ONLINE • NOT CONNECTED")
-  _lobby_add_action("RANKED BATTLE ROYALE", "Requires real-player matchmaking, authoritative server simulation and anti-cheat", Callable(), false)
-  _lobby_add_action("ZOMBIES / SPECIAL MODES", "Mode-specific maps and logic are not connected yet", Callable(), false)
+  # Rebuild the mode tiles after resolving BR asset availability.
+  _lobby_add_section("ONLINE  /  SERVICES NOT CONNECTED")
+  _lobby_add_mode_grid([
+   {"eyebrow":"ONLINE","title":"MULTIPLAYER QUICK PLAY","detail":"Requires real-time player servers","available":false},
+   {"eyebrow":"RANKED","title":"MULTIPLAYER RANKED","detail":"Requires accounts and matchmaking","available":false},
+   {"eyebrow":"RANKED BR","title":"BATTLE ROYALE RANKED","detail":"Requires authoritative online sessions","available":false},
+   {"eyebrow":"SPECIAL MODES","title":"ZOMBIES / EVENTS","detail":"Mode logic and dedicated maps are still being built","available":false}
+  ])
  elif page == "briefing":
   _build_mode_briefing()
  elif page == "loadout":
