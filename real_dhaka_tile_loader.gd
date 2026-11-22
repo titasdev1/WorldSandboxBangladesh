@@ -1334,7 +1334,7 @@ func _find_predictive_prefetch_record(player_position: Vector3) -> Dictionary:
 	# While driving, the operator can remain seated and stationary relative to the
 	# vehicle. Use the actual vehicle velocity so high-speed roads prefetch ahead.
 	var occupied_vehicle := _world.get("occupied_vehicle") as CharacterBody3D
-	if is_instance_valid(occupied_vehicle) and bool(occupied_vehicle.get("occupied")):
+	if is_instance_valid(occupied_vehicle) and occupied_vehicle.get("occupied") == true:
 		movement_source = occupied_vehicle
 	if not is_instance_valid(movement_source):
 		return {}
