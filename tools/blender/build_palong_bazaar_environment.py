@@ -1053,10 +1053,10 @@ def build_environment(out_path: pathlib.Path, texture_root: pathlib.Path,
     # Configure high-quality but bounded offline rendering.
     scene.render.engine = "CYCLES"
     scene.cycles.device = "CPU"
-    scene.cycles.samples = 48
+    scene.cycles.samples = 64
     scene.cycles.use_denoising = True
-    scene.render.resolution_x = 1600
-    scene.render.resolution_y = 900
+    scene.render.resolution_x = 1920
+    scene.render.resolution_y = 1080
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = "PNG"
     scene.render.image_settings.color_mode = "RGBA"
