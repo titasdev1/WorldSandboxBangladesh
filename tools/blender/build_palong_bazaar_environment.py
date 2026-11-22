@@ -335,7 +335,14 @@ def make_awning(side: int, y: float, front: float, width: float, z: float,
     center_x = side * (front - 0.72)
     box("Corrugated_Awning_Frame", (center_x, y, z), (1.42, width + 0.18, 0.08),
         mats["painted_steel"], root, 0.015, rotation=rotation)
-    if stripe:
+    if metal:
+        box("Corrugated_Tin_Awning_Canopy", (side * (front - 0.76), y, z + 0.045),
+            (1.38, width, 0.055), mats["galvanized_shutter"], root, 0.008, rotation=rotation)
+        for rib in range(max(7, int(width / 0.15))):
+            yy = y - width / 2 + (rib + 0.5) * width / max(7, int(width / 0.15))
+            box("Corrugated_Awning_Rib", (side * (front - 0.76), yy, z + 0.09),
+                (1.38, 0.038, 0.035), mats["painted_steel"], root, 0.008, rotation=rotation)
+    elif stripe:
         palette = [mats["awning_red"], mats["market_canvas"], mats["awning_blue"]]
         count = max(5, int(width / 0.32))
         for index in range(count):
@@ -343,7 +350,7 @@ def make_awning(side: int, y: float, front: float, width: float, z: float,
             box("Striped_Canvas_Awning", (side * (front - 0.76), yy, z + 0.045),
                 (1.38, width / count + 0.006, 0.045), palette[index % len(palette)],
                 root, 0.006, rotation=rotation)
-    else:
+    elif not metal:
         box("Aged_Canvas_Awning", (side * (front - 0.76), y, z + 0.042),
             (1.38, width, 0.05), mats["market_canvas"], root, 0.014, rotation=rotation)
     for yy in (y - width / 2 + 0.08, y + width / 2 - 0.08):
@@ -391,16 +398,32 @@ def add_store_interior(side: int, y: float, width: float, front: float,
     warm = mats["warm_light"]
     box("Shop_Interior_Back_Wall", (back_x, y, 1.55), (0.18, width, 2.9),
         mats["interior_wall"], root, 0.005)
-    for shelf_y in (y - width * 0.32, y, y + width * 0.32):
-        box("Shop_Left_Rack_Shelf", (side * (front + 0.02), shelf_y, 1.35),
-            (0.65, 0.10, 0.08), mats["wood"], root, 0.012)
-        box("Shop_Left_Rack_Shelf", (side * (front + 0.02), shelf_y, 2.02),
-            (0.65, 0.10, 0.08), mats["wood"], root, 0.012)
-        if kind in ("grocery", "hardware", "pharmacy"):
+    if kind in ("grocery", "hardware", "pharmacy", "stationery"):
+        for shelf_y in (y - width * 0.32, y, y + width * 0.32):
+            box("Shop_Left_Rack_Shelf", (side * (front + 0.02), shelf_y, 1.35),
+                (0.65, 0.10, 0.08), mats["wood"], root, 0.012)
+            box("Shop_Left_Rack_Shelf", (side * (front + 0.02), shelf_y, 2.02),
+                (0.65, 0.10, 0.08), mats["wood"], root, 0.012)
             for item in range(3):
                 col = [mats["goods_red"], mats["goods_green"], mats["goods_gold"]][(item + int(shelf_y * 10)) % 3]
                 box("Shop_Stock_Packaging", (side * (front + 0.08), shelf_y + (item - 1) * 0.14, 1.68),
                     (0.34, 0.10, 0.28), col, root, 0.016)
+    elif kind == "fashion":
+        for index in range(4):
+            yy = y - width * 0.26 + index * width * 0.17
+            box("Interior_Garment_Rack", (side * (front + 0.05), yy, 1.72),
+                (0.54, 0.035, 0.045), mats["painted_steel"], root, 0.008)
+            box("Interior_Hanging_Fabric", (side * (front + 0.08), yy, 1.34),
+                (0.35, 0.17, 0.66), [mats["fabric_red"], mats["fabric_blue"],
+                mats["fabric_gold"], mats["fabric_green"]][index], root, 0.025)
+    elif kind == "bank":
+        box("Bank_Teller_Counter", (side * (front + 0.30), y, 1.06),
+            (0.88, width * 0.70, 0.86), mats["aged_wood"], root, 0.025)
+        box("Bank_Service_Glass", (side * (front + 0.05), y, 1.83),
+            (0.04, width * 0.68, 0.68), mats["glass"], root, 0.01)
+        for yy in (y - width * 0.22, y + width * 0.22):
+            box("Bank_Service_Window_Frame", (side * (front - 0.005), yy, 1.84),
+                (0.05, 0.035, 0.70), mats["painted_steel"], root, 0.004)
     box("Shop_Counter_Stone_Top", (side * (front + 0.40), y, 1.10),
         (0.88, width * 0.62, 0.12), mats["aged_concrete"], root, 0.025)
     if kind == "sweets":
@@ -450,6 +473,15 @@ def add_shop_front(side: int, y: float, width: float, height: float,
                    y + width * 0.27 + door_width * 0.34):
             box("Shop_Door_Frame", (side * (front - 0.24), yy, 1.65),
                 (0.11, 0.075, 2.70), mats["painted_steel"], root, 0.01)
+        if kind == "bank":
+            for index in range(9):
+                yy = y + width * 0.27 - door_width * 0.25 + index * door_width * 0.0625
+                cylinder("Bank_Entrance_Security_Gate_Bar",
+                         (side * (front - 0.36), yy, 1.58), 0.018, 2.42,
+                         mats["painted_steel"], root, 8)
+            box("Bank_Entrance_Gate_Crossbar",
+                (side * (front - 0.37), y + width * 0.27, 1.74),
+                (0.035, door_width * 0.58, 0.035), mats["painted_steel"], root, 0.004)
         cylinder("Shop_Door_Handle", (side * (front - 0.30), y + width * 0.27, 1.55),
                  0.025, 0.28, mats["aged_concrete"], root, 12,
                  rotation=(math.pi / 2, 0, 0))
@@ -918,7 +950,7 @@ def build_environment(out_path: pathlib.Path, texture_root: pathlib.Path,
         (-1, 28.0, 7.0, 3, "stationery", "stationery", "plaster_yellow", 6),
         (1, -5.5, 6.1, 3, "fashion", "nakkhatra_fashion", "plaster_mint", 7),
         (1, 1.0, 6.3, 4, "grocery", "maa_store", "weathered_plaster", 8),
-        (1, 7.8, 6.8, 4, "bank", "sonali_bank", "plaster_blue", 9),
+        (1, 7.8, 6.8, 4, "grocery", "maa_store", "plaster_blue", 9),
         (1, 15.1, 5.8, 3, "produce", "fresh_produce", "plaster_yellow", 10),
         (1, 21.4, 6.0, 4, "fashion", "nakkhatra_fashion", "plaster_mint", 11),
         (1, 27.9, 7.0, 3, "sweets", "haru_ghosh_sweets", "weathered_plaster", 12),
