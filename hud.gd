@@ -1447,12 +1447,16 @@ func _build_downloads_page() -> void:
  lobby_content.add_child(downloads_progress_bar)
  var installed: bool = pack_state.get("installed", false) == true
  var downloading: bool = pack_state.get("downloading", false) == true
- var active_map: bool = is_instance_valid(w) and (w.get("real_dhaka_loaded") == true)
+ var active_map := false
+ var map_loader: Node = w.get("real_dhaka_loader") as Node if is_instance_valid(w) else null
+ if is_instance_valid(map_loader) and map_loader.has_method("get_runtime_map_diagnostics"):
+  var map_diagnostics: Dictionary = map_loader.call("get_runtime_map_diagnostics")
+  active_map = int(map_diagnostics.get("map_packs_mounted", 0)) > 0
  if installed:
   if active_map:
-   _lobby_add_action("SHARIATPUR IS ACTIVE", "The district pack is mounted and available in this session.", Callable(), false)
+   _lobby_add_action("SHARIATPUR IS ACTIVE", "The downloaded regional PCK is mounted in this session.", Callable(), false)
   else:
-   _lobby_add_action("RESTART TO APPLY SHARIATPUR", "The pack is fully verified. Save your local career and restart the world scene to mount it.", Callable(self, "_restart_to_apply_shariatpur"))
+   _lobby_add_action("RESTART TO APPLY SHARIATPUR", "The full district pack is verified on this device but is not mounted in the current world. Save your local career and restart to apply it.", Callable(self, "_restart_to_apply_shariatpur"))
  elif downloading:
   var downloaded := int(pack_state.get("downloaded_bytes", 0))
   var total := int(pack_state.get("total_bytes", 0))
