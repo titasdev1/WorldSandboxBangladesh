@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 from pathlib import Path
 
 import bpy
@@ -284,7 +285,8 @@ def main() -> None:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--preview", type=Path, required=True)
     parser.add_argument("--blend", type=Path, required=True)
-    args = parser.parse_args()
+    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    args = parser.parse_args(argv)
     build_scene(args.out, args.preview, args.blend)
 
 
