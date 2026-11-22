@@ -246,6 +246,8 @@ class MobileInteractionFlowTests(unittest.TestCase):
         self.assertIn("PREDICTIVE_PREFETCH_MIN_SPEED_MPS", loader)
         self.assertIn("player.velocity.x", predictive)
         self.assertIn("player.velocity.z", predictive)
+        self.assertIn('occupied_vehicle := _world.get("occupied_vehicle")', predictive)
+        self.assertIn("movement_source.velocity.x", predictive)
         self.assertIn("PREDICTIVE_PREFETCH_LOOKAHEAD_SECONDS", predictive)
         self.assertIn("PREDICTIVE_PREFETCH_CAPTURE_RADIUS_M", predictive)
         self.assertIn("_find_predictive_prefetch_record(player_position)", streaming)
