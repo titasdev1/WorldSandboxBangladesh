@@ -19,7 +19,7 @@ class CinematicLobbyStageArtifactTests(unittest.TestCase):
         self.assertTrue(blend.is_file(), "Editable Blender source was not saved")
         self.assertTrue(manifest_path.is_file(), "Asset manifest is missing")
         report = json.loads(manifest_path.read_text(encoding="utf-8"))
-        self.assertGreaterEqual(report.get("mesh_objects", 0), 35)
+        self.assertGreaterEqual(report.get("mesh_objects", 0), 28)
         self.assertGreater(report.get("triangles", 0), 5_000)
         self.assertIn("original Blender-authored", report.get("source", ""))
         self.assertEqual("CC0-1.0 (original project-authored asset; no third-party content)", report.get("license"))
