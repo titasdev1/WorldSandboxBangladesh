@@ -924,6 +924,7 @@ func _create_loading_transition(district_ready: bool) -> Control:
 	var sweep := ColorRect.new()
 	sweep.color = Color("#55d6e3")
 	sweep.custom_minimum_size = Vector2(112.0, 3.0)
+	sweep.size = Vector2(112.0, 3.0)
 	track.add_child(sweep)
 	sweep.position = Vector2(-112.0, 0.0)
 	var sweep_tween := create_tween()
