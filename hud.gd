@@ -1117,7 +1117,7 @@ func _lobby_add_section(section_text: String) -> void:
 func _lobby_add_featured_play() -> void:
  var button := Button.new()
  button.name = "FeaturedPlayNow"
- button.text = "▶  PLAY NOW\nChoose your experience"
+ button.text = "▶  DEPLOY NOW\nJIBONJATRA  •  STRIKEFRONT  •  WORLD SANDBOX"
  button.custom_minimum_size = Vector2(0.0, 108.0)
  button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
  button.alignment = HORIZONTAL_ALIGNMENT_LEFT
