@@ -74,12 +74,23 @@ def build_pbr_material(name: str, texture_root: pathlib.Path, folder: str,
                        tint: tuple[float, float, float] = (1.0, 1.0, 1.0),
                        metallic: float = 0.0, roughness_default: float = 0.78,
                        tint_strength: float = 0.34) -> bpy.types.Material:
-    folder_path = texture_root / folder
-    base_path = folder_path / "base_color.jpg"
-    normal_path = folder_path / "normal.png"
-    rough_path = folder_path / "roughness.png"
-    if not all(p.is_file() for p in (base_path, normal_path, rough_path)):
-        raise FileNotFoundError(f"Incomplete original PBR set: {folder_path}")
+    # Prefer real photographic CC0 scans from Poly Haven. The deterministic
+    # generated maps remain only as a CI/recovery fallback; the corridor build
+    # workflow must fetch and validate the scanned maps first.
+    polyhaven_folder = texture_root / "polyhaven" / folder
+    fallback_folder = texture_root / folder
+    folder_path = polyhaven_folder if polyhaven_folder.is_dir() else fallback_folder
+
+    def first_map(stem: str) -> pathlib.Path:
+        candidates = sorted(folder_path.glob(stem + ".*"))
+        candidates = [p for p in candidates if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".tif", ".tiff"}]
+        if not candidates:
+            raise FileNotFoundError(f"Missing {stem} PBR map in {folder_path}")
+        return candidates[0]
+
+    base_path = first_map("base_color")
+    normal_path = first_map("normal")
+    rough_path = first_map("roughness")
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
@@ -1025,6 +1036,16 @@ def build_environment(out_path: pathlib.Path, texture_root: pathlib.Path,
     root["facade_count"] = len(facade_records)
     root["original_material_texture_count"] = len(mats)
     root["no_google_map_assets_copied"] = True
+    polyhaven_manifest_path = texture_root / "polyhaven_material_manifest.json"
+    if not polyhaven_manifest_path.is_file():
+        raise FileNotFoundError("Poly Haven CC0 scan provenance missing; do not build a corridor from procedural-only surfaces")
+    polyhaven_manifest = json.loads(polyhaven_manifest_path.read_text(encoding="utf-8"))
+    if polyhaven_manifest.get("provider") != "Poly Haven" or polyhaven_manifest.get("asset_license") != "CC0-1.0":
+        raise RuntimeError("Poly Haven material provenance or licence failed validation")
+    if len(polyhaven_manifest.get("materials", {})) < 6:
+        raise RuntimeError("Expected six real photographic PBR scan material sets")
+    root["environment_material_source"] = "Poly Haven CC0 photographic scans + original A-Square signs"
+    root["environment_material_credit"] = "Powered by Poly Haven"
 
     print("A2_PROGRESS: batching static market geometry by material")
     batch_count = batch_static_meshes_by_material(root)
@@ -1085,7 +1106,11 @@ def build_environment(out_path: pathlib.Path, texture_root: pathlib.Path,
         "facades": facade_records,
         "material_count": len(mats) + len(sign_mats),
         "static_material_batches": batch_count,
-        "texture_source": "Original procedural PBR and Bengali RAQM sign artwork",
+        "texture_source": "Poly Haven CC0 photographic PBR scans + original Bengali RAQM sign artwork",
+        "texture_provider": "Poly Haven",
+        "texture_provider_credit": "Powered by Poly Haven",
+        "texture_provenance_manifest": (texture_root / "polyhaven_material_manifest.json").as_posix(),
+        "texture_assets": polyhaven_manifest.get("materials", {}),
         "license": "CC0-1.0",
         "source_images_embedded": False,
         "google_maps_3d_tiles_copied": False,
