@@ -104,7 +104,7 @@ class PalongBazaarEnvironmentTests(unittest.TestCase):
             "camera.location = (0.12, -13.5, 1.72)",
             "static_material_batches",
             "batch_static_meshes_by_material",
-            "export_format=\\"GLB\\"",
+            'export_format="GLB"',
             "1600",
             "900",
             "Godot",
