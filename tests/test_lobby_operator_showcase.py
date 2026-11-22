@@ -205,5 +205,42 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('lobby_showcase.call("set_enabled", false)', function_block(self.hud, "_replay_combat_round"))
 
 
+    def test_login_can_open_base_lobby_without_waiting_for_optional_district_pack(self):
+        refresh = function_block(self.boot, "_refresh_pack_state")
+        enter = function_block(self.boot, "_enter_world")
+        transition = function_block(self.boot, "_create_loading_transition")
+        self.assertIn("enter_button.disabled = false", refresh)
+        self.assertIn("ENTER BASE LOBBY", refresh)
+        self.assertIn("district_ready := _is_local_pack_ready()", enter)
+        self.assertIn("_create_loading_transition(district_ready)", enter)
+        self.assertIn("get_tree().change_scene_to_file", enter)
+        self.assertIn("STARTING BASE WORLD", transition)
+
+    def test_lobby_mode_cards_have_editorial_hierarchy_and_real_callbacks(self):
+        grid = function_block(self.hud, "_lobby_add_mode_grid")
+        home = function_block(self.hud, "_show_lobby_page")
+        self.assertIn("GridContainer.new()", grid)
+        self.assertIn("ModeCard_%02d", grid)
+        self.assertIn("eyebrow.text", grid)
+        self.assertIn("title.text", grid)
+        self.assertIn("detail.text", grid)
+        self.assertIn("card.pressed.connect(callback)", grid)
+        self.assertIn("JIBONJATRA", home)
+        self.assertIn("DESHI STORIES", home)
+        self.assertIn("BATTLE ROYALE", home)
+
+    def test_operator_stage_uses_layered_art_direction_and_tweened_camera_passes(self):
+        stage = function_block(self.showcase, "_build_stage")
+        choreography = function_block(self.showcase, "_start_cinematic_choreography")
+        process = function_block(self.showcase, "_process")
+        for token in ("HeroBackdrop", "PortalLeftPillar", "PortalRightPillar", "PortalCrown", "DeckOuterBrassInlay", "LobbyBrandMark", "WarmShoulderRim", "CoolShoulderRim"):
+            self.assertIn(token, stage)
+        self.assertIn("Tween.TRANS_CUBIC", choreography)
+        self.assertIn("Tween.TRANS_LINEAR", choreography)
+        self.assertIn("_start_cinematic_choreography()", function_block(self.showcase, "set_enabled"))
+        self.assertNotIn("sin(_elapsed * 0.22)", process)
+        self.assertIn("_request_next_lobby_idle_action()", process)
+
+
 if __name__ == "__main__":
     unittest.main()
