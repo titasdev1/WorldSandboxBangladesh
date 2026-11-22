@@ -195,7 +195,10 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('Animation.INTERPOLATION_CUBIC', self.showcase)
         self.assertIn('track_insert_key(track_index, keyframe.x, keyframe.y)', self.showcase)
         self.assertIn('_stage_timeline.play("lobby/PresentationIdle")', self.showcase)
-        self.assertIn("_camera.fov = _camera_fov_origin + sin", self.showcase)
+        self.assertIn('_camera_timeline.name = "LobbyCameraDirector"', self.showcase)
+        self.assertIn('_camera_timeline.root_node = NodePath("../../../Player")', self.showcase)
+        self.assertIn('NodePath("camera_yaw")', self.showcase)
+        self.assertIn('_camera_timeline.play("lobby/CameraHeroSweep")', self.showcase)
         self.assertIn("LOBBY_IDLE_ACTION_INTERVAL_SECONDS := 11.5", self.showcase)
 
     def test_showcase_and_player_visual_continue_while_tree_is_paused(self):
