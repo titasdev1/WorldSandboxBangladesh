@@ -7,7 +7,7 @@ class_name LobbyOperatorShowcase
 
 const BASE_CAMERA_SWAY_DEGREES := 2.8
 const CHARACTER_IDLE_SWAY_RADIANS := 0.018
-const LOBBY_IDLE_ACTIONS: Array[String] = ["idle_breathe", "idle_look", "idle_fidget"]
+const LOBBY_IDLE_ACTIONS: Array[String] = ["idle_look", "idle_fidget", "idle_breathe"]
 const LOBBY_IDLE_ACTION_INTERVAL_SECONDS := 11.5
 
 var _player: CharacterBody3D
