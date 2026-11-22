@@ -147,8 +147,12 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('TorusMesh.new()', self.showcase)
         self.assertIn('SpotLight3D.new()', self.showcase)
         self.assertIn('OmniLight3D.new()', self.showcase)
-        self.assertNotIn('load("res://', self.showcase)
-        self.assertNotIn('Texture2D', self.showcase)
+        self.assertIn("AUTHORED_COMMAND_HALL_PATH", self.showcase)
+        self.assertIn("ResourceLoader.exists(AUTHORED_COMMAND_HALL_PATH)", self.showcase)
+        self.assertIn("authored_pack.instantiate()", self.showcase)
+        self.assertIn("func _play_authored_stage_animation()", self.showcase)
+        self.assertIn("CylinderMesh.new()", self.showcase)  # procedural fallback remains
+        self.assertNotIn("Texture2D", self.showcase)
 
 
     def test_lobby_requests_authored_idle_choreography_without_assuming_every_rig_has_each_clip(self):
@@ -241,6 +245,19 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('lobby_showcase.call("set_enabled", true)', function_block(self.hud, "_check_combat_result"))
         self.assertIn('lobby_showcase.call("set_enabled", false)', function_block(self.hud, "_complete_enter_selected_mode"))
         self.assertIn('lobby_showcase.call("set_enabled", false)', function_block(self.hud, "_replay_combat_round"))
+
+
+    def test_blender_authored_hall_plays_animation_with_mobile_safe_lighting(self):
+        stage = function_block(self.showcase, "_try_build_authored_command_hall")
+        animator = function_block(self.showcase, "_play_authored_stage_animation")
+        lights = function_block(self.showcase, "_build_authored_stage_lighting")
+        self.assertIn("AUTHORED_COMMAND_HALL_PATH", stage)
+        self.assertIn('find_child("ANIM | Operator halo outer"', stage)
+        self.assertIn("authored_player.play(selected_name)", animator)
+        self.assertIn("Animation.LOOP_LINEAR", animator)
+        self.assertIn("_key_light.shadow_enabled = false", lights)
+        self.assertIn("_fill_light.shadow_enabled = false", lights)
+        self.assertIn("_rim_light.shadow_enabled = false", lights)
 
 
 if __name__ == "__main__":

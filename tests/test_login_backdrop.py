@@ -100,5 +100,16 @@ class LoginBackdropTests(unittest.TestCase):
         self.assertIn("_show_map_install_screen()", function_block(self.boot, "_continue_as_guest"))
 
 
+    def test_login_street_prefers_authored_shariatpur_frontage_and_keeps_safe_fallback(self):
+        self.assertIn('SHARIATPUR_SHOPFRONT_PATH := "res://assets/login/shariatpur_riverfront_shophouse_hero.glb"', self.backdrop)
+        loader = function_block(self.backdrop, "_add_shariatpur_shopfront")
+        city = function_block(self.backdrop, "_build_city_silhouette")
+        self.assertIn("ResourceLoader.exists(SHARIATPUR_SHOPFRONT_PATH)", loader)
+        self.assertIn('shopfront.name = "ShariatpurHeroShopfront"', loader)
+        self.assertIn("shopfront.scale = Vector3.ONE * 0.42", loader)
+        self.assertIn("if shariatpur_shopfront_loaded and index == 4:", city)
+        self.assertIn("continue", city)
+
+
 if __name__ == "__main__":
     unittest.main()

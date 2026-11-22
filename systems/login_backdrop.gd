@@ -1,5 +1,7 @@
 extends Node3D
 
+const SHARIATPUR_SHOPFRONT_PATH := "res://assets/login/shariatpur_riverfront_shophouse_hero.glb"
+
 # These two properties are deliberately present because HumanoidVisual's
 # background loader checks the parent world before it requests the same rig
 # used by the actual player. The login stage has no streamed map.
@@ -132,7 +134,12 @@ func _build_city_silhouette() -> void:
 		Color("#53606a"), Color("#665d55"), Color("#495b61"),
 		Color("#736654"), Color("#45545c"), Color("#625d65")
 	]
+	var shariatpur_shopfront_loaded := _add_shariatpur_shopfront()
 	for index in range(9):
+		# Reserve the centre for the authored local hero frontage. The fallback
+		# boxes are illustrative skyline dressing, not surveyed map geometry.
+		if shariatpur_shopfront_loaded and index == 4:
+			continue
 		var width := 2.4 + float(index % 3) * 0.48
 		var height := 3.4 + float((index * 7) % 5) * 0.58
 		var x := -13.0 + float(index) * 3.25
@@ -211,6 +218,25 @@ func _build_city_silhouette() -> void:
 	regional_green.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var regional_red := _box(self, "RegionalAccentRed", Vector3(-6.28, 2.9, -4.405), Vector3(0.11, 0.11, 0.028), Color("#bd554b"))
 	regional_red.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+
+func _add_shariatpur_shopfront() -> bool:
+	if not ResourceLoader.exists(SHARIATPUR_SHOPFRONT_PATH):
+		return false
+	var shopfront_pack := load(SHARIATPUR_SHOPFRONT_PATH) as PackedScene
+	if shopfront_pack == null:
+		push_warning("SHARIATPUR_SHOPFRONT_LOAD_FAILED: keeping procedural skyline fallback.")
+		return false
+	var shopfront := shopfront_pack.instantiate() as Node3D
+	if shopfront == null:
+		push_warning("SHARIATPUR_SHOPFRONT_INSTANCE_FAILED: keeping procedural skyline fallback.")
+		return false
+	shopfront.name = "ShariatpurHeroShopfront"
+	shopfront.position = Vector3(0.0, 0.0, -8.5)
+	shopfront.scale = Vector3.ONE * 0.42
+	add_child(shopfront)
+	return true
 
 
 func _build_trees() -> void:

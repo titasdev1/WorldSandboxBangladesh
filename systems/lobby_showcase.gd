@@ -9,10 +9,15 @@ const BASE_CAMERA_SWAY_DEGREES := 2.8
 const CHARACTER_IDLE_SWAY_RADIANS := 0.018
 const LOBBY_IDLE_ACTIONS: Array[String] = ["idle_look", "idle_fidget", "idle_breathe"]
 const LOBBY_IDLE_ACTION_INTERVAL_SECONDS := 11.5
+const AUTHORED_COMMAND_HALL_PATH := "res://assets/lobby/asquare_command_hall.glb"
 
 var _player: CharacterBody3D
 var _visual: Node3D
 var _stage_root: Node3D
+var _authored_stage: Node3D
+var _authored_halo: Node3D
+var _authored_stage_players: Array[AnimationPlayer] = []
+var _authored_stage_animation_names: Array[String] = []
 var _orbit_rig: Node3D
 var _key_light: SpotLight3D
 var _fill_light: OmniLight3D
@@ -53,6 +58,14 @@ func set_enabled(value: bool) -> void:
 		return
 	_enabled = value
 	visible = value
+	for index in range(_authored_stage_players.size()):
+		var authored_player := _authored_stage_players[index]
+		if not is_instance_valid(authored_player):
+			continue
+		if value:
+			authored_player.play(_authored_stage_animation_names[index])
+		else:
+			authored_player.pause()
 	if is_instance_valid(_stage_timeline):
 		if value:
 			_stage_timeline.play("lobby/PresentationIdle")
@@ -98,6 +111,9 @@ func _process(delta: float) -> void:
 	# drift is only a presentation accent; it never replaces the authored clip.
 	if is_instance_valid(_visual):
 		_visual.rotation.y = _visual_yaw_origin + sin(_elapsed * 0.19) * CHARACTER_IDLE_SWAY_RADIANS
+	if is_instance_valid(_authored_halo):
+		_authored_halo.rotation.y = _elapsed * 0.045
+		_authored_halo.rotation.z = sin(_elapsed * 0.31) * 0.018
 	if _player.has_method("_update_camera"):
 		_player.call("_update_camera")
 
@@ -120,6 +136,14 @@ func _build_stage() -> void:
 	_stage_root = Node3D.new()
 	_stage_root.name = "OperatorDisplayPlatform"
 	add_child(_stage_root)
+
+	# Prefer the Blender-authored command hall after CI generates and verifies
+	# it. The operator and interactive HUD remain live Godot nodes; the current
+	# procedural hangar below remains a safe fallback.
+	if _try_build_authored_command_hall():
+		_build_authored_stage_lighting()
+		_build_camera_timeline()
+		return
 
 	var floor_material := _surface(Color("#111c28"), 0.78, 0.42)
 	_add_box("CommandHangarFloor", Vector3(22.0, 0.16, 20.0), Vector3(0.0, -0.25, -1.0), floor_material)
@@ -264,6 +288,88 @@ func _build_stage() -> void:
 
 	_build_stage_timeline()
 	_build_camera_timeline()
+
+
+
+func _try_build_authored_command_hall() -> bool:
+	if not ResourceLoader.exists(AUTHORED_COMMAND_HALL_PATH):
+		return false
+	var authored_pack := load(AUTHORED_COMMAND_HALL_PATH) as PackedScene
+	if authored_pack == null:
+		push_warning("A2_AUTHORED_COMMAND_HALL_LOAD_FAILED: using the procedural stage.")
+		return false
+	var authored_instance := authored_pack.instantiate() as Node3D
+	if authored_instance == null:
+		push_warning("A2_AUTHORED_COMMAND_HALL_INSTANCE_FAILED: using the procedural stage.")
+		return false
+	authored_instance.name = "A2CinematicCommandHall"
+	_authored_stage = authored_instance
+	_stage_root.add_child(_authored_stage)
+	_authored_halo = _authored_stage.find_child("ANIM | Operator halo outer", true, false) as Node3D
+	_play_authored_stage_animation()
+	return true
+
+
+func _play_authored_stage_animation() -> void:
+	if not is_instance_valid(_authored_stage):
+		return
+	_authored_stage_players.clear()
+	_authored_stage_animation_names.clear()
+	var candidates := _authored_stage.find_children("*", "AnimationPlayer", true, false)
+	for candidate in candidates:
+		var authored_player := candidate as AnimationPlayer
+		if not is_instance_valid(authored_player):
+			continue
+		var names := authored_player.get_animation_list()
+		if names.is_empty():
+			continue
+		var selected_name := ""
+		for animation_name in names:
+			var lowered := String(animation_name).to_lower()
+			if "orbit" in lowered or "ring" in lowered:
+				selected_name = String(animation_name)
+				break
+		if selected_name.is_empty():
+			selected_name = String(names[0])
+		var authored_animation := authored_player.get_animation(selected_name)
+		if authored_animation != null:
+			authored_animation.loop_mode = Animation.LOOP_LINEAR
+			authored_player.play(selected_name)
+			_authored_stage_players.append(authored_player)
+			_authored_stage_animation_names.append(selected_name)
+
+
+func _build_authored_stage_lighting() -> void:
+	# Blender preview lights stay in the .blend; the exported mobile GLB has no
+	# punctual lights. These three Godot lights provide key/fill/rim separation.
+	_key_light = SpotLight3D.new()
+	_key_light.name = "AuthoredHallKeyLight"
+	_key_light.position = Vector3(0.0, 6.2, 4.6)
+	_key_light.light_color = Color("#dceeff")
+	_key_light.light_energy = 1.65
+	_key_light.spot_range = 18.0
+	_key_light.spot_angle = 48.0
+	_key_light.shadow_enabled = false
+	_stage_root.add_child(_key_light)
+	_key_light.look_at(Vector3(0.0, 1.2, 0.0), Vector3.UP)
+
+	_fill_light = OmniLight3D.new()
+	_fill_light.name = "AuthoredHallCoolFill"
+	_fill_light.position = Vector3(-4.0, 2.8, 1.8)
+	_fill_light.light_color = Color("#46c8d5")
+	_fill_light.light_energy = 0.82
+	_fill_light.omni_range = 11.0
+	_fill_light.shadow_enabled = false
+	_stage_root.add_child(_fill_light)
+
+	_rim_light = OmniLight3D.new()
+	_rim_light.name = "AuthoredHallWarmRim"
+	_rim_light.position = Vector3(4.2, 3.1, -3.8)
+	_rim_light.light_color = Color("#e1ad70")
+	_rim_light.light_energy = 1.05
+	_rim_light.omni_range = 10.0
+	_rim_light.shadow_enabled = false
+	_stage_root.add_child(_rim_light)
 
 
 func _build_camera_timeline() -> void:
