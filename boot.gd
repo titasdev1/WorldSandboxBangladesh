@@ -177,7 +177,7 @@ func _show_guest_login_screen() -> void:
 	var background := ColorRect.new()
 	background.name = "LoginBackdropShade"
 	background.color = Color("#06111f")
-	background.color.a = 0.48
+	background.color.a = 0.24
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	login_overlay.add_child(background)
@@ -185,13 +185,21 @@ func _show_guest_login_screen() -> void:
 	var center := CenterContainer.new()
 	center.name = "GuestLoginCenter"
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# Landscape login composition: leave the right side open for the live 3D
+	# operator and Bangladesh street set instead of hiding them behind the form.
+	center.anchor_right = 0.48
+	center.offset_left = 26.0
+	center.offset_right = -12.0
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	login_overlay.add_child(center)
 
 	var panel := PanelContainer.new()
 	panel.name = "GuestLoginPanel"
 	panel.custom_minimum_size = Vector2(minf(440.0, maxf(280.0, get_viewport_rect().size.x - 44.0)), 0.0)
-	panel.add_theme_stylebox_override("panel", _panel_style(Color("#0b2032"), Color("#28b8d3"), 2, 18))
+	var login_panel_style := _panel_style(Color("#0b2032"), Color("#28b8d3"), 2, 18)
+	login_panel_style.bg_color.a = 0.88
+	login_panel_style.border_color.a = 0.92
+	panel.add_theme_stylebox_override("panel", login_panel_style)
 	center.add_child(panel)
 
 	var content := VBoxContainer.new()
