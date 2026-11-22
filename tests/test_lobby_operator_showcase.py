@@ -92,7 +92,7 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('_lobby_add_featured_play()', home)
         self.assertIn('button.name = "FeaturedPlayNow"', featured)
         self.assertIn('button.pressed.connect(_show_lobby_page.bind("play"))', featured)
-        self.assertIn('Vector2(0.0, 94.0)', featured)
+        self.assertIn('Vector2(0.0, 108.0)', featured)
 
     def test_primary_play_navigation_is_visually_prominent(self):
         lobby = function_block(self.hud, "_build_lobby_ui")
@@ -129,13 +129,24 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('func get_operator_preset_name() -> String:', visual)
         self.assertIn("Separate selectable body models", operator_page)
 
-    def test_showcase_is_live_godot_geometry_not_a_baked_background(self):
+    def test_showcase_prefers_authored_blender_set_and_keeps_safe_live_fallback(self):
+        self.assertIn('const AUTHORED_COMMAND_HALL_PATH = "res://assets/lobby/asquare_command_hall.glb"', self.showcase)
+        self.assertIn("ResourceLoader.exists(AUTHORED_COMMAND_HALL_PATH)", self.showcase)
+        self.assertIn("authored_pack.instantiate()", self.showcase)
+        self.assertIn('func _play_authored_stage_animation()', self.showcase)
         self.assertIn('CylinderMesh.new()', self.showcase)
         self.assertIn('TorusMesh.new()', self.showcase)
         self.assertIn('SpotLight3D.new()', self.showcase)
         self.assertIn('OmniLight3D.new()', self.showcase)
-        self.assertNotIn('load("res://', self.showcase)
         self.assertNotIn('Texture2D', self.showcase)
+
+    def test_lobby_page_entrances_are_staggered_and_cinematic_overlay_ignores_input(self):
+        page = function_block(self.hud, "_show_lobby_page")
+        self.assertIn('_lobby_page_tween.set_parallel(true)', page)
+        self.assertIn('"modulate:a"', page)
+        self.assertIn('Tween.TRANS_BACK', page)
+        self.assertIn('lobby_cinematic_fx.gd', self.hud)
+        self.assertIn('Control.MOUSE_FILTER_IGNORE', read("systems/lobby_cinematic_fx.gd"))
 
 
     def test_lobby_requests_authored_idle_choreography_without_assuming_every_rig_has_each_clip(self):
