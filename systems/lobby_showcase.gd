@@ -21,6 +21,7 @@ var _scan_bar: MeshInstance3D
 var _scan_material: StandardMaterial3D
 var _camera: Camera3D
 var _stage_timeline: AnimationPlayer
+var _camera_timeline: AnimationPlayer
 var _enabled := false
 var _elapsed := 0.0
 var _camera_yaw_origin := 24.0
@@ -57,6 +58,11 @@ func set_enabled(value: bool) -> void:
 			_stage_timeline.play("lobby/PresentationIdle")
 		else:
 			_stage_timeline.pause()
+	if is_instance_valid(_camera_timeline):
+		if value:
+			_camera_timeline.play("lobby/CameraHeroSweep")
+		else:
+			_camera_timeline.pause()
 	if not value:
 		if is_instance_valid(_visual):
 			_visual.rotation.y = _visual_yaw_origin
@@ -92,11 +98,8 @@ func _process(delta: float) -> void:
 	# drift is only a presentation accent; it never replaces the authored clip.
 	if is_instance_valid(_visual):
 		_visual.rotation.y = _visual_yaw_origin + sin(_elapsed * 0.19) * CHARACTER_IDLE_SWAY_RADIANS
-	_player.set("camera_yaw", _camera_yaw_origin + sin(_elapsed * 0.16) * BASE_CAMERA_SWAY_DEGREES)
 	if _player.has_method("_update_camera"):
 		_player.call("_update_camera")
-	if is_instance_valid(_camera):
-		_camera.fov = _camera_fov_origin + sin(_elapsed * 0.11) * 0.75
 
 
 func _request_next_lobby_idle_action() -> void:
@@ -260,6 +263,32 @@ func _build_stage() -> void:
 	_stage_root.add_child(_rim_light)
 
 	_build_stage_timeline()
+	_build_camera_timeline()
+
+
+func _build_camera_timeline() -> void:
+	# Dedicated director targets the live Player node; the imported character
+	# AnimationPlayer remains untouched and keeps ownership of body performance.
+	_camera_timeline = AnimationPlayer.new()
+	_camera_timeline.name = "LobbyCameraDirector"
+	_camera_timeline.root_node = NodePath("../../../Player")
+	_stage_root.add_child(_camera_timeline)
+
+	var animation := Animation.new()
+	animation.resource_name = "CameraHeroSweep"
+	animation.length = 12.0
+	animation.step = 1.0 / 30.0
+	animation.loop_mode = Animation.LOOP_LINEAR
+	_add_float_track(animation, NodePath("camera_yaw"), [
+		Vector2(0.0, _camera_yaw_origin),
+		Vector2(3.5, _camera_yaw_origin + 1.8),
+		Vector2(8.5, _camera_yaw_origin - 1.8),
+		Vector2(12.0, _camera_yaw_origin)
+	])
+	var library := AnimationLibrary.new()
+	library.add_animation("CameraHeroSweep", animation)
+	_camera_timeline.add_animation_library("lobby", library)
+	_camera_timeline.play("lobby/CameraHeroSweep")
 
 
 func _build_stage_timeline() -> void:
