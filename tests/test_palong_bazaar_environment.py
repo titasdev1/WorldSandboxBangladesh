@@ -56,6 +56,13 @@ class PalongBazaarEnvironmentTests(unittest.TestCase):
             "Clothing_Display_Rail",
             "Sweets_Outdoor_Glass_Case",
             "Motorcycle_Tyre",
+            "CNG_Tyre_Rubber",
+            "CNG_Passenger_Floor",
+            "CNG_Windscreen_Glass",
+            "CNG_Roof_Canopy",
+            "CNG_Side_Mirror",
+            "CNG_Round_Headlamp_Lens",
+            "make_cng_auto_rickshaw(0.48, 11.9",
             "Compose the view at player eye height",
         ):
             self.assertIn(marker, self.builder)
