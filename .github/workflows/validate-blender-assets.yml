@@ -240,6 +240,7 @@ CREDITS
           path: |
             build/palong-bazaar/palong_bazaar_market_corridor.glb
             build/palong-bazaar/asset_manifest.json
+            build/palong-bazaar/textures/polyhaven_material_manifest.json
             build/palong-bazaar/LICENSE.txt
             build/palong-bazaar/palong_bazaar_preview.png
             build/palong-bazaar/palong_bazaar_environment.blend
@@ -332,6 +333,7 @@ CREDITS
             build/shariatpur-streetfront/streetfront_verification.json
             build/palong-bazaar/palong_bazaar_market_corridor.glb
             build/palong-bazaar/asset_manifest.json
+            build/palong-bazaar/textures/polyhaven_material_manifest.json
             build/palong-bazaar/LICENSE.txt
             build/palong-bazaar/palong_bazaar_preview.png
             build/palong-bazaar/palong_bazaar_environment.blend
