@@ -126,6 +126,9 @@ class PalongBazaarEnvironmentTests(unittest.TestCase):
             "at least ten individually art-directed market frontages",
             "source_images_embedded",
             "google_maps_3d_tiles_copied",
+            "Poly Haven provider/CC0 provenance",
+            "photo-scanned PBR sets",
+            "Powered by Poly Haven",
             "130 MiB",
         ):
             self.assertIn(marker, self.verifier)
