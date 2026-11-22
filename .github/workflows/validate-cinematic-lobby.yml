@@ -1,0 +1,134 @@
+name: Validate A-Square cinematic login and lobby art
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - art/cinematic-login-lobby-v1
+    paths:
+      - "tools/blender/**"
+      - "systems/lobby_showcase.gd"
+      - "systems/lobby_cinematic_fx.gd"
+      - "systems/login_backdrop.gd"
+      - "hud.gd"
+      - "boot.gd"
+      - "tests/test_asquare_cinematic_lobby.py"
+      - "tests/validate_cinematic_sources.gd"
+      - ".github/workflows/validate-cinematic-lobby.yml"
+  pull_request:
+    branches:
+      - feature/lobby-operator-showcase
+    paths:
+      - "tools/blender/**"
+      - "systems/lobby_showcase.gd"
+      - "systems/lobby_cinematic_fx.gd"
+      - "systems/login_backdrop.gd"
+      - "hud.gd"
+      - "boot.gd"
+      - "tests/test_asquare_cinematic_lobby.py"
+      - "tests/validate_cinematic_sources.gd"
+      - ".github/workflows/validate-cinematic-lobby.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cinematic-lobby-validation-\${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-cinematic-lobby:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout A-Square
+        uses: actions/checkout@v5
+
+      - name: Install pinned Blender 5.2.4 LTS
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl xz-utils unzip python3-numpy
+          source tools/install_blender_ci.sh
+          blender --version
+
+      - name: Compile Blender tools and regression tests
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/blender/build_asquare_lobby_scene.py \
+            tools/blender/verify_asquare_lobby_scene.py \
+            tests/test_asquare_cinematic_lobby.py
+
+      - name: Build authored command-hall GLB, Blender source and cinematic preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="build/asquare_lobby"
+          mkdir -p "$OUT"
+          blender --background --factory-startup \
+            --python tools/blender/build_asquare_lobby_scene.py -- \
+            --out "$OUT/asquare_command_hall.glb" \
+            --preview "$OUT/command_hall_preview.png" \
+            --blend "$OUT/asquare_command_hall.blend" \
+            > "$OUT/authoring.log" 2>&1
+          cat "$OUT/authoring.log"
+          grep -Fq "A2_LOBBY_STAGE_READY:" "$OUT/authoring.log"
+          grep -Fq "A2_LOBBY_PREVIEW_READY:" "$OUT/authoring.log"
+          test -s "$OUT/asquare_command_hall.glb"
+          test -s "$OUT/command_hall_preview.png"
+          test -s "$OUT/asquare_command_hall.blend"
+
+      - name: Verify exported scene geometry, materials and animation channels
+        run: |
+          set -euo pipefail
+          python3 tools/blender/verify_asquare_lobby_scene.py \
+            --glb build/asquare_lobby/asquare_command_hall.glb \
+            --out build/asquare_lobby/verification.json
+          python3 -m json.tool build/asquare_lobby/verification.json > /dev/null
+
+      - name: Run art direction and integration regression suite
+        run: python3 -m unittest discover -s tests -p "test_asquare_cinematic_lobby.py" -v
+
+      - name: Install pinned Godot 4.4.1 for headless source parsing
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/godot-4.4.1"
+          curl --fail --location --retry 3 \
+            "https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip" \
+            -o "$RUNNER_TEMP/godot-4.4.1/godot.zip"
+          unzip -q "$RUNNER_TEMP/godot-4.4.1/godot.zip" -d "$RUNNER_TEMP/godot-4.4.1"
+          chmod +x "$RUNNER_TEMP/godot-4.4.1/Godot_v4.4.1-stable_linux.x86_64"
+          "$RUNNER_TEMP/godot-4.4.1/Godot_v4.4.1-stable_linux.x86_64" --version
+          echo "$RUNNER_TEMP/godot-4.4.1" >> "$GITHUB_PATH"
+
+      - name: Import project and parse every changed login/lobby script
+        shell: bash
+        env:
+          GODOT_SILENCE_ROOT_WARNING: "1"
+        run: |
+          set -euo pipefail
+          Godot_v4.4.1-stable_linux.x86_64 --headless --editor --path . --quit
+          Godot_v4.4.1-stable_linux.x86_64 --headless --path . \
+            --script res://tests/validate_cinematic_sources.gd
+
+      - name: Record art and runtime scope
+        shell: bash
+        run: |
+          cat > build/asquare_lobby/ASSET-AND-RUNTIME-NOTES.txt <<'EOF'
+          Original Blender-authored A-Square command-hall environment.
+          The live player rig and all readable UI/data remain in Godot.
+          No GTA, CODM, AOV or MLBB code, characters, logos, maps, music or source assets are copied.
+          Blender authoring source and render preview are included for human art review.
+          A successful structural verifier is not a visual-art approval or physical Android QA.
+          EOF
+
+      - name: Upload reviewable lobby art package
+        uses: actions/upload-artifact@v4
+        with:
+          name: A-Square-Cinematic-Lobby-Review
+          path: build/asquare_lobby/
+          if-no-files-found: error
+          retention-days: 21
