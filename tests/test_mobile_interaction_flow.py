@@ -239,6 +239,20 @@ class MobileInteractionFlowTests(unittest.TestCase):
         self.assertIn("lat_lon_to_world", function_block(self.hud, "_navigate_to_named_place"))
         self.assertIn("teleport_status.text = \"Selected \"", self.hud)
 
+    def test_fast_world_traversal_prioritizes_one_predictive_map_tile(self):
+        loader = read("real_dhaka_tile_loader.gd")
+        predictive = function_block(loader, "_find_predictive_prefetch_record")
+        streaming = function_block(loader, "_stream_tiles")
+        self.assertIn("PREDICTIVE_PREFETCH_MIN_SPEED_MPS", loader)
+        self.assertIn("player.velocity.x", predictive)
+        self.assertIn("player.velocity.z", predictive)
+        self.assertIn("PREDICTIVE_PREFETCH_LOOKAHEAD_SECONDS", predictive)
+        self.assertIn("PREDICTIVE_PREFETCH_CAPTURE_RADIUS_M", predictive)
+        self.assertIn("_find_predictive_prefetch_record(player_position)", streaming)
+        self.assertIn("predictive_prefetch_key", streaming)
+        self.assertIn("MAX_TILE_LOADS_PER_STREAM_TICK := 1", loader)
+        self.assertIn("REAL_MAP_PREDICTIVE_PREFETCH", predictive)
+
     def test_large_map_pack_is_chunked_verified_and_reassembled_before_mount(self):
         manager = read("systems/content_download_manager.gd")
         self.assertIn('get("schema_version", 0)) != 2', manager)
