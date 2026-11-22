@@ -11,6 +11,9 @@ var _vehicle_root: Node3D
 var _tree_pivots: Array[Node3D] = []
 var _wind_cloth_pivot: Node3D
 var _operator_visual: Node3D
+var _presentation_camera: Camera3D
+var _camera_origin := Vector3(0.0, 3.6, 12.8)
+var _cng_wheels: Array[MeshInstance3D] = []
 
 
 func _ready() -> void:
@@ -25,10 +28,19 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_elapsed += delta
+	if is_instance_valid(_presentation_camera):
+		var camera_drift := Vector3(sin(_elapsed * 0.095) * 0.38, sin(_elapsed * 0.16) * 0.045, cos(_elapsed * 0.075) * 0.16)
+		_presentation_camera.position = _camera_origin + camera_drift
+		_presentation_camera.look_at(Vector3(sin(_elapsed * 0.08) * 0.18, 1.45, -2.1), Vector3.UP)
 
 	if is_instance_valid(_vehicle_root):
 		# The three-wheeler loops behind the login card and never blocks input.
 		_vehicle_root.position.x = fposmod(_elapsed * 3.8 + 5.0, 34.0) - 17.0
+		_vehicle_root.position.y = 0.012 + sin(_elapsed * 4.0) * 0.012
+		_vehicle_root.rotation.y = sin(_elapsed * 0.72) * 0.012
+	for wheel in _cng_wheels:
+		if is_instance_valid(wheel):
+			wheel.rotation.z += delta * 5.2
 
 	for index in range(_tree_pivots.size()):
 		var branch := _tree_pivots[index]
@@ -63,6 +75,10 @@ func _build_lighting() -> void:
 	environment.ambient_light_color = Color("#9fb4c3")
 	environment.ambient_light_energy = 0.62
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	environment.fog_enabled = true
+	environment.fog_light_color = Color("#8b8880")
+	environment.fog_density = 0.004
+	environment.fog_sky_affect = 0.12
 	world.environment = environment
 	add_child(world)
 
@@ -74,13 +90,13 @@ func _build_lighting() -> void:
 	sun.shadow_enabled = false
 	add_child(sun)
 
-	var camera := Camera3D.new()
-	camera.name = "LoginBackdropCamera"
-	camera.position = Vector3(0.0, 3.6, 12.8)
-	camera.fov = 48.0
-	add_child(camera)
-	camera.look_at(Vector3(0.0, 1.45, -2.1), Vector3.UP)
-	camera.current = true
+	_presentation_camera = Camera3D.new()
+	_presentation_camera.name = "LoginBackdropCamera"
+	_presentation_camera.position = _camera_origin
+	_presentation_camera.fov = 48.0
+	add_child(_presentation_camera)
+	_presentation_camera.look_at(Vector3(0.0, 1.45, -2.1), Vector3.UP)
+	_presentation_camera.current = true
 
 
 func _build_ground_and_road() -> void:
@@ -99,7 +115,7 @@ func _build_ground_and_road() -> void:
 	road_mesh.size = Vector2(48.0, 5.8)
 	road.mesh = road_mesh
 	road.position = Vector3(0.0, 0.002, 2.1)
-	road.material_override = _material(Color("#303941"), 0.94)
+	road.material_override = _material(Color("#303941"), 0.48, 0.14)
 	add_child(road)
 
 	for lane_index in range(9):
@@ -316,9 +332,10 @@ func _build_cng() -> void:
 			wheel.position = Vector3(0.78, 0.25, 0.0)
 		else:
 			wheel.position = Vector3(-0.64, 0.25, -0.43 if wheel_index == 1 else 0.43)
-		wheel.material_override = _material(Color("#15191c"), 0.98)
+		wheel.material_override = _material(Color("#15191c"), 0.88, 0.18)
 		wheel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_vehicle_root.add_child(wheel)
+		_cng_wheels.append(wheel)
 
 	var cng_label := Label3D.new()
 	cng_label.name = "CNGSideLabel"
