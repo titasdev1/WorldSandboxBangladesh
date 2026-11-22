@@ -65,7 +65,9 @@ class LoginBackdropTests(unittest.TestCase):
 
     def test_login_shot_uses_camera_parallax_and_animated_cng_wheels(self):
         process = function_block(self.backdrop, "_process")
-        self.assertIn("_camera.position = Vector3(sin(_elapsed * 0.075)", process)
+        timeline = function_block(self.backdrop, "_build_login_timeline")
+        self.assertNotIn("_camera.position = Vector3(sin", process)
+        self.assertIn('NodePath("LoginBackdropCamera:position:x")', timeline)
         self.assertIn("wheel.rotation.z -= delta * 15.2", process)
         self.assertIn("_vehicle_wheels.append(wheel)", self.backdrop)
         self.assertIn("BalconyDeck_", self.backdrop)
@@ -73,6 +75,15 @@ class LoginBackdropTests(unittest.TestCase):
         self.assertIn('sign_text.text = "SHARIATPUR  /  01"', self.backdrop)
         self.assertIn("RegionalAccentGreen", self.backdrop)
         self.assertIn("RegionalAccentRed", self.backdrop)
+
+    def test_login_camera_and_breeze_use_cubic_animation_timeline(self):
+        timeline = function_block(self.backdrop, "_build_login_timeline")
+        self.assertIn('animation.loop_mode = Animation.LOOP_LINEAR', timeline)
+        self.assertIn('Animation.INTERPOLATION_CUBIC', self.backdrop)
+        self.assertIn('LoginArtDirectionTimeline', self.backdrop)
+        self.assertIn('login/StreetReveal', self.backdrop)
+        self.assertIn('get_path_to(branch)', timeline)
+        self.assertIn('get_path_to(_wind_cloth_pivot)', timeline)
 
     def test_map_loading_keeps_the_same_live_cinematic_backdrop(self):
         build = function_block(self.boot, "_build_screen")
