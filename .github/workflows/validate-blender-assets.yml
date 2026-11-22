@@ -100,7 +100,11 @@ jobs:
             tools/verify_battle_royale_parachute.py \
             tools/make_shariatpur_frontage_textures.py \
             tools/verify_shariatpur_streetfront.py \
-            tools/build_shariatpur_riverfront_shophouse.py
+            tools/build_shariatpur_riverfront_shophouse.py \
+            tools/make_palong_bazaar_textures.py \
+            tools/blender/build_palong_bazaar_environment.py \
+            tools/verify_palong_bazaar_environment.py \
+            tests/test_palong_bazaar_environment.py
 
       - name: Smoke-test Blender Action slots, F-curves, easing and cycle modifiers
         shell: bash
@@ -174,9 +178,11 @@ jobs:
         run: |
           set -euo pipefail
           OUT_DIR="build/palong-bazaar"
-          python3 tools/make_palong_bazaar_textures.py --out "${OUT_DIR}/textures" --size 2048
+          mkdir -p "${OUT_DIR}"
+          python3 tools/make_palong_bazaar_textures.py --out "${OUT_DIR}/textures" --size 2048 > "${OUT_DIR}/texture-generation.log" 2>&1
+          cat "${OUT_DIR}/texture-generation.log"
+          grep -Fq "A2_PALONG_TEXTURES_READY:" "${OUT_DIR}/texture-generation.log"
           python3 -m json.tool "${OUT_DIR}/textures/texture_manifest.json" > /dev/null
-          grep -Fq "A2_PALONG_TEXTURES_READY" "${OUT_DIR}/textures/texture_manifest.json" || true
 
       - name: Author the Palong Bazar market corridor in Blender 5.2.4
         shell: bash
