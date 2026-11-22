@@ -275,11 +275,11 @@ def make_window(side: int, y: float, z: float, width: float, height: float,
                 front: float, mats: dict, root: bpy.types.Object, grille: bool = True) -> None:
     # Recessed dark glass with a deep concrete reveal, separate timber/steel frame and bars.
     x = side * (front - 0.10)
-    box("Window_Recess_Shadow", (x, y, z), (0.10, width + 0.24, height + 0.25),
+    box("Window_Recess_Shadow", (side * (front - 0.12), y, z), (0.10, width + 0.24, height + 0.25),
         mats["deep_shadow"], root, 0.014)
-    box("Window_Glazing", (side * (front - 0.17), y, z),
+    box("Window_Glazing", (side * (front - 0.20), y, z),
         (0.035, width, height), mats["glass"], root, 0.008)
-    frame_x = side * (front - 0.22)
+    frame_x = side * (front - 0.27)
     for dy in (-width / 2 - 0.08, width / 2 + 0.08):
         box("Window_Frame_Jamb", (frame_x, y + dy, z), (0.13, 0.13, height + 0.2),
             mats["painted_steel"], root, 0.012)
@@ -500,7 +500,7 @@ def add_building(side: int, center_y: float, width: float, floors: int,
         (mass_center_x, center_y, height / 2),
         (depth, width, height), body_mat, root, 0.04)
     # Street-facing plinth and irregular repaired plaster panels.
-    box("Building_Ground_Floor_Pl int h".replace(" ", ""),
+    box("Building_Ground_Floor_Plinth",
         (side * (front - 0.025), center_y, 1.83), (0.12, width + 0.05, 3.62),
         mats["aged_concrete"] if kind == "bank" else body_mat, root, 0.018)
     for patch in range(3):
