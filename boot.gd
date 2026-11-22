@@ -486,14 +486,16 @@ func _refresh_pack_state() -> void:
 		return
 	download_button.disabled = false
 	download_button.visible = not installed
-	enter_button.disabled = not installed
+	# A missing district pack must not block the base game or its lobby.
+	# The starter world remains available while Shariatpur is installed separately.
+	enter_button.disabled = false
 	if installed:
 		status_label.text = "SHARIATPUR MAP PACK VERIFIED"
-		detail_label.text = "The map pack is stored in private app storage. Enter to mount it and load the game world."
+		detail_label.text = "The district is ready in private app storage. Enter the lobby and choose a local experience."
 		progress_bar.value = 100
-		enter_button.text = "ENTER WORLD  →"
+		enter_button.text = "ENTER A-SQUARE LOBBY  →"
 	else:
-		status_label.text = "SHARIATPUR MAP NOT INSTALLED"
+		status_label.text = "A-SQUARE BASE GAME READY"
 		var retained_size := 0
 		if FileAccess.file_exists(MERGED_PART_PATH):
 			var retained_file := FileAccess.open(MERGED_PART_PATH, FileAccess.READ)
@@ -501,14 +503,14 @@ func _refresh_pack_state() -> void:
 				retained_size = retained_file.get_length()
 				retained_file.close()
 		if retained_size > 0:
-			status_label.text = "SHARIATPUR DOWNLOAD SAVED"
-			detail_label.text = "%.1f MB of verified map sections are saved on this device. Resume without downloading those sections again." % (float(retained_size) / 1048576.0)
-			download_button.text = "RESUME MAP DOWNLOAD"
+			detail_label.text = "%.1f MB of verified Shariatpur data are saved. You can resume the district install here, or enter the base lobby now." % (float(retained_size) / 1048576.0)
+			download_button.text = "RESUME SHARIATPUR DOWNLOAD"
 		else:
-			detail_label.text = "Download the full-resolution district pack once. Its checked sections are kept on this device if the connection is interrupted."
-			download_button.text = "DOWNLOAD SHARIATPUR MAP"
+			detail_label.text = "The base game and lobby can start now. Shariatpur is an optional high-detail world pack you can install here."
+			download_button.text = "INSTALL SHARIATPUR WORLD"
 		progress_bar.value = 0
-		enter_button.text = "ENTER WORLD  →"
+		enter_button.text = "ENTER BASE LOBBY  →"
+
 
 func _on_download_button_pressed() -> void:
 	if download_active:
@@ -855,19 +857,79 @@ func _fail_download(message: String) -> void:
 func _enter_world() -> void:
 	if download_active:
 		return
-	if not _is_local_pack_ready():
-		_refresh_pack_state()
-		return
-	status_label.text = "OPENING WORLD SYSTEMS..."
-	detail_label.text = "Shariatpur is mounted from the verified local map pack. The nearest map area loads after you enter."
+	var district_ready := _is_local_pack_ready()
+	status_label.text = "INITIALIZING A-SQUARE..."
+	detail_label.text = "Preparing the lobby, operator presentation and local world services."
 	enter_button.disabled = true
-	download_button.visible = false
-	await get_tree().process_frame
+	download_button.disabled = true
+	var transition := _create_loading_transition(district_ready)
+	add_child(transition)
+	var entrance := create_tween()
+	entrance.tween_property(transition, "modulate:a", 1.0, 0.28).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	await entrance.finished
+	await get_tree().create_timer(0.45).timeout
 	var error := get_tree().change_scene_to_file("res://Main.tscn")
 	if error != OK:
+		if is_instance_valid(transition):
+			transition.queue_free()
 		status_label.text = "COULD NOT OPEN THE WORLD"
 		detail_label.text = "Scene change failed (error %d). Please reopen the game." % error
 		enter_button.disabled = false
+		download_button.disabled = false
+
+
+func _create_loading_transition(district_ready: bool) -> Control:
+	var layer := Control.new()
+	layer.name = "A_SquareLoadingTransition"
+	layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.modulate.a = 0.0
+	var background := ColorRect.new()
+	background.color = Color("#050d16")
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(background)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(center)
+	var stack := VBoxContainer.new()
+	stack.alignment = BoxContainer.ALIGNMENT_CENTER
+	stack.add_theme_constant_override("separation", 12)
+	stack.custom_minimum_size = Vector2(420.0, 0.0)
+	center.add_child(stack)
+	var brand := Label.new()
+	brand.text = "A²   /   PROJECT A-SQUARE"
+	brand.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	brand.add_theme_font_size_override("font_size", 17)
+	brand.add_theme_color_override("font_color", Color("#d7ba7b"))
+	stack.add_child(brand)
+	var title := Label.new()
+	title.text = "ENTERING THE WORLD"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_color_override("font_color", Color("#f3f7fb"))
+	stack.add_child(title)
+	var detail := Label.new()
+	detail.text = "SHARIATPUR DATA VERIFIED" if district_ready else "STARTING BASE WORLD  •  DISTRICT PACK CAN BE INSTALLED LATER"
+	detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	detail.add_theme_font_size_override("font_size", 12)
+	detail.add_theme_color_override("font_color", Color("#8fb5c2"))
+	stack.add_child(detail)
+	var track := ColorRect.new()
+	track.custom_minimum_size = Vector2(0.0, 3.0)
+	track.color = Color("#203745")
+	stack.add_child(track)
+	var sweep := ColorRect.new()
+	sweep.color = Color("#55d6e3")
+	sweep.custom_minimum_size = Vector2(112.0, 3.0)
+	track.add_child(sweep)
+	sweep.position = Vector2(-112.0, 0.0)
+	var sweep_tween := create_tween()
+	sweep_tween.set_loops()
+	sweep_tween.tween_property(sweep, "position:x", 420.0, 1.15).from(-112.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	return layer
 
 func _autostart_world_for_smoke() -> void:
 	await get_tree().process_frame
