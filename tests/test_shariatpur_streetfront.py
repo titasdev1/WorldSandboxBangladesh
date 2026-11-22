@@ -51,6 +51,8 @@ class ShariatpurStreetfrontAuthoringTests(unittest.TestCase):
         self.assertIn("ImageFont.Layout.RAQM", self.texture_builder)
         self.assertIn('make_bengali_sign_art(args.out,"shop_sign"', self.texture_builder)
         self.assertIn('make_bengali_sign_art(args.out,"interior_sign"', self.texture_builder)
+        self.assertNotIn("•", self.texture_builder)
+        self.assertIn("_find_raqm_bengali_font()", self.texture_builder)
         self.assertIn("bengali_sign_art", self.texture_builder)
         self.assertIn("textured_quad", self.builder)
         self.assertIn("Shop_Signboard_Baked_Bengali_Face", self.builder)

@@ -99,15 +99,27 @@ def make_maps(out: pathlib.Path, key: str, size: int) -> dict:
         draw = ImageDraw.Draw(sign)
         border=max(9,size//90)
         draw.rectangle((border,border,size-border,size-border),outline=(213,184,119,255),width=border)
-        font_path=""
-        try:
-            found=subprocess.run(["fc-match","Noto Sans Bengali","-f","%{file}"],capture_output=True,text=True,check=False).stdout.strip()
-            if found and pathlib.Path(found).is_file(): font_path=found
-        except Exception: pass
-        font=ImageFont.truetype(font_path,max(24,size//13)) if font_path else ImageFont.load_default()
-        small=ImageFont.truetype(font_path,max(16,size//34)) if font_path else ImageFont.load_default()
-        draw.text((size//2,size//2), "মা স্টোর  •  শরীয়তপুর", font=font, fill=(245,226,183,255), anchor="mm")
-        draw.text((size//2,int(size*0.78)), "MAA STORE  /  SHARIATPUR", font=small, fill=(220,210,183,255), anchor="mm")
+        font_path = _find_raqm_bengali_font()
+        font = ImageFont.truetype(font_path, max(24, size // 13), layout_engine=ImageFont.Layout.RAQM)
+        small = ImageFont.truetype(font_path, max(16, size // 34), layout_engine=ImageFont.Layout.RAQM)
+        draw.text(
+            (size // 2, size // 2),
+            "মা স্টোর — শরীয়তপুর",
+            font=font,
+            fill=(245, 226, 183, 255),
+            anchor="mm",
+            direction="ltr",
+            language="bn",
+        )
+        draw.text(
+            (size // 2, int(size * 0.78)),
+            "MAA STORE  /  SHARIATPUR",
+            font=small,
+            fill=(220, 210, 183, 255),
+            anchor="mm",
+            direction="ltr",
+            language="en",
+        )
         rgb=np.asarray(sign,dtype=np.uint8)[:,:,:3]
         height=np.full((size,size),0.5,dtype=np.float32)
         rough=np.full((size,size),96,dtype=np.float32)
