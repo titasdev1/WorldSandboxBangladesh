@@ -245,7 +245,7 @@ def build_scene(out_path: Path, preview_path: Path, blend_path: Path):
     blend_path.parent.mkdir(parents=True, exist_ok=True)
     collection = clear_scene()
     scene = bpy.context.scene
-    scene.render.engine = "BLENDER_EEVEE_NEXT"
+    scene.render.engine = "BLENDER_EEVEE"
     scene.eevee.taa_render_samples = 48
     scene.frame_start = FRAME_START
     scene.frame_end = FRAME_END
