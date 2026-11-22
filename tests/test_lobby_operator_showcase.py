@@ -115,6 +115,9 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('VERIFIED PACKAGE SIZE', downloads)
         self.assertIn('catalogue_checked', downloads)
         self.assertIn('part_count', downloads)
+        self.assertIn('get_runtime_map_diagnostics', downloads)
+        self.assertIn('map_packs_mounted', downloads)
+        self.assertNotIn('w.get("real_dhaka_loaded") == true', downloads)
         self.assertIn('change_scene_to_file("res://Main.tscn")', restart)
         icon_path = ROOT / "assets" / "ui" / "icons" / "downloads.svg"
         self.assertTrue(icon_path.is_file())
