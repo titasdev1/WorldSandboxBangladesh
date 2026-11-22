@@ -53,7 +53,7 @@ class LobbyExperienceFamilyTests(unittest.TestCase):
         for online_mode in ("QUICK PLAY", "RANKED", "ZOMBIES"):
             self.assertIn('"' + online_mode + '"', self.pages)
         self.assertIn('Callable(), Color("#5c7484"), false', self.pages)
-        self.assertIn("No public real-player matchmaking", self.pages)
+        self.assertIn("No real-player server is connected", self.pages)
 
     def test_greenwake_is_visible_but_not_misrepresented_as_playable(self):
         self.assertIn('elif page == "greenwake":', self.pages)
