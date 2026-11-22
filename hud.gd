@@ -1141,6 +1141,83 @@ func _lobby_add_action(title_text: String, detail_text: String, callback: Callab
  return button
 
 
+func _lobby_add_experience_grid() -> GridContainer:
+ var grid := GridContainer.new()
+ grid.name = "LobbyExperienceGrid"
+ grid.columns = 2
+ grid.add_theme_constant_override("h_separation", 10)
+ grid.add_theme_constant_override("v_separation", 10)
+ grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ lobby_content.add_child(grid)
+ return grid
+
+
+func _lobby_add_experience_card(
+ title_text: String,
+ category_text: String,
+ detail_text: String,
+ callback: Callable,
+ accent: Color,
+ available: bool = true,
+ compact: bool = false,
+ parent: Control = null
+) -> PanelContainer:
+ var card := PanelContainer.new()
+ card.name = "ExperienceCard_" + title_text.to_pascal_case().replace(" ", "")
+ card.custom_minimum_size = Vector2(226.0 if compact else 0.0, 116.0 if compact else 126.0)
+ card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ card.add_theme_stylebox_override("panel", _lobby_style(Color("#091b29"), accent.darkened(0.38), 1, 9))
+ var row := HBoxContainer.new()
+ row.add_theme_constant_override("separation", 10 if compact else 14)
+ card.add_child(row)
+ var accent_bar := ColorRect.new()
+ accent_bar.name = "ExperienceAccent"
+ accent_bar.color = accent
+ accent_bar.custom_minimum_size = Vector2(4.0, 0.0)
+ row.add_child(accent_bar)
+ var details := VBoxContainer.new()
+ details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ details.add_theme_constant_override("separation", 3)
+ row.add_child(details)
+ var category := Label.new()
+ category.text = category_text
+ category.add_theme_font_size_override("font_size", 9 if compact else 10)
+ category.add_theme_color_override("font_color", accent.lightened(0.28))
+ category.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ details.add_child(category)
+ var title := Label.new()
+ title.text = title_text
+ title.add_theme_font_size_override("font_size", 15 if compact else 21)
+ title.add_theme_color_override("font_color", Color("#f5f8fc"))
+ title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ details.add_child(title)
+ var detail := Label.new()
+ detail.text = detail_text
+ detail.add_theme_font_size_override("font_size", 10 if compact else 12)
+ detail.add_theme_color_override("font_color", Color("#a9bfcd"))
+ detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ detail.size_flags_vertical = Control.SIZE_EXPAND_FILL
+ details.add_child(detail)
+ var action := Button.new()
+ action.name = "ExperienceAction"
+ action.text = "OPEN" if available else "LOCKED"
+ action.custom_minimum_size = Vector2(68.0 if compact else 86.0, 42.0 if compact else 48.0)
+ action.disabled = not available
+ action.add_theme_font_size_override("font_size", 10 if compact else 12)
+ action.add_theme_color_override("font_color", Color("#07131e") if available else Color("#8fa1ad"))
+ action.add_theme_stylebox_override("normal", _lobby_style(accent.lightened(0.08), accent.lightened(0.20), 1, 7))
+ action.add_theme_stylebox_override("disabled", _lobby_style(Color("#1c2b35"), Color("#394d58"), 1, 7))
+ action.add_theme_stylebox_override("hover", _lobby_style(accent.lightened(0.22), Color("#f1f7fa"), 1, 7))
+ if available and callback.is_valid():
+  action.pressed.connect(callback)
+ row.add_child(action)
+ if is_instance_valid(parent):
+  parent.add_child(card)
+ else:
+  lobby_content.add_child(card)
+ return card
+
+
 func _lobby_add_info(label_text: String, value_text: String) -> void:
  var box := PanelContainer.new()
  box.add_theme_stylebox_override("panel", _lobby_style(Color("#0e293b"), Color("#28566c"), 1, 7))
@@ -1187,29 +1264,46 @@ func _show_lobby_page(page: String) -> void:
   _lobby_add_info("MAP STATUS", "Shariatpur is active." if installed else "Local starter world is active; Shariatpur data remains a separate installable map pack.")
   _lobby_add_info("ONLINE SERVICES", "No real-player server is connected in this build. Online matchmaking is not simulated.")
  elif page == "play":
-  _lobby_add_heading("PLAY", "Choose a real local experience. Online queues remain unavailable until a multiplayer service is connected.")
-  _lobby_add_section("LIVING WORLD • JIBONJATRA")
-  _lobby_add_action("JIBONJATRA  /  ENTER WORLD", "Walk, meet, drive, open a private room and race on city roads", Callable(self, "_choose_mode").bind("jibon_jatra"))
-  _lobby_add_section("OPEN WORLD • LOCAL")
-  _lobby_add_action("DESHI STORIES", "40 chapters • connected local destination jobs", Callable(self, "_choose_mode").bind("deshi_story"))
-  _lobby_add_action("OPEN CITY SANDBOX", "Free roam • traffic, local characters, shops and transport", Callable(self, "_choose_mode").bind("free_roam"))
-  _lobby_add_action("STREET LIFE", "Markets, local economy, transport and city activities", Callable(self, "_choose_mode").bind("street_life"))
-  _lobby_add_section("STRIKEFRONT  /  COMBAT • OFFLINE AI")
-  _lobby_add_action("LAST STAND", "Three escalating waves against armed AI opponents", Callable(self, "_choose_mode").bind("survival"))
-  _lobby_add_action("COMBAT LAB", "Six practice targets • solo training", Callable(self, "_choose_mode").bind("arena_training"))
-  _lobby_add_action("STREET SKIRMISH", "Ten AI opponents • elimination objective", Callable(self, "_choose_mode").bind("street_skirmish"))
-  _lobby_add_section("ONLINE • NOT CONNECTED")
-  _lobby_add_action("MULTIPLAYER QUICK PLAY", "Requires a real-time multiplayer server", Callable(), false)
-  _lobby_add_action("MULTIPLAYER RANKED", "Requires accounts, matchmaking and authoritative servers", Callable(), false)
+  _lobby_add_heading("PLAY", "Choose your next deployment.")
+  _lobby_add_section("FEATURED EXPERIENCE")
+  _lobby_add_experience_card(
+   "JIBONJATRA",
+   "LIVING OPEN WORLD  /  SHARIATPUR",
+   "Walk, drive, meet people and explore one connected local world.",
+   Callable(self, "_choose_mode").bind("jibon_jatra"),
+   Color("#4aa99c"),
+   true,
+   false
+  )
+  _lobby_add_section("OPEN WORLD")
+  var world_grid := _lobby_add_experience_grid()
+  _lobby_add_experience_card("DESHI STORIES", "40 CHAPTERS", "Connected local jobs and destinations.", Callable(self, "_choose_mode").bind("deshi_story"), Color("#a58b5c"), true, true, world_grid)
+  _lobby_add_experience_card("CITY SANDBOX", "FREE ROAM", "Traffic, shops, vehicles and exploration.", Callable(self, "_choose_mode").bind("free_roam"), Color("#6096ae"), true, true, world_grid)
+  _lobby_add_experience_card("STREET LIFE", "LOCAL ACTIVITIES", "Markets, transport and city routines.", Callable(self, "_choose_mode").bind("street_life"), Color("#7a9b75"), true, true, world_grid)
+  _lobby_add_section("STRIKEFRONT  /  COMBAT")
+  var combat_grid := _lobby_add_experience_grid()
+  _lobby_add_experience_card("LAST STAND", "OFFLINE  /  AI", "Three escalating enemy waves.", Callable(self, "_choose_mode").bind("survival"), Color("#b17c58"), true, true, combat_grid)
+  _lobby_add_experience_card("COMBAT LAB", "TRAINING", "Weapon and movement practice.", Callable(self, "_choose_mode").bind("arena_training"), Color("#8498ad"), true, true, combat_grid)
+  _lobby_add_experience_card("STREET SKIRMISH", "ELIMINATION", "Ten AI opponents.", Callable(self, "_choose_mode").bind("street_skirmish"), Color("#9b6f69"), true, true, combat_grid)
   var br_controller: Node = w.get("battle_royale_controller") as Node if is_instance_valid(w) else null
   var br_assets_ready: bool = is_instance_valid(br_controller) and (br_controller.call("can_start_solo_deployment") == true)
-  _lobby_add_section("BATTLE ROYALE • OFFLINE SOLO")
-  _lobby_add_action("BATTLE ROYALE • SOLO DROP", "Cargo flight • freefall • authored ram-air canopy • local AI operators • shrinking safe zone", Callable(self, "_choose_mode").bind("battle_royale_solo"), br_assets_ready)
+  _lobby_add_section("BATTLE ROYALE")
+  _lobby_add_experience_card(
+   "SOLO DROP",
+   "OFFLINE  /  AI OPERATORS",
+   "Aircraft insertion, freefall, canopy glide and a closing safe zone.",
+   Callable(self, "_choose_mode").bind("battle_royale_solo"),
+   Color("#8e9c72"),
+   br_assets_ready,
+   false
+  )
   if not br_assets_ready:
-   _lobby_add_info("BR ASSET STATUS", "Solo drop unlocks after the verified cargo aircraft and original parachute GLB are imported.")
-  _lobby_add_section("ONLINE • NOT CONNECTED")
-  _lobby_add_action("RANKED BATTLE ROYALE", "Requires real-player matchmaking, authoritative server simulation and anti-cheat", Callable(), false)
-  _lobby_add_action("ZOMBIES / SPECIAL MODES", "Mode-specific maps and logic are not connected yet", Callable(), false)
+   _lobby_add_info("SOLO DROP STATUS", "Unlocks when the verified aircraft and parachute assets are installed.")
+  _lobby_add_section("ONLINE SERVICES")
+  var online_grid := _lobby_add_experience_grid()
+  _lobby_add_experience_card("QUICK PLAY", "MULTIPLAYER", "Real-player servers are not connected.", Callable(), Color("#5c7484"), false, true, online_grid)
+  _lobby_add_experience_card("RANKED", "BATTLE ROYALE", "Matchmaking and authoritative servers required.", Callable(), Color("#5c7484"), false, true, online_grid)
+  _lobby_add_experience_card("ZOMBIES", "SPECIAL MODE", "Mode logic and its dedicated world are not ready.", Callable(), Color("#5c7484"), false, true, online_grid)
  elif page == "briefing":
   _build_mode_briefing()
  elif page == "loadout":
