@@ -39,6 +39,8 @@ var navigation_mode_button: Button
 var mode_menu_button: Button
 var replay_round_button: Button
 var save_feedback_label: Label
+var downloads_status_label: Label
+var downloads_progress_bar: ProgressBar
 var shop_button: Button
 var shop_panel: PanelContainer
 var shop_item_option: OptionButton
@@ -56,6 +58,8 @@ var _shown_result_token := ""
 func _ready():
  process_mode = Node.PROCESS_MODE_ALWAYS
  w = get_parent()
+ if not ContentDownloadManager.state_changed.is_connected(_on_content_download_state_changed):
+  ContentDownloadManager.state_changed.connect(_on_content_download_state_changed)
  var title = Label.new()
  title.text = "JIBONJATRA  /  WORLD SANDBOX: BANGLADESH"
  title.position = Vector2(28, 20)
@@ -983,6 +987,7 @@ func _build_lobby_ui() -> void:
  var nav_items := [
   ["HOME", "home", "res://assets/ui/icons/home.svg"],
   ["PLAY", "play", "res://assets/ui/icons/play.svg"],
+  ["DOWNLOADS", "downloads", "res://assets/ui/icons/downloads.svg"],
   ["LOADOUT", "loadout", "res://assets/ui/icons/loadout.svg"],
   ["OPERATOR", "operator", "res://assets/ui/icons/operator.svg"],
   ["EVENTS", "events", "res://assets/ui/icons/events.svg"],
@@ -1259,7 +1264,7 @@ func _show_lobby_page(page: String) -> void:
   _lobby_add_experience_card(
    "JIBONJATRA",
    "LIVING OPEN WORLD",
-   "Walk, drive, meet people and explore the connected Shariatpur district.",
+   "Start in the lightweight local city. Install Shariatpur from Downloads when you want the full district-scale world.",
    Callable(self, "_choose_mode").bind("jibon_jatra"),
    Color("#4aa99c"),
    true,
@@ -1307,7 +1312,7 @@ func _show_lobby_page(page: String) -> void:
   _lobby_add_experience_card(
    "JIBONJATRA",
    "LIVING OPEN WORLD  /  SHARIATPUR",
-   "Walk, drive, meet people and explore one connected local world.",
+   "Explore the active starter region, then expand into Shariatpur with the optional district download.",
    Callable(self, "_choose_mode").bind("jibon_jatra"),
    Color("#4aa99c"),
    true,
@@ -1342,6 +1347,8 @@ func _show_lobby_page(page: String) -> void:
   _lobby_add_experience_card("QUICK PLAY", "MULTIPLAYER", "Real-player servers are not connected.", Callable(), Color("#5c7484"), false, true, online_grid)
   _lobby_add_experience_card("RANKED", "BATTLE ROYALE", "Matchmaking and authoritative servers required.", Callable(), Color("#5c7484"), false, true, online_grid)
   _lobby_add_experience_card("ZOMBIES", "SPECIAL MODE", "Mode logic and its dedicated world are not ready.", Callable(), Color("#5c7484"), false, true, online_grid)
+ elif page == "downloads":
+  _build_downloads_page()
  elif page == "briefing":
   _build_mode_briefing()
  elif page == "loadout":
@@ -1393,6 +1400,88 @@ func _show_lobby_page(page: String) -> void:
   _lobby_add_heading("WORLD COMMAND", "Choose a section from the navigation rail.")
  _update_lobby_header()
  _animate_lobby_page_reveal()
+
+
+func _build_downloads_page() -> void:
+ _lobby_add_heading("DOWNLOAD CENTRE", "Choose what to install. The starter lobby and local city remain available while regional content downloads.")
+ _lobby_add_section("CORE EXPERIENCE")
+ _lobby_add_info("STARTER CLIENT", "Available now without a district download. Your local profile, lobby, starter-city sandbox and available offline training modes do not wait for Shariatpur.")
+ _lobby_add_section("REGIONAL WORLD PACKS")
+ var pack_state: Dictionary = ContentDownloadManager.get_shariatpur_state()
+ _lobby_add_info("SHARIATPUR DISTRICT", "Optional high-detail regional world data, stored separately from the core game. The game verifies every part and the complete pack before marking it installed.")
+ downloads_status_label = Label.new()
+ downloads_status_label.name = "DownloadsMapStatus"
+ downloads_status_label.text = String(pack_state.get("status", "CHECKING"))
+ downloads_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ downloads_status_label.add_theme_font_size_override("font_size", 13)
+ downloads_status_label.add_theme_color_override("font_color", Color("#70dce8"))
+ lobby_content.add_child(downloads_status_label)
+ var detail := Label.new()
+ detail.name = "DownloadsMapDetail"
+ detail.text = String(pack_state.get("detail", ""))
+ detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ detail.add_theme_font_size_override("font_size", 12)
+ detail.add_theme_color_override("font_color", Color("#c0d1db"))
+ lobby_content.add_child(detail)
+ downloads_progress_bar = ProgressBar.new()
+ downloads_progress_bar.name = "DownloadsMapProgress"
+ downloads_progress_bar.max_value = 100.0
+ downloads_progress_bar.value = float(pack_state.get("progress", 0.0))
+ downloads_progress_bar.custom_minimum_size = Vector2(0.0, 14.0)
+ downloads_progress_bar.show_percentage = true
+ lobby_content.add_child(downloads_progress_bar)
+ var installed: bool = pack_state.get("installed", false) == true
+ var downloading: bool = pack_state.get("downloading", false) == true
+ var active_map: bool = is_instance_valid(w) and (w.get("real_dhaka_loaded") == true)
+ if installed:
+  if active_map:
+   _lobby_add_action("SHARIATPUR IS ACTIVE", "The district pack is mounted and available in this session.", Callable(), false)
+  else:
+   _lobby_add_action("RESTART TO APPLY SHARIATPUR", "The pack is fully verified. Save your local career and restart the world scene to mount it.", Callable(self, "_restart_to_apply_shariatpur"))
+ elif downloading:
+  var downloaded := int(pack_state.get("downloaded_bytes", 0))
+  var total := int(pack_state.get("total_bytes", 0))
+  var transfer_text := "The verified download is running in the background."
+  if total > 0:
+   transfer_text = "%.1f / %.1f MB received or verified." % [float(downloaded) / 1048576.0, float(total) / 1048576.0]
+  _lobby_add_action("DOWNLOAD IN PROGRESS", transfer_text, Callable(), false)
+ else:
+  var resumable: bool = pack_state.get("resumable", false) == true
+  var button_title := "RESUME SHARIATPUR DOWNLOAD" if resumable else "DOWNLOAD SHARIATPUR DISTRICT"
+  var button_detail := "Re-check saved sections, then continue from the next missing part." if resumable else "Download the optional region in verified sections. You can leave the page and continue using the starter experience."
+  _lobby_add_action(button_title, button_detail, Callable(self, "_start_shariatpur_download"))
+ _lobby_add_section("MORE CONTENT")
+ _lobby_add_info("UPCOMING PACKS", "Dhaka Division, more Bangladesh regions, Greenwake adventure locations, Strikefront battle maps, optional high-resolution assets and language or voice packs will be listed here when their verified packages are ready. They are not downloadable yet.")
+
+
+func _on_content_download_state_changed(state: Dictionary) -> void:
+ if lobby_section == "downloads" and is_instance_valid(lobby_content):
+  _show_lobby_page("downloads")
+ elif state.get("installed", false) == true:
+  _set_save_feedback("SHARIATPUR PACK VERIFIED • OPEN DOWNLOADS TO APPLY", true)
+
+
+func _start_shariatpur_download() -> void:
+ if ContentDownloadManager.start_shariatpur_download():
+  _set_save_feedback("SHARIATPUR DOWNLOAD STARTED • YOU CAN KEEP USING THE LOBBY", true)
+ else:
+  var state: Dictionary = ContentDownloadManager.get_shariatpur_state()
+  _set_save_feedback(String(state.get("status", "DOWNLOAD NOT STARTED")), false)
+ _show_lobby_page("downloads")
+
+
+func _restart_to_apply_shariatpur() -> void:
+ var state: Dictionary = ContentDownloadManager.get_shariatpur_state()
+ if state.get("installed", false) != true:
+  _set_save_feedback("THE DISTRICT PACK IS NOT VERIFIED", false)
+  return
+ if is_instance_valid(w) and w.has_method("save_game_progress"):
+  w.call("save_game_progress", false)
+ _set_save_feedback("SAVING CAREER • MOUNTING SHARIATPUR ON RESTART", true)
+ await get_tree().process_frame
+ var error := get_tree().change_scene_to_file("res://Main.tscn")
+ if error != OK:
+  _set_save_feedback("RESTART FAILED • CLOSE AND REOPEN THE GAME", false)
 
 
 func _animate_lobby_page_reveal() -> void:
