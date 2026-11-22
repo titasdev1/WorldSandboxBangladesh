@@ -63,7 +63,12 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn("[30, 60, 90, 120, 144, 0]", fps)
         self.assertIn("Mobile", settings)
 
-    def test_boot_has_animated_intro_local_guest_login_and_verified_map_handoff(self):
+    def test_boot_opens_the_lobby_before_optional_district_download(self):
+        boot_flow = function_block(self.boot, "_run_boot_sequence")
+        guest_handoff = function_block(self.boot, "_continue_as_guest")
+        launch = function_block(self.boot, "_launch_main_lobby")
+        project = read("project.godot")
+        manager = read("systems/content_download_manager.gd")
         for token in (
             "BOOT_SPLASH_DURATION_SECONDS",
             "func _run_boot_sequence()",
@@ -72,19 +77,51 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
             "CONTINUE AS GUEST",
             "ONLINE SIGN-IN IS NOT CONNECTED IN THIS BUILD",
             "user://a_square_guest_profile.json",
-            "_show_map_install_screen()",
             "WSB_AUTOSTART_MAP_FOR_SMOKE",
         ):
             self.assertIn(token, self.boot)
+        self.assertIn('call_deferred("_launch_main_lobby")', boot_flow)
+        self.assertIn("_launch_main_lobby()", guest_handoff)
+        self.assertNotIn("_show_map_install_screen()", boot_flow)
+        self.assertNotIn("_show_map_install_screen()", guest_handoff)
+        self.assertIn('change_scene_to_file("res://Main.tscn")', launch)
+        self.assertIn('[autoload]', project)
+        self.assertIn('ContentDownloadManager="*res://systems/content_download_manager.gd"', project)
+        self.assertIn("func get_shariatpur_state() -> Dictionary:", manager)
+        self.assertIn("func start_shariatpur_download() -> bool:", manager)
+        self.assertIn("_find_verified_resume_index()", manager)
+        self.assertIn("_verify_and_append_part()", manager)
+        self.assertIn("_verify_and_install_pack()", manager)
+        self.assertIn("expected_sha256", manager)
         self.assertIn("create_tween()", self.boot)
         self.assertIn('login_overlay.name = "LocalGuestLogin"', self.boot)
         self.assertIn("func _load_guest_identity() -> Dictionary:", self.boot)
-        self.assertIn("profile_type", self.boot)
         self.assertIn("func get_display_name() -> String:", self.profile)
         self.assertIn('profile.call("get_display_name")', self.hud)
-        # The existing split-PCK installer remains the verified map-entry route.
-        self.assertIn("func _verify_and_install_pack() -> bool:", self.boot)
-        self.assertIn("expected_sha256", self.boot)
+
+    def test_lobby_has_a_real_downloads_destination_and_resumable_map_action(self):
+        lobby = function_block(self.hud, "_build_lobby_ui")
+        pages = function_block(self.hud, "_show_lobby_page")
+        downloads = function_block(self.hud, "_build_downloads_page")
+        start = function_block(self.hud, "_start_shariatpur_download")
+        restart = function_block(self.hud, "_restart_to_apply_shariatpur")
+        self.assertIn('["DOWNLOADS", "downloads", "res://assets/ui/icons/downloads.svg"]', lobby)
+        self.assertIn('elif page == "downloads":', pages)
+        self.assertIn('ContentDownloadManager.get_shariatpur_state()', downloads)
+        self.assertIn('Callable(self, "_start_shariatpur_download")', downloads)
+        self.assertIn('Callable(self, "_restart_to_apply_shariatpur")', downloads)
+        self.assertIn('ContentDownloadManager.start_shariatpur_download()', start)
+        self.assertIn('change_scene_to_file("res://Main.tscn")', restart)
+        icon_path = ROOT / "assets" / "ui" / "icons" / "downloads.svg"
+        self.assertTrue(icon_path.is_file())
+        self.assertIn('viewBox="0 0 64 64"', icon_path.read_text(encoding="utf-8"))
+
+    def test_map_loader_waits_for_explicit_player_world_entry(self):
+        loader = read("real_dhaka_tile_loader.gd")
+        configure = function_block(loader, "configure")
+        self.assertIn("waiting for explicit map entry", configure)
+        self.assertIn("func start_map_streaming() -> void:", loader)
+        self.assertIn('call_deferred("start_map_streaming")', configure)
 
     def test_home_has_one_prominent_play_now_entry(self):
         home = function_block(self.hud, "_show_lobby_page")
@@ -121,7 +158,7 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('button.toggle_mode = true', self.hud)
         self.assertIn('button.icon = load(String(item[2])) as Texture2D', lobby)
         self.assertIn('button.tooltip_text = String(item[0]).capitalize()', lobby)
-        for icon_name in ("home", "play", "loadout", "operator", "events", "store", "clan", "profile"):
+        for icon_name in ("home", "play", "downloads", "loadout", "operator", "events", "store", "clan", "profile"):
             self.assertIn(f'"res://assets/ui/icons/{icon_name}.svg"', lobby)
             icon_path = ROOT / "assets" / "ui" / "icons" / f"{icon_name}.svg"
             self.assertTrue(icon_path.is_file(), f"Missing lobby navigation icon: {icon_name}")
