@@ -161,18 +161,11 @@ func _show_guest_login_screen() -> void:
 	login_overlay.modulate.a = 0.0
 	add_child(login_overlay)
 
-	# The first-run login is a live, low-cost 3D scene rather than a static card
-	# over a flat colour. Keep it behind the existing UI and ignore all pointer
-	# input so callsign entry and the guest button retain their normal behavior.
-	var backdrop := SubViewportContainer.new()
-	backdrop.name = "LoginBackdrop"
-	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	backdrop.stretch = true
-	var backdrop_script := load("res://systems/login_backdrop_view.gd") as Script
-	if backdrop_script != null:
-		backdrop.set_script(backdrop_script)
-	login_overlay.add_child(backdrop)
+	# Reuse the single BootCinematicBackdrop mounted by _build_screen().
+	# It stays alive through login and map installation, avoiding a second
+	# 960x540 SubViewport and preserving camera/vehicle continuity.
+	if get_node_or_null("BootCinematicBackdrop") == null:
+		push_warning("BOOT_CINEMATIC_BACKDROP_MISSING: login remains usable over the dark fallback.")
 
 	var background := ColorRect.new()
 	background.name = "LoginBackdropShade"
