@@ -40,7 +40,9 @@ var mode_menu_button: Button
 var replay_round_button: Button
 var save_feedback_label: Label
 var downloads_status_label: Label
+var downloads_detail_label: Label
 var downloads_progress_bar: ProgressBar
+var _downloads_mode_signature := ""
 var shop_button: Button
 var shop_panel: PanelContainer
 var shop_item_option: OptionButton
@@ -1409,6 +1411,18 @@ func _build_downloads_page() -> void:
  _lobby_add_section("REGIONAL WORLD PACKS")
  var pack_state: Dictionary = ContentDownloadManager.get_shariatpur_state()
  _lobby_add_info("SHARIATPUR DISTRICT", "Optional high-detail regional world data, stored separately from the core game. The game verifies every part and the complete pack before marking it installed.")
+ var catalogue_checked: bool = pack_state.get("catalogue_checked", false) == true
+ var catalogue_loading: bool = pack_state.get("catalogue_loading", false) == true
+ if catalogue_checked:
+  var size_bytes := int(pack_state.get("total_bytes", 0))
+  var size_label := "%.1f MB" % (float(size_bytes) / 1048576.0)
+  if size_bytes >= 1073741824:
+   size_label = "%.2f GB" % (float(size_bytes) / 1073741824.0)
+  _lobby_add_info("VERIFIED PACKAGE SIZE", "%s  •  %d checksum-verified sections" % [size_label, int(pack_state.get("part_count", 0))])
+ elif catalogue_loading:
+  _lobby_add_info("PACKAGE DETAILS", "Checking the signed release manifest before starting any download.")
+ else:
+  _lobby_add_info("PACKAGE DETAILS", "The exact package size and section count are checked online first. No district data is downloaded by this check.")
  downloads_status_label = Label.new()
  downloads_status_label.name = "DownloadsMapStatus"
  downloads_status_label.text = String(pack_state.get("status", "CHECKING"))
@@ -1419,6 +1433,7 @@ func _build_downloads_page() -> void:
  var detail := Label.new()
  detail.name = "DownloadsMapDetail"
  detail.text = String(pack_state.get("detail", ""))
+ downloads_detail_label = detail
  detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
  detail.add_theme_font_size_override("font_size", 12)
  detail.add_theme_color_override("font_color", Color("#c0d1db"))
@@ -1445,20 +1460,52 @@ func _build_downloads_page() -> void:
   if total > 0:
    transfer_text = "%.1f / %.1f MB received or verified." % [float(downloaded) / 1048576.0, float(total) / 1048576.0]
   _lobby_add_action("DOWNLOAD IN PROGRESS", transfer_text, Callable(), false)
+ elif catalogue_loading:
+  _lobby_add_action("CHECKING PACKAGE DETAILS", "The release manifest is being checked. No large files are being downloaded yet.", Callable(), false)
+ elif not catalogue_checked:
+  _lobby_add_action("CHECK PACKAGE INFO  →", "Fetch the real package size, section count and published checksums.", Callable(self, "_refresh_shariatpur_catalogue"))
  else:
   var resumable: bool = pack_state.get("resumable", false) == true
   var button_title := "RESUME SHARIATPUR DOWNLOAD" if resumable else "DOWNLOAD SHARIATPUR DISTRICT"
   var button_detail := "Re-check saved sections, then continue from the next missing part." if resumable else "Download the optional region in verified sections. You can leave the page and continue using the starter experience."
   _lobby_add_action(button_title, button_detail, Callable(self, "_start_shariatpur_download"))
+ _downloads_mode_signature = _downloads_state_signature(pack_state)
+ if not installed and not downloading and not catalogue_checked and not catalogue_loading:
+  call_deferred("_refresh_shariatpur_catalogue")
  _lobby_add_section("MORE CONTENT")
  _lobby_add_info("UPCOMING PACKS", "Dhaka Division, more Bangladesh regions, Greenwake adventure locations, Strikefront battle maps, optional high-resolution assets and language or voice packs will be listed here when their verified packages are ready. They are not downloadable yet.")
 
 
+func _downloads_state_signature(state: Dictionary) -> String:
+ return "%s|%s|%s|%s|%s" % [
+  str(state.get("installed", false)),
+  str(state.get("downloading", false)),
+  str(state.get("resumable", false)),
+  str(state.get("catalogue_checked", false)),
+  str(state.get("catalogue_loading", false))
+ ]
+
+
 func _on_content_download_state_changed(state: Dictionary) -> void:
  if lobby_section == "downloads" and is_instance_valid(lobby_content):
-  _show_lobby_page("downloads")
+  if _downloads_mode_signature != _downloads_state_signature(state):
+   _show_lobby_page("downloads")
+   return
+  if is_instance_valid(downloads_status_label):
+   downloads_status_label.text = String(state.get("status", ""))
+  if is_instance_valid(downloads_detail_label):
+   downloads_detail_label.text = String(state.get("detail", ""))
+  if is_instance_valid(downloads_progress_bar):
+   downloads_progress_bar.value = float(state.get("progress", 0.0))
  elif state.get("installed", false) == true:
   _set_save_feedback("SHARIATPUR PACK VERIFIED • OPEN DOWNLOADS TO APPLY", true)
+
+
+func _refresh_shariatpur_catalogue() -> void:
+ var state: Dictionary = ContentDownloadManager.get_shariatpur_state()
+ if state.get("catalogue_checked", false) == true or state.get("catalogue_loading", false) == true or state.get("downloading", false) == true:
+  return
+ ContentDownloadManager.refresh_shariatpur_info()
 
 
 func _start_shariatpur_download() -> void:
