@@ -1065,6 +1065,34 @@ def make_cng_auto_rickshaw(center_x: float, y: float, mats: dict, root: bpy.type
         sphere("CNG_Side_Mirror",
                (center_x + side * 0.85, y - 0.58, 2.07),
                (0.045, 0.10, 0.07), mats["glass"], root, 16)
+    # Two parked windscreen wipers, rear mudflaps and compact exhaust hardware.
+    for side in (-1, 1):
+        pivot_x = center_x + side * 0.22
+        curve_mesh("CNG_Windscreen_Wiper_Arm",
+                   [(pivot_x, y - 0.757, 1.77),
+                    (pivot_x + side * 0.19, y - 0.758, 1.91),
+                    (pivot_x + side * 0.35, y - 0.758, 1.94)],
+                   0.012, mats["painted_steel"], root, 3)
+        curve_mesh("CNG_Windscreen_Wiper_Blade",
+                   [(pivot_x + side * 0.31, y - 0.76, 1.94),
+                    (pivot_x + side * 0.47, y - 0.76, 1.96)],
+                   0.018, mats["rubber"], root, 2)
+        box("CNG_Rear_Mudflap", (center_x + side * 0.56, y + 1.04, 0.56),
+            (0.10, 0.10, 0.38), mats["rubber"], root, 0.015)
+    curve_mesh("CNG_Exhaust_Pipe",
+               [(center_x + 0.44, y + 0.74, 0.53),
+                (center_x + 0.55, y + 0.88, 0.41),
+                (center_x + 0.55, y + 1.10, 0.39)],
+               0.032, mats["painted_steel"], root, 3)
+    cylinder("CNG_Exhaust_Tip", (center_x + 0.55, y + 1.11, 0.39),
+             0.046, 0.10, mats["aged_concrete"], root, 16,
+             rotation=(math.pi / 2, 0, 0))
+    curve_mesh("CNG_Roof_Antenna",
+               [(center_x + 0.47, y + 0.76, 2.39),
+                (center_x + 0.52, y + 0.76, 2.77)],
+               0.009, mats["painted_steel"], root, 2)
+    sphere("CNG_Antenna_Tip", (center_x + 0.52, y + 0.76, 2.77),
+           (0.018, 0.018, 0.025), mats["warm_light"], root, 10)
     # Neutral, unbranded registration plate and small body details.
     box("CNG_Front_Registration_Plate", (center_x, y - 0.80, 1.02),
         (0.43, 0.035, 0.15), mats["aged_concrete"], root, 0.012)
