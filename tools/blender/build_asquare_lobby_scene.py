@@ -313,13 +313,28 @@ def build_scene(out_path: Path, preview_path: Path, blend_path: Path):
     rotating_ring.name = "ANIM | Orbit ring"
     key_rotation(rotating_ring, [(FRAME_START, 0.0), (FRAME_END, math.tau)])
 
-    # Panoramic windows reveal a fictionalized but Bangladesh-rooted river-delta skyline.
+    # Vertical halo frames the live operator's head and shoulders in a true
+    # front-facing hero composition. The character itself is instantiated by Godot.
+    hero_halo = torus("ANIM | Operator halo outer", (0, 3.1, 2.85), 2.72, 0.052, gold, root)
+    hero_halo.rotation_euler[0] = math.radians(90.0)
+    key_rotation(hero_halo, [(1, 0.0), (31, math.pi * 0.5), (61, math.pi), (91, math.pi * 1.5), (120, math.tau - 0.001)])
+    inner_halo = torus("Operator halo | delta inner", (0, 3.16, 2.85), 2.51, 0.022, teal, root)
+    inner_halo.rotation_euler[0] = math.radians(90.0)
+    for side in (-1, 1):
+        box(f"Hero halo | lower anchor {side}", (side * 2.48, 3.04, 0.72), (0.16, 0.24, 0.56), steel, 0.045, root)
+        box(f"Hero halo | vertical signal {side}", (side * 2.48, 2.90, 1.35), (0.035, 0.035, 0.62), teal, 0.012, root)
+
+    # Open panoramic architecture: the skyline is a real view, not a blue glass
+    # slab. Structural mullions frame the river delta while keeping the backdrop open.
     for side in (-1, 1):
         x = side * 7.9
         box(f"Window mullion | {side}", (x, 7.65, 4.0), (0.16, 0.20, 7.0), steel, 0.035, root)
         box(f"Window lower rail | {side}", (x, 7.65, 0.62), (3.25, 0.26, 0.18), gold, 0.025, root)
-    box("Panoramic smoked window", (0, 7.72, 4.0), (15.7, 0.16, 6.9), glass, 0.07, root)
-    box("River horizon | outside glass", (0, 9.0, 0.45), (34, 0.20, 4.4), river, 0.05, root)
+    box("Window | upper bronze lintel", (0, 7.65, 7.34), (15.7, 0.26, 0.19), gold, 0.035, root)
+    box("Window | lower basalt sill", (0, 7.65, 0.56), (15.7, 0.30, 0.20), steel, 0.035, root)
+    for index, x in enumerate((-6.1, -3.05, 0.0, 3.05, 6.1)):
+        box(f"Window | vertical mullion {index}", (x, 7.72, 4.0), (0.055, 0.10, 6.65), steel, 0.012, root)
+    box("River horizon | open delta view", (0, 9.0, 0.45), (34, 0.20, 4.4), river, 0.05, root)
     for i in range(21):
         x = -12.2 + i * 1.22
         width = 0.58 + (i % 4) * 0.16
