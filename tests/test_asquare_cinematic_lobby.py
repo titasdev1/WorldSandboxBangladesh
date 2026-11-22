@@ -103,7 +103,7 @@ class ASquareCinematicLobbyTests(unittest.TestCase):
 
     def test_blender_and_godot_validation_are_pinned_and_artifacts_are_reviewable(self):
         for token in (
-            "BLENDER_VERSION=\"5.2.4\"",
+            "tools/install_blender_ci.sh",
             "build_asquare_lobby_scene.py",
             "verify_asquare_lobby_scene.py",
             "command_hall_preview.png",
