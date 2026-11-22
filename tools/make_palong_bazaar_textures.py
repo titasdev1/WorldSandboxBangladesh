@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
+import subprocess
 import sys
 
 import numpy as np
@@ -35,6 +36,7 @@ SIGNS = {
     "fresh_produce": ("ফল ও সবজি", "FRESH FRUIT & VEGETABLES", (126, 75, 22), (255, 238, 190)),
     "pharmacy": ("ঔষধালয়", "PHARMACY", (29, 66, 104), (237, 245, 238)),
     "stationery": ("স্টেশনারি", "STATIONERY & PRINT", (86, 65, 43), (245, 223, 179)),
+    "hardware": ("হার্ডওয়্যার", "HARDWARE & BUILDING MATERIALS", (71, 74, 78), (239, 222, 190)),
 }
 
 
@@ -171,6 +173,15 @@ def _font_path() -> pathlib.Path:
     for candidate in candidates:
         if candidate.is_file():
             return candidate
+    try:
+        match = subprocess.run(
+            ["fc-match", "-f", "%{file}", "Noto Sans Bengali"],
+            check=True, capture_output=True, text=True, timeout=10,
+        ).stdout.strip()
+        if match and pathlib.Path(match).is_file():
+            return pathlib.Path(match)
+    except (FileNotFoundError, subprocess.SubprocessError):
+        pass
     raise FileNotFoundError("Noto Sans Bengali is required to create shaped market signs")
 
 
@@ -208,7 +219,7 @@ def _make_sign(out: pathlib.Path, key: str, title: str, subtitle: str,
               direction="ltr", language="bn", stroke_width=2, stroke_fill=(0, 0, 0))
     draw.text((width // 2, 206), title, font=title_font, fill=foreground, anchor="mm",
               direction="ltr", language="bn", stroke_width=1, stroke_fill=gold)
-    subtitle_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 42)
+    subtitle_font = ImageFont.truetype(str(font_path), 42, layout_engine=ImageFont.Layout.RAQM)
     draw.text((width // 2, 394), subtitle, font=subtitle_font, fill=(229, 215, 185), anchor="mm")
     # Scuffs and hairline scratches: subtle, not a uniform synthetic grunge filter.
     for _ in range(48):
