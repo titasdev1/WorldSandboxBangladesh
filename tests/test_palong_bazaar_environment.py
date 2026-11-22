@@ -105,13 +105,13 @@ class PalongBazaarEnvironmentTests(unittest.TestCase):
         for marker in (
             'scene.render.engine = "CYCLES"',
             'scene.cycles.device = "CPU"',
-            "scene.cycles.samples = 48",
+            "scene.cycles.samples = 64",
             "camera.location = (0.12, -13.5, 1.72)",
             "static_material_batches",
             "batch_static_meshes_by_material",
             'export_format="GLB"',
-            "1600",
-            "900",
+            "1920",
+            "1080",
             "Godot",
         ):
             self.assertIn(marker, self.builder)
