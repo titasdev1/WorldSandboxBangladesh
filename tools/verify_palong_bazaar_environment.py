@@ -119,8 +119,8 @@ def verify(glb_path, manifest_path, license_path, preview_path, out_path):
         failures.append("Static mesh material batching report is missing or implausibly low")
     if raw_bytes > 130 * 1024 * 1024:
         failures.append(f"Mobile review GLB exceeds 130 MiB budget: {raw_bytes} bytes")
-    if preview.size != (1600, 900):
-        failures.append(f"Preview should be 1600x900, got {preview.size}")
+    if preview.size != (1920, 1080):
+        failures.append(f"Preview should be 1920x1080, got {preview.size}")
     if mean < 24 or std < 24:
         failures.append(f"Preview appears blank/flat: mean={mean:.1f}, std={std:.1f}")
     if manifest.get("geographic_status") != "PALONG_BAZAAR_INSPIRED_CORRIDOR_STUDY_NOT_A_SURVEY":
