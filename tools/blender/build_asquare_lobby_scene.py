@@ -240,6 +240,9 @@ def build_scene(out_path: Path, preview_path: Path, blend_path: Path):
     if version < BLENDER_EXPECTED:
         raise RuntimeError(f"Need Blender >= {BLENDER_EXPECTED}, got {version}")
 
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    preview_path.parent.mkdir(parents=True, exist_ok=True)
+    blend_path.parent.mkdir(parents=True, exist_ok=True)
     collection = clear_scene()
     scene = bpy.context.scene
     scene.render.engine = "BLENDER_EEVEE_NEXT"
@@ -285,19 +288,19 @@ def build_scene(out_path: Path, preview_path: Path, blend_path: Path):
         box(f"Floor inlay | depth {y}", (0.0, y, 0.092), (21.0, 0.025, 0.012), steel, 0.003, root)
 
     # The hero operator turntable, designed as layered machined metal instead of primitives alone.
-    cylinder("Operator dais | lower armour", (0, 0, 0.20), 2.28, 0.22, dark, root=root)
-    cylinder("Operator dais | satin crown", (0, 0, 0.34), 2.12, 0.11, graphite, root=root)
-    torus("Dais | outer brass rim", (0, 0, 0.405), 2.12, 0.035, gold, root)
-    torus("Dais | cyan inner light", (0, 0, 0.414), 1.88, 0.025, teal, root)
-    torus("Dais | inner machined groove", (0, 0, 0.416), 1.66, 0.012, steel, root)
+    cylinder("Operator dais | lower armour", (0, 0, 0.00), 2.28, 0.14, dark, root=root)
+    cylinder("Operator dais | satin crown", (0, 0, 0.075), 2.12, 0.055, graphite, root=root)
+    torus("Dais | outer brass rim", (0, 0, 0.108), 2.12, 0.024, gold, root)
+    torus("Dais | cyan inner light", (0, 0, 0.112), 1.88, 0.019, teal, root)
+    torus("Dais | inner machined groove", (0, 0, 0.114), 1.66, 0.010, steel, root)
     for i in range(24):
         angle = 2 * math.pi * i / 24
         obj = box(f"Dais index | {i:02d}",
-                  (1.98 * math.cos(angle), 1.98 * math.sin(angle), 0.423),
+                  (1.98 * math.cos(angle), 1.98 * math.sin(angle), 0.118),
                   (0.13, 0.035, 0.018), amber if i % 6 == 0 else steel, 0.008, root)
         obj.rotation_euler[2] = angle
 
-    rotating_ring = torus("Animated | orbiting command ring", (0, 0, 0.53), 2.48, 0.018, teal, root)
+    rotating_ring = torus("Animated | orbiting command ring", (0, 0, 0.16), 2.48, 0.018, teal, root)
     rotating_ring.name = "ANIM | Orbit ring"
     key_rotation(rotating_ring, [(FRAME_START, 0.0), (FRAME_END, math.tau)])
 
