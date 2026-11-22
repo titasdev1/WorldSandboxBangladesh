@@ -62,6 +62,11 @@ class PalongBazaarEnvironmentTests(unittest.TestCase):
             "CNG_Roof_Canopy",
             "CNG_Side_Mirror",
             "CNG_Round_Headlamp_Lens",
+            "Rickshaw_Rear_Tyre",
+            "Rickshaw_Rear_Wheel_Spoke",
+            "Rickshaw_Hand_Painted_Rear_Panel",
+            "Rickshaw_Canopy_Fabric",
+            "make_cycle_rickshaw(-0.58, -3.8",
             "make_cng_auto_rickshaw(0.48, 11.9",
             "Compose the view at player eye height",
         ):
