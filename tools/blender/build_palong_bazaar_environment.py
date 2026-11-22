@@ -841,6 +841,115 @@ def make_small_motorcycle(side: int, y: float, mats: dict, root: bpy.types.Objec
         (0.31, 0.27, 0.05), mats["painted_steel"], root, 0.015)
 
 
+def make_cng_auto_rickshaw(center_x: float, y: float, mats: dict, root: bpy.types.Object) -> None:
+    """A compact Bangladesh CNG three-wheeler used as a street-scale anchor."""
+    body_z = 0.94
+    wheel_z = 0.43
+    wheel_y_positions = (y - 0.96, y + 0.86)
+    # Two rear wheels and one front steer wheel, with real tread/rim/hub layering.
+    wheel_locations = [
+        (center_x - 0.66, wheel_y_positions[1]),
+        (center_x + 0.66, wheel_y_positions[1]),
+        (center_x, wheel_y_positions[0]),
+    ]
+    for index, (wx, wy) in enumerate(wheel_locations):
+        cylinder("CNG_Tyre_Rubber", (wx, wy, wheel_z), 0.37 if index < 2 else 0.34,
+                 0.17, mats["rubber"], root, 40, rotation=(math.pi / 2, 0, 0), bevel=0.025)
+        cylinder("CNG_Tyre_Sidewall_Ring", (wx, wy - 0.094, wheel_z),
+                 0.255, 0.018, mats["painted_steel"], root, 40, rotation=(math.pi / 2, 0, 0), bevel=0.006)
+        cylinder("CNG_Alloy_Rim", (wx, wy - 0.108, wheel_z),
+                 0.205, 0.026, mats["aged_concrete"], root, 36, rotation=(math.pi / 2, 0, 0), bevel=0.006)
+        cylinder("CNG_Wheel_Hub", (wx, wy - 0.128, wheel_z),
+                 0.072, 0.05, mats["painted_steel"], root, 20, rotation=(math.pi / 2, 0, 0), bevel=0.006)
+        for spoke in range(10):
+            angle = spoke * math.tau / 10.0
+            sx = wx + math.cos(angle) * 0.15
+            sz = wheel_z + math.sin(angle) * 0.15
+            curve_mesh("CNG_Wheel_Spoke",
+                       [(wx, wy - 0.139, wheel_z), (sx, wy - 0.139, sz)],
+                       0.008, mats["painted_steel"], root, 2)
+
+    # Lower chassis and green painted passenger shell. The asymmetric front is
+    # deliberately narrower than the two-seat rear cabin, matching a compact CNG.
+    box("CNG_Reinforced_Lower_Chassis", (center_x, y + 0.05, 0.78),
+        (1.36, 2.24, 0.34), mats["painted_steel"], root, 0.065)
+    box("CNG_Passenger_Floor", (center_x, y + 0.40, 1.04),
+        (1.30, 1.43, 0.12), mats["aged_concrete"], root, 0.045)
+    box("CNG_Left_Lower_Side_Panel", (center_x - 0.64, y + 0.38, 1.36),
+        (0.12, 1.52, 0.68), mats["plaster_mint"], root, 0.035)
+    box("CNG_Right_Lower_Side_Panel", (center_x + 0.64, y + 0.38, 1.36),
+        (0.12, 1.52, 0.68), mats["plaster_mint"], root, 0.035)
+    box("CNG_Rear_Panel", (center_x, y + 1.14, 1.38),
+        (1.22, 0.12, 0.74), mats["plaster_mint"], root, 0.04)
+    box("CNG_Rear_Chrome_Bumper", (center_x, y + 1.23, 0.84),
+        (1.34, 0.08, 0.11), mats["painted_steel"], root, 0.025)
+    # Passenger bench with stitched seat pad and back.
+    box("CNG_Rear_Bench_Base", (center_x, y + 0.78, 1.30),
+        (1.06, 0.42, 0.12), mats["rubber"], root, 0.045)
+    box("CNG_Rear_Bench_Back", (center_x, y + 1.02, 1.62),
+        (1.04, 0.11, 0.54), mats["rubber"], root, 0.045)
+    # Front driver bulkhead, windscreen and dashboard facing the narrow lane.
+    box("CNG_Driver_Bulkhead", (center_x, y - 0.67, 1.50),
+        (1.20, 0.10, 1.05), mats["painted_steel"], root, 0.025)
+    box("CNG_Windscreen_Glass", (center_x, y - 0.73, 1.83),
+        (1.02, 0.035, 0.55), mats["glass"], root, 0.012)
+    for dx in (-0.54, 0.54):
+        curve_mesh("CNG_Windscreen_Frame",
+                   [(center_x + dx, y - 0.74, 1.48),
+                    (center_x + dx, y - 0.74, 2.25)],
+                   0.035, mats["painted_steel"], root, 3)
+    box("CNG_Dashboard", (center_x, y - 0.40, 1.55),
+        (1.00, 0.35, 0.14), mats["deep_shadow"], root, 0.025)
+    # Roof canvas, tubular supports and a ribbed rain lip.
+    for dx in (-0.58, 0.58):
+        curve_mesh("CNG_Roof_Pillar",
+                   [(center_x + dx, y - 0.70, 1.66),
+                    (center_x + dx, y - 0.68, 2.32),
+                    (center_x + dx, y + 1.04, 2.32)],
+                   0.035, mats["painted_steel"], root, 3)
+    box("CNG_Roof_Canopy", (center_x, y + 0.12, 2.36),
+        (1.34, 2.05, 0.12), mats["market_canvas"], root, 0.055)
+    box("CNG_Roof_Front_Rain_Lip", (center_x, y - 0.88, 2.29),
+        (1.44, 0.13, 0.09), mats["galvanized_shutter"], root, 0.02)
+    # Side window rails and passenger entry; open doorway is kept visibly accessible.
+    for side in (-1, 1):
+        side_x = center_x + side * 0.66
+        curve_mesh("CNG_Side_Window_Upper_Rail",
+                   [(side_x, y - 0.50, 2.11), (side_x, y + 0.92, 2.11)],
+                   0.022, mats["painted_steel"], root, 2)
+        for post_y in (y - 0.45, y + 0.22, y + 0.93):
+            cylinder("CNG_Side_Window_Bar", (side_x, post_y, 1.86),
+                     0.018, 0.48, mats["painted_steel"], root, 8)
+        box("CNG_Side_Entry_Foot_Rail", (center_x + side * 0.72, y + 0.05, 0.94),
+            (0.09, 0.62, 0.07), mats["painted_steel"], root, 0.014)
+    # Front lighting, indicators, mirrors and rear tail lamps.
+    for dx in (-0.43, 0.43):
+        cylinder("CNG_Round_Headlamp_Rim", (center_x + dx, y - 0.79, 1.24),
+                 0.13, 0.055, mats["painted_steel"], root, 28, rotation=(math.pi / 2, 0, 0))
+        cylinder("CNG_Round_Headlamp_Lens", (center_x + dx, y - 0.83, 1.24),
+                 0.091, 0.025, mats["warm_light"], root, 28, rotation=(math.pi / 2, 0, 0))
+        box("CNG_Rear_Tail_Lamp", (center_x + dx * 1.15, y + 1.22, 1.29),
+            (0.16, 0.055, 0.25), mats["poster_red"], root, 0.025)
+    for side in (-1, 1):
+        curve_mesh("CNG_Side_Mirror_Stem",
+                   [(center_x + side * 0.56, y - 0.63, 1.88),
+                    (center_x + side * 0.83, y - 0.58, 2.05)],
+                   0.018, mats["painted_steel"], root, 2)
+        sphere("CNG_Side_Mirror",
+               (center_x + side * 0.85, y - 0.58, 2.07),
+               (0.045, 0.10, 0.07), mats["glass"], root, 16)
+    # Neutral, unbranded registration plate and small body details.
+    box("CNG_Front_Registration_Plate", (center_x, y - 0.80, 1.02),
+        (0.43, 0.035, 0.15), mats["aged_concrete"], root, 0.012)
+    box("CNG_Rear_Registration_Plate", (center_x, y + 1.30, 1.01),
+        (0.39, 0.035, 0.14), mats["aged_concrete"], root, 0.012)
+    for side in (-1, 1):
+        for index in range(5):
+            box("CNG_Lower_Side_Vent_Slot",
+                (center_x + side * 0.705, y + 0.15 + index * 0.14, 1.12),
+                (0.018, 0.065, 0.018), mats["deep_shadow"], root, 0.003)
+
+
 def make_façade_posters(side: int, y: float, front: float, mats: dict,
                         root: bpy.types.Object) -> None:
     poster_colours = [mats["poster_red"], mats["poster_blue"], mats["poster_yellow"]]
@@ -978,6 +1087,7 @@ def build_environment(out_path: pathlib.Path, texture_root: pathlib.Path,
     make_market_props(mats, root)
     make_utility_poles_and_wires(mats, root)
     make_small_motorcycle(1, 5.1, mats, root)
+    make_cng_auto_rickshaw(0.48, 11.9, mats, root)
 
     # Low-height curbside details give the scene scale: bollards, paper, water and cable ties.
     for side in (-1, 1):
