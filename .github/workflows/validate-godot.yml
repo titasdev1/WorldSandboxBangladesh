@@ -50,6 +50,8 @@ on:
       - "tests/test_mobile_interaction_flow.py"
       - "project.godot"
       - "tests/test_dhaka_map_pipeline.py"
+      - "tools/build_cinematic_lobby_stage.py"
+      - "tests/test_cinematic_lobby_stage_artifact.py"
       - "tools/select_shariatpur_art_target.py"
       - "tests/test_select_shariatpur_art_target.py"
       - ".github/workflows/validate-godot.yml"
@@ -320,11 +322,14 @@ jobs:
           sudo apt-get install -y curl xz-utils python3-numpy python3-pil fontconfig fonts-noto-core
           source tools/install_blender_ci.sh
           mkdir -p external_content build/cinematic-lobby-stage
-          blender --background --factory-startup --python tools/build_cinematic_lobby_stage.py -- \
+          if ! blender --background --factory-startup --python tools/build_cinematic_lobby_stage.py -- \
             --out external_content/a_square_cinematic_lobby_stage.glb \
             --preview build/cinematic-lobby-stage/a_square_cinematic_lobby_stage_preview.png \
             --blend build/cinematic-lobby-stage/a_square_cinematic_lobby_stage.blend \
-            > build/cinematic-lobby-stage/authoring.log 2>&1
+            > build/cinematic-lobby-stage/authoring.log 2>&1; then
+            cat build/cinematic-lobby-stage/authoring.log
+            exit 1
+          fi
           cat build/cinematic-lobby-stage/authoring.log
           grep -Fq "A2_CINEMATIC_LOBBY_STAGE_READY:" build/cinematic-lobby-stage/authoring.log
           cp external_content/lobby_stage_manifest.json build/cinematic-lobby-stage/lobby_stage_manifest.json
