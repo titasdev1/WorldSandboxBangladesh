@@ -148,6 +148,7 @@ def text_mesh(name, body, location, size, material, root, align="CENTER"):
     obj = bpy.data.objects.new(name, curve)
     bpy.context.scene.collection.objects.link(obj)
     obj.location = location
+    obj.rotation_euler[0] = math.radians(90.0)  # vertical panel; front faces the player at -Y
     if material:
         obj.data.materials.append(material)
     bpy.context.view_layer.objects.active = obj
@@ -404,10 +405,9 @@ def build_scene(out_path: Path, preview_path: Path, blend_path: Path):
     # looks like a still render; the operator animation stays on the live rig.
     scene.frame_set(FRAME_START)
     for obj in (rotating_ring,):
-        obj.rotation_euler[2] = 0.0
-        obj.keyframe_insert(data_path="rotation_euler", frame=FRAME_START, index=2)
-        obj.rotation_euler[2] = math.tau
-        obj.keyframe_insert(data_path="rotation_euler", frame=FRAME_END, index=2)
+        for frame, angle in ((1, 0.0), (31, math.pi * 0.5), (61, math.pi), (91, math.pi * 1.5), (120, math.tau - 0.001)):
+            obj.rotation_euler[2] = angle
+            obj.keyframe_insert(data_path="rotation_euler", frame=frame, index=2)
         try:
             for layer in obj.animation_data.action.layers:
                 for strip in layer.strips:
