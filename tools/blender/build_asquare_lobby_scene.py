@@ -245,8 +245,12 @@ def build_scene(out_path: Path, preview_path: Path, blend_path: Path):
     blend_path.parent.mkdir(parents=True, exist_ok=True)
     collection = clear_scene()
     scene = bpy.context.scene
-    scene.render.engine = "BLENDER_EEVEE"
-    scene.eevee.taa_render_samples = 48
+    # CPU Cycles renders deterministically on headless CI runners without a
+    # graphics context. A live phone lobby uses Godot's Mobile renderer.
+    scene.render.engine = "CYCLES"
+    scene.cycles.device = "CPU"
+    scene.cycles.samples = 24
+    scene.cycles.use_denoising = True
     scene.frame_start = FRAME_START
     scene.frame_end = FRAME_END
     scene.render.fps = 24
