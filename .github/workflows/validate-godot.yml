@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - feature/lobby-operator-showcase
+      - feature/cinematic-login-lobby
     paths:
       - "**.gd"
       - "tools/check_gdscript_bool_casts.py"
@@ -30,6 +31,7 @@ on:
       - "vehicle.gd"
       - "hud.gd"
       - "tests/test_lobby_operator_showcase.py"
+      - "tests/test_career_lobby_integration.py"
       - "assets/ui/icons/**"
       - "district_map_display.gd"
       - "real_dhaka_tile_loader.gd"
