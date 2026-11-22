@@ -13,6 +13,7 @@ const LOBBY_IDLE_ACTION_INTERVAL_SECONDS := 9.0
 var _player: CharacterBody3D
 var _visual: Node3D
 var _stage_root: Node3D
+var _authored_stage: Node3D
 var _orbit_rig: Node3D
 var _key_light: SpotLight3D
 var _fill_light: OmniLight3D
@@ -205,6 +206,23 @@ func _build_stage() -> void:
 	_fill_light.shadow_enabled = false
 	_stage_root.add_child(_fill_light)
 
+	# Prefer the original Blender-authored GLB stage when the pinned asset
+	# pipeline has generated it. The live-Godot stage above remains a safe
+	# visual fallback for editor sessions without the Blender artifact.
+	var stage_resource := load("res://external_content/a_square_cinematic_lobby_stage.glb") as PackedScene
+	if stage_resource != null:
+		_authored_stage = stage_resource.instantiate() as Node3D
+		if is_instance_valid(_authored_stage):
+			_authored_stage.name = "BlenderAuthoredA2LobbyStage"
+			_authored_stage.position.y = -0.22
+			_stage_root.add_child(_authored_stage)
+			for child in _stage_root.get_children():
+				if child == _authored_stage:
+					continue
+				if child is MeshInstance3D or child is Label3D or child == _orbit_rig:
+					child.queue_free()
+			_orbit_rig = null
+
 	_right_rim_light = SpotLight3D.new()
 	_right_rim_light.name = "WarmShoulderRim"
 	_right_rim_light.position = Vector3(3.0, 3.2, -2.2)
@@ -249,9 +267,10 @@ func _start_cinematic_choreography() -> void:
 	_camera_choreography.tween_property(_player, "camera_yaw", _camera_yaw_origin - 10.5, 4.8).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	_camera_choreography.tween_property(_player, "camera_yaw", _camera_yaw_origin + 8.0, 5.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	_camera_choreography.tween_property(_player, "camera_yaw", _camera_yaw_origin, 4.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-	_orbit_choreography = create_tween()
-	_orbit_choreography.set_loops()
-	_orbit_choreography.tween_property(_orbit_rig, "rotation:y", TAU, 28.0).set_trans(Tween.TRANS_LINEAR)
+	if is_instance_valid(_orbit_rig):
+		_orbit_choreography = create_tween()
+		_orbit_choreography.set_loops()
+		_orbit_choreography.tween_property(_orbit_rig, "rotation:y", TAU, 28.0).set_trans(Tween.TRANS_LINEAR)
 	_light_choreography = create_tween()
 	_light_choreography.set_loops()
 	_light_choreography.tween_property(_key_light, "position", Vector3(2.8, 4.5, 2.7), 6.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
