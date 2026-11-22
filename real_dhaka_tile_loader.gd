@@ -13,6 +13,13 @@ const GAME_ORIGIN_LON := 90.4125
 const STREAM_INTERVAL := 0.5
 # Cap large GLB imports per stream tick to avoid multi-tile mobile frame hitches.
 const MAX_TILE_LOADS_PER_STREAM_TICK := 1
+# When a player is travelling quickly, queue one future tile along the current
+# velocity vector so the next road segment can be ready before arrival.
+const PREDICTIVE_PREFETCH_MIN_SPEED_MPS := 11.0
+const PREDICTIVE_PREFETCH_LOOKAHEAD_SECONDS := 8.0
+const PREDICTIVE_PREFETCH_MAX_LOOKAHEAD_M := 1800.0
+const PREDICTIVE_PREFETCH_CAPTURE_RADIUS_M := 1450.0
+const PREDICTIVE_PREFETCH_MAX_LATERAL_M := 1100.0
 # Keep many more real doors available near the player without creating distant nodes
 # across every loaded tile. Anchors are refreshed as the player moves through a block.
 const MAX_INTERIOR_ANCHORS_PER_TILE := 256
@@ -1319,13 +1326,61 @@ func _geo_to_world(lat: float, lon: float) -> Vector3:
 	var northing := deg_to_rad(lat - _manifest_origin_lat) * EARTH_RADIUS_M
 	return Vector3(x, 0.0, -northing)
 
+func _find_predictive_prefetch_record(player_position: Vector3) -> Dictionary:
+	var player := _world.get("player") as CharacterBody3D if is_instance_valid(_world) else null
+	if not is_instance_valid(player):
+		return {}
+	var flat_velocity := Vector2(player.velocity.x, player.velocity.z)
+	var speed := flat_velocity.length()
+	if speed < PREDICTIVE_PREFETCH_MIN_SPEED_MPS:
+		return {}
+	var forward := flat_velocity / speed
+	var lookahead := minf(speed * PREDICTIVE_PREFETCH_LOOKAHEAD_SECONDS, PREDICTIVE_PREFETCH_MAX_LOOKAHEAD_M)
+	var predicted_position := Vector2(player_position.x, player_position.z) + forward * lookahead
+	var best_record: Dictionary = {}
+	var best_score := INF
+	for record in _records:
+		var tile_key := str(record.get("tile_id", ""))
+		if tile_key.is_empty() or _loaded.has(tile_key) or _pending_tile_loads.has(tile_key) or _activating_tiles.has(tile_key):
+			continue
+		var tile_position: Vector3 = record.get("world_position", Vector3.ZERO)
+		var offset := Vector2(tile_position.x - player_position.x, tile_position.z - player_position.z)
+		var forward_distance := offset.dot(forward)
+		if forward_distance <= maxf(80.0, speed * 2.0):
+			continue
+		var lateral_distance := absf(forward.x * offset.y - forward.y * offset.x)
+		if lateral_distance > PREDICTIVE_PREFETCH_MAX_LATERAL_M:
+			continue
+		var predicted_distance := Vector2(tile_position.x, tile_position.z).distance_to(predicted_position)
+		if predicted_distance > PREDICTIVE_PREFETCH_CAPTURE_RADIUS_M:
+			continue
+		# Prefer tiles near the predicted arrival point and close to the current
+		# travel corridor; avoid a side-street tile when the player is on a fast road.
+		var score := predicted_distance + lateral_distance * 0.35
+		if score < best_score:
+			best_score = score
+			best_record = record
+	if not best_record.is_empty():
+		print("REAL_MAP_PREDICTIVE_PREFETCH: tile=", str(best_record.get("tile_id", "")), " speed_mps=", snappedf(speed, 0.1), " lookahead_m=", snappedf(lookahead, 1.0))
+	return best_record
+
+
 func _stream_tiles(player_position: Vector3) -> void:
 	var desired: Dictionary = {}
+	var predictive_prefetch_key := ""
 	for record in _records:
 		var tile_position: Vector3 = record["world_position"]
 		var distance := Vector2(player_position.x - tile_position.x, player_position.z - tile_position.z).length()
 		if distance <= _load_radius_m:
 			desired[str(record["tile_id"])] = record
+	# Add at most one extra tile ahead of a fast-moving player. The player and
+	# current neighbourhood remain the default; this only reorders one likely
+	# next tile and never activates multiple GLBs in parallel.
+	var predictive_record := _find_predictive_prefetch_record(player_position)
+	if not predictive_record.is_empty():
+		predictive_prefetch_key = str(predictive_record.get("tile_id", ""))
+		if not predictive_prefetch_key.is_empty():
+			desired[predictive_prefetch_key] = predictive_record
 	# Never silently accept an origin outside the radius of every emitted tile.
 	if desired.is_empty() and not _records.is_empty():
 		var nearest_record: Dictionary = _records[0]
@@ -1368,6 +1423,11 @@ func _stream_tiles(player_position: Vector3) -> void:
 		if not _loaded.has(tile_key) and not _pending_tile_loads.has(tile_key) and not _activating_tiles.has(tile_key):
 			pending_keys.append(tile_key)
 	pending_keys.sort_custom(func(a: String, b: String) -> bool:
+		if not predictive_prefetch_key.is_empty():
+			if a == predictive_prefetch_key and b != predictive_prefetch_key:
+				return true
+			if b == predictive_prefetch_key and a != predictive_prefetch_key:
+				return false
 		var a_record: Dictionary = desired[a]
 		var b_record: Dictionary = desired[b]
 		var a_position: Vector3 = a_record["world_position"]
