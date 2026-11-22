@@ -306,15 +306,24 @@ func _continue_as_guest() -> void:
 
 
 func _show_map_install_screen() -> void:
-	if is_instance_valid(login_overlay):
-		login_overlay.queue_free()
-	login_overlay = null
-	if not is_instance_valid(boot_content):
-		return
-	boot_content.visible = true
-	boot_content.modulate.a = 0.0
-	var entrance := create_tween()
-	entrance.tween_property(boot_content, "modulate:a", 1.0, 0.32)
+ var outgoing_login := login_overlay
+ login_overlay = null
+ if not is_instance_valid(boot_content):
+  if is_instance_valid(outgoing_login):
+   outgoing_login.queue_free()
+  return
+ boot_content.visible = true
+ boot_content.modulate.a = 0.0
+ boot_content.scale = Vector2(0.985, 0.985)
+ var transition := create_tween()
+ transition.set_parallel(true)
+ transition.tween_property(boot_content, "modulate:a", 1.0, 0.36).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+ transition.tween_property(boot_content, "scale", Vector2.ONE, 0.42).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+ if is_instance_valid(outgoing_login):
+  transition.tween_property(outgoing_login, "modulate:a", 0.0, 0.30).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+ await transition.finished
+ if is_instance_valid(outgoing_login):
+  outgoing_login.queue_free()
 
 
 func _build_screen() -> void:
