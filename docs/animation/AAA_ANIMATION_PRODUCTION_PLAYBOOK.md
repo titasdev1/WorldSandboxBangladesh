@@ -9,7 +9,8 @@ Learn presentation principles from Call of Duty: Mobile, Arena of Valor, Mobile 
 - **A-Square identity:** Bangladesh's river delta, city lights, local architectural language and field-operations atmosphere.
 - **Operator-first composition:** a live, skinned character rig remains the hero. Do not turn the operator into a static poster or render the whole lobby as one screenshot.
 - **Cinematic readability:** distinct key, fill and rim lights; controlled background contrast; readable silhouette; restrained motion; clear text hierarchy.
-- **A single player journey:** boot identity → local profile/login → real content loading → 3D lobby → mode selection → pre-match transition → live mode.
+- **Subsystem benchmarks:** GTA 6 for systemic world/mission presentation; Modern Warfare for authored combat cinematics and weapon choreography; CODM for mobile lobby and download hierarchy; VALORANT for combat clarity; Forza Horizon for driving; AOV/MLBB for mobile hero/mode presentation; Uncharted: The Lost Legacy for authored adventure set pieces. These are quality references, never asset sources.
+- **A single player journey:** boot identity → local profile/login → 3D lobby → optional Downloads centre → mode selection → pre-match transition → live mode. The lobby must not wait for a large regional map pack.
 - **Motion is art:** weight shift, foot grounding, torso counter-rotation, hand/weapon contact, timing, anticipation, follow-through and clean transitions matter more than the number of bones or curves.
 
 ## Existing in-project animation foundation
@@ -64,10 +65,11 @@ The live lobby showcase already requests the three optional idle performances: i
 - Use a slow controlled camera drift rather than fast, distracting motion.
 - Have one environmental movement cue (for example a passing CNG with rotating wheels) and secondary leaf/cloth motion; avoid making every object oscillate.
 - Use a restrained dusk palette, distance haze and warm/cool light separation.
-- The guest profile stays local until a real account provider exists. The map progress screen must reflect real downloaded bytes and verification, not a fake loading percentage.
+- The guest profile stays local until a real account provider exists. The lobby Downloads page must reflect real downloaded bytes, per-part verification, full-pack verification and retry/resume state, not a fake loading percentage. Never require the Shariatpur package to open the lobby.
 
 ### Lobby
 - The operator is the hero focal point. The command hall is a real exported GLB stage; the camera and UI remain live game elements.
+- A lightweight starter experience must open before optional regional packages are installed. Expose a dedicated Downloads page from the lobby; show package identity, real size, verified progress, resume state and truthful installation status. The current Shariatpur PCK requires a world-scene restart after full checksum verification so the map loader can mount it.
 - UI priority: callsign/career identity and notices → one large deploy/play entry → mode family cards → operator/loadout → events/rewards → social/profile/settings.
 - Keep buttons readable and touch-friendly. Every available button has a real destination; unavailable server modes remain visibly unavailable instead of simulating players.
 - Page changes use short staggered reveals; animation must remain responsive and not block input.
