@@ -70,7 +70,11 @@ class PalongBazaarEnvironmentTests(unittest.TestCase):
         self.assertIn("হারু ঘোষ মিষ্টান্ন ভাণ্ডার", self.texture_script)
         self.assertIn("সোনালী ব্যাংক", self.texture_script)
         self.assertIn("source_images_embedded", self.builder)
+        self.assertIn("polyhaven_material_manifest.json", self.builder)
+        self.assertIn("Poly Haven CC0 photographic scans", self.builder)
         self.assertIn("google_maps_3d_tiles_copied", self.builder)
+        self.assertIn("fetch_polyhaven_pbr_materials.py", self.workflow)
+        self.assertIn("Powered by Poly Haven", self.workflow)
 
     def test_texture_builder_generates_embedded_pbr_maps_and_shaped_signs(self):
         if not features.check("raqm"):
