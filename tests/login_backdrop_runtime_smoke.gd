@@ -37,12 +37,17 @@ func _run_smoke() -> void:
 	var tree_pivot := stage.get_node_or_null("BreezeTree_0/LeafClusterPivot_0")
 	var actor := stage.get_node_or_null("LoginOperatorActor") as CharacterBody3D
 	var visual := actor.get_node_or_null("HumanoidVisual") if is_instance_valid(actor) else null
+	var timeline := stage.get_node_or_null("LoginArtDirectionTimeline") as AnimationPlayer
 	if not is_instance_valid(vehicle) or not is_instance_valid(tree_pivot) or not is_instance_valid(visual):
 		push_error("LOGIN_BACKDROP_RUNTIME_FAIL: CNG, foliage or rigged operator is missing.")
+		quit(1)
+		return
+	if not is_instance_valid(timeline) or not timeline.is_playing() or timeline.current_animation != "login/StreetReveal":
+		push_error("LOGIN_BACKDROP_RUNTIME_FAIL: cubic camera/breeze timeline is not playing.")
 		quit(1)
 		return
 
 	await process_frame
 	await process_frame
-	print("LOGIN_BACKDROP_RUNTIME_PASS • viewport=960x540 • CNG=true • foliage=true • operator_rig=true")
+	print("LOGIN_BACKDROP_RUNTIME_PASS • viewport=960x540 • CNG=true • foliage=true • operator_rig=true • keyframe_timeline=true")
 	quit(0)
