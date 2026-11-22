@@ -845,8 +845,8 @@ jobs:
           python3 tools/blender/verify_asquare_lobby_scene.py \
             --glb "$OUT/lobby/asquare_command_hall.glb" \
             --out "$OUT/lobby/verification.json"
-          cp "$OUT/shariatpur/shariatpur_riverfront_shophouse_hero.glb" assets/login/
-          cp "$OUT/lobby/asquare_command_hall.glb" assets/lobby/
+          cp "$OUT/shariatpur/shariatpur_riverfront_shophouse_hero.glb" assets/login/shariatpur_riverfront_shophouse_hero.glb
+          cp "$OUT/lobby/asquare_command_hall.glb" assets/lobby/asquare_command_hall.glb
           python3 -m unittest discover -s tests -p "test_cinematic_art_assets.py" -v
 
       - name: Import aircraft and parachute GLBs into Godot before runtime test

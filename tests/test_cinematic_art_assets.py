@@ -58,6 +58,7 @@ class CinematicArtPipelineTests(unittest.TestCase):
         self.assertIn("cinematic-art-core-apk-verification.txt", android)
         self.assertIn("assets/login/shariatpur_riverfront_shophouse_hero.glb", android)
         self.assertIn("assets/lobby/asquare_command_hall.glb", android)
+        self.assertIn("assets/lobby/asquare_command_hall.glb", android)
 
     def test_apk_verifier_accepts_complete_synthetic_godot_import_payload(self):
         with tempfile.TemporaryDirectory() as tmp:
