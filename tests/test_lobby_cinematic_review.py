@@ -31,8 +31,8 @@ class LobbyCinematicReviewTests(unittest.TestCase):
 
     def test_camera_orbit_is_keyframed_and_encoded_as_h264_mp4(self):
         self.assertIn("def add_orbit_camera", self.source)
-        self.assertIn("camera.keyframe_insert(data_path=\\"location\\", frame=frame)", self.source)
-        self.assertIn("camera.keyframe_insert(data_path=\\"rotation_euler\\", frame=frame)", self.source)
+        self.assertIn('camera.keyframe_insert(data_path="location", frame=frame)', self.source)
+        self.assertIn('camera.keyframe_insert(data_path="rotation_euler", frame=frame)', self.source)
         self.assertIn('"libx264"', self.source)
         self.assertIn('"yuv420p"', self.source)
         self.assertIn("REVIEW_FRAMES = 120", self.source)
