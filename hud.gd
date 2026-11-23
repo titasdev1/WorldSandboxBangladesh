@@ -39,6 +39,11 @@ var navigation_mode_button: Button
 var mode_menu_button: Button
 var replay_round_button: Button
 var save_feedback_label: Label
+var lobby_attribution_label: Label
+var downloads_status_label: Label
+var downloads_detail_label: Label
+var downloads_progress_bar: ProgressBar
+var _downloads_mode_signature := ""
 var shop_button: Button
 var shop_panel: PanelContainer
 var shop_item_option: OptionButton
@@ -56,6 +61,8 @@ var _shown_result_token := ""
 func _ready():
  process_mode = Node.PROCESS_MODE_ALWAYS
  w = get_parent()
+ if not ContentDownloadManager.state_changed.is_connected(_on_content_download_state_changed):
+  ContentDownloadManager.state_changed.connect(_on_content_download_state_changed)
  var title = Label.new()
  title.text = "JIBONJATRA  /  WORLD SANDBOX: BANGLADESH"
  title.position = Vector2(28, 20)
@@ -983,6 +990,7 @@ func _build_lobby_ui() -> void:
  var nav_items := [
   ["HOME", "home", "res://assets/ui/icons/home.svg"],
   ["PLAY", "play", "res://assets/ui/icons/play.svg"],
+  ["DOWNLOADS", "downloads", "res://assets/ui/icons/downloads.svg"],
   ["LOADOUT", "loadout", "res://assets/ui/icons/loadout.svg"],
   ["OPERATOR", "operator", "res://assets/ui/icons/operator.svg"],
   ["EVENTS", "events", "res://assets/ui/icons/events.svg"],
@@ -1036,6 +1044,15 @@ func _build_lobby_ui() -> void:
  save_feedback_label.add_theme_font_size_override("font_size", 12)
  save_feedback_label.add_theme_color_override("font_color", Color("#b3c9d6"))
  lobby_overlay.add_child(save_feedback_label)
+ lobby_attribution_label = Label.new()
+ lobby_attribution_label.name = "WorldMaterialAttribution"
+ lobby_attribution_label.position = Vector2(205.0, viewport_size.y - 38.0)
+ lobby_attribution_label.size = Vector2(viewport_size.x - 225.0, 22.0)
+ lobby_attribution_label.text = "ENVIRONMENT MATERIAL SCANS  •  POWERED BY POLY HAVEN (CC0)"
+ lobby_attribution_label.add_theme_font_size_override("font_size", 9)
+ lobby_attribution_label.add_theme_color_override("font_color", Color("#89a6b8"))
+ lobby_attribution_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+ lobby_overlay.add_child(lobby_attribution_label)
  if is_instance_valid(w) and is_instance_valid(w.player):
   w.player.set_camera_view_mode("third_person")
   w.player.camera_yaw = 24.0
@@ -1110,7 +1127,8 @@ func _lobby_add_section(section_text: String) -> void:
 func _lobby_add_featured_play() -> void:
  var button := Button.new()
  button.name = "FeaturedPlayNow"
- button.text = "▶  PLAY NOW\nChoose your experience"
+ button.text = "DEPLOY  /  PLAY NOW\nChoose your next experience"
+ button.tooltip_text = "Open the deployment selector"
  button.custom_minimum_size = Vector2(0.0, 94.0)
  button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
  button.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -1141,6 +1159,83 @@ func _lobby_add_action(title_text: String, detail_text: String, callback: Callab
  return button
 
 
+func _lobby_add_experience_grid() -> GridContainer:
+ var grid := GridContainer.new()
+ grid.name = "LobbyExperienceGrid"
+ grid.columns = 2
+ grid.add_theme_constant_override("h_separation", 10)
+ grid.add_theme_constant_override("v_separation", 10)
+ grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ lobby_content.add_child(grid)
+ return grid
+
+
+func _lobby_add_experience_card(
+ title_text: String,
+ category_text: String,
+ detail_text: String,
+ callback: Callable,
+ accent: Color,
+ available: bool = true,
+ compact: bool = false,
+ parent: Control = null
+) -> PanelContainer:
+ var card := PanelContainer.new()
+ card.name = "ExperienceCard_" + title_text.to_pascal_case().replace(" ", "")
+ card.custom_minimum_size = Vector2(226.0 if compact else 0.0, 116.0 if compact else 126.0)
+ card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ card.add_theme_stylebox_override("panel", _lobby_style(Color("#091b29"), accent.darkened(0.38), 1, 9))
+ var row := HBoxContainer.new()
+ row.add_theme_constant_override("separation", 10 if compact else 14)
+ card.add_child(row)
+ var accent_bar := ColorRect.new()
+ accent_bar.name = "ExperienceAccent"
+ accent_bar.color = accent
+ accent_bar.custom_minimum_size = Vector2(4.0, 0.0)
+ row.add_child(accent_bar)
+ var details := VBoxContainer.new()
+ details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ details.add_theme_constant_override("separation", 3)
+ row.add_child(details)
+ var category := Label.new()
+ category.text = category_text
+ category.add_theme_font_size_override("font_size", 9 if compact else 10)
+ category.add_theme_color_override("font_color", accent.lightened(0.28))
+ category.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ details.add_child(category)
+ var title := Label.new()
+ title.text = title_text
+ title.add_theme_font_size_override("font_size", 15 if compact else 21)
+ title.add_theme_color_override("font_color", Color("#f5f8fc"))
+ title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ details.add_child(title)
+ var detail := Label.new()
+ detail.text = detail_text
+ detail.add_theme_font_size_override("font_size", 10 if compact else 12)
+ detail.add_theme_color_override("font_color", Color("#a9bfcd"))
+ detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ detail.size_flags_vertical = Control.SIZE_EXPAND_FILL
+ details.add_child(detail)
+ var action := Button.new()
+ action.name = "ExperienceAction"
+ action.text = "OPEN" if available else "LOCKED"
+ action.custom_minimum_size = Vector2(68.0 if compact else 86.0, 42.0 if compact else 48.0)
+ action.disabled = not available
+ action.add_theme_font_size_override("font_size", 10 if compact else 12)
+ action.add_theme_color_override("font_color", Color("#07131e") if available else Color("#8fa1ad"))
+ action.add_theme_stylebox_override("normal", _lobby_style(accent.lightened(0.08), accent.lightened(0.20), 1, 7))
+ action.add_theme_stylebox_override("disabled", _lobby_style(Color("#1c2b35"), Color("#394d58"), 1, 7))
+ action.add_theme_stylebox_override("hover", _lobby_style(accent.lightened(0.22), Color("#f1f7fa"), 1, 7))
+ if available and callback.is_valid():
+  action.pressed.connect(callback)
+ row.add_child(action)
+ if is_instance_valid(parent):
+  parent.add_child(card)
+ else:
+  lobby_content.add_child(card)
+ return card
+
+
 func _lobby_add_info(label_text: String, value_text: String) -> void:
  var box := PanelContainer.new()
  box.add_theme_stylebox_override("panel", _lobby_style(Color("#0e293b"), Color("#28566c"), 1, 7))
@@ -1165,51 +1260,82 @@ func _show_lobby_page(page: String) -> void:
  if not is_instance_valid(lobby_content):
   return
  lobby_section = page
+ var play_branch := page in ["play", "jibonjatra", "strikefront", "greenwake", "briefing"]
  for page_id in lobby_nav_buttons.keys():
   var nav_button := lobby_nav_buttons[page_id] as Button
   if is_instance_valid(nav_button):
-   nav_button.button_pressed = String(page_id) == page
+   nav_button.button_pressed = String(page_id) == page or (String(page_id) == "play" and play_branch)
  _lobby_clear_content()
  if is_instance_valid(save_feedback_label):
   save_feedback_label.text = "SHARIATPUR  /  PROJECT A-SQUARE"
  if page == "home":
-  _lobby_add_heading("WORLD COMMAND", "Your local world, career and deployments are gathered here.")
+  _lobby_add_heading("A-SQUARE COMMAND", "Three connected game families. Choose the experience you want to enter.")
   _lobby_add_featured_play()
-  var installed: bool = is_instance_valid(w) and (w.get("real_dhaka_loaded") == true)
-  _lobby_add_section("FEATURED • BANGLADESH")
-  _lobby_add_action("SHARIATPUR WORLD", "60 district tile records • full-resolution local streaming", Callable(self, "_show_map_information"))
-  _lobby_add_action("DESHI STORIES", "Local missions, transport fares, markets and connected jobs", Callable(self, "_choose_mode").bind("deshi_story"))
-  _lobby_add_action("OPEN WORLD SANDBOX", "Explore the currently installed district and local activities", Callable(self, "_choose_mode").bind("free_roam"))
-  _lobby_add_action("COMBAT LAB", "Offline AI practice • six targets • movement and weapon training", Callable(self, "_choose_mode").bind("arena_training"))
-  _lobby_add_section("LIVING OPEN WORLD")
-  _lobby_add_action("JIBONJATRA", "Walk, meet, drive and race on the same district roads", Callable(self, "_choose_mode").bind("jibon_jatra"))
-  _lobby_add_section("WORLD STATUS")
-  _lobby_add_info("MAP STATUS", "Shariatpur is active." if installed else "Local starter world is active; Shariatpur data remains a separate installable map pack.")
-  _lobby_add_info("ONLINE SERVICES", "No real-player server is connected in this build. Online matchmaking is not simulated.")
+  _lobby_add_section("EXPERIENCE FAMILIES")
+  var world_grid := _lobby_add_experience_grid()
+  _lobby_add_experience_card("JIBONJATRA", "LIVING BANGLADESH  /  OPEN WORLD", "Explore, work, drive, race and follow local stories. Shariatpur is an optional regional download.", Callable(self, "_show_lobby_page").bind("jibonjatra"), Color("#4aa99c"), true, true, world_grid)
+  _lobby_add_experience_card("STRIKEFRONT", "COMBAT  /  OFFLINE FIRST", "Enter the available solo and AI combat experiences. Online queues remain locked until real services exist.", Callable(self, "_show_lobby_page").bind("strikefront"), Color("#b17c58"), true, true, world_grid)
+  _lobby_add_experience_card("GREENWAKE", "ACTION  /  ADVENTURE", "A Bangladesh-rooted mystery and exploration pillar. Its first playable chapter is still in development.", Callable(self, "_show_lobby_page").bind("greenwake"), Color("#7a9b75"), true, true, world_grid)
+  _lobby_add_section("QUICK DEPLOYMENT  /  FAMILY SHORTCUTS")
+  var action_grid_home := _lobby_add_experience_grid()
+  _lobby_add_experience_card("DESHI STORIES", "JIBONJATRA  /  LOCAL MISSIONS", "Jump directly into the existing local job flow.", Callable(self, "_choose_mode").bind("deshi_story"), Color("#c1a064"), true, true, action_grid_home)
+  _lobby_add_experience_card("CITY SANDBOX", "JIBONJATRA  /  FREE ROAM", "Explore the currently installed area.", Callable(self, "_choose_mode").bind("free_roam"), Color("#6096ae"), true, true, action_grid_home)
+  _lobby_add_experience_card("COMBAT LAB", "STRIKEFRONT  /  TRAINING", "Enter offline movement and weapon practice.", Callable(self, "_choose_mode").bind("arena_training"), Color("#8498ad"), true, true, action_grid_home)
+  _lobby_add_section("WORLD INTELLIGENCE")
+  var installed_home: bool = is_instance_valid(w) and (w.get("real_dhaka_loaded") == true)
+  _lobby_add_info("SHARIATPUR WORLD", "District map mounted and ready." if installed_home else "The lightweight starter world is active; Shariatpur remains a separate verified download.")
+  _lobby_add_info("ONLINE SERVICES", "No real-player server is connected in this build. No online population is simulated.")
  elif page == "play":
-  _lobby_add_heading("PLAY", "Choose a real local experience. Online queues remain unavailable until a multiplayer service is connected.")
-  _lobby_add_section("LIVING WORLD • JIBONJATRA")
-  _lobby_add_action("JIBONJATRA  /  ENTER WORLD", "Walk, meet, drive, open a private room and race on city roads", Callable(self, "_choose_mode").bind("jibon_jatra"))
-  _lobby_add_section("OPEN WORLD • LOCAL")
-  _lobby_add_action("DESHI STORIES", "40 chapters • connected local destination jobs", Callable(self, "_choose_mode").bind("deshi_story"))
-  _lobby_add_action("OPEN CITY SANDBOX", "Free roam • traffic, local characters, shops and transport", Callable(self, "_choose_mode").bind("free_roam"))
-  _lobby_add_action("STREET LIFE", "Markets, local economy, transport and city activities", Callable(self, "_choose_mode").bind("street_life"))
-  _lobby_add_section("STRIKEFRONT  /  COMBAT • OFFLINE AI")
-  _lobby_add_action("LAST STAND", "Three escalating waves against armed AI opponents", Callable(self, "_choose_mode").bind("survival"))
-  _lobby_add_action("COMBAT LAB", "Six practice targets • solo training", Callable(self, "_choose_mode").bind("arena_training"))
-  _lobby_add_action("STREET SKIRMISH", "Ten AI opponents • elimination objective", Callable(self, "_choose_mode").bind("street_skirmish"))
-  _lobby_add_section("ONLINE • NOT CONNECTED")
-  _lobby_add_action("MULTIPLAYER QUICK PLAY", "Requires a real-time multiplayer server", Callable(), false)
-  _lobby_add_action("MULTIPLAYER RANKED", "Requires accounts, matchmaking and authoritative servers", Callable(), false)
-  var br_controller: Node = w.get("battle_royale_controller") as Node if is_instance_valid(w) else null
-  var br_assets_ready: bool = is_instance_valid(br_controller) and (br_controller.call("can_start_solo_deployment") == true)
-  _lobby_add_section("BATTLE ROYALE • OFFLINE SOLO")
-  _lobby_add_action("BATTLE ROYALE • SOLO DROP", "Cargo flight • freefall • authored ram-air canopy • local AI operators • shrinking safe zone", Callable(self, "_choose_mode").bind("battle_royale_solo"), br_assets_ready)
-  if not br_assets_ready:
-   _lobby_add_info("BR ASSET STATUS", "Solo drop unlocks after the verified cargo aircraft and original parachute GLB are imported.")
-  _lobby_add_section("ONLINE • NOT CONNECTED")
-  _lobby_add_action("RANKED BATTLE ROYALE", "Requires real-player matchmaking, authoritative server simulation and anti-cheat", Callable(), false)
-  _lobby_add_action("ZOMBIES / SPECIAL MODES", "Mode-specific maps and logic are not connected yet", Callable(), false)
+  _lobby_add_heading("CHOOSE YOUR EXPERIENCE", "A-Square is organised into three distinct families.")
+  _lobby_add_section("01  /  JIBONJATRA")
+  var family_grid_play := _lobby_add_experience_grid()
+  _lobby_add_experience_card("JIBONJATRA", "OPEN WORLD  /  STORY  /  LIFE", "Bangladesh-rooted exploration, missions, daily activities and transport.", Callable(self, "_show_lobby_page").bind("jibonjatra"), Color("#4aa99c"), true, false, family_grid_play)
+  _lobby_add_section("02  /  STRIKEFRONT")
+  _lobby_add_experience_card("STRIKEFRONT", "COMBAT  /  BATTLE ROYALE", "Offline combat modes are available; connected multiplayer is not yet online.", Callable(self, "_show_lobby_page").bind("strikefront"), Color("#b17c58"), true)
+  _lobby_add_section("03  /  GREENWAKE")
+  _lobby_add_experience_card("GREENWAKE", "CINEMATIC ACTION  /  ADVENTURE", "The original adventure pillar is in production. Open its brief to review the planned experience.", Callable(self, "_show_lobby_page").bind("greenwake"), Color("#7a9b75"), true)
+ elif page == "jibonjatra":
+  _lobby_add_heading("JIBONJATRA", "A living Bangladesh open world: stories, local life, transport and exploration.")
+  _lobby_add_section("OPEN WORLD EXPERIENCES")
+  var jibon_grid := _lobby_add_experience_grid()
+  _lobby_add_experience_card("ENTER JIBONJATRA", "LIVING OPEN WORLD", "Start the current local world. Install Shariatpur from Downloads when you want the district-scale map.", Callable(self, "_choose_mode").bind("jibon_jatra"), Color("#4aa99c"), true, false, jibon_grid)
+  _lobby_add_experience_card("DESHI STORIES", "LOCAL MISSIONS", "Connected destinations, work, transport fares and chapter-style jobs.", Callable(self, "_choose_mode").bind("deshi_story"), Color("#c1a064"), true, true, jibon_grid)
+  _lobby_add_experience_card("CITY SANDBOX", "FREE ROAM", "Explore the currently installed city area without a mission objective.", Callable(self, "_choose_mode").bind("free_roam"), Color("#6096ae"), true, true, jibon_grid)
+  _lobby_add_experience_card("STREET LIFE", "LOCAL ACTIVITIES", "Discover shops, markets, transport and local routines.", Callable(self, "_choose_mode").bind("street_life"), Color("#7a9b75"), true, true, jibon_grid)
+  _lobby_add_section("ACTIVITIES  /  INSIDE JIBONJATRA")
+  var jibon_activity_grid := _lobby_add_experience_grid()
+  _lobby_add_experience_card("ROADLINE", "RACING  /  DRIVING", "Open the Roadline race and time-attack hub.", Callable(self, "_open_roadline_event"), Color("#c18e57"), true, true, jibon_activity_grid)
+  _lobby_add_experience_card("PITCHBOUND", "STADIUM  /  FOOTBALL", "Open the football hub for the 3D and 2D match experiences.", Callable(self, "_open_pitchbound_event"), Color("#74a779"), true, true, jibon_activity_grid)
+  _lobby_add_info("FAMILY RULE", "Roadline and Pitchbound are JibonJatra activities, not separate top-level game families.")
+  _lobby_add_action("ALL EXPERIENCE FAMILIES", "Return to the JibonJatra / Strikefront / Greenwake selector.", Callable(self, "_show_lobby_page").bind("play"))
+ elif page == "strikefront":
+  _lobby_add_heading("STRIKEFRONT", "The combat family. Offline modes are clearly separated from future online services.")
+  _lobby_add_section("AVAILABLE OFFLINE MODES")
+  var strike_grid := _lobby_add_experience_grid()
+  _lobby_add_experience_card("LAST STAND", "OFFLINE  /  AI WAVES", "Three escalating enemy waves.", Callable(self, "_choose_mode").bind("survival"), Color("#b17c58"), true, true, strike_grid)
+  _lobby_add_experience_card("COMBAT LAB", "TRAINING", "Practice movement, aiming and weapon handling.", Callable(self, "_choose_mode").bind("arena_training"), Color("#8498ad"), true, true, strike_grid)
+  _lobby_add_experience_card("STREET SKIRMISH", "ELIMINATION  /  AI", "Ten AI opponents in a local elimination round.", Callable(self, "_choose_mode").bind("street_skirmish"), Color("#9b6f69"), true, true, strike_grid)
+  var br_controller_family: Node = w.get("battle_royale_controller") as Node if is_instance_valid(w) else null
+  var br_assets_ready_family: bool = is_instance_valid(br_controller_family) and (br_controller_family.call("can_start_solo_deployment") == true)
+  _lobby_add_experience_card("SOLO DROP", "BATTLE ROYALE  /  OFFLINE AI", "Aircraft insertion, freefall, canopy glide and a closing safe zone.", Callable(self, "_choose_mode").bind("battle_royale_solo"), Color("#8e9c72"), br_assets_ready_family, true, strike_grid)
+  if not br_assets_ready_family:
+   _lobby_add_info("SOLO DROP STATUS", "Locked until the verified aircraft and parachute assets are available.")
+  _lobby_add_section("CONNECTED PLAY  /  NOT AVAILABLE")
+  var strike_online_grid := _lobby_add_experience_grid()
+  _lobby_add_experience_card("QUICK PLAY", "MULTIPLAYER", "No real-player server is connected.", Callable(), Color("#5c7484"), false, true, strike_online_grid)
+  _lobby_add_experience_card("RANKED", "COMPETITIVE", "Requires authoritative matchmaking, server scoring and anti-cheat.", Callable(), Color("#5c7484"), false, true, strike_online_grid)
+  _lobby_add_experience_card("ZOMBIES", "SPECIAL MODE", "Dedicated mode rules, enemies and content are not ready.", Callable(), Color("#5c7484"), false, true, strike_online_grid)
+  _lobby_add_action("ALL EXPERIENCE FAMILIES", "Return to the family selector.", Callable(self, "_show_lobby_page").bind("play"))
+ elif page == "greenwake":
+  _lobby_add_heading("GREENWAKE", "An original Bangladesh-rooted action-adventure pillar.")
+  _lobby_add_section("DEVELOPMENT STATUS")
+  _lobby_add_info("CURRENT STATE", "IN DEVELOPMENT  •  NO PLAYABLE CHAPTER IN THIS BUILD")
+  _lobby_add_info("FIRST VERTICAL SLICE", "Arrival → narrative hook → exploration → clue discovery → traversal challenge → environmental puzzle → reveal → consequence → chapter end.")
+  _lobby_add_info("WORLD DIRECTION", "River ports, wetlands, floodplains, old trade routes, lost settlements and living communities. Historical claims and real locations must be researched; fictional story elements will be labelled as fiction.")
+  _lobby_add_experience_card("FIRST CHAPTER", "NOT PLAYABLE YET", "The chapter must be authored, integrated, saved and tested before this card can be unlocked.", Callable(), Color("#5c7484"), false)
+  _lobby_add_action("ALL EXPERIENCE FAMILIES", "Return to the family selector.", Callable(self, "_show_lobby_page").bind("play"))
+ elif page == "downloads":
+  _build_downloads_page()
  elif page == "briefing":
   _build_mode_briefing()
  elif page == "loadout":
@@ -1260,6 +1386,150 @@ func _show_lobby_page(page: String) -> void:
  else:
   _lobby_add_heading("WORLD COMMAND", "Choose a section from the navigation rail.")
  _update_lobby_header()
+ _animate_lobby_page_reveal()
+
+
+func _build_downloads_page() -> void:
+ _lobby_add_heading("DOWNLOAD CENTRE", "Choose what to install. The starter lobby and local city remain available while regional content downloads.")
+ _lobby_add_section("CORE EXPERIENCE")
+ _lobby_add_info("STARTER CLIENT", "Available now without a district download. Your local profile, lobby, starter-city sandbox and available offline training modes do not wait for Shariatpur.")
+ _lobby_add_section("REGIONAL WORLD PACKS")
+ var pack_state: Dictionary = ContentDownloadManager.get_shariatpur_state()
+ _lobby_add_info("SHARIATPUR DISTRICT", "Optional high-detail regional world data, stored separately from the core game. The game verifies every part and the complete pack before marking it installed.")
+ var catalogue_checked: bool = pack_state.get("catalogue_checked", false) == true
+ var catalogue_loading: bool = pack_state.get("catalogue_loading", false) == true
+ if catalogue_checked:
+  var size_bytes := int(pack_state.get("total_bytes", 0))
+  var size_label := "%.1f MB" % (float(size_bytes) / 1048576.0)
+  if size_bytes >= 1073741824:
+   size_label = "%.2f GB" % (float(size_bytes) / 1073741824.0)
+  _lobby_add_info("VERIFIED PACKAGE SIZE", "%s  •  %d checksum-verified sections" % [size_label, int(pack_state.get("part_count", 0))])
+ elif catalogue_loading:
+  _lobby_add_info("PACKAGE DETAILS", "Checking the signed release manifest before starting any download.")
+ else:
+  _lobby_add_info("PACKAGE DETAILS", "The exact package size and section count are checked online first. No district data is downloaded by this check.")
+ downloads_status_label = Label.new()
+ downloads_status_label.name = "DownloadsMapStatus"
+ downloads_status_label.text = String(pack_state.get("status", "CHECKING"))
+ downloads_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ downloads_status_label.add_theme_font_size_override("font_size", 13)
+ downloads_status_label.add_theme_color_override("font_color", Color("#70dce8"))
+ lobby_content.add_child(downloads_status_label)
+ var detail := Label.new()
+ detail.name = "DownloadsMapDetail"
+ detail.text = String(pack_state.get("detail", ""))
+ downloads_detail_label = detail
+ detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ detail.add_theme_font_size_override("font_size", 12)
+ detail.add_theme_color_override("font_color", Color("#c0d1db"))
+ lobby_content.add_child(detail)
+ downloads_progress_bar = ProgressBar.new()
+ downloads_progress_bar.name = "DownloadsMapProgress"
+ downloads_progress_bar.max_value = 100.0
+ downloads_progress_bar.value = float(pack_state.get("progress", 0.0))
+ downloads_progress_bar.custom_minimum_size = Vector2(0.0, 14.0)
+ downloads_progress_bar.show_percentage = true
+ lobby_content.add_child(downloads_progress_bar)
+ var installed: bool = pack_state.get("installed", false) == true
+ var downloading: bool = pack_state.get("downloading", false) == true
+ var active_map := false
+ var map_loader: Node = w.get("real_dhaka_loader") as Node if is_instance_valid(w) else null
+ if is_instance_valid(map_loader) and map_loader.has_method("get_runtime_map_diagnostics"):
+  var map_diagnostics: Dictionary = map_loader.call("get_runtime_map_diagnostics")
+  active_map = int(map_diagnostics.get("map_packs_mounted", 0)) > 0
+ if installed:
+  if active_map:
+   _lobby_add_action("SHARIATPUR IS ACTIVE", "The downloaded regional PCK is mounted in this session.", Callable(), false)
+  else:
+   _lobby_add_action("RESTART TO APPLY SHARIATPUR", "The full district pack is verified on this device but is not mounted in the current world. Save your local career and restart to apply it.", Callable(self, "_restart_to_apply_shariatpur"))
+ elif downloading:
+  var downloaded := int(pack_state.get("downloaded_bytes", 0))
+  var total := int(pack_state.get("total_bytes", 0))
+  var transfer_text := "The verified download is running in the background."
+  if total > 0:
+   transfer_text = "%.1f / %.1f MB received or verified." % [float(downloaded) / 1048576.0, float(total) / 1048576.0]
+  _lobby_add_action("DOWNLOAD IN PROGRESS", transfer_text, Callable(), false)
+ elif catalogue_loading:
+  _lobby_add_action("CHECKING PACKAGE DETAILS", "The release manifest is being checked. No large files are being downloaded yet.", Callable(), false)
+ elif not catalogue_checked:
+  _lobby_add_action("CHECK PACKAGE INFO  →", "Fetch the real package size, section count and published checksums.", Callable(self, "_refresh_shariatpur_catalogue"))
+ else:
+  var resumable: bool = pack_state.get("resumable", false) == true
+  var button_title := "RESUME SHARIATPUR DOWNLOAD" if resumable else "DOWNLOAD SHARIATPUR DISTRICT"
+  var button_detail := "Re-check saved sections, then continue from the next missing part." if resumable else "Download the optional region in verified sections. You can leave the page and continue using the starter experience."
+  _lobby_add_action(button_title, button_detail, Callable(self, "_start_shariatpur_download"))
+ _downloads_mode_signature = _downloads_state_signature(pack_state)
+ if not installed and not downloading and not catalogue_checked and not catalogue_loading:
+  call_deferred("_refresh_shariatpur_catalogue")
+ _lobby_add_section("MORE CONTENT")
+ _lobby_add_info("UPCOMING PACKS", "Dhaka Division, more Bangladesh regions, Greenwake adventure locations, Strikefront battle maps, optional high-resolution assets and language or voice packs will be listed here when their verified packages are ready. They are not downloadable yet.")
+
+
+func _downloads_state_signature(state: Dictionary) -> String:
+ return "%s|%s|%s|%s|%s" % [
+  str(state.get("installed", false)),
+  str(state.get("downloading", false)),
+  str(state.get("resumable", false)),
+  str(state.get("catalogue_checked", false)),
+  str(state.get("catalogue_loading", false))
+ ]
+
+
+func _on_content_download_state_changed(state: Dictionary) -> void:
+ if lobby_section == "downloads" and is_instance_valid(lobby_content):
+  if _downloads_mode_signature != _downloads_state_signature(state):
+   _show_lobby_page("downloads")
+   return
+  if is_instance_valid(downloads_status_label):
+   downloads_status_label.text = String(state.get("status", ""))
+  if is_instance_valid(downloads_detail_label):
+   downloads_detail_label.text = String(state.get("detail", ""))
+  if is_instance_valid(downloads_progress_bar):
+   downloads_progress_bar.value = float(state.get("progress", 0.0))
+ elif state.get("installed", false) == true:
+  _set_save_feedback("SHARIATPUR PACK VERIFIED • OPEN DOWNLOADS TO APPLY", true)
+
+
+func _refresh_shariatpur_catalogue() -> void:
+ var state: Dictionary = ContentDownloadManager.get_shariatpur_state()
+ if state.get("catalogue_checked", false) == true or state.get("catalogue_loading", false) == true or state.get("downloading", false) == true:
+  return
+ ContentDownloadManager.refresh_shariatpur_info()
+
+
+func _start_shariatpur_download() -> void:
+ if ContentDownloadManager.start_shariatpur_download():
+  _set_save_feedback("SHARIATPUR DOWNLOAD STARTED • YOU CAN KEEP USING THE LOBBY", true)
+ else:
+  var state: Dictionary = ContentDownloadManager.get_shariatpur_state()
+  _set_save_feedback(String(state.get("status", "DOWNLOAD NOT STARTED")), false)
+ _show_lobby_page("downloads")
+
+
+func _restart_to_apply_shariatpur() -> void:
+ var state: Dictionary = ContentDownloadManager.get_shariatpur_state()
+ if state.get("installed", false) != true:
+  _set_save_feedback("THE DISTRICT PACK IS NOT VERIFIED", false)
+  return
+ if is_instance_valid(w) and w.has_method("save_game_progress"):
+  w.call("save_game_progress", false)
+ _set_save_feedback("SAVING CAREER • MOUNTING SHARIATPUR ON RESTART", true)
+ await get_tree().process_frame
+ var error := get_tree().change_scene_to_file("res://Main.tscn")
+ if error != OK:
+  _set_save_feedback("RESTART FAILED • CLOSE AND REOPEN THE GAME", false)
+
+
+func _animate_lobby_page_reveal() -> void:
+ if not is_instance_valid(lobby_content):
+  return
+ for index in range(lobby_content.get_child_count()):
+  var item := lobby_content.get_child(index) as Control
+  if not is_instance_valid(item):
+   continue
+  item.modulate.a = 0.0
+  var reveal := create_tween()
+  reveal.tween_property(item, "modulate:a", 1.0, 0.18).set_delay(minf(float(index) * 0.028, 0.22)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 
 func _select_operator_preset(preset_id: String) -> void:
@@ -1663,6 +1933,15 @@ func _open_roadline_event() -> void:
  var director: Node = w.get_node_or_null("WorldActivityDirector")
  if is_instance_valid(director) and director.has_method("open_race_menu"):
   director.call("open_race_menu")
+
+func _open_pitchbound_event() -> void:
+ if not is_instance_valid(w):
+  return
+ var director: Node = w.get_node_or_null("WorldActivityDirector")
+ if is_instance_valid(director) and director.has_method("open_pitchbound_menu"):
+  director.call("open_pitchbound_menu")
+ else:
+  _set_save_feedback("PITCHBOUND HUB IS NOT READY", false)
 
 
 func _update_interaction_prompt() -> void:

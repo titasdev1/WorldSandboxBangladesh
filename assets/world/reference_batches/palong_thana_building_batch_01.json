@@ -1,0 +1,892 @@
+{
+  "schema_version": 1,
+  "batch_id": "palong_thana_building_batch_01",
+  "research_date": "2026-11-23",
+  "area": "Palong Model Thana / Palong Bazar, Palong, Shariatpur, Bangladesh",
+  "canonical_source": {
+    "package": "Project-A-Square-Shariatpur-Review-Map-44257499872",
+    "final_artifact_id": 14410550102,
+    "batch_artifact_id": 14406847879,
+    "map_workflow_run": 44264284704,
+    "pipeline_commit": "0f188885f393143ee18e8b0f9c18133b202d7c7f",
+    "tile_id": "tile_23p1835_90p3053",
+    "tile_origin_lat_lon": [
+      23.2085042,
+      90.3302667
+    ],
+    "tile_bounds": [
+      23.1835042,
+      90.3052667,
+      23.2335042,
+      90.3552667
+    ],
+    "feature_totals": {
+      "building_footprints": 15288,
+      "overture_building_footprints": 14096,
+      "road_ways": 325,
+      "mapped_tree_nodes": 2,
+      "procedural_vegetation_trees": 145,
+      "water_polygons": 60,
+      "waterway_segments": 3
+    },
+    "source_lineage": "Geofabrik Bangladesh OSM PBF + Overture Maps Foundation Buildings theme; per-feature source IDs preserved in tile GeoJSON",
+    "attribution": "© OpenStreetMap contributors, Overture Maps Foundation",
+    "licensing": "OSM and Overture Buildings theme: ODbL 1.0. Overture lists Google Open Buildings as CC BY 4.0 source; preserve source lineage and all relevant notices.",
+    "caveat": "Procedural vegetation is not a surveyed tree inventory. Water and footprints come from mapped/source layers; tile feature counts are not evidence of complete real-world coverage.",
+    "tile_total_building_footprints": 15288,
+    "tile_overture_building_footprints": 14096,
+    "tile_osm_building_footprints_derived": 1192,
+    "tile_map_manifest_feature_counts": {
+      "osm_elements": 15770,
+      "building_footprints": 15288,
+      "overture_building_footprints": 14096,
+      "named_or_tagged_interaction_seeds": 76,
+      "interior_anchors": 15338,
+      "doors_from_mapped_entrance_nodes": 0,
+      "inferred_doors": 15288,
+      "mapped_trees": 2,
+      "mapped_utility_poles": 0,
+      "mapped_street_lamps": 0,
+      "procedural_vegetation_trees": 145,
+      "water_polygons": 60,
+      "waterway_segments": 3,
+      "landuse_areas": 12,
+      "bridge_ways": 13
+    }
+  },
+  "thana_building": {
+    "rank": 1,
+    "id": "way/601571171001",
+    "source": "OpenStreetMap",
+    "source_osm_id": "601571171",
+    "name": "Palong Model Thana",
+    "name_bn": "পালং মডেল থানা",
+    "distance_m": 0,
+    "centroid": [
+      90.34867748,
+      23.21870138
+    ],
+    "footprint": [
+      [
+        90.3486329,
+        23.2186092
+      ],
+      [
+        90.348641,
+        23.2187965
+      ],
+      [
+        90.348722,
+        23.2187936
+      ],
+      [
+        90.348714,
+        23.2186062
+      ],
+      [
+        90.3486329,
+        23.2186092
+      ]
+    ],
+    "seed": {
+      "floors_estimate": 4,
+      "height_m_estimate": 12,
+      "floor_source": "AREA_CATEGORY_ESTIMATE_UNVERIFIED",
+      "height_source": "AREA_CATEGORY_ESTIMATE_UNVERIFIED",
+      "local_footprint_m": [
+        [
+          1887.36,
+          1124.55
+        ],
+        [
+          1879.07,
+          1124.88
+        ],
+        [
+          1879.9,
+          1145.73
+        ],
+        [
+          1888.18,
+          1145.41
+        ],
+        [
+          1887.36,
+          1124.55
+        ]
+      ],
+      "door_anchor_local_m": [
+        1888.036,
+        1141.656
+      ],
+      "door_placement_source": "PROCEDURAL_LONGEST_EXTERIOR_EDGE_NO_MAPPED_ENTRANCE_NODE",
+      "roof": "flat-cap default; source unverified",
+      "historical_floor_evidence": {
+        "source": "https://vymaps.com/BD/Palong-Model-Thana-136943/",
+        "source_type": "USER_GENERATED_PLACE_REVIEW",
+        "review_date": "2018-01-06",
+        "reported_claim": "Reviewer said the station then had two floors and third-floor construction was underway.",
+        "confidence": "LOW_HISTORICAL_UNVERIFIED",
+        "production_use": "Context only. Does not establish the current 2026 floor count or prove the PWD candidate record matches this footprint."
+      }
+    },
+    "footprint_dimensions_m": {
+      "major_axis_bbox_extent_m": 21.18,
+      "minor_axis_bbox_extent_m": 9.11,
+      "area_m2": 173.21,
+      "basis": "Local XY axis-aligned bounding extents of exact OSM way/601571171001 polygon; not façade frontage measurement."
+    }
+  },
+  "nearby_ten_building_review": [
+    {
+      "rank": 1,
+      "id": "way/601571171001",
+      "source": "OpenStreetMap",
+      "source_osm_id": "601571171",
+      "name": "Palong Model Thana",
+      "name_bn": "পালং মডেল থানা",
+      "distance_m": 0,
+      "centroid": [
+        90.34867748,
+        23.21870138
+      ],
+      "footprint": [
+        [
+          90.3486329,
+          23.2186092
+        ],
+        [
+          90.348641,
+          23.2187965
+        ],
+        [
+          90.348722,
+          23.2187936
+        ],
+        [
+          90.348714,
+          23.2186062
+        ],
+        [
+          90.3486329,
+          23.2186092
+        ]
+      ],
+      "seed": {
+        "floors_estimate": 4,
+        "height_m_estimate": 12,
+        "floor_source": "AREA_CATEGORY_ESTIMATE_UNVERIFIED",
+        "height_source": "AREA_CATEGORY_ESTIMATE_UNVERIFIED",
+        "local_footprint_m": [
+          [
+            1887.36,
+            1124.55
+          ],
+          [
+            1879.07,
+            1124.88
+          ],
+          [
+            1879.9,
+            1145.73
+          ],
+          [
+            1888.18,
+            1145.41
+          ],
+          [
+            1887.36,
+            1124.55
+          ]
+        ],
+        "door_anchor_local_m": [
+          1888.036,
+          1141.656
+        ],
+        "door_placement_source": "PROCEDURAL_LONGEST_EXTERIOR_EDGE_NO_MAPPED_ENTRANCE_NODE",
+        "roof": "flat-cap default; source unverified"
+      }
+    },
+    {
+      "rank": 2,
+      "id": "way/601571172001",
+      "source": "OpenStreetMap",
+      "source_osm_id": "601571172",
+      "distance_m": 20.23,
+      "centroid": [
+        90.3486512,
+        23.218521
+      ],
+      "footprint": [
+        [
+          90.348685,
+          23.2184605
+        ],
+        [
+          90.3486121,
+          23.2184633
+        ],
+        [
+          90.3486174,
+          23.2185816
+        ],
+        [
+          90.3486904,
+          23.2185788
+        ],
+        [
+          90.348685,
+          23.2184605
+        ]
+      ],
+      "floors": 3,
+      "height_m": 9.3,
+      "roof": "flat",
+      "display_name": null,
+      "identity_status": "UNNAMED_FOOTPRINT",
+      "height_floor_status": "ALL_FLOOR_AND_HEIGHT_VALUES_ARE_UNVERIFIED_AREA_CATEGORY_ESTIMATES",
+      "door_status": "NO_MAPPED_ENTRANCE_NODE"
+    },
+    {
+      "rank": 3,
+      "id": "way/8919986879512001",
+      "source": "Overture Maps Buildings theme",
+      "overture_id": "197760b1-caeb-46f6-96a7-bfda748b32de",
+      "upstream_sources": [
+        "Google Open Buildings"
+      ],
+      "distance_m": 24.42,
+      "centroid": [
+        90.3487513,
+        23.2189103
+      ],
+      "footprint": [
+        [
+          90.3487745,
+          23.2189422
+        ],
+        [
+          90.3487641,
+          23.2188736
+        ],
+        [
+          90.3487281,
+          23.2188783
+        ],
+        [
+          90.3487385,
+          23.2189469
+        ],
+        [
+          90.3487745,
+          23.2189422
+        ]
+      ],
+      "floors": 1,
+      "height_m": 3.25,
+      "roof": "gabled",
+      "display_name": null,
+      "identity_status": "UNNAMED_FOOTPRINT",
+      "height_floor_status": "ALL_FLOOR_AND_HEIGHT_VALUES_ARE_UNVERIFIED_AREA_CATEGORY_ESTIMATES",
+      "door_status": "NO_MAPPED_ENTRANCE_NODE"
+    },
+    {
+      "rank": 4,
+      "id": "way/13774895371919001",
+      "source": "Overture Maps Buildings theme",
+      "overture_id": "4b4007ed-4f59-4c2a-b813-f4bc208fbf86",
+      "upstream_sources": [
+        "Google Open Buildings"
+      ],
+      "distance_m": 24.42,
+      "centroid": [
+        90.3486455,
+        23.218919
+      ],
+      "footprint": [
+        [
+          90.3485784,
+          23.2189659
+        ],
+        [
+          90.3487293,
+          23.2189259
+        ],
+        [
+          90.3487126,
+          23.2188721
+        ],
+        [
+          90.3485617,
+          23.2189122
+        ],
+        [
+          90.3485784,
+          23.2189659
+        ]
+      ],
+      "floors": 3,
+      "height_m": 9,
+      "roof": "flat",
+      "display_name": null,
+      "identity_status": "UNNAMED_FOOTPRINT",
+      "height_floor_status": "ALL_FLOOR_AND_HEIGHT_VALUES_ARE_UNVERIFIED_AREA_CATEGORY_ESTIMATES",
+      "door_status": "NO_MAPPED_ENTRANCE_NODE"
+    },
+    {
+      "rank": 5,
+      "id": "way/8269413911414001",
+      "source": "Overture Maps Buildings theme",
+      "overture_id": "963c8164-f62d-4e7e-a183-fd26d2244c15",
+      "upstream_sources": [
+        "Google Open Buildings"
+      ],
+      "distance_m": 24.97,
+      "centroid": [
+        90.3489167,
+        23.2187469
+      ],
+      "footprint": [
+        [
+          90.348814,
+          23.2187563
+        ],
+        [
+          90.3489097,
+          23.2187542
+        ],
+        [
+          90.3489105,
+          23.2187875
+        ],
+        [
+          90.3490279,
+          23.2187849
+        ],
+        [
+          90.3490256,
+          23.2186971
+        ],
+        [
+          90.3488126,
+          23.2187017
+        ],
+        [
+          90.348814,
+          23.2187563
+        ]
+      ],
+      "floors": 4,
+      "height_m": 12,
+      "roof": "flat",
+      "display_name": null,
+      "identity_status": "UNNAMED_FOOTPRINT",
+      "height_floor_status": "ALL_FLOOR_AND_HEIGHT_VALUES_ARE_UNVERIFIED_AREA_CATEGORY_ESTIMATES",
+      "door_status": "NO_MAPPED_ENTRANCE_NODE"
+    },
+    {
+      "rank": 6,
+      "id": "way/1172235893841001",
+      "source": "Overture Maps Buildings theme",
+      "overture_id": "61ffc8f1-889c-4fa7-98fe-777055b1df6c",
+      "upstream_sources": [
+        "Google Open Buildings"
+      ],
+      "distance_m": 33.78,
+      "centroid": [
+        90.3489116,
+        23.2189158
+      ],
+      "footprint": [
+        [
+          90.3488441,
+          23.2189522
+        ],
+        [
+          90.3489875,
+          23.2189333
+        ],
+        [
+          90.3489791,
+          23.2188794
+        ],
+        [
+          90.3488358,
+          23.2188982
+        ],
+        [
+          90.3488441,
+          23.2189522
+        ]
+      ],
+      "floors": 3,
+      "height_m": 9.3,
+      "roof": "flat",
+      "display_name": null,
+      "identity_status": "UNNAMED_FOOTPRINT",
+      "height_floor_status": "ALL_FLOOR_AND_HEIGHT_VALUES_ARE_UNVERIFIED_AREA_CATEGORY_ESTIMATES",
+      "door_status": "NO_MAPPED_ENTRANCE_NODE"
+    },
+    {
+      "rank": 7,
+      "id": "way/6743987545715001",
+      "source": "Overture Maps Buildings theme",
+      "overture_id": "cad4b885-3104-4e30-9963-5c2710684e06",
+      "upstream_sources": [
+        "Google Open Buildings"
+      ],
+      "distance_m": 34.37,
+      "centroid": [
+        90.3488578,
+        23.2184405
+      ],
+      "footprint": [
+        [
+          90.3488821,
+          23.2184829
+        ],
+        [
+          90.3488784,
+          23.2183964
+        ],
+        [
+          90.3488335,
+          23.2183981
+        ],
+        [
+          90.3488373,
+          23.2184846
+        ],
+        [
+          90.3488821,
+          23.2184829
+        ]
+      ],
+      "floors": 2,
+      "height_m": 6,
+      "roof": "gabled",
+      "display_name": null,
+      "identity_status": "UNNAMED_FOOTPRINT",
+      "height_floor_status": "ALL_FLOOR_AND_HEIGHT_VALUES_ARE_UNVERIFIED_AREA_CATEGORY_ESTIMATES",
+      "door_status": "NO_MAPPED_ENTRANCE_NODE"
+    },
+    {
+      "rank": 8,
+      "id": "way/5440317242405001",
+      "source": "Overture Maps Buildings theme",
+      "overture_id": "eaaf48a0-2880-4782-ae7a-dcc30032add9",
+      "upstream_sources": [
+        "Google Open Buildings"
+      ],
+      "distance_m": 34.73,
+      "centroid": [
+        90.3485629,
+        23.2189955
+      ],
+      "footprint": [
+        [
+          90.3485923,
+          23.2190455
+        ],
+        [
+          90.3485748,
+          23.2189396
+        ],
+        [
+          90.3485336,
+          23.2189454
+        ],
+        [
+          90.348551,
+          23.2190513
+        ],
+        [
+          90.3485923,
+          23.2190455
+        ]
+      ],
+      "floors": 2,
+      "height_m": 6,
+      "roof": "gabled",
+      "display_name": null,
+      "identity_status": "UNNAMED_FOOTPRINT",
+      "height_floor_status": "ALL_FLOOR_AND_HEIGHT_VALUES_ARE_UNVERIFIED_AREA_CATEGORY_ESTIMATES",
+      "door_status": "NO_MAPPED_ENTRANCE_NODE"
+    },
+    {
+      "rank": 9,
+      "id": "way/10962569129223001",
+      "source": "Overture Maps Buildings theme",
+      "overture_id": "ceac7e1a-19c8-4bc1-9d8b-c3af0d8bd7a8",
+      "upstream_sources": [
+        "Google Open Buildings"
+      ],
+      "distance_m": 37.05,
+      "centroid": [
+        90.3486446,
+        23.2183695
+      ],
+      "footprint": [
+        [
+          90.348577,
+          23.2184032
+        ],
+        [
+          90.3487156,
+          23.2183963
+        ],
+        [
+          90.3487122,
+          23.2183359
+        ],
+        [
+          90.3485735,
+          23.2183428
+        ],
+        [
+          90.348577,
+          23.2184032
+        ]
+      ],
+      "floors": 3,
+      "height_m": 9.3,
+      "roof": "flat",
+      "display_name": null,
+      "identity_status": "UNNAMED_FOOTPRINT",
+      "height_floor_status": "ALL_FLOOR_AND_HEIGHT_VALUES_ARE_UNVERIFIED_AREA_CATEGORY_ESTIMATES",
+      "door_status": "NO_MAPPED_ENTRANCE_NODE"
+    },
+    {
+      "rank": 10,
+      "id": "way/2563132459884001",
+      "source": "Overture Maps Buildings theme",
+      "overture_id": "c53cc16c-3925-4c48-947a-46acca4bfb02",
+      "upstream_sources": [
+        "Google Open Buildings"
+      ],
+      "distance_m": 39.45,
+      "centroid": [
+        90.348921,
+        23.2189767
+      ],
+      "footprint": [
+        [
+          90.3488545,
+          23.21902
+        ],
+        [
+          90.3489979,
+          23.2190011
+        ],
+        [
+          90.3489875,
+          23.2189333
+        ],
+        [
+          90.3488441,
+          23.2189522
+        ],
+        [
+          90.3488545,
+          23.21902
+        ]
+      ],
+      "floors": 3,
+      "height_m": 9.3,
+      "roof": "flat",
+      "display_name": null,
+      "identity_status": "UNNAMED_FOOTPRINT",
+      "height_floor_status": "ALL_FLOOR_AND_HEIGHT_VALUES_ARE_UNVERIFIED_AREA_CATEGORY_ESTIMATES",
+      "door_status": "NO_MAPPED_ENTRANCE_NODE"
+    }
+  ],
+  "source_evidence": {
+    "jago_news": {
+      "url": "https://www.jagonews24.com/country/news/805575",
+      "date": "2022-10-28",
+      "type": "press file photo",
+      "visible_clues": [
+        "Bangla Palong Model Thana identity sign",
+        "red-brick entry arch/gateway",
+        "building behind gateway with visible window rows",
+        "police vehicle and parked motorcycles in compound",
+        "tall palms beside entrance"
+      ],
+      "limits": "Single low-resolution view, no measured dimensions, no verified floors, not licensed as an in-game texture."
+    },
+    "prothom_alo": {
+      "url": "https://www.prothomalo.com/bangladesh/district/9dk8y7bpff",
+      "type": "press photo/caption",
+      "visible_clues": [
+        "Photo caption identifies Palong Model Thana, Shariatpur Sadar"
+      ],
+      "limits": "Does not give measured geometry or floor plan."
+    },
+    "official_police_context": {
+      "url": "https://police.shariatpur.gov.bd/pages/static-pages/6995cbaf35ce18e1c07a67b9",
+      "supports": "Describes a newly-built police officers' dormitory adjacent to Palong Model Thana and temporary district-police office operations there.",
+      "limits": "This is adjacent-dormitory context, not a design record for the mapped Thana building."
+    },
+    "pwd_candidate": {
+      "url": "https://ss.pwd.gov.bd/buildingdatabase/buildingbyid/7377",
+      "record": {
+        "code": "BARSHA0049",
+        "year": 2015,
+        "structure": "Masonry",
+        "floors": 2,
+        "plinth_area_sqft": 1097.92,
+        "title": "Police Department's Zorazirno Thana Building, Construction of Type Plan (2nd phase 95 of the Shariatpur Palang Sadar thana)"
+      },
+      "status": "CANDIDATE_ONLY_NOT_JOINED_TO_OSM_WAY_601571171"
+    },
+    "vymaps_historical_review": {
+      "url": "https://vymaps.com/BD/Palong-Model-Thana-136943/",
+      "source_type": "USER_GENERATED_PLACE_REVIEW",
+      "review_date": "2018-01-06",
+      "reported_claim": "At the time of the review, the station was described as two floors with third-floor construction underway.",
+      "confidence": "LOW_HISTORICAL_UNVERIFIED",
+      "limitation": "Historical anecdote; no measured dimensions, official verification, or guaranteed match to the 2026 OSM footprint."
+    }
+  },
+  "nearby_named_features": [
+    {
+      "name": "Palong Bazar",
+      "osm_node_id": 5759840117,
+      "latitude": 23.2200361,
+      "longitude": 90.3492603,
+      "distance_m": 159.9
+    },
+    {
+      "name": "National Bank Limited, Shariatpur",
+      "osm_node_id": 11890615507,
+      "latitude": 23.2182777,
+      "longitude": 90.3475347,
+      "distance_m": 125.9,
+      "warning": "Not Sonali Bank."
+    },
+    {
+      "name": "Sree Sree Shyam Sundar Jiu Palong Horishova Jila Central Temple",
+      "osm_way_id": 601571189,
+      "distance_m": 169.8
+    },
+    {
+      "name": "Shoulpara Monor Khar Khandi High School",
+      "osm_node_id": 11890607546,
+      "distance_m": 176.6
+    },
+    {
+      "name": "Shariatpur Main Road",
+      "osm_way_id": 607839191,
+      "road_class": "primary",
+      "distance_m": 216.6
+    },
+    {
+      "name": "Palong Bazar - Nirala Road",
+      "osm_way_id": 607853680,
+      "road_class": "residential",
+      "distance_m": 240.1
+    },
+    {
+      "name": "Darul Ahsan Cadet Madrasah, Shariatpur",
+      "osm_node_id": 11890600885,
+      "distance_m": 233.2
+    },
+    {
+      "name": "Bangladesh Safe Food Authority District Office",
+      "osm_node_id": 11890437816,
+      "distance_m": 287.8
+    }
+  ],
+  "sonali_bank_candidate": {
+    "name": "Sonali Bank PLC — Shariatpur Branch",
+    "official_branch_list": "https://www.sonalibank.com.bd/citizens_charter_br.php",
+    "secondary_address_record": "https://www.banksbd.org/sbl/shariatpur-branch-7355.html",
+    "published_address": "Shariatpur Sadar, Shariatpur",
+    "osm_feature_id": null,
+    "host_building_osm_id": null,
+    "source_tile_id": null,
+    "entrance": null,
+    "footprint_match_status": "UNMATCHED",
+    "warning": "Nearby OSM node 11890615507 is National Bank Limited, Shariatpur, not Sonali Bank. Never substitute it."
+  },
+  "production_gates": [
+    "Preserve the exact Thana OSM polygon and road topology.",
+    "Do not use 4 floors / 12 m as final dimensions; both come from an unverified area-category estimate.",
+    "Do not use the procedural longest-edge door as a real entrance; no mapped entrance node is linked.",
+    "Treat the Jago News photo as qualitative research for a gate/sign only; do not embed/copy it as a texture.",
+    "Resolve the PWD building record-to-footprint relationship before using its two-storey attribute.",
+    "Keep the nine nearby building names null until each business/building identity is independently joined.",
+    "Model and validate a single hero building at a time, then review the next candidate."
+  ],
+  "local_context_around_thana": {
+    "nearest_road_segments": [
+      {
+        "osm_way_id": 607853530,
+        "road_class": "residential",
+        "name": null,
+        "distance_from_thana_footprint_m": 4.8,
+        "tags": {
+          "highway": "residential"
+        },
+        "note": "Unnamed residential way; no width/surface/lanes tags present in this feature."
+      },
+      {
+        "osm_way_id": 1545306642,
+        "road_class": "service",
+        "name": null,
+        "distance_from_thana_footprint_m": 6.5,
+        "tags": {
+          "highway": "service"
+        },
+        "note": "Short service access way; no width/surface/lanes tags present."
+      },
+      {
+        "osm_way_id": 1225584409,
+        "road_class": "service",
+        "name": null,
+        "distance_from_thana_footprint_m": 16,
+        "tags": {
+          "highway": "service"
+        },
+        "note": "Short service connection; no width/surface/lanes tags present."
+      },
+      {
+        "osm_way_id": 607853679,
+        "road_class": "residential",
+        "name": "Kotowal Bari Road",
+        "distance_from_thana_footprint_m": 32.7,
+        "tags": {
+          "highway": "residential",
+          "name": "Kotowal Bari Road"
+        }
+      },
+      {
+        "osm_way_id": 607839191,
+        "road_class": "primary",
+        "name": "Shariatpur Main Road",
+        "distance_from_thana_footprint_m": 63.1,
+        "tags": {
+          "highway": "primary",
+          "name": "Shariatpur Main Road",
+          "ref": "R861",
+          "surface": "asphalt"
+        }
+      },
+      {
+        "osm_way_id": 607853531,
+        "road_class": "residential",
+        "name": null,
+        "distance_from_thana_footprint_m": 81.4,
+        "tags": {
+          "highway": "residential"
+        }
+      },
+      {
+        "osm_way_id": 607853680,
+        "road_class": "residential",
+        "name": "Palong Bazar - Nirala Road",
+        "distance_from_thana_footprint_m": 131.7,
+        "tags": {
+          "highway": "residential",
+          "name": "Palong Bazar - Nirala Road"
+        }
+      }
+    ],
+    "hydrography": {
+      "tile_water_polygon_count": 60,
+      "tile_waterway_segment_count": 3,
+      "nearest_ponds": [
+        {
+          "osm_way_id": 567299603,
+          "distance_from_thana_footprint_m": 488.4,
+          "tags": {
+            "natural": "water",
+            "water": "pond"
+          },
+          "centroid_estimate": [
+            90.35145,
+            23.21464
+          ]
+        },
+        {
+          "osm_way_id": 607853529,
+          "distance_from_thana_footprint_m": 489.1,
+          "tags": {
+            "natural": "water",
+            "water": "pond"
+          },
+          "centroid_estimate": [
+            90.3494,
+            23.21399
+          ]
+        }
+      ],
+      "note": "Distances are computed from the mapped Thana polygon to the mapped source water geometry. No pond is adjacent to the Thana footprint."
+    },
+    "vegetation": {
+      "tile_mapped_tree_node_count": 2,
+      "nearest_mapped_tree_nodes": [
+        {
+          "osm_node_id": 5461026154,
+          "longitude": 90.3473878,
+          "latitude": 23.2075874,
+          "distance_from_thana_footprint_m": 1233.5
+        },
+        {
+          "osm_node_id": 5461026155,
+          "longitude": 90.3475829,
+          "latitude": 23.2075276,
+          "distance_from_thana_footprint_m": 1238.3
+        }
+      ],
+      "tile_procedural_vegetation_tree_count": 145,
+      "source_method": "Bounded deterministic low-poly props generated from mapped forest/orchard/park/scrub/farm polygons; not individually surveyed trees.",
+      "tile_utility_pole_count": 0,
+      "tile_street_lamp_count": 0,
+      "note": "No mapped individual tree node is within 1.2 km of the Thana. Do not claim exact tree-by-tree inventory near this building."
+    },
+    "terrain": {
+      "tile_map_manifest_has_dem_or_terrain_layer": false,
+      "thana_seed_has_ground_elevation_m": false,
+      "verified_elevation_source": null,
+      "status": "NOT_VERIFIED_FROM_THIS_TILE",
+      "note": "The canonical tile manifest records a local equirectangular XY projection and water/land-use geometry, but has no DEM/elevation layer or per-building ground_elevation_m for this Thana seed. Do not treat the current ground as a surveyed terrain surface."
+    }
+  },
+  "local_imagery_coverage": {
+    "district_audit": {
+      "source": "KartaView",
+      "run_id": 44231084589,
+      "retrieved_date": "2026-11-18",
+      "bbox_south_west_north_east": [
+        23.003880881,
+        90.220512089,
+        23.45161361,
+        90.607763484
+      ],
+      "coverage_tiles_queried": 30,
+      "tiles_with_tracks": 1,
+      "matched_tracks": 1,
+      "photo_metadata_queries": 30,
+      "qualifying_360_photo_candidates": 0,
+      "local_track_match_status": "NOT_FOUND_IN_DISTRICT_SAMPLE",
+      "note": "The one track was in the far north-west of the audit box, not near Palong."
+    },
+    "focused_palong_audit": {
+      "status": "CONFIGURED_NOT_RUN",
+      "bbox_south_west_north_east": [
+        23.2135,
+        90.3435,
+        23.2235,
+        90.3535
+      ],
+      "zoom": 14,
+      "photo_grid": 3,
+      "photo_metadata_queries": 9,
+      "photo_radius_m": 500,
+      "maximum_requests": 30,
+      "workflow_commit": "58cfd10f238536715942153e6afd605ce6bdc311",
+      "note": "No result is claimed until a successful workflow artifact exists."
+    }
+  }
+}

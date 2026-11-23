@@ -4,6 +4,9 @@ run/main_scene="res://Boot.tscn"
 config/features=PackedStringArray("4.4", "Mobile")
 config/icon="res://icon.svg"
 
+[autoload]
+ContentDownloadManager="*res://systems/content_download_manager.gd"
+
 [display]
 window/size/viewport_width=1280
 window/size/viewport_height=720

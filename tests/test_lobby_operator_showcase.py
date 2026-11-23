@@ -63,7 +63,12 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn("[30, 60, 90, 120, 144, 0]", fps)
         self.assertIn("Mobile", settings)
 
-    def test_boot_has_animated_intro_local_guest_login_and_verified_map_handoff(self):
+    def test_boot_opens_the_lobby_before_optional_district_download(self):
+        boot_flow = function_block(self.boot, "_run_boot_sequence")
+        guest_handoff = function_block(self.boot, "_continue_as_guest")
+        launch = function_block(self.boot, "_launch_main_lobby")
+        project = read("project.godot")
+        manager = read("systems/content_download_manager.gd")
         for token in (
             "BOOT_SPLASH_DURATION_SECONDS",
             "func _run_boot_sequence()",
@@ -72,19 +77,58 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
             "CONTINUE AS GUEST",
             "ONLINE SIGN-IN IS NOT CONNECTED IN THIS BUILD",
             "user://a_square_guest_profile.json",
-            "_show_map_install_screen()",
             "WSB_AUTOSTART_MAP_FOR_SMOKE",
         ):
             self.assertIn(token, self.boot)
+        self.assertIn('call_deferred("_launch_main_lobby")', boot_flow)
+        self.assertIn("_launch_main_lobby()", guest_handoff)
+        self.assertNotIn("_show_map_install_screen()", boot_flow)
+        self.assertNotIn("_show_map_install_screen()", guest_handoff)
+        self.assertIn('change_scene_to_file("res://Main.tscn")', launch)
+        self.assertIn('[autoload]', project)
+        self.assertIn('ContentDownloadManager="*res://systems/content_download_manager.gd"', project)
+        self.assertIn("func get_shariatpur_state() -> Dictionary:", manager)
+        self.assertIn("func start_shariatpur_download() -> bool:", manager)
+        self.assertIn("_find_verified_resume_index()", manager)
+        self.assertIn("_verify_and_append_part()", manager)
+        self.assertIn("_verify_and_install_pack()", manager)
+        self.assertIn("expected_sha256", manager)
         self.assertIn("create_tween()", self.boot)
         self.assertIn('login_overlay.name = "LocalGuestLogin"', self.boot)
         self.assertIn("func _load_guest_identity() -> Dictionary:", self.boot)
-        self.assertIn("profile_type", self.boot)
         self.assertIn("func get_display_name() -> String:", self.profile)
         self.assertIn('profile.call("get_display_name")', self.hud)
-        # The existing split-PCK installer remains the verified map-entry route.
-        self.assertIn("func _verify_and_install_pack() -> bool:", self.boot)
-        self.assertIn("expected_sha256", self.boot)
+
+    def test_lobby_has_a_real_downloads_destination_and_resumable_map_action(self):
+        lobby = function_block(self.hud, "_build_lobby_ui")
+        pages = function_block(self.hud, "_show_lobby_page")
+        downloads = function_block(self.hud, "_build_downloads_page")
+        start = function_block(self.hud, "_start_shariatpur_download")
+        restart = function_block(self.hud, "_restart_to_apply_shariatpur")
+        self.assertIn('["DOWNLOADS", "downloads", "res://assets/ui/icons/downloads.svg"]', lobby)
+        self.assertIn('elif page == "downloads":', pages)
+        self.assertIn('ContentDownloadManager.get_shariatpur_state()', downloads)
+        self.assertIn('Callable(self, "_start_shariatpur_download")', downloads)
+        self.assertIn('Callable(self, "_restart_to_apply_shariatpur")', downloads)
+        self.assertIn('ContentDownloadManager.start_shariatpur_download()', start)
+        self.assertIn('ContentDownloadManager.refresh_shariatpur_info()', self.hud)
+        self.assertIn('VERIFIED PACKAGE SIZE', downloads)
+        self.assertIn('catalogue_checked', downloads)
+        self.assertIn('part_count', downloads)
+        self.assertIn('get_runtime_map_diagnostics', downloads)
+        self.assertIn('map_packs_mounted', downloads)
+        self.assertNotIn('w.get("real_dhaka_loaded") == true', downloads)
+        self.assertIn('change_scene_to_file("res://Main.tscn")', restart)
+        icon_path = ROOT / "assets" / "ui" / "icons" / "downloads.svg"
+        self.assertTrue(icon_path.is_file())
+        self.assertIn('viewBox="0 0 64 64"', icon_path.read_text(encoding="utf-8"))
+
+    def test_map_loader_waits_for_explicit_player_world_entry(self):
+        loader = read("real_dhaka_tile_loader.gd")
+        configure = function_block(loader, "configure")
+        self.assertIn("waiting for explicit map entry", configure)
+        self.assertIn("func start_map_streaming() -> void:", loader)
+        self.assertIn('call_deferred("start_map_streaming")', configure)
 
     def test_home_has_one_prominent_play_now_entry(self):
         home = function_block(self.hud, "_show_lobby_page")
@@ -93,6 +137,19 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('button.name = "FeaturedPlayNow"', featured)
         self.assertIn('button.pressed.connect(_show_lobby_page.bind("play"))', featured)
         self.assertIn('Vector2(0.0, 94.0)', featured)
+
+    def test_play_screen_uses_tiered_experience_cards_and_truthful_locked_modes(self):
+        pages = function_block(self.hud, "_show_lobby_page")
+        card = function_block(self.hud, "_lobby_add_experience_card")
+        self.assertIn('elif page == "play":', pages)
+        for title in ("JIBONJATRA", "DESHI STORIES", "CITY SANDBOX", "STREET LIFE", "LAST STAND", "COMBAT LAB", "STREET SKIRMISH", "SOLO DROP", "QUICK PLAY", "RANKED", "ZOMBIES"):
+            self.assertIn('"' + title + '"', pages)
+        self.assertIn('func _lobby_add_experience_grid() -> GridContainer:', self.hud)
+        self.assertIn('grid.columns = 2', self.hud)
+        self.assertIn('card.custom_minimum_size = Vector2(226.0 if compact else 0.0, 116.0 if compact else 126.0)', card)
+        self.assertIn('action.disabled = not available', card)
+        self.assertIn('action.text = "OPEN" if available else "LOCKED"', card)
+        self.assertIn('if available and callback.is_valid():', card)
 
     def test_primary_play_navigation_is_visually_prominent(self):
         lobby = function_block(self.hud, "_build_lobby_ui")
@@ -108,7 +165,7 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('button.toggle_mode = true', self.hud)
         self.assertIn('button.icon = load(String(item[2])) as Texture2D', lobby)
         self.assertIn('button.tooltip_text = String(item[0]).capitalize()', lobby)
-        for icon_name in ("home", "play", "loadout", "operator", "events", "store", "clan", "profile"):
+        for icon_name in ("home", "play", "downloads", "loadout", "operator", "events", "store", "clan", "profile"):
             self.assertIn(f'"res://assets/ui/icons/{icon_name}.svg"', lobby)
             icon_path = ROOT / "assets" / "ui" / "icons" / f"{icon_name}.svg"
             self.assertTrue(icon_path.is_file(), f"Missing lobby navigation icon: {icon_name}")
@@ -134,8 +191,12 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('TorusMesh.new()', self.showcase)
         self.assertIn('SpotLight3D.new()', self.showcase)
         self.assertIn('OmniLight3D.new()', self.showcase)
-        self.assertNotIn('load("res://', self.showcase)
-        self.assertNotIn('Texture2D', self.showcase)
+        self.assertIn("AUTHORED_COMMAND_HALL_PATH", self.showcase)
+        self.assertIn("ResourceLoader.exists(AUTHORED_COMMAND_HALL_PATH)", self.showcase)
+        self.assertIn("authored_pack.instantiate()", self.showcase)
+        self.assertIn("func _play_authored_stage_animation()", self.showcase)
+        self.assertIn("CylinderMesh.new()", self.showcase)  # procedural fallback remains
+        self.assertNotIn("Texture2D", self.showcase)
 
 
     def test_lobby_requests_authored_idle_choreography_without_assuming_every_rig_has_each_clip(self):
@@ -176,6 +237,31 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('requested_action.is_empty()', updater)
         self.assertIn('_authored_locomotion_tree.active = false', function_block(self.visual, "_play_authored_animation"))
 
+    def test_command_hangar_has_authored_backdrop_panels_and_cinematic_lighting(self):
+        for token in (
+            "CommandHangarFloor",
+            "HangarHeaderBeam",
+            "RearCommandWall",
+            "CommandDisplayGlass",
+            "TelemetryPanel_",
+            "VerticalHangarHalo",
+            "WarmOperatorRim",
+            "TelemetryScan",
+            "RegionalMarkerGreen",
+            "RegionalMarkerRed",
+        ):
+            self.assertIn(token, self.showcase)
+        self.assertIn('_stage_timeline.name = "LobbyArtDirectionTimeline"', self.showcase)
+        self.assertIn('animation.loop_mode = Animation.LOOP_LINEAR', self.showcase)
+        self.assertIn('Animation.INTERPOLATION_CUBIC', self.showcase)
+        self.assertIn('track_insert_key(track_index, keyframe.x, keyframe.y)', self.showcase)
+        self.assertIn('_stage_timeline.play("lobby/PresentationIdle")', self.showcase)
+        self.assertIn('_camera_timeline.name = "LobbyCameraDirector"', self.showcase)
+        self.assertIn('_camera_timeline.root_node = NodePath("../../../Player")', self.showcase)
+        self.assertIn('NodePath("camera_yaw")', self.showcase)
+        self.assertIn('_camera_timeline.play("lobby/CameraHeroSweep")', self.showcase)
+        self.assertIn("LOBBY_IDLE_ACTION_INTERVAL_SECONDS := 11.5", self.showcase)
+
     def test_showcase_and_player_visual_continue_while_tree_is_paused(self):
         self.assertIn('process_mode = Node.PROCESS_MODE_ALWAYS', self.showcase)
         self.assertIn('func _process(delta: float)', self.showcase)
@@ -203,6 +289,43 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('lobby_showcase.call("set_enabled", true)', function_block(self.hud, "_check_combat_result"))
         self.assertIn('lobby_showcase.call("set_enabled", false)', function_block(self.hud, "_complete_enter_selected_mode"))
         self.assertIn('lobby_showcase.call("set_enabled", false)', function_block(self.hud, "_replay_combat_round"))
+
+
+    def test_blender_authored_hall_plays_animation_with_mobile_safe_lighting(self):
+        stage = function_block(self.showcase, "_try_build_authored_command_hall")
+        animator = function_block(self.showcase, "_play_authored_stage_animation")
+        lights = function_block(self.showcase, "_build_authored_stage_lighting")
+        self.assertIn("AUTHORED_COMMAND_HALL_PATH", stage)
+        self.assertIn('find_child("ANIM | Operator halo outer"', stage)
+        self.assertIn("authored_player.play(selected_name)", animator)
+        self.assertIn("Animation.LOOP_LINEAR", animator)
+        self.assertIn("_key_light.shadow_enabled = false", lights)
+        self.assertIn("_fill_light.shadow_enabled = false", lights)
+        self.assertIn("_rim_light.shadow_enabled = false", lights)
+
+
+    def test_home_landing_uses_a_featured_deployment_and_experience_card_hierarchy(self):
+        page = function_block(self.hud, "_show_lobby_page")
+        home_start = page.index('if page == "home":')
+        play_start = page.index('elif page == "play":', home_start)
+        home = page[home_start:play_start]
+        self.assertIn('_lobby_add_featured_play()', home)
+        self.assertIn('var world_grid := _lobby_add_experience_grid()', home)
+        self.assertIn('"JIBONJATRA"', home)
+        self.assertIn('"DESHI STORIES"', home)
+        self.assertIn('"CITY SANDBOX"', home)
+        self.assertIn('"COMBAT LAB"', home)
+        self.assertIn('"WORLD INTELLIGENCE"', home)
+        self.assertIn('"No real-player server is connected', home)
+        self.assertNotIn('_lobby_add_action("SHARIATPUR WORLD"', home)
+
+    def test_lobby_page_sections_reveal_with_a_staggered_cinematic_fade(self):
+        page = function_block(self.hud, "_show_lobby_page")
+        reveal = function_block(self.hud, "_animate_lobby_page_reveal")
+        self.assertIn("_animate_lobby_page_reveal()", page)
+        self.assertIn('item.modulate.a = 0.0', reveal)
+        self.assertIn('tween_property(item, "modulate:a", 1.0, 0.18)', reveal)
+        self.assertIn('set_delay(minf(float(index) * 0.028, 0.22))', reveal)
 
 
 if __name__ == "__main__":

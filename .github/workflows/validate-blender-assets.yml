@@ -12,15 +12,52 @@ on:
       - "tools/install_blender_ci.sh"
       - "tests/test_blender_ci_toolchain.py"
       - "tests/test_battle_royale_parachute_artifact.py"
+      - "tools/make_shariatpur_frontage_textures.py"
+      - "tools/build_shariatpur_riverfront_shophouse.py"
+      - "tools/verify_shariatpur_streetfront.py"
+      - "tools/blender/**"
+      - "tools/verify_cinematic_art_apk.py"
+      - "systems/login_backdrop.gd"
+      - "systems/lobby_showcase.gd"
+      - "tests/test_login_backdrop.py"
+      - "tests/test_lobby_operator_showcase.py"
+      - "tests/test_cinematic_art_assets.py"
+      - "tests/cinematic_art_runtime_smoke.gd"
+      - "tools/blender/**"
+      - "tools/verify_cinematic_art_apk.py"
+      - "systems/login_backdrop.gd"
+      - "systems/lobby_showcase.gd"
+      - "tests/test_login_backdrop.py"
+      - "tests/test_lobby_operator_showcase.py"
+      - "tests/test_cinematic_art_assets.py"
+      - "tests/cinematic_art_runtime_smoke.gd"
+      - "tests/test_shariatpur_streetfront.py"
+      - "tools/make_palong_bazaar_textures.py"
+      - "tools/blender/build_palong_bazaar_environment.py"
+      - "tools/verify_palong_bazaar_environment.py"
+      - "tools/fetch_polyhaven_pbr_materials.py"
+      - "tests/test_polyhaven_material_fetcher.py"
+      - "tests/test_palong_bazaar_environment.py"
       - ".github/workflows/validate-blender-assets.yml"
   pull_request:
     branches:
       - main
+      - feature/lobby-operator-showcase
     paths:
       - "tools/build_battle_royale_parachute.py"
       - "tools/smoke_battle_royale_parachute_blender_api.py"
       - "tools/verify_battle_royale_parachute.py"
       - "tests/test_battle_royale_parachute_artifact.py"
+      - "tools/make_shariatpur_frontage_textures.py"
+      - "tools/build_shariatpur_riverfront_shophouse.py"
+      - "tools/verify_shariatpur_streetfront.py"
+      - "tests/test_shariatpur_streetfront.py"
+      - "tools/make_palong_bazaar_textures.py"
+      - "tools/blender/build_palong_bazaar_environment.py"
+      - "tools/verify_palong_bazaar_environment.py"
+      - "tools/fetch_polyhaven_pbr_materials.py"
+      - "tests/test_polyhaven_material_fetcher.py"
+      - "tests/test_palong_bazaar_environment.py"
       - ".github/workflows/validate-blender-assets.yml"
 
 permissions:
@@ -33,7 +70,7 @@ concurrency:
 jobs:
   validate-parachute:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - name: Checkout project
         uses: actions/checkout@v5
@@ -49,12 +86,16 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y curl xz-utils python3-numpy
+          sudo apt-get install -y curl xz-utils python3-numpy python3-pil fontconfig fonts-noto-core
+          # Noto Sans Bengali is used to bake the original shop lettering into the 3D mesh.
           source tools/install_blender_ci.sh
           blender --version
 
       - name: Test pinned Blender CI toolchain
         run: python3 -m unittest discover -s tests -p "test_blender_ci_toolchain.py" -v
+
+      - name: Unit-test Poly Haven PBR map selection and checksum validation
+        run: python3 -m unittest discover -s tests -p "test_polyhaven_material_fetcher.py" -v
 
       - name: Compile authoring and verification scripts
         shell: bash
@@ -63,7 +104,16 @@ jobs:
           python3 -m py_compile \
             tools/build_battle_royale_parachute.py \
             tools/smoke_battle_royale_parachute_blender_api.py \
-            tools/verify_battle_royale_parachute.py
+            tools/verify_battle_royale_parachute.py \
+            tools/make_shariatpur_frontage_textures.py \
+            tools/verify_shariatpur_streetfront.py \
+            tools/build_shariatpur_riverfront_shophouse.py \
+            tools/make_palong_bazaar_textures.py \
+            tools/blender/build_palong_bazaar_environment.py \
+            tools/verify_palong_bazaar_environment.py \
+            tools/fetch_polyhaven_pbr_materials.py \
+            tests/test_polyhaven_material_fetcher.py \
+            tests/test_palong_bazaar_environment.py
 
       - name: Smoke-test Blender Action slots, F-curves, easing and cycle modifiers
         shell: bash
@@ -89,4 +139,214 @@ jobs:
             --license "${OUT_DIR}/LICENSE.txt" \
             --out "${OUT_DIR}/verification.json"
           python3 -m json.tool "${OUT_DIR}/asset_manifest.json" > /dev/null
-          python3 -m unittest discover -s tests -p "test_battle_royale_parachute_artifact.py" -v
+          python3 -m unittest discover -s tests -p "test_battle_royale_parachute_artifact.py" -v 
+      - name: Generate original 2K PBR textures for the Shariatpur streetfront
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/shariatpur-streetfront"
+          TEXTURE_DIR="${OUT_DIR}/textures"
+          python3 tools/make_shariatpur_frontage_textures.py --out "${TEXTURE_DIR}" --size 2048
+          python3 -m json.tool "${TEXTURE_DIR}/texture_manifest.json" > /dev/null
+
+      - name: Author the Shariatpur river-town shopfront in Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/shariatpur-streetfront"
+          mkdir -p "${OUT_DIR}"
+          if ! blender --background --factory-startup \
+            --python tools/build_shariatpur_riverfront_shophouse.py -- \
+            --out "${OUT_DIR}/shariatpur_riverfront_shophouse_hero.glb" \
+            --textures "${OUT_DIR}/textures" \
+            --preview "${OUT_DIR}/streetfront_preview.png" \
+            --interior-preview "${OUT_DIR}/streetfront_interior_preview.png" \
+            > "${OUT_DIR}/authoring.log" 2>&1; then
+            cat "${OUT_DIR}/authoring.log"
+            exit 1
+          fi
+          cat "${OUT_DIR}/authoring.log"
+          grep -Fq "A2_SHARIATPUR_STREETFRONT_READY:" "${OUT_DIR}/authoring.log"
+
+      - name: Verify embedded PBR maps, mesh, dimensions, licence and preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/shariatpur-streetfront"
+          python3 tools/verify_shariatpur_streetfront.py \
+            --glb "${OUT_DIR}/shariatpur_riverfront_shophouse_hero.glb" \
+            --manifest "${OUT_DIR}/asset_manifest.json" \
+            --license "${OUT_DIR}/LICENSE.txt" \
+            --preview "${OUT_DIR}/streetfront_preview.png" \
+            --interior-preview "${OUT_DIR}/streetfront_interior_preview.png" \
+            --out "${OUT_DIR}/streetfront_verification.json"
+          python3 -m unittest discover -s tests -p "test_shariatpur_streetfront.py" -v
+
+      - name: Generate original PBR surfaces and shaped Bengali signs for Palong Bazar
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/palong-bazaar"
+          mkdir -p "${OUT_DIR}"
+          python3 tools/make_palong_bazaar_textures.py --out "${OUT_DIR}/textures" --size 2048 > "${OUT_DIR}/texture-generation.log" 2>&1
+          cat "${OUT_DIR}/texture-generation.log"
+          grep -Fq "A2_PALONG_TEXTURES_READY:" "${OUT_DIR}/texture-generation.log"
+          python3 -m json.tool "${OUT_DIR}/textures/texture_manifest.json" > /dev/null
+          python3 tools/fetch_polyhaven_pbr_materials.py --out "${OUT_DIR}/textures" --resolution 2k > "${OUT_DIR}/polyhaven-download.log" 2>&1
+          cat "${OUT_DIR}/polyhaven-download.log"
+          grep -Fq "A2_POLYHAVEN_PBR_READY:" "${OUT_DIR}/polyhaven-download.log"
+          cat >> "${OUT_DIR}/textures/LICENSE.txt" <<'CREDITS'
+
+Photographic PBR surface scans: Poly Haven (CC0).
+Required provider credit: Powered by Poly Haven.
+Source metadata and downloaded map checksums: polyhaven_material_manifest.json.
+CREDITS
+
+      - name: Author the Palong Bazar market corridor in Blender 5.2.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/palong-bazaar"
+          mkdir -p "${OUT_DIR}"
+          if ! blender --background --factory-startup \
+            --python tools/blender/build_palong_bazaar_environment.py -- \
+            --out "${OUT_DIR}/palong_bazaar_market_corridor.glb" \
+            --textures "${OUT_DIR}/textures" \
+            --preview "${OUT_DIR}/palong_bazaar_preview.png" \
+            --blend "${OUT_DIR}/palong_bazaar_environment.blend" \
+            --manifest "${OUT_DIR}/asset_manifest.json" \
+            > "${OUT_DIR}/authoring.log" 2>&1; then
+            cat "${OUT_DIR}/authoring.log"
+            exit 1
+          fi
+          cat "${OUT_DIR}/authoring.log"
+          grep -Fq "A2_PALONG_BAZAAR_READY:" "${OUT_DIR}/authoring.log"
+          cp "${OUT_DIR}/textures/LICENSE.txt" "${OUT_DIR}/LICENSE.txt"
+          python3 tools/verify_palong_bazaar_environment.py \
+            --glb "${OUT_DIR}/palong_bazaar_market_corridor.glb" \
+            --manifest "${OUT_DIR}/asset_manifest.json" \
+            --license "${OUT_DIR}/LICENSE.txt" \
+            --preview "${OUT_DIR}/palong_bazaar_preview.png" \
+            --out "${OUT_DIR}/verification.json"
+          A2_PALONG_BAZAAR_OUTPUT="${OUT_DIR}" python3 -m unittest discover -s tests -p "test_palong_bazaar_environment.py" -v
+
+      - name: Upload Palong Bazar authoring diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Palong-Bazar-Authoring-Diagnostics
+          path: build/palong-bazaar/authoring.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload Palong Bazar market corridor art review package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Palong-Bazaar-Market-Corridor-Study
+          path: |
+            build/palong-bazaar/palong_bazaar_market_corridor.glb
+            build/palong-bazaar/asset_manifest.json
+            build/palong-bazaar/textures/polyhaven_material_manifest.json
+            build/palong-bazaar/LICENSE.txt
+            build/palong-bazaar/palong_bazaar_preview.png
+            build/palong-bazaar/palong_bazaar_environment.blend
+            build/palong-bazaar/verification.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Shariatpur authoring diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Shariatpur-Authoring-Diagnostics
+          path: build/shariatpur-streetfront/authoring.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Author and verify the Blender command hall for the mobile lobby
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/asquare_lobby"
+          mkdir -p "$OUT_DIR" assets/login assets/lobby
+          cp build/shariatpur-streetfront/shariatpur_riverfront_shophouse_hero.glb assets/login/
+          blender --background --factory-startup \
+            --python tools/blender/build_asquare_lobby_scene.py -- \
+            --out "$OUT_DIR/asquare_command_hall.glb" \
+            --preview "$OUT_DIR/command_hall_preview.png" \
+            --blend "$OUT_DIR/asquare_command_hall.blend" \
+            > "$OUT_DIR/authoring.log" 2>&1
+          cat "$OUT_DIR/authoring.log"
+          grep -Fq "A2_LOBBY_STAGE_READY:" "$OUT_DIR/authoring.log"
+          python3 tools/blender/verify_asquare_lobby_scene.py \
+            --glb "$OUT_DIR/asquare_command_hall.glb" \
+            --out "$OUT_DIR/verification.json"
+          cp "$OUT_DIR/asquare_command_hall.glb" assets/lobby/
+          python3 -m unittest discover -s tests -p "test_cinematic_art_assets.py" -v
+
+      - name: Import both cinematic GLBs with Godot 4.4.1 and exercise runtime mounting
+        shell: bash
+        env:
+          GODOT_SILENCE_ROOT_WARNING: "1"
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/asquare_lobby"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.4.1"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 \
+            "https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip" \
+            -o "$GODOT_DIR/godot.zip"
+          unzip -q "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
+          GODOT="$GODOT_DIR/Godot_v4.4.1-stable_linux.x86_64"
+          chmod +x "$GODOT"
+          timeout 600s "$GODOT" --headless --editor --path . --import --quit > "$OUT_DIR/godot-import.log" 2>&1
+          cat "$OUT_DIR/godot-import.log"
+          if grep -E "SCRIPT ERROR:|Parse Error|Failed to load script|Failed loading resource" "$OUT_DIR/godot-import.log"; then
+            echo "Godot reported a script, parse or missing-resource error while importing cinematic GLBs."
+            exit 1
+          fi
+          if grep -E "ERROR:" "$OUT_DIR/godot-import.log" | grep -vF 'ERROR: Parameter "t" is null.'; then
+            echo "Godot reported an unexpected cinematic GLB import error."
+            exit 1
+          fi
+          timeout 180s "$GODOT" --headless --path . --script res://tests/cinematic_art_runtime_smoke.gd
+
+      - name: Upload Shariatpur streetfront art review package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Shariatpur-Riverfront-Shopfront
+          path: |
+            build/shariatpur-streetfront/shariatpur_riverfront_shophouse_hero.glb
+            build/shariatpur-streetfront/asset_manifest.json
+            build/shariatpur-streetfront/LICENSE.txt
+            build/shariatpur-streetfront/streetfront_preview.png
+            build/shariatpur-streetfront/streetfront_interior_preview.png
+            build/shariatpur-streetfront/streetfront_verification.json
+            build/shariatpur-streetfront/authoring.log
+          retention-days: 30
+
+
+      - name: Upload integrated A-Square cinematic-art review package
+        uses: actions/upload-artifact@v4
+        with:
+          name: A-Square-Cinematic-Art-Review
+          path: |
+            build/shariatpur-streetfront/shariatpur_riverfront_shophouse_hero.glb
+            build/shariatpur-streetfront/asset_manifest.json
+            build/shariatpur-streetfront/LICENSE.txt
+            build/shariatpur-streetfront/streetfront_preview.png
+            build/shariatpur-streetfront/streetfront_interior_preview.png
+            build/shariatpur-streetfront/streetfront_verification.json
+            build/palong-bazaar/palong_bazaar_market_corridor.glb
+            build/palong-bazaar/asset_manifest.json
+            build/palong-bazaar/textures/polyhaven_material_manifest.json
+            build/palong-bazaar/LICENSE.txt
+            build/palong-bazaar/palong_bazaar_preview.png
+            build/palong-bazaar/palong_bazaar_environment.blend
+            build/palong-bazaar/verification.json
+            build/asquare_lobby/asquare_command_hall.glb
+            build/asquare_lobby/asquare_command_hall.blend
+            build/asquare_lobby/command_hall_preview.png
+            build/asquare_lobby/verification.json
+            build/asquare_lobby/godot-import.log
+          retention-days: 21

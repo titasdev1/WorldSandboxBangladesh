@@ -13,6 +13,13 @@ const GAME_ORIGIN_LON := 90.4125
 const STREAM_INTERVAL := 0.5
 # Cap large GLB imports per stream tick to avoid multi-tile mobile frame hitches.
 const MAX_TILE_LOADS_PER_STREAM_TICK := 1
+# When a player is travelling quickly, queue one future tile along the current
+# velocity vector so the next road segment can be ready before arrival.
+const PREDICTIVE_PREFETCH_MIN_SPEED_MPS := 11.0
+const PREDICTIVE_PREFETCH_LOOKAHEAD_SECONDS := 8.0
+const PREDICTIVE_PREFETCH_MAX_LOOKAHEAD_M := 1800.0
+const PREDICTIVE_PREFETCH_CAPTURE_RADIUS_M := 1450.0
+const PREDICTIVE_PREFETCH_MAX_LATERAL_M := 1100.0
 # Keep many more real doors available near the player without creating distant nodes
 # across every loaded tile. Anchors are refreshed as the player moves through a block.
 const MAX_INTERIOR_ANCHORS_PER_TILE := 256
@@ -1319,13 +1326,69 @@ func _geo_to_world(lat: float, lon: float) -> Vector3:
 	var northing := deg_to_rad(lat - _manifest_origin_lat) * EARTH_RADIUS_M
 	return Vector3(x, 0.0, -northing)
 
+func _find_predictive_prefetch_record(player_position: Vector3) -> Dictionary:
+	if not is_instance_valid(_world):
+		return {}
+	var player := _world.get("player") as CharacterBody3D
+	var movement_source: CharacterBody3D = player
+	# While driving, the operator can remain seated and stationary relative to the
+	# vehicle. Use the actual vehicle velocity so high-speed roads prefetch ahead.
+	var occupied_vehicle := _world.get("occupied_vehicle") as CharacterBody3D
+	if is_instance_valid(occupied_vehicle) and occupied_vehicle.get("occupied") == true:
+		movement_source = occupied_vehicle
+	if not is_instance_valid(movement_source):
+		return {}
+	var flat_velocity := Vector2(movement_source.velocity.x, movement_source.velocity.z)
+	var speed := flat_velocity.length()
+	if speed < PREDICTIVE_PREFETCH_MIN_SPEED_MPS:
+		return {}
+	var forward := flat_velocity / speed
+	var lookahead := minf(speed * PREDICTIVE_PREFETCH_LOOKAHEAD_SECONDS, PREDICTIVE_PREFETCH_MAX_LOOKAHEAD_M)
+	var predicted_position := Vector2(player_position.x, player_position.z) + forward * lookahead
+	var best_record: Dictionary = {}
+	var best_score := INF
+	for record in _records:
+		var tile_key := str(record.get("tile_id", ""))
+		if tile_key.is_empty() or _loaded.has(tile_key) or _pending_tile_loads.has(tile_key) or _activating_tiles.has(tile_key):
+			continue
+		var tile_position: Vector3 = record.get("world_position", Vector3.ZERO)
+		var offset := Vector2(tile_position.x - player_position.x, tile_position.z - player_position.z)
+		var forward_distance := offset.dot(forward)
+		if forward_distance <= maxf(80.0, speed * 2.0):
+			continue
+		var lateral_distance := absf(forward.x * offset.y - forward.y * offset.x)
+		if lateral_distance > PREDICTIVE_PREFETCH_MAX_LATERAL_M:
+			continue
+		var predicted_distance := Vector2(tile_position.x, tile_position.z).distance_to(predicted_position)
+		if predicted_distance > PREDICTIVE_PREFETCH_CAPTURE_RADIUS_M:
+			continue
+		# Prefer tiles near the predicted arrival point and close to the current
+		# travel corridor; avoid a side-street tile when the player is on a fast road.
+		var score := predicted_distance + lateral_distance * 0.35
+		if score < best_score:
+			best_score = score
+			best_record = record
+	if not best_record.is_empty():
+		print("REAL_MAP_PREDICTIVE_PREFETCH: tile=", str(best_record.get("tile_id", "")), " mover=", movement_source.name, " speed_mps=", snappedf(speed, 0.1), " lookahead_m=", snappedf(lookahead, 1.0))
+	return best_record
+
+
 func _stream_tiles(player_position: Vector3) -> void:
 	var desired: Dictionary = {}
+	var predictive_prefetch_key := ""
 	for record in _records:
 		var tile_position: Vector3 = record["world_position"]
 		var distance := Vector2(player_position.x - tile_position.x, player_position.z - tile_position.z).length()
 		if distance <= _load_radius_m:
 			desired[str(record["tile_id"])] = record
+	# Add at most one extra tile ahead of a fast-moving player. The player and
+	# current neighbourhood remain the default; this only reorders one likely
+	# next tile and never activates multiple GLBs in parallel.
+	var predictive_record := _find_predictive_prefetch_record(player_position)
+	if not predictive_record.is_empty():
+		predictive_prefetch_key = str(predictive_record.get("tile_id", ""))
+		if not predictive_prefetch_key.is_empty():
+			desired[predictive_prefetch_key] = predictive_record
 	# Never silently accept an origin outside the radius of every emitted tile.
 	if desired.is_empty() and not _records.is_empty():
 		var nearest_record: Dictionary = _records[0]
@@ -1368,6 +1431,11 @@ func _stream_tiles(player_position: Vector3) -> void:
 		if not _loaded.has(tile_key) and not _pending_tile_loads.has(tile_key) and not _activating_tiles.has(tile_key):
 			pending_keys.append(tile_key)
 	pending_keys.sort_custom(func(a: String, b: String) -> bool:
+		if not predictive_prefetch_key.is_empty():
+			if a == predictive_prefetch_key and b != predictive_prefetch_key:
+				return true
+			if b == predictive_prefetch_key and a != predictive_prefetch_key:
+				return false
 		var a_record: Dictionary = desired[a]
 		var b_record: Dictionary = desired[b]
 		var a_position: Vector3 = a_record["world_position"]
@@ -1441,6 +1509,26 @@ func _configure_streaming_radius(tile_degrees: float) -> void:
 	_load_radius_m = maxf(DEFAULT_LOAD_RADIUS_M, half_diagonal + 900.0)
 	_unload_radius_m = maxf(DEFAULT_UNLOAD_RADIUS_M, _load_radius_m + maxf(700.0, tile_degrees * 100000.0 * 0.12))
 
+func _normalize_osm_id(value: Variant) -> String:
+	if value is int:
+		return str(value)
+	if value is float:
+		var numeric_id := float(value)
+		var rounded_id := roundi(numeric_id)
+		if absf(numeric_id - float(rounded_id)) < 0.001:
+			return str(rounded_id)
+	return str(value)
+
+
+func _normalize_seed_osm_ids(seeds: Array) -> void:
+	for index in range(seeds.size()):
+		if seeds[index] is Dictionary:
+			var seed: Dictionary = seeds[index]
+			if seed.has("osm_id"):
+				seed["osm_id"] = _normalize_osm_id(seed["osm_id"])
+				seeds[index] = seed
+
+
 func _load_interior_anchors(record: Dictionary, player_position: Vector3) -> Array[Node3D]:
 	var anchors: Array[Node3D] = []
 	var seeds: Array = record.get("interior_seed_records", [])
@@ -1460,14 +1548,57 @@ func _load_interior_anchors(record: Dictionary, player_position: Vector3) -> Arr
 				seeds.append(seed)
 		record["interior_seed_records"] = seeds
 
+	_normalize_seed_osm_ids(seeds)
+	record["interior_seed_records"] = seeds
 	var tile_position: Vector3 = record.get("world_position", Vector3.ZERO)
 	var tile_id := str(record.get("tile_id", "tile"))
+	var expected_osm_id := OS.get_environment("WSB_EXPECT_INTERIOR_OSM_ID").strip_edges()
+	var expected_seed_match_count := 0
+	for seed_variant in seeds:
+		if seed_variant is Dictionary and _normalize_osm_id(seed_variant.get("osm_id", "")) == expected_osm_id:
+			expected_seed_match_count += 1
+	print("A2_SHARIATPUR_SEED_SOURCE_DIAGNOSTIC:" + JSON.stringify({
+		"expected_osm_id": expected_osm_id,
+		"tile_id": tile_id,
+		"seed_count": seeds.size(),
+		"expected_seed_match_count": expected_seed_match_count,
+		"record_seed_path": str(record.get("interior_seeds", "")),
+		"map_root": MAP_ROOT,
+		"record_keys": record.keys()
+	}))
 	var nearby: Array[Dictionary] = []
+	var expected_seed_found := false
+	var expected_seed_distance := INF
 	for seed in seeds:
 		var typed_seed: Dictionary = seed
-		if _interior_seed_distance(typed_seed, tile_position, player_position) <= INTERIOR_ANCHOR_RADIUS_M:
+		var seed_distance := _interior_seed_distance(typed_seed, tile_position, player_position)
+		if not expected_osm_id.is_empty() and _normalize_osm_id(typed_seed.get("osm_id", "")) == expected_osm_id:
+			expected_seed_found = true
+			expected_seed_distance = seed_distance
+			print("A2_SHARIATPUR_EXPECTED_SEED_FOUND:" + JSON.stringify({
+				"osm_id": expected_osm_id,
+				"tile_id": tile_id,
+				"distance_to_player_m": roundf(seed_distance * 100.0) / 100.0,
+				"anchor_local_m": typed_seed.get("anchor_local_m", []),
+				"footprint_local_m": typed_seed.get("footprint_local_m", []),
+				"door_placement_source": str(typed_seed.get("door_placement_source", ""))
+			}))
+		if seed_distance <= INTERIOR_ANCHOR_RADIUS_M:
 			nearby.append(typed_seed)
+	if not expected_osm_id.is_empty() and not expected_seed_found:
+		print("A2_SHARIATPUR_EXPECTED_SEED_NOT_IN_TILE: " + expected_osm_id)
+	elif not expected_osm_id.is_empty() and expected_seed_distance > INTERIOR_ANCHOR_RADIUS_M:
+		print("A2_SHARIATPUR_EXPECTED_SEED_OUTSIDE_ANCHOR_RADIUS: " + expected_osm_id)
+
 	nearby.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		# In the explicit CI smoke only, keep the selected source-backed OSM
+		# target ahead of other nearby anchors. Shipping gameplay leaves this
+		# environment variable unset and retains normal distance/priority order.
+		if not expected_osm_id.is_empty():
+			var a_expected := _normalize_osm_id(a.get("osm_id", "")) == expected_osm_id
+			var b_expected := _normalize_osm_id(b.get("osm_id", "")) == expected_osm_id
+			if a_expected != b_expected:
+				return a_expected
 		var distance_a := _interior_seed_distance(a, tile_position, player_position)
 		var distance_b := _interior_seed_distance(b, tile_position, player_position)
 		if absf(distance_a - distance_b) <= 2.0:
@@ -1475,10 +1606,11 @@ func _load_interior_anchors(record: Dictionary, player_position: Vector3) -> Arr
 		return distance_a < distance_b
 	)
 	var road_routes := _get_nearby_road_routes(player_position)
-	for seed in nearby.slice(0, mini(MAX_INTERIOR_ANCHORS_PER_TILE, nearby.size())):
+	var max_anchor_count := mini(MAX_INTERIOR_ANCHORS_PER_TILE, nearby.size())
+	for seed in nearby.slice(0, max_anchor_count):
 		var placement := _interior_anchor_placement(seed, tile_position, road_routes)
 		var anchor := Node3D.new()
-		anchor.name = "InteriorAnchor_" + str(seed.get("osm_id", anchors.size()))
+		anchor.name = "InteriorAnchor_" + _normalize_osm_id(seed.get("osm_id", anchors.size()))
 		anchor.position = placement["position"]
 		anchor.add_to_group("real_building_entry")
 		anchor.set_meta("interior_seed", seed.duplicate(true))
@@ -1491,11 +1623,23 @@ func _load_interior_anchors(record: Dictionary, player_position: Vector3) -> Arr
 		_add_entry_door(anchor, seed)
 		_add_mapped_exterior_sign(anchor, seed)
 		anchors.append(anchor)
+		if not expected_osm_id.is_empty() and _normalize_osm_id(seed.get("osm_id", "")) == expected_osm_id:
+			print("A2_SHARIATPUR_BUILDING_ENTRY_ANCHOR_READY:" + JSON.stringify({
+				"osm_id": expected_osm_id,
+				"tile_id": tile_id,
+				"door_placement_source": str(seed.get("door_placement_source", "")),
+				"door_leaf_created": is_instance_valid(anchor.get_node_or_null("DoorHinge")),
+				"ground_elevation_m": float(seed.get("ground_elevation_m", 0.0)),
+				"anchor_world_position": [anchor.global_position.x, anchor.global_position.y, anchor.global_position.z]
+			}))
 		if anchors.size() % 16 == 0:
 			await get_tree().process_frame
+	if not expected_osm_id.is_empty() and not anchors.any(func(anchor: Node3D) -> bool:
+		return _normalize_osm_id(anchor.get_meta("interior_seed", {}).get("osm_id", "")) == expected_osm_id
+	):
+		print("A2_SHARIATPUR_EXPECTED_SEED_NOT_ANCHORED:" + expected_osm_id)
 	record["interior_anchor_center"] = player_position
 	return anchors
-
 
 
 func _add_entry_door(anchor: Node3D, seed: Dictionary) -> void:
@@ -1553,7 +1697,7 @@ func _add_mapped_exterior_sign(anchor: Node3D, seed: Dictionary) -> void:
 
 	var sign_width := clampf(float(sign_text.length()) * 0.31, 1.5, 4.6)
 	var sign_root := Node3D.new()
-	sign_root.name = "MappedExteriorSign_" + str(seed.get("osm_id", "building"))
+	sign_root.name = "MappedExteriorSign_" + _normalize_osm_id(seed.get("osm_id", "building"))
 	sign_root.position = Vector3(0.0, 2.55, -1.18)
 	anchor.add_child(sign_root)
 
@@ -1643,6 +1787,7 @@ func _interior_anchor_placement(seed: Dictionary, tile_position: Vector3, road_r
 	# New map batches export a door location from the same footprint geometry used
 	# by the visible facade door. Prefer it over the legacy nearest-vertex guess so
 	# the interact point appears outside that building's actual rendered entrance.
+	var ground_y := float(seed.get("ground_elevation_m", 0.0))
 	var door_anchor: Array = seed.get("door_anchor_local_m", [])
 	var door_outward: Array = seed.get("door_outward_xy", [])
 	if door_anchor.size() >= 2 and door_outward.size() >= 2:
@@ -1651,7 +1796,7 @@ func _interior_anchor_placement(seed: Dictionary, tile_position: Vector3, road_r
 			var approach_distance := 1.25
 			var local_position := Vector2(float(door_anchor[0]), float(door_anchor[1])) + outward_xy * approach_distance
 			return {
-				"position": tile_position + Vector3(local_position.x, 0.15, -local_position.y),
+				"position": tile_position + Vector3(local_position.x, ground_y + 0.15, -local_position.y),
 				"direction": Vector3(outward_xy.x, 0.0, -outward_xy.y).normalized(),
 			}
 	var footprint: Array = seed.get("footprint_local_m", [])
@@ -1680,13 +1825,13 @@ func _interior_anchor_placement(seed: Dictionary, tile_position: Vector3, road_r
 				outward = Vector2(0, -1)
 			var local_anchor := best_vertex + outward * 1.8
 			return {
-				"position": tile_position + Vector3(local_anchor.x, 0.15, -local_anchor.y),
+				"position": tile_position + Vector3(local_anchor.x, ground_y + 0.15, -local_anchor.y),
 				"direction": Vector3(outward.x, 0.0, -outward.y).normalized(),
 			}
 	var local_point: Array = seed.get("anchor_local_m", [])
 	if local_point.size() >= 2:
 		return {
-			"position": tile_position + Vector3(float(local_point[0]), 0.15, -float(local_point[1])),
+			"position": tile_position + Vector3(float(local_point[0]), ground_y + 0.15, -float(local_point[1])),
 			"direction": Vector3(0, 0, 1),
 		}
 	return {"position": tile_position, "direction": Vector3(0, 0, 1)}
@@ -1764,7 +1909,8 @@ func _add_seed_building_collisions(root: Node3D, record: Dictionary, player_posi
 		for item in parsed:
 			if item is Dictionary and item.has("footprint_local_m"):
 				seeds.append(item)
-		record["interior_seed_records"] = seeds
+		_normalize_seed_osm_ids(seeds)
+	record["interior_seed_records"] = seeds
 	var ranked: Array[Dictionary] = []
 	var tile_position: Vector3 = record.get("world_position", Vector3.ZERO)
 	var scanned_seeds := 0
@@ -1818,8 +1964,13 @@ func _add_seed_building_collisions(root: Node3D, record: Dictionary, player_posi
 		if raw_height is int or raw_height is float:
 			height = clampf(float(raw_height), 2.5, 120.0)
 		var static_body := StaticBody3D.new()
-		static_body.name = "BuildingCollisionSeed_" + str(seed.get("osm_id", "unknown"))
-		static_body.position = Vector3((float(item["min_x"]) + float(item["max_x"])) * 0.5, height * 0.5, -(float(item["min_y"]) + float(item["max_y"])) * 0.5)
+		static_body.name = "BuildingCollisionSeed_" + _normalize_osm_id(seed.get("osm_id", "unknown"))
+		var ground_elevation := float(seed.get("ground_elevation_m", 0.0))
+		static_body.position = Vector3(
+			(float(item["min_x"]) + float(item["max_x"])) * 0.5,
+			ground_elevation + height * 0.5,
+			-(float(item["min_y"]) + float(item["max_y"])) * 0.5
+		)
 		var collision := CollisionShape3D.new()
 		collision.name = "BuildingFootprintCollision"
 		var shape := BoxShape3D.new()
@@ -1829,3 +1980,47 @@ func _add_seed_building_collisions(root: Node3D, record: Dictionary, player_posi
 		root.add_child(static_body)
 		if (index + 1) % 16 == 0:
 			await get_tree().process_frame
+
+
+func set_seed_building_collision_enabled(osm_id: String, tile_id: String, enabled: bool) -> bool:
+	# Disable only the matching footprint collider while the player occupies
+	# this building's interior at its actual streamed world coordinates.
+	var expected_name := "BuildingCollisionSeed_" + osm_id
+	for tile_key_value in _loaded.keys():
+		var tile_key := str(tile_key_value)
+		var record_variant: Variant = _loaded.get(tile_key)
+		if not (record_variant is Dictionary):
+			continue
+		var record: Dictionary = record_variant
+		var record_tile_id := str(record.get("tile_id", tile_key))
+		if not tile_id.is_empty() and record_tile_id != tile_id and tile_key != tile_id:
+			continue
+		var root := record.get("instance") as Node3D
+		if not is_instance_valid(root):
+			continue
+		var body := root.get_node_or_null(expected_name) as StaticBody3D
+		if not is_instance_valid(body):
+			continue
+		if enabled:
+			body.collision_layer = int(body.get_meta("a2_previous_collision_layer", 1))
+			body.collision_mask = int(body.get_meta("a2_previous_collision_mask", 1))
+			for shape_node in body.find_children("*", "CollisionShape3D", true, false):
+				var collision := shape_node as CollisionShape3D
+				if is_instance_valid(collision):
+					collision.disabled = false
+			body.remove_meta("a2_previous_collision_layer")
+			body.remove_meta("a2_previous_collision_mask")
+			body.set_meta("a2_interior_collision_disabled", false)
+		else:
+			if not body.has_meta("a2_interior_collision_disabled") or body.get_meta("a2_interior_collision_disabled") != true:
+				body.set_meta("a2_previous_collision_layer", body.collision_layer)
+				body.set_meta("a2_previous_collision_mask", body.collision_mask)
+			body.collision_layer = 0
+			body.collision_mask = 0
+			for shape_node in body.find_children("*", "CollisionShape3D", true, false):
+				var collision := shape_node as CollisionShape3D
+				if is_instance_valid(collision):
+					collision.disabled = true
+			body.set_meta("a2_interior_collision_disabled", true)
+		return true
+	return false

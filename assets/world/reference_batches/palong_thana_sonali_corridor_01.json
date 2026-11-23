@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "batch_id": "palong_thana_sonali_corridor_01",
+  "research_date": "2026-11-23",
+  "area": {
+    "name": "Palong Model Thana / Palong Bazar, Shariatpur, Bangladesh",
+    "start_anchor": {
+      "name": "Palong Model Thana",
+      "osm_type": "way",
+      "osm_id": 601571171,
+      "latitude": 23.2187,
+      "longitude": 90.34868,
+      "tags": {
+        "amenity": "police",
+        "building": "yes"
+      },
+      "source_url": "https://www.openstreetmap.org/way/601571171",
+      "secondary_source_url": "https://mapcarta.com/W601571171",
+      "geometry_join_status": "OSM_ID_KNOWN_CANONICAL_TILE_GEOMETRY_JOIN_PENDING"
+    }
+  },
+  "anchors": [
+    {
+      "id": "palong_bazar",
+      "name": "Palong Bazar",
+      "osm_type": "node",
+      "osm_id": 5759840117,
+      "latitude": 23.22004,
+      "longitude": 90.34926,
+      "tags": {
+        "amenity": "marketplace"
+      },
+      "relation_to_start": "about 160 m north",
+      "source_url": "https://www.openstreetmap.org/node/5759840117",
+      "secondary_source_url": "https://mapcarta.com/N5759840117"
+    },
+    {
+      "id": "national_bank_shariatpur",
+      "name": "National Bank Limited, Shariatpur",
+      "osm_type": "node",
+      "osm_id": 11890615507,
+      "latitude": 23.21828,
+      "longitude": 90.34754,
+      "tags": {
+        "amenity": "bank"
+      },
+      "relation_to_start": "about 130 m west",
+      "source_url": "https://www.openstreetmap.org/node/11890615507",
+      "secondary_source_url": "https://mapcarta.com/N11890615507",
+      "identity_note": "National Bank is not Sonali Bank."
+    }
+  ],
+  "sonali_bank_candidate": {
+    "name": "Sonali Bank PLC — Shariatpur Branch",
+    "identity_source": "https://www.sonalibank.com.bd/citizens_charter_br.php",
+    "district_branch_identity_confirmed": true,
+    "osm_feature_id": null,
+    "latitude": null,
+    "longitude": null,
+    "host_building_id": null,
+    "entrance_status": "UNMATCHED",
+    "footprint_match_status": "UNMATCHED",
+    "floor_count": null,
+    "facade_status": "NOT_AUTHORED",
+    "interior_status": "NOT_AUTHORED",
+    "note": "Do not substitute National Bank OSM node 11890615507. Match Sonali's own host building from independent evidence and canonical map tiles."
+  },
+  "road_candidates": [
+    {
+      "name": "Palong Bazar–Nirala Road",
+      "road_class_reported": "residential",
+      "source_url": "https://bangladesh-streets.openalfa.com/streets/palong-bazar-nirala-road-shariatpur-shariatpur-district",
+      "osm_way_id": null,
+      "canonical_tile_id": null,
+      "status": "NAME_ONLY_EXACT_OSM_WAY_AND_TILE_JOIN_PENDING"
+    }
+  ],
+  "road_width_reference": {
+    "approximate_metres": 3.7,
+    "source_url": "https://www.somoynews.tv/news/2025-03-12/Ox72Qt49",
+    "source_description": "Local report describes a bazar road as about 12 ft wide and notes drains/raised pedestrian edges partly occupied by vendors.",
+    "confidence": "JOURNALISTIC_APPROXIMATION_NOT_SURVEYED",
+    "rule": "Do not apply this width to every road or frontage."
+  },
+  "production_policy": {
+    "reference_only_until_osm_join": true,
+    "no_ai_generated_art": true,
+    "no_google_maps_or_street_view_derived_data": true,
+    "no_third_party_images_embedded": true,
+    "preserve_osm_road_topology_and_building_footprints": true,
+    "real_business_signage_requires_verified_host_building": true,
+    "unsupported_floors_entrances_and_interiors_remain_null": true
+  },
+  "next_actions": [
+    "Join OSM way 601571171 to its exact polygon and tile in the retained Shariatpur map package.",
+    "Resolve the Palong Bazar–Nirala Road way geometry from the same canonical extract.",
+    "Find the distinct Sonali Bank Shariatpur Branch host building; do not use National Bank node 11890615507 as a substitute.",
+    "Inspect source tags, road adjacency, mapped entrance, terrain elevation and land/water context before Blender placement.",
+    "Keep the corridor GLB as a generic art study until rebuilt around verified individual footprints."
+  ]
+}

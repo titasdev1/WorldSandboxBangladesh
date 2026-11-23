@@ -73,7 +73,7 @@ jobs:
 
       - name: Validate asset pipeline Python syntax
         shell: bash
-        run: python3 -m py_compile tools/convert_charactercreator_glbs.py tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/fetch_charactercreator_hero.py tools/kenney_pack_utils.py tools/fetch_battle_royale_aircraft.py tools/verify_medium_stage_assets.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py tools/map_pack_build.py tools/verify_core_apk_contents.py tools/verify_final_distribution.py tools/ara3d/verify_ara_glb.py tools/build_battle_royale_parachute.py tools/verify_battle_royale_parachute.py
+        run: python3 -m py_compile tools/convert_charactercreator_glbs.py tools/fetch_free_assets.py tools/fetch_city_assets.py tools/fetch_polyhaven_pbr.py tools/fetch_quaternius_character.py tools/verify_quaternius_character.py tools/fetch_charactercreator_hero.py tools/kenney_pack_utils.py tools/fetch_battle_royale_aircraft.py tools/verify_medium_stage_assets.py tools/report_build_assets.py tools/map_pipeline/build_real_world_navigation_index.py tools/verify_apk_contents.py tools/map_pack_build.py tools/verify_core_apk_contents.py tools/verify_final_distribution.py tools/ara3d/verify_ara_glb.py tools/build_battle_royale_parachute.py tools/verify_battle_royale_parachute.py tools/make_shariatpur_frontage_textures.py tools/build_shariatpur_riverfront_shophouse.py tools/blender/build_asquare_lobby_scene.py tools/blender/verify_asquare_lobby_scene.py tools/verify_cinematic_art_apk.py
 
       - name: Test pinned Blender CI toolchain
         run: python3 -m unittest discover -s tests -p "test_blender_ci_toolchain.py" -v
@@ -788,7 +788,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y curl xz-utils python3-numpy
+          sudo apt-get install -y curl xz-utils python3-numpy python3-pil fontconfig fonts-noto-core
           source tools/install_blender_ci.sh
           blender --version
 
@@ -809,6 +809,45 @@ jobs:
             --out build/battle-royale/parachute-verification.json
           test -s external_content/battle_royale_parachute/asset_manifest.json
           python3 -m unittest discover -s tests -p "test_battle_royale_parachute_artifact.py"
+
+      - name: Author Shariatpur login frontage and cinematic lobby with Blender 5.2.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="build/cinematic-art"
+          mkdir -p "$OUT/shariatpur/textures" "$OUT/lobby" assets/login assets/lobby
+          python3 tools/make_shariatpur_frontage_textures.py \
+            --out "$OUT/shariatpur/textures" --size 2048
+          blender --background --factory-startup \
+            --python tools/build_shariatpur_riverfront_shophouse.py -- \
+            --out "$OUT/shariatpur/shariatpur_riverfront_shophouse_hero.glb" \
+            --textures "$OUT/shariatpur/textures" \
+            --preview "$OUT/shariatpur/streetfront_preview.png" \
+            --interior-preview "$OUT/shariatpur/streetfront_interior_preview.png" \
+            > "$OUT/shariatpur/authoring.log" 2>&1
+          cat "$OUT/shariatpur/authoring.log"
+          grep -Fq "A2_SHARIATPUR_STREETFRONT_READY:" "$OUT/shariatpur/authoring.log"
+          python3 tools/verify_shariatpur_streetfront.py \
+            --glb "$OUT/shariatpur/shariatpur_riverfront_shophouse_hero.glb" \
+            --manifest "$OUT/shariatpur/asset_manifest.json" \
+            --license "$OUT/shariatpur/LICENSE.txt" \
+            --preview "$OUT/shariatpur/streetfront_preview.png" \
+            --interior-preview "$OUT/shariatpur/streetfront_interior_preview.png" \
+            --out "$OUT/shariatpur/verification.json"
+          blender --background --factory-startup \
+            --python tools/blender/build_asquare_lobby_scene.py -- \
+            --out "$OUT/lobby/asquare_command_hall.glb" \
+            --preview "$OUT/lobby/command_hall_preview.png" \
+            --blend "$OUT/lobby/asquare_command_hall.blend" \
+            > "$OUT/lobby/authoring.log" 2>&1
+          cat "$OUT/lobby/authoring.log"
+          grep -Fq "A2_LOBBY_STAGE_READY:" "$OUT/lobby/authoring.log"
+          python3 tools/blender/verify_asquare_lobby_scene.py \
+            --glb "$OUT/lobby/asquare_command_hall.glb" \
+            --out "$OUT/lobby/verification.json"
+          cp "$OUT/shariatpur/shariatpur_riverfront_shophouse_hero.glb" assets/login/shariatpur_riverfront_shophouse_hero.glb
+          cp "$OUT/lobby/asquare_command_hall.glb" assets/lobby/asquare_command_hall.glb
+          python3 -m unittest discover -s tests -p "test_cinematic_art_assets.py" -v
 
       - name: Import aircraft and parachute GLBs into Godot before runtime test
         shell: bash
@@ -834,6 +873,14 @@ jobs:
           if grep -Fq 'ERROR: Parameter "t" is null.' "$BR_IMPORT_LOG"; then
             echo "Known Godot 4.4.1 headless GLTF scene-preview warning observed (godotengine/godot#108994); import completed."
           fi
+
+      - name: Smoke-test imported Shariatpur login and Blender lobby runtime scenes
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT="$RUNNER_TEMP/godot-validation/Godot_v4.4.1-stable_linux.x86_64"
+          test -x "$GODOT"
+          timeout 180s "$GODOT" --headless --path . --script res://tests/cinematic_art_runtime_smoke.gd
 
       - name: Exercise full Battle Royale cargo flight, freefall, canopy inflation and landing
         shell: bash
@@ -958,6 +1005,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/verify_apk_contents.py --apk build/Android/world_sandbox_bangladesh.apk --map-package "$MAP_PACKAGE" --require-charactercreator | tee build/full-map-apk-content-verification.txt
+          python3 tools/verify_cinematic_art_apk.py --apk build/Android/world_sandbox_bangladesh.apk | tee build/cinematic-art-apk-verification.txt
           cat build/full-map-apk-content-verification.txt >> "$GITHUB_STEP_SUMMARY"
 
       - name: Export and verify separate full-resolution map pack
@@ -1028,6 +1076,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/verify_core_apk_contents.py --apk build/Android/world_sandbox_bangladesh.apk | tee build/core-apk-content-verification.txt
+          python3 tools/verify_cinematic_art_apk.py --apk build/Android/world_sandbox_bangladesh.apk | tee build/cinematic-art-core-apk-verification.txt
 
       - name: Restore map pack files for release upload
         shell: bash
@@ -1268,6 +1317,8 @@ jobs:
             build/apk-content-verification.txt
             build/full-map-apk-content-verification.txt
             build/core-apk-content-verification.txt
+            build/cinematic-art-apk-verification.txt
+            build/cinematic-art-core-apk-verification.txt
             build/map-pack-verification.txt
             build/MapPacks/*.json
             build/asset_build_report.json
