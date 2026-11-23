@@ -24,12 +24,15 @@ class PalongBazaarEnvironmentTests(unittest.TestCase):
 
     def test_reference_is_a_real_palong_market_corridor_not_a_named_building_survey(self):
         for marker in (
-            "Sonali Bank Limited",
+            "Palong Model Thana",
+            "National Bank Limited",
             "Palong Bazar–Nirala Road",
-            "Kotowal Bari Road",
-            "23.2181182",
-            "90.3486077",
-            "PALONG_BAZAAR_INSPIRED_CORRIDOR_STUDY_NOT_A_SURVEY",
+            "Palong Model Thana",
+            "23.2187",
+            "23.22004",
+            "90.34868",
+            "90.34926",
+            "PALONG_MODEL_THANA_PALONG_BAZAR_CORRIDOR_STUDY_NOT_A_SURVEY",
             "No Google Maps/Street View",
             "CC0 1.0 Universal",
         ):
@@ -72,16 +75,16 @@ class PalongBazaarEnvironmentTests(unittest.TestCase):
         ):
             self.assertIn(marker, self.builder)
         self.assertIn('facades = [', self.builder)
-        self.assertIn('("sweets", "haru_ghosh_sweets"', self.builder)
-        self.assertIn('("fashion", "nakkhatra_fashion"', self.builder)
-        self.assertIn('("bank", "sonali_bank"', self.builder)
+        self.assertIn('("sweets", "sweets_shop"', self.builder)
+        self.assertIn('("fashion", "clothing_store"', self.builder)
+        self.assertIn('("bank", "service_centre"', self.builder)
 
     def test_bengali_sign_art_requires_raqm_and_original_local_wording(self):
         self.assertIn('ImageFont.Layout.RAQM', self.texture_script)
-        self.assertIn("নক্ষত্র ফ্যাশন", self.texture_script)
+        self.assertIn("কাপড়ের দোকান", self.texture_script)
         self.assertIn("হার্ডওয়্যার", self.texture_script)
-        self.assertIn("হারু ঘোষ মিষ্টান্ন ভাণ্ডার", self.texture_script)
-        self.assertIn("সোনালী ব্যাংক", self.texture_script)
+        self.assertIn("মিষ্টির দোকান", self.texture_script)
+        self.assertIn("সেবা কেন্দ্র", self.texture_script)
         self.assertIn("source_images_embedded", self.builder)
         self.assertIn("polyhaven_material_manifest.json", self.builder)
         self.assertIn("Poly Haven CC0 photographic scans", self.builder)
@@ -161,6 +164,22 @@ class PalongBazaarEnvironmentTests(unittest.TestCase):
             "palong_bazaar_market_corridor.glb",
         ):
             self.assertIn(marker, self.workflow)
+
+
+    def test_awning_metal_mode_is_declared_and_accepts_existing_callsite(self):
+        helper_start = self.builder.index("def make_awning(")
+        helper_end = self.builder.index("\n\ndef make_ac_unit", helper_start)
+        helper = self.builder[helper_start:helper_end]
+        self.assertIn("metal: bool = False", helper)
+        self.assertIn("if metal:", helper)
+        self.assertIn('metal=(kind in ("hardware", "stationery"))', self.builder)
+
+    def test_unmatched_business_names_are_not_baked_into_corridor_signs(self):
+        for key in ("sonali_bank", "nakkhatra_fashion", "haru_ghosh_sweets", "maa_store"):
+            self.assertNotIn(f'"{key}"', self.builder)
+            self.assertNotIn(f'"{key}"', self.texture_script)
+        self.assertIn("Palong Model Thana", self.builder)
+        self.assertIn("National Bank Limited, Shariatpur", self.builder)
 
     def test_generated_outputs_pass_verification_when_present(self):
         output = pathlib.Path(os.environ.get("A2_PALONG_BAZAAR_OUTPUT", ROOT / "build/palong-bazaar"))

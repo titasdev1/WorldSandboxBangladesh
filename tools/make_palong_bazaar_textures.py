@@ -29,10 +29,11 @@ SURFACES = {
 }
 
 SIGNS = {
-    "sonali_bank": ("সোনালী ব্যাংক", "SONALI BANK LIMITED", (22, 63, 104), (244, 238, 220)),
-    "nakkhatra_fashion": ("নক্ষত্র ফ্যাশন", "NAKKHATRA FASHION", (95, 30, 39), (248, 226, 191)),
-    "haru_ghosh_sweets": ("হারু ঘোষ মিষ্টান্ন ভাণ্ডার", "HARU GHOSH MISHTANNO BHANDAR", (24, 69, 53), (247, 225, 172)),
-    "maa_store": ("মা স্টোর", "GROCERY & DAILY NEEDS", (18, 78, 68), (245, 226, 188)),
+    # Generic category signs only: real business names require an exact host-building OSM join.
+    "service_centre": ("সেবা কেন্দ্র", "CUSTOMER SERVICES", (22, 63, 104), (244, 238, 220)),
+    "clothing_store": ("কাপড়ের দোকান", "CLOTHING & TEXTILES", (95, 30, 39), (248, 226, 191)),
+    "sweets_shop": ("মিষ্টির দোকান", "SWEETS & CONFECTIONERY", (24, 69, 53), (247, 225, 172)),
+    "general_store": ("মুদি দোকান", "GENERAL STORE", (18, 78, 68), (245, 226, 188)),
     "fresh_produce": ("ফল ও সবজি", "FRESH FRUIT & VEGETABLES", (126, 75, 22), (255, 238, 190)),
     "pharmacy": ("ঔষধালয়", "PHARMACY", (29, 66, 104), (237, 245, 238)),
     "stationery": ("স্টেশনারি", "STATIONERY & PRINT", (86, 65, 43), (245, 223, 179)),
@@ -272,9 +273,19 @@ def build(out: pathlib.Path, size: int) -> dict:
         "asset": "Palong Bazar corridor study",
         "source": "Original procedural PBR texture/sign generation; no third-party photos used",
         "geographic_reference": {
-            "area": "Palong Bazar / Sonali Bank / Palong Bazar–Nirala Road, Shariatpur, Bangladesh",
-            "reference_coordinate": [23.2181182, 90.3486077],
+            "area": "Palong Model Thana / Palong Bazar, Shariatpur, Bangladesh",
+            "reference_coordinate": [23.2187, 90.34868],
+            "reference_source": "OpenStreetMap way 601571171 — Palong Model Thana",
+            "nearby_marketplace": {
+                "name": "Palong Bazar",
+                "osm_node_id": 5759840117,
+                "latitude": 23.22004,
+                "longitude": 90.34926,
+                "relationship": "about 160 m north of the thana"
+            },
             "road_width_reference_m": 3.7,
+            "road_width_reference_source": "Somoy News, 12 March 2025, about 12 ft reported width; approximate conversion only",
+            "road_width_confidence": "JOURNALISTIC_APPROXIMATION_NOT_SURVEY",
             "status": "VISUAL_ART_DIRECTION_REFERENCE_NOT_SURVEYED_GEOMETRY"
         },
         "license": "CC0-1.0",
@@ -288,7 +299,7 @@ def build(out: pathlib.Path, size: int) -> dict:
         "PROJECT A-SQUARE ORIGINAL PALONG BAZAAR TEXTURES AND SIGN ART\n"
         "Generated from scratch using Python, NumPy and Pillow. No Google Maps/Street View, "
         "satellite images, third-party photographs or copyrighted game art are included.\n"
-        "Visual reference only: Palong Bazar market corridor, Shariatpur, Bangladesh.\n"
+        "Visual reference only: Palong Model Thana / Palong Bazar area, Shariatpur, Bangladesh.\n"
         "Generated textures and sign artwork: CC0 1.0 Universal.\n", encoding="utf-8")
     return manifest
 

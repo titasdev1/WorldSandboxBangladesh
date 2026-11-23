@@ -341,7 +341,7 @@ def make_shutter(side: int, y: float, front: float, width: float, z_bottom: floa
 
 
 def make_awning(side: int, y: float, front: float, width: float, z: float,
-                mats: dict, root: bpy.types.Object, stripe: bool = False) -> None:
+                mats: dict, root: bpy.types.Object, stripe: bool = False, metal: bool = False) -> None:
     rotation = (0.0, -side * 0.11, 0.0)
     center_x = side * (front - 0.72)
     box("Corrugated_Awning_Frame", (center_x, y, z), (1.42, width + 0.18, 0.08),
@@ -455,7 +455,7 @@ def add_store_interior(side: int, y: float, width: float, front: float,
 def add_shop_sign(side: int, y: float, front: float, width: float, z: float,
                   key: str, sign_mats: dict, mats: dict, root: bpy.types.Object) -> None:
     sign_width = min(width * 0.94, 4.3)
-    sign_height = 1.18 if key in ("haru_ghosh_sweets", "sonali_bank") else 0.95
+    sign_height = 1.18 if key in ("sweets_shop", "service_centre") else 0.95
     center_front = front - 0.28
     box("Shop_Signboard_Wood_Frame",
         (side * (front - 0.11), y, z),
@@ -1199,7 +1199,7 @@ def create_materials(texture_root: pathlib.Path) -> tuple[dict, dict]:
     mats["rickshaw_red"] = simple_material("Rickshaw Painted Vermilion", (0.52, 0.075, 0.045), 0.44, 0.12)
     mats["rickshaw_gold"] = simple_material("Rickshaw Hand Painted Gold", (0.91, 0.55, 0.13), 0.42, 0.14)
     mats["puddle"] = simple_material("Thin Monsoon Puddle", (0.10, 0.14, 0.15), 0.08, 0.04)
-    sign_keys = ["sonali_bank", "nakkhatra_fashion", "haru_ghosh_sweets", "maa_store",
+    sign_keys = ["service_centre", "clothing_store", "sweets_shop", "general_store",
                  "fresh_produce", "pharmacy", "stationery", "hardware"]
     sign_mats = {key: sign_material(key, texture_root) for key in sign_keys}
     return mats, sign_mats
@@ -1221,18 +1221,18 @@ def build_environment(out_path: pathlib.Path, texture_root: pathlib.Path,
     make_drain_and_walkway(mats, root)
 
     facades = [
-        (-1, -5.0, 6.8, 4, "bank", "sonali_bank", "plaster_blue", 1),
-        (-1, 2.0, 5.9, 3, "sweets", "haru_ghosh_sweets", "plaster_yellow", 2),
-        (-1, 8.4, 6.2, 4, "grocery", "maa_store", "plaster_mint", 3),
+        (-1, -5.0, 6.8, 4, "bank", "service_centre", "plaster_blue", 1),
+        (-1, 2.0, 5.9, 3, "sweets", "sweets_shop", "plaster_yellow", 2),
+        (-1, 8.4, 6.2, 4, "grocery", "general_store", "plaster_mint", 3),
         (-1, 15.2, 5.7, 3, "hardware", "hardware", "weathered_plaster", 4),
         (-1, 21.4, 6.0, 4, "pharmacy", "pharmacy", "plaster_blue", 5),
         (-1, 28.0, 7.0, 3, "stationery", "stationery", "plaster_yellow", 6),
-        (1, -5.5, 6.1, 3, "fashion", "nakkhatra_fashion", "plaster_mint", 7),
-        (1, 1.0, 6.3, 4, "grocery", "maa_store", "weathered_plaster", 8),
-        (1, 7.8, 6.8, 4, "grocery", "maa_store", "plaster_blue", 9),
+        (1, -5.5, 6.1, 3, "fashion", "clothing_store", "plaster_mint", 7),
+        (1, 1.0, 6.3, 4, "grocery", "general_store", "weathered_plaster", 8),
+        (1, 7.8, 6.8, 4, "grocery", "general_store", "plaster_blue", 9),
         (1, 15.1, 5.8, 3, "produce", "fresh_produce", "plaster_yellow", 10),
-        (1, 21.4, 6.0, 4, "fashion", "nakkhatra_fashion", "plaster_mint", 11),
-        (1, 27.9, 7.0, 3, "sweets", "haru_ghosh_sweets", "weathered_plaster", 12),
+        (1, 21.4, 6.0, 4, "fashion", "clothing_store", "plaster_mint", 11),
+        (1, 27.9, 7.0, 3, "sweets", "sweets_shop", "weathered_plaster", 12),
     ]
     facade_records = []
     for side, y, width, floors, kind, sign, base_mat, seed in facades:
@@ -1299,9 +1299,10 @@ def build_environment(out_path: pathlib.Path, texture_root: pathlib.Path,
 
     # Store source and art direction. The GLB excludes cameras/lights; Godot supplies
     # runtime camera, ambient lighting and the existing live player/operator actor.
-    root["geographic_status"] = "PALONG_BAZAAR_INSPIRED_CORRIDOR_STUDY_NOT_A_SURVEY"
-    root["reference_coordinate_lat_lon"] = [23.2181182, 90.3486077]
+    root["geographic_status"] = "PALONG_MODEL_THANA_PALONG_BAZAR_CORRIDOR_STUDY_NOT_A_SURVEY"
+    root["reference_coordinate_lat_lon"] = [23.2187, 90.34868]
     root["approximate_market_road_width_m"] = 3.7
+    root["road_width_evidence"] = "Somoy News reports about 12 ft; 3.7 m is an approximate art-direction conversion, not a survey"
     root["facade_count"] = len(facade_records)
     root["original_material_texture_count"] = len(mats)
     root["no_google_map_assets_copied"] = True
@@ -1359,18 +1360,17 @@ def build_environment(out_path: pathlib.Path, texture_root: pathlib.Path,
         "schema_version": 1,
         "asset_name": ASSET_NAME,
         "status": "AUTHORED_VISUAL_CORRIDOR_REVIEW_PENDING_GODOT_ANDROID_QA",
-        "geographic_status": "PALONG_BAZAAR_INSPIRED_CORRIDOR_STUDY_NOT_A_SURVEY",
-        "reference_coordinate_lat_lon": [23.2181182, 90.3486077],
+        "geographic_status": "PALONG_MODEL_THANA_PALONG_BAZAR_CORRIDOR_STUDY_NOT_A_SURVEY",
+        "reference_coordinate_lat_lon": [23.2187, 90.34868],
         "reference_landmarks": [
-            "Sonali Bank Limited, Shariatpur",
-            "Palong Bazar–Nirala Road",
-            "Kotowal Bari Road",
-            "Palong Model Thana",
-            "Shariatpur Post Office",
-            "Exim Bank Shariatpur",
-            "District Scouts Office"
+            "Palong Model Thana — OSM way 601571171 (reference anchor; exact tile join pending)",
+            "Palong Bazar — OSM node 5759840117 (about 160 m north)",
+            "National Bank Limited, Shariatpur — OSM node 11890615507 (distinct from Sonali Bank)",
+            "Sonali Bank Shariatpur Branch — official branch identity; exact host-building match pending"
         ],
         "road_width_reference_m": 3.7,
+        "road_width_reference_source": "Somoy News, 12 March 2025, approximate 12 ft description converted to metres",
+        "road_width_confidence": "JOURNALISTIC_APPROXIMATION_NOT_SURVEY",
         "facade_count": len(facade_records),
         "facades": facade_records,
         "material_count": len(mats) + len(sign_mats),
@@ -1386,8 +1386,8 @@ def build_environment(out_path: pathlib.Path, texture_root: pathlib.Path,
         "building_height_status": "ART_DIRECTED_NOT_VERIFIED_FLOOR_SURVEY",
         "interior_status": "FRONTAGE_GLIMPSES_ONLY_NOT_REAL_INTERIOR_CAPTURE",
         "limitations": [
-            "Not a surveyed reconstruction of the Sonali Bank building or any other named property",
-            "Road/facade composition is an art-directed corridor study informed by public map and street-photo references",
+            "Not a surveyed reconstruction of Palong Model Thana, Sonali Bank, National Bank or any other named property",
+            "Road/facade composition is an art-directed corridor study anchored to independent OSM geography and public local reporting",
             "Snap individual frontages to verified OSM building footprints before replacing real map geometry",
             "The scene does not supply the full playable map navigation, collision or interior-floor graph",
             "No human actors are embedded; use the game's shared animated character rigs"
@@ -1401,7 +1401,7 @@ def build_environment(out_path: pathlib.Path, texture_root: pathlib.Path,
         "facades": len(facade_records),
         "static_batches": batch_count,
         "material_count": len(mats) + len(sign_mats),
-        "coordinate": [23.2181182, 90.3486077]
+        "coordinate": [23.2187, 90.34868]
     }, ensure_ascii=False))
     return manifest
 
