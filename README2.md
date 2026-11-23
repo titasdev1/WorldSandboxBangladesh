@@ -231,3 +231,34 @@ For nature/terrain:
 6. **Run Android once:** after the current PR has a reviewed art set and exact-head code/asset validation, build one canonical APK, verify signature/checksums/content, then install and test on the Redmi Note 14 Pro 4G. No current PR #90 APK or phone approval is claimed.
 
 **Progress is measured by accepted, source-grounded, playable content—not by lines of documentation, workflow counts, file sizes, or unsupported percentages.**
+
+
+---
+
+## 8. Palong Model Thana → Palong Bazar source-grounded corridor update — 23 November 2026
+
+**Implementation commit:** [2ebf6e5811ac205864a45c63a75d4c368d4515cb](https://github.com/titasdev1/WorldSandboxBangladesh/commit/2ebf6e5811ac205864a45c63a75d4c368d4515cb) on PR #90.
+
+### Independently sourced anchors
+
+- **Palong Model Thana:** OSM way `601571171`, tagged `amenity=police` and `building=yes`; map-page centre 23.21870, 90.34868. Exact polygon/tile join is still pending.
+- **Palong Bazar:** OSM node `5759840117`, tagged `amenity=marketplace`; 23.22004, 90.34926; about 160 m north of the thana.
+- **National Bank Limited, Shariatpur:** OSM node `11890615507`, tagged `amenity=bank`; 23.21828, 90.34754; about 130 m west of the thana. This is National Bank, not Sonali Bank.
+- **Sonali Bank PLC — Shariatpur Branch:** official branch identity appears in the bank's Shariatpur branch directory. Its exact host-building OSM feature, coordinate, entrance and floor graph remain null/unmatched. Do not use the National Bank node as a substitute.
+- **Palong Bazar–Nirala Road:** a named residential street appears in an OSM-derived street directory; exact way ID and canonical tile join are pending.
+- The 3.7 m corridor road-width reference is only a rough conversion of a local news report describing approximately 12 ft. It is explicitly journalistic context, not a survey.
+
+Detailed record: `assets/world/reference_batches/palong_thana_sonali_corridor_01.json`.
+
+### Actual Blender pipeline correction
+
+- Fixed `make_awning()`: it now declares the `metal` parameter used by the hardware/stationery caller. Previously this caller passed an unsupported keyword and the helper referenced an undefined variable.
+- Removed real business keys from generic frontage assignments and generated signs: Sonali Bank, Nakkhatra Fashion, Haru Ghosh and Maa Store are no longer stamped onto arbitrary corridor buildings.
+- Generic category signs remain for the unplaced corridor study only. Named business signage requires a host-building OSM match.
+- Updated the corridor reference coordinate to the independent OSM Palong Model Thana anchor.
+- Added regression tests for the awning option and for blocking unmatched real-business branding.
+- Replaced the prior corridor art-direction note with the independently sourced anchor table and explicit match limitations.
+
+### Important remaining gate
+
+This commit fixes an authoring-path blocker and the provenance of the study. It does **not** make the current 12-frontage corridor a surveyed Palong road segment or place it on the real thana/bank footprints. The next map step is to join the OSM way/node IDs to the exact retained Shariatpur source GeoJSON/tile package, then author one host building against that footprint. No new APK or map sequence is warranted for this pass.
