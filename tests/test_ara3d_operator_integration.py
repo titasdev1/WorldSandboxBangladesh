@@ -43,13 +43,14 @@ class AraOperatorIntegrationTests(unittest.TestCase):
 
     def test_locomotion_blend_spaces_are_read_from_nested_state_machine(self):
         builder = function_block(self.visual, "_build_authored_locomotion_blend_space")
+        hero_loader = function_block(self.visual, "_build_authored_hero")
         self.assertIn("AnimationNodeBlendTree.new()", builder)
         self.assertIn('blend_tree.add_node("Locomotion", state_machine', builder)
-        self.assertIn("var layered_root := _authored_locomotion_tree.tree_root as AnimationNodeBlendTree", builder)
-        self.assertIn('layered_root.get_node("Locomotion") as AnimationNodeStateMachine', builder)
-        self.assertIn('locomotion_machine.get_node("GroundLocomotion")', builder)
-        self.assertIn('locomotion_machine.get_node("AimLocomotion")', builder)
-        self.assertNotIn("_authored_locomotion_tree.tree_root as AnimationNodeStateMachine", builder)
+        self.assertIn("var layered_root := _authored_locomotion_tree.tree_root as AnimationNodeBlendTree", hero_loader)
+        self.assertIn('layered_root.get_node("Locomotion") as AnimationNodeStateMachine', hero_loader)
+        self.assertIn('locomotion_machine.get_node("GroundLocomotion")', hero_loader)
+        self.assertIn('locomotion_machine.get_node("AimLocomotion")', hero_loader)
+        self.assertNotIn("_authored_locomotion_tree.tree_root as AnimationNodeStateMachine", hero_loader)
 
     def test_rifle_animation_states_are_bound_and_looping_locomotion_is_configured(self):
         for clip in ("Rifle idle (low ready)", "Rifle walk (aiming)", "Rifle run", "Rifle sprint", "Rifle aim idle", "Rifle fire (full auto)", "Rifle reload", "Crouch aim idle", "Crouch walk (aiming)"):
