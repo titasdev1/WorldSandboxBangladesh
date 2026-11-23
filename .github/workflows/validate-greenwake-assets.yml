@@ -62,16 +62,16 @@ jobs:
         run: |
           set -euo pipefail
           OUT_DIR="build/greenwake"
-          mkdir -p "\${OUT_DIR}"
+          mkdir -p "${OUT_DIR}"
           blender --background --factory-startup \
             --python tools/blender/build_greenwake_chapter_01.py -- \
-            --out "\${OUT_DIR}/greenwake_ch01.glb" \
-            --preview "\${OUT_DIR}/greenwake_ch01_preview.png" \
-            --blend "\${OUT_DIR}/greenwake_ch01.blend" \
-            --manifest "\${OUT_DIR}/asset_manifest.json" \
-            > "\${OUT_DIR}/authoring.log" 2>&1
-          cat "\${OUT_DIR}/authoring.log"
-          grep -Fq "GREENWAKE_CH01_READY:" "\${OUT_DIR}/authoring.log"
+            --out "${OUT_DIR}/greenwake_ch01.glb" \
+            --preview "${OUT_DIR}/greenwake_ch01_preview.png" \
+            --blend "${OUT_DIR}/greenwake_ch01.blend" \
+            --manifest "${OUT_DIR}/asset_manifest.json" \
+            > "${OUT_DIR}/authoring.log" 2>&1
+          cat "${OUT_DIR}/authoring.log"
+          grep -Fq "GREENWAKE_CH01_READY:" "${OUT_DIR}/authoring.log"
 
       - name: Verify GLB structure, authored scene density and provenance
         shell: bash
