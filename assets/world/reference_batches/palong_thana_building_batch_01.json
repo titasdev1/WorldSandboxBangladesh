@@ -120,7 +120,21 @@
         1141.656
       ],
       "door_placement_source": "PROCEDURAL_LONGEST_EXTERIOR_EDGE_NO_MAPPED_ENTRANCE_NODE",
-      "roof": "flat-cap default; source unverified"
+      "roof": "flat-cap default; source unverified",
+      "historical_floor_evidence": {
+        "source": "https://vymaps.com/BD/Palong-Model-Thana-136943/",
+        "source_type": "USER_GENERATED_PLACE_REVIEW",
+        "review_date": "2018-01-06",
+        "reported_claim": "Reviewer said the station then had two floors and third-floor construction was underway.",
+        "confidence": "LOW_HISTORICAL_UNVERIFIED",
+        "production_use": "Context only. Does not establish the current 2026 floor count or prove the PWD candidate record matches this footprint."
+      }
+    },
+    "footprint_dimensions_m": {
+      "major_axis_bbox_extent_m": 21.18,
+      "minor_axis_bbox_extent_m": 9.11,
+      "area_m2": 173.21,
+      "basis": "Local XY axis-aligned bounding extents of exact OSM way/601571171001 polygon; not façade frontage measurement."
     }
   },
   "nearby_ten_building_review": [
@@ -624,6 +638,14 @@
         "title": "Police Department's Zorazirno Thana Building, Construction of Type Plan (2nd phase 95 of the Shariatpur Palang Sadar thana)"
       },
       "status": "CANDIDATE_ONLY_NOT_JOINED_TO_OSM_WAY_601571171"
+    },
+    "vymaps_historical_review": {
+      "url": "https://vymaps.com/BD/Palong-Model-Thana-136943/",
+      "source_type": "USER_GENERATED_PLACE_REVIEW",
+      "review_date": "2018-01-06",
+      "reported_claim": "At the time of the review, the station was described as two floors with third-floor construction underway.",
+      "confidence": "LOW_HISTORICAL_UNVERIFIED",
+      "limitation": "Historical anecdote; no measured dimensions, official verification, or guaranteed match to the 2026 OSM footprint."
     }
   },
   "nearby_named_features": [
@@ -829,6 +851,42 @@
       "verified_elevation_source": null,
       "status": "NOT_VERIFIED_FROM_THIS_TILE",
       "note": "The canonical tile manifest records a local equirectangular XY projection and water/land-use geometry, but has no DEM/elevation layer or per-building ground_elevation_m for this Thana seed. Do not treat the current ground as a surveyed terrain surface."
+    }
+  },
+  "local_imagery_coverage": {
+    "district_audit": {
+      "source": "KartaView",
+      "run_id": 44231084589,
+      "retrieved_date": "2026-11-18",
+      "bbox_south_west_north_east": [
+        23.003880881,
+        90.220512089,
+        23.45161361,
+        90.607763484
+      ],
+      "coverage_tiles_queried": 30,
+      "tiles_with_tracks": 1,
+      "matched_tracks": 1,
+      "photo_metadata_queries": 30,
+      "qualifying_360_photo_candidates": 0,
+      "local_track_match_status": "NOT_FOUND_IN_DISTRICT_SAMPLE",
+      "note": "The one track was in the far north-west of the audit box, not near Palong."
+    },
+    "focused_palong_audit": {
+      "status": "CONFIGURED_NOT_RUN",
+      "bbox_south_west_north_east": [
+        23.2135,
+        90.3435,
+        23.2235,
+        90.3535
+      ],
+      "zoom": 14,
+      "photo_grid": 3,
+      "photo_metadata_queries": 9,
+      "photo_radius_m": 500,
+      "maximum_requests": 30,
+      "workflow_commit": "58cfd10f238536715942153e6afd605ce6bdc311",
+      "note": "No result is claimed until a successful workflow artifact exists."
     }
   }
 }
