@@ -262,3 +262,36 @@ Detailed record: `assets/world/reference_batches/palong_thana_sonali_corridor_01
 ### Important remaining gate
 
 This commit fixes an authoring-path blocker and the provenance of the study. It does **not** make the current 12-frontage corridor a surveyed Palong road segment or place it on the real thana/bank footprints. The next map step is to join the OSM way/node IDs to the exact retained Shariatpur source GeoJSON/tile package, then author one host building against that footprint. No new APK or map sequence is warranted for this pass.
+
+
+---
+
+## 9. Palong Model Thana hero asset — exact footprint + detached gateway, 23 November 2026
+
+PR #90 commits:
+- [Blender authoring lane: source-aligned Thana shell + detached gateway](https://github.com/titasdev1/WorldSandboxBangladesh/commit/c19edee18158b40418aa589963a0ee66ad75b3e9)
+- [CI workflow: source-tile download, tests and review-asset upload](https://github.com/titasdev1/WorldSandboxBangladesh/commit/d31631a4cf7d14a9cddb19fc79603c1a1de4e325)
+
+### New authoring lane
+- `tools/blender/build_palong_thana_hero.py` reads way `601571171` directly from canonical tile GeoJSON and gets the local XY transform from the tile manifest. It does not use an approximate pin or a hand-drawn footprint.
+- Output plan: exact-footprint building-shell GLB, detached entrance-gateway concept GLB, Blender source file, two review renders and asset manifest.
+- The gateway is intentionally exported at its own local origin with no site coordinate. Its actual entrance side and placement remain unknown.
+- The 2-storey / 7.2 m shell and facade rhythm are explicitly unverified art-direction values. The PWD candidate record is not joined to the OSM polygon. No real interior, surveyed height or ground elevation is asserted.
+- Optional scanned PBR maps must come from the project's verified Poly Haven CC0 manifest. The builder checks provider, licence, presence and MD5 before use.
+- Tests cover OSM source matching, tile-projection coordinates, fail-closed identity, detached-gate/unverified-height metadata and PBR map integrity.
+
+### Imagery and terrain source strategy
+- Google Maps/Street View is not used to extract or save data for the game asset pipeline.
+- KartaView permits reuse/adaptation of its street photos and 3D spatial data under CC BY-SA 4.0 with credit `© Grab and KartaView Contributors`. Mapillary imagery is also published under CC BY-SA with image/contributor attribution.
+- Earlier Shariatpur audit: only one OSM-matched KartaView track and zero qualifying 360 photos in the sampled district grid; coverage is sparse, not a complete street survey.
+- OpenAerialMap audit for Shariatpur returned two Copernicus DEM items and zero visual aerial imagery items.
+- ESA WorldCover 2021 (10 m, CC BY 4.0) and Sentinel-2 (10/20/60 m) are broad land-cover/water context, not individual buildings/trees/facades.
+- Copernicus GLO-30 is a 30 m DSM, not a parcel-scale bare-earth survey. Building/vegetation masking and vertical-datum review are required before using it to place roads/buildings.
+- The full Shariatpur builder currently calls the DEM-capable single-tile builder without DEM arguments; assembled tiles remain `FLAT_FALLBACK_NO_DEM`.
+
+### Blender workflow ideas reviewed
+- MIT sketch3d architecture pipeline: plan/build separation, declarative recipes, deterministic seeds, scene layers, space/door graphs and render profiles.
+- MIT Building Tools: procedural walls, windows, doors, roofs, stairs and balconies; its documented Blender 4.0 support needs separate verification against pinned Blender 5.2.4.
+- GPL-3.0 BlenderProc: useful PBR/rendering concepts to study, not bundled into the game pipeline.
+
+**Status:** authoring code, tests, CI workflow and dossier committed. No Blender render, GLB export, Godot import, Android build or visual acceptance is claimed until the focused workflow runs and outputs are reviewed.
