@@ -5,7 +5,7 @@ This file is a quality-control ledger, not a claim that listed features are comp
 ## Non-negotiable release rule
 
 - Preserve the canonical existing game; do not replace it with a toy demo or a map-only viewer.
-- Shariatpur is the first real-world map and must pass its own gate before work expands to the rest of Dhaka Division.
+- Shariatpur is the first high-detail Bangladesh region and must pass its local release gate before it is promoted as a finished Shariatpur map. That gate does not block the parallel global geography atlas, DEM terrain foundation, reusable region catalogue or other regional prototypes.
 - Keep a single combined Android APK for testing the game and selected map together.
 - Never turn inferred heights, OSM footprints, downloaded-but-unmatched photos, procedural placeholder geometry, or a successful APK export into claims of photorealism or verified geography.
 - Do not report an overall completion percentage without a dated, evidence-backed checklist. Report game systems and map fidelity separately, and mark unknowns as unknown.
@@ -66,17 +66,17 @@ This file is a quality-control ledger, not a claim that listed features are comp
 | Interiors | Enter/exit building safely; each shop/home/restaurant has a coherent unique layout linked to its exterior | Anchors/seeds exist; unique interiors for each mapped building are not evidenced |
 | Local identity | Bangla text, place names, road labels, shop names and cultural objects display correctly | Some OSM/tag pipeline exists; visual audit pending |
 
-## D. Shariatpur real-world map — hard gate before expanding
+## D. Shariatpur real-world map — detailed-region acceptance gate
 
 | Area | Required acceptance evidence | Current evidence / honest state |
 |---|---|---|
-| Coverage | All 60 district tile records assembled; every tile has meaningful, correctly clipped mapped geometry | 60 GLB tile scenes/records are packaged; prior source audit still reports only 57/60 tiles with renderable OSM features and three ground-only tiles. Headless smoke loaded two tiles near test spawn; district gate remains blocked |
+| Coverage | Every tile declared by the selected region manifest is present, uniquely identified, correctly clipped and linked to its geography; tile count is region-dependent | Shariatpur review package currently has 60 GLB tile scenes/records; prior source audit reports 57/60 tiles with renderable OSM features and three ground-only tiles. Headless smoke loaded two tiles near test spawn; Shariatpur remains REVIEW_REQUIRED |
 | Roads | Connected road network, no accidental gaps at tile boundaries, sensible intersections and correct local coordinates | Runtime index reports 2,722 road ways and 2,337 indexed display routes; package index lists 247 named roads. These counts do not prove continuity, legality, route quality or minimap alignment; full audit pending |
 | Buildings | Correct placement/footprints, no floating structures, buildings rest on ground, no duplicate seams | 34,806 footprints in recorded audit; exact visual/placement audit pending |
 | Heights/floors | Every claimed verified floor count has human-reviewed evidence linked to the exact building; inferred values remain labelled estimates | Registry intentionally empty; independently verified floor counts = 0 |
 | Façades | Licensed imagery matched to the correct mapped structure, attribution retained, texture orientation/scale checked in-world | Latest package contains 3 licensed façade-photo panels with mapped-building attribution; in-world orientation, exact visual identity and district-wide coverage remain unapproved |
 | Photorealism | Recognizable real exteriors from appropriate lawful sources, not just coloured boxes, generic facades or OSM polygons | Not achieved/evidenced; two photo panels would not constitute district-wide photorealism |
-| Ground/terrain | No holes or floating ground; district boundary and waterways/land use behave plausibly | Three ground-only tiles plus visual terrain QA pending |
+| Ground/terrain | Elevation-backed terrain follows a licensed DEM/height surface; slopes, valleys, floodplains, shorelines and riverbanks align with roads/buildings; no flat placeholder slab | Current map builder creates a flat ground base; DEM-backed terrain generation and terrain-aligned feature placement are not implemented. Three ground-only Shariatpur tiles and visual QA remain blockers |
 | Vegetation/street furniture | Spatially plausible mapped vegetation, poles, lamps and other features; no random clutter or collisions | Audit listed 2 mapped trees, 35 utility poles, 0 mapped street lamps; completeness/visual QA pending |
 | Named-place search | English/Bangla search, useful results, ambiguity handling, correct map coordinates | Index/UI code exists; end-to-end location accuracy pending |
 | Teleport | Named/coordinate teleport lands at a valid safe point, not underground or far away | Code exists; device/coordinate QA pending |
@@ -84,7 +84,7 @@ This file is a quality-control ledger, not a claim that listed features are comp
 | Player-following minimap | Player marker follows position/heading while moving; route and labels stay aligned and readable | Expanded minimap code exists; exact device behavior pending |
 | Building entry/interiors | Doors/entrances align with actual mapped structures; enter/exit and interior/exterior transition tested | Interior anchors are not proof of working unique interiors; acceptance pending |
 | District recognition | Residents can recognize a sample of real local places/roads/buildings during blinded visual comparison | No documented resident/visual review yet |
-| Map release gate | No ground-only tiles; evidence-backed floors; photo panel audit; navigation and phone tests pass | Gate remains REVIEW_REQUIRED; do not expand to Dhaka Division yet |
+| Shariatpur release gate | No ground-only tiles; evidence-backed floors; photo panel audit; navigation and phone tests pass | Shariatpur remains REVIEW_REQUIRED. This blocks promotion of Shariatpur as a finished detailed region, not the global atlas/terrain framework or parallel region work |
 
 ## E. Rendering, assets and Android packaging
 
@@ -95,7 +95,7 @@ This file is a quality-control ledger, not a claim that listed features are comp
 | Materials | PBR maps imported correctly, no pink/black/missing textures, memory budget respected | Resolution-budget test exists; actual device appearance/performance pending |
 | Streaming | Nearby tiles load first; no major hitches; old tiles unload without deleting needed assets | Two-tile-per-stream-tick logic carried forward; profiling pending |
 | Asset manifest | APK report lists exact included map tile count, GLB bytes, textures, models, audio and unused payload | Reporting step exists; inspect report from exact candidate before comparing size |
-| Single combined APK | One APK includes the canonical game and selected Shariatpur map package, with manifest and checksum | Latest run produced an artifact ZIP; it did not publish a direct APK because release steps were skipped |
+| Single combined APK | One downloadable APK contains the canonical game and selected Shariatpur map, verified by embedded-map manifest/hash and usable offline after install | Current workflow validates a temporary full-map export, then discards it and produces a compact core APK that intentionally excludes the map; Shariatpur is delivered as a separate first-run PCK download. User's single embedded-map APK target is NOT met |
 | Correct map provenance | APK identifies the exact map artifact/run/manifest hash used | Must verify and record for next candidate |
 | Signing | Stable signing identity for upgrade installs; debug fallback clearly labelled | Latest PR build uses debug fallback when release secrets are absent; do not call it production-signed |
 | Install/update | Installs on target Redmi device, launches, updates safely, saves remain valid | Not yet physically verified |
@@ -106,13 +106,13 @@ This file is a quality-control ledger, not a claim that listed features are comp
 
 1. State the single concrete player-facing problem being addressed and which dream-game requirement it satisfies.
 2. Inspect existing code/assets first; preserve working features and avoid creating duplicate toy implementations.
-3. Implement one coherent batch that can be integrated with the canonical game and Shariatpur map.
+3. Implement one coherent batch that can be integrated with the canonical game and its selected regional pack; preserve Shariatpur as the first high-detail validation region without hard-coding all map systems to that district.
 4. Add/update automated tests for regressions and the relevant acceptance condition.
 5. Run map-pipeline tests, Godot import/startup checks and Android export/integrity checks appropriate to the changed scope.
 6. Inspect the actual output/report, including warnings and skipped release steps; a green workflow badge alone is insufficient.
 7. Ask: **What user-visible requirement is still missing? What did this change actually prove? What did it not prove? Could it have regressed another system?**
 8. Update this matrix with evidence and remaining blockers. Never mark device-only, visual, multiplayer or realism criteria as passed from headless CI.
-9. Keep Shariatpur at REVIEW_REQUIRED until every hard gate passes. Only then start Dhaka Division expansion.
+9. Keep Shariatpur at REVIEW_REQUIRED until its local gate passes. Continue global base geography, DEM/terrain engineering, generic regional packs and representative region prototypes in parallel; never promote an unverified region as finished.
 10. Publish one clearly labelled combined APK candidate with its exact map provenance, APK size, checksum and known limitations.
 
 ## Next concrete work order (priority order)
@@ -124,7 +124,7 @@ This file is a quality-control ledger, not a claim that listed features are comp
 5. Add and review independent evidence for real building floors; until then report zero verified floor counts.
 6. Build a review APK against that exact map artifact and run touch, movement, camera, fall-through, minimap, named search, teleport, route, interior and save/load tests on a physical Android device.
 7. Profile performance and visual quality. Fix concrete regressions before starting another feature batch.
-8. Only after Shariatpur passes, unlock Dhaka Division. Do not equate 100% tile bookkeeping with a polished map.
+8. Continue the global atlas, regional DEM/terrain and reusable streaming/pack architecture while repairing Shariatpur; promote Shariatpur when its own evidence gate passes. Do not equate 100% tile bookkeeping with a polished map.
 
 ## Current baseline at PR #74
 
@@ -157,3 +157,62 @@ This file is a quality-control ledger, not a claim that listed features are comp
 **Presentation rule:** Generated images/video are valid production assets for cinematic and UI presentation. They do not count as a functional character, vehicle, world, mode or match. Critical text, HUD values, player identity, score, timers, maps and buttons must remain live, localized, testable game data/UI.
 
 **Continuity rule:** after each substantial change, update `A_SQUARE_SESSION_CHECKPOINT.md`, `development_state.json` and the relevant acceptance rows. When a chat reconnects, resume from the checkpoint and refresh GitHub state; do not ask the user to repeat the complete brief.
+
+
+## H. Expanded mode, AI, local-network and global-world acceptance (2026-11-19)
+
+| Area | Required acceptance evidence | Current evidence / honest state |
+|---|---|---|
+| JibonJatra open world | Dense selected district, stable controls, meaningful NPC/traffic routines, missions, fares, shops, interiors, police/wanted and save/reload | Foundations exist; full integrated vertical slice, Shariatpur fidelity gate and physical-device QA remain partial/pending |
+| JibonJatra in-world racing activities (Roadline systems) | Discoverable races inside the GTA-style world; authored vehicles, differentiated handling, cockpit/chase cameras, garage/ownership/tuning, event rules, AI rivals, results and phone-tested controls; no separate top-level mode card | Current-road sprint/time-attack/drift prototype exists; sprint has six checkpoints and three simple AI racers. These are JibonJatra activity foundations, not a separate finished racing game. Forza-level art, garage, tuning, event density and device acceptance are not evidenced |
+| JibonJatra in-world football activities (Pitchbound systems) | Stadium/ground activities reachable within the GTA-style world; complete 11v11 rules, switching/controls, passing/shooting/dribbling/tackling, goalkeeper, formations/tactics, set pieces, authored kits/players, detailed stadium/crowd/audio and results; no separate top-level mode card | Current workflow step 39 reports runtime smoke success for 22 player bodies, one controlled player and a rigid-body ball. Simple AI and procedural low-detail stadium only; full football mechanics/visual quality/device QA not accepted |
+| Greenwake adventure | Playable authored chapter with traversal, climbing/swimming, puzzle/mystery, story/companion beats, stealth/combat, assets and checkpoint/fail/retry | Registry entry exists but is planned only; no playable Greenwake level/loop evidenced |
+| Offline strategic AI | Mode-specific perception, memory, cover/flanking, squad roles, racing tactics, football formations and adventure behavior; repeatable tier evaluation | Combat enemy has basic LOS/approach/retreat/timed attacks; civilian LOD exists. Strategic AI tiers and fair rank evaluation not evidenced |
+| LAN / hotspot | Two physical Android clients join; identity and full mode state sync; disconnect/rejoin, host loss, versioning and abuse tests pass | ENet host/join and local IP room code exist (configured 8 peers); only player/occupied-vehicle transform/type is sent at about 10 Hz. No two-device test or full match-state sync evidenced |
+| Strikefront MP / BR / Zombies | Each playlist has distinct rules, AI and/or genuine human-player lifecycle, objectives, loadout/inventory, fail/win/reward and disconnect handling | Offline combat prototypes and solo BR deployment/12-AI/safe-zone path exist. Current BR deployment build gate remains pending; loot/spectate/revive/ranked/online/Zombies acceptance not evidenced |
+| Global Earth map | Selectable, connected planet-scale geography including cities, rural/remote land, elevation/biomes, borders, islands, coasts, rivers, lakes, seas, oceans and offshore/open-water sectors; detailed regions stream on demand | Current packages are Shariatpur/Greater-Dhaka focused; no whole-Earth atlas or globally selectable region catalogue exists. Shariatpur remains REVIEW_REQUIRED but is no longer a prerequisite for beginning the global base layer |
+| Country-aware assets | Evidence-informed local vehicles, signs, language, dress/cosmetics, architecture and cultural details by selected region | Recorded as target only; no global country-by-country acceptance evidence |
+| Mobile visual quality | Android render inspection, material/animation correctness, FPS/frame-time/RAM/thermal profile and stable LOD | Current-head PBR CI validation passed; it does not prove phone rendering. Ara operator asset is a candidate only; rendered/device integration unverified. Lobby and stadium are still prototypes |
+
+### H.1 Exact candidate evidence at 2026-11-19
+- Android workflow #1102 (run ID 44354975442) targets commit 149e6b8314325f3e036787f58eaad4945ea83d82 on feature/lobby-operator-showcase and completed successfully. The terminal result and artifact details are recorded in H.3; that result supersedes the earlier in-progress snapshot.
+- All 77 main workflow steps completed with no failed step reported. Separate PBR validation run 44354592447 also passed on the same source head.
+- PR #78 and PR #77 remain open draft PRs. Neither is merged. Do not treat their candidate work as canonical main-branch integration until reviewed/merged.
+- CI success validates scripted checks and packaging, not physical-phone rendering, touch feel, gameplay quality, device performance or production signing.
+- Do not ask the user to test an incomplete candidate before export/content/signature/artifact gates pass and the agreed medium-stage threshold is met.
+
+
+### H.2 Packaging requirement clarification (2026-11-19)
+The present workflow's final upload path is modular: the compact APK excludes district-map data and the selected Shariatpur map is downloaded separately on first launch. The earlier temporary full-map APK passes a content check but is not the final canonical artifact. Treat “one installable APK + separately downloadable map pack” and “one APK with map already embedded” as different deliverables. Do not claim the latter until the uploaded APK itself passes an embedded-map content check.
+
+
+### H.4 Multi-scale world and regional-pack architecture (2026-11-19)
+
+| Area | Required acceptance evidence | Current evidence / honest state |
+|---|---|---|
+| Region-agnostic map packs | Variable non-zero tile counts; unique tile IDs; declared count matches actual records; stable country/region pack IDs; per-part and whole-pack hashes; no city-specific assumptions in the pack manifest | tools/map_pack_build.py no longer requires exactly 60 tiles and now validates identities/counts and future region IDs. Regression tests cover 1, 3, 60 and 121 tiles plus malformed manifests. Commits: builder e0c3766be1c7e876d78e53e1940d3b5081c18a47, tests ed7dccd036bbab5f9a0d40dcd3fe5522a72edb82; fast CI wiring commit af871216fe9debd8a75efa1899c3814d33f91b60. Fast Map Pipeline Checks #657 / run 44460503513 passed on 2026-11-19, including the new map-pack validator and regression tests. The Godot runtime loader/workflow still uses assets/world/dhaka_tiles; full arbitrary-path/global region mounting is not implemented. |
+| Planetary geography catalogue | Searchable/selectable countries and regions with land/water, borders, islands, coasts, lakes/rivers and oceans; connected tile-edge coordinates and LOD | No whole-Earth catalogue or downloadable whole-planet package exists. |
+| DEM-backed terrain | Real elevation raster/height surface, correct slopes/valleys/floodplains/bathymetry where available, roads/buildings draped and collision-tested | The builder now supports a licensed GeoTIFF DEM: it generates a triangulated heightfield, drapes roads/rail/land-use meshes, and places buildings, facade details and vegetation relative to sampled terrain. GeoTIFF, NoData, mesh, draping and end-to-end GLB fixture tests were added. Fast Map Pipeline Checks #661 / run 44462038457 completed SUCCESS; its end-to-end DEM GLB export fixture passed. No production DEM is yet selected/attributed for Shariatpur, the existing district GLBs are unchanged, and no Android player/vehicle terrain-following QA has been completed. |
+| Multi-view building evidence | Correct footprint, verified storeys/height, roof, all accessible exterior sides, signage and entrance references with source/licence/provenance | OSM footprints/tags and a very small licensed façade-photo set exist. There is no complete 360-degree or multi-side coverage for every building; zero independently verified Shariatpur floor counts remain recorded. |
+| Signage and interior truthfulness | Human-reviewed exact text, language, font/colour/layout and named businesses; unique walkable interiors tied to an entrance; explicitly fictional interiors where no evidence exists | District-wide signboard verification and unique interior QA are not evidenced. AI-generated text must not be accepted as factual signage without review. |
+| JibonJatra activities | At least one discoverable in-world driving event and one complete stadium/ground football match with entry/exit, objectives/rules, results and persistent rewards | Road sprint/time-attack/drift and a Pitchbound 22-body/ball smoke exist; complete in-world activity loops and visual/device acceptance are not evidenced. |
+
+**Architecture rule:** build the low-detail planetary foundation, DEM/terrain system, dynamic region manifests and streaming infrastructure in parallel with Shariatpur's detailed acceptance work. Shariatpur is the first field test, not the gate that prevents all other world development.
+### H.3 Android candidate #1102 — terminal CI and artifact evidence (2026-11-19)
+
+**Workflow result: SUCCESS** — run 44354975442, head 149e6b8314325f3e036787f58eaad4945ea83d82. All 77 main workflow steps completed; no failed step was reported. The BR aircraft/freefall/parachute/landing runtime smoke passed. Godot Android export, full-map content inspection, map-pack validation, modular-core export, APK integrity/signature verification, distribution reconciliation, asset-size report, canonical APK assembly, artifact upload, direct Shariatpur release publication and verification-report upload all succeeded.
+
+**Exact released candidate:**
+- Direct APK: https://github.com/titasdev1/WorldSandboxBangladesh/releases/download/shariatpur-review-candidate/world_sandbox_bangladesh.apk
+- APK size: 321,119,583 bytes.
+- APK SHA-256: 4e8907179a2856da7febb3b3b21cc0fef029b7e978d3acfa471d79b5378c4030.
+- APK ZIP structure: PASS; APK Signature Scheme v2 and v3: PASS.
+- Signing identity: CN=World Sandbox Development, O=World Sandbox, C=BD; this matches the workflow's generated debug-fallback signer, not a stable production keystore. Upgrade-install compatibility with an older APK signed by another key is not established.
+- Actions artifact Project-A-Square-Shariatpur-APK, ID 14457820794, is a ZIP container of 316,210,871 bytes containing the APK. The direct release asset above avoids that ZIP wrapper.
+- Verification-report artifact ID 14457481076 contains the APK checksum, signature report, full-map and modular-core content reports, asset report, and map manifest.
+
+**Map delivery:** the temporary full-map APK was 1,816,125,286 bytes and passed the full-map content gate: 60/60 source GeoJSON road files, 60/60 tile records/imported GLB scenes, 584 named places, 248 named roads, 25 buildings with source floor counts, 0 independently verified floor counts, 3 licensed facade panels and 1 linked interior reference photo. It was not retained as the final canonical APK. The final 321 MB core APK intentionally contains zero district-map scenes. The Shariatpur map pack is a separately downloaded 2,451,147,626-byte PCK, split into 10 assets on the Shariatpur review release; each part's byte count and SHA-256 passed, and parts sum to the manifest total. The game downloads the parts, verifies/reassembles the PCK and mounts it on the next launch. This is one installable game APK plus a separate first-run map download—not a single offline-ready embedded-map APK.
+
+**Included art/content evidence:** the final modular APK contains 964 asset files with 7 Poly Haven PBR surfaces / 35 PBR maps, the Ara operator, CharacterCreator modular layers, CC0 Quaternius hero, 50 Kenney car-kit models, 41 commercial city-kit models, 37 industrial models, 40 suburban models, aircraft and ram-air parachute. Structural import/asset checks passed; CODM/eFootball visual quality, full animation deformation and phone performance are not thereby proven.
+
+**Unverified:** no physical Android install/launch, touch, gameplay, frame-time/FPS, RAM, thermal or end-to-end first-run map-download QA was performed by CI. The map remains REVIEW_REQUIRED. Do not call this the final dream game or a production-signed release.

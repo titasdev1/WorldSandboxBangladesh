@@ -4,7 +4,7 @@
   "engine": "Godot 4.4.1",
   "platform": "Android",
   "canonical_repository": "titasdev1/WorldSandboxBangladesh",
-  "current_milestone": "039_GDSCRIPT_VARIANT_BOOL_INFERENCE_REPAIR",
+  "current_milestone": "041_DEM_BACKED_TERRAIN_PIPELINE",
   "completed_milestones": [
     "001_PROJECT_FOUNDATION",
     "004_WORLD_PROCEDURAL_VERTICAL_SLICE"
@@ -38,9 +38,11 @@
     "028_ANIMATED_LOGIN_AND_LOADING_ART_DIRECTION",
     "029_BR_PARACHUTE_ARTIFACT_REGRESSION_REPAIR",
     "030_FIRST_PERSON_BODY_AND_WEAPON_VISIBILITY_ASSERTIONS",
-    "031_NPC_DISTANCE_SIMULATION_LOD_HEADLESS_PASS_DEVICE_PROFILE_PENDING"
+    "031_NPC_DISTANCE_SIMULATION_LOD_HEADLESS_PASS_DEVICE_PROFILE_PENDING",
+    "040_REGION_AGNOSTIC_MAP_PACK_VALIDATION: variable tile counts and region IDs committed; fast regression CI passed run 44460503513; global loader/catalogue/DEM still pending",
+    "041_DEM_BACKED_TERRAIN_PIPELINE: optional licensed GeoTIFF reader, terrain mesh, road/rail/land surface draping, building/prop base elevations and provenance; 8 focused GeoTIFF tests plus 2 end-to-end GLB export/provenance assertions passed in run 44462038457."
   ],
-  "next_priority": "Run the exact PR lightweight validator after explicit bool type annotations in world.gd, character_visual.gd, hud.gd, district_map_display.gd, systems/mission_factory.gd and vehicle.gd. Do not start Android export until project import, NPC LOD, player movement/jump, mobile joystick, vehicle physics, vehicle boarding/alighting, Pitchbound, login backdrop and headless startup all pass on the exact same PR head. After the gate passes, reconcile all latest project branches/assets and make one reviewed Android export.",
+  "next_priority": "Obtain/select a licensed DEM for Shariatpur; run the map builder with full source URL/licence/attribution; inspect generated GLB in Blender/Godot for terrain-to-road/building/river fit, then wire DEM heights into runtime spawn/navigation/player/vehicle placement. In parallel implement planetary low-detail land/water/coastline catalog and region streaming. Do not claim current Shariatpur package has elevation until rebuilt and visually/device verified.",
   "known_bugs": [
     "Build #212 failed because world.gd declared try_street_vendor twice; duplicate removed in commit 3e61538 and build #213 passed.",
     "Build #213 passed source validation and Android export with the corrected market interaction; on-device gameplay and visual QA remain pending.",
@@ -85,7 +87,19 @@
     "2026-11-18: NPC distance-simulation LOD fix and regression test passed the dedicated Godot 4.4.1 workflow on workbench commit 0acbdc6f9716340340adcc4cf78ce4ccf414f561: project import, NPC LOD near/mid/far/hysteresis/re-entry smoke, and headless game startup all passed. This is CI/headless evidence only; the target Redmi device has not been profiled.",
     "2026-11-18: Exact PR validator run 44252942235: Godot import and login backdrop passed; vehicle boarding/alighting reached PASS marker but emitted repeated `Invalid call. Nonexistent 'bool' constructor` from player.gd:265 and player_vehicle_dynamics.gd:160. Other bool(...) calls across map, mission, HUD, save and character scripts are being removed in the same compatibility repair. New static scanner will block such calls across every .gd file.",
     "2026-11-18: Lightweight scanner run 44254756816 found 30 additional invalid bool(...) constructor calls in city/PBR, Pitchbound, Ara/BR/NPC/vehicle tests, and map-pack validation. All 30 additional matches were replaced with explicit boolean comparisons. Static scan and full runtime validation pending.",
-    "2026-11-18: Exact-PR validator run 44255132454 on head 1701c9d5aec31915e126ee441a9b6685ebbbbad3 passed the project-wide invalid bool(...) constructor scan but failed Godot import because explicit Variant comparisons with == true were used in inferred := declarations. Added explicit bool annotations to affected declarations (world one_way/is_oneway, character_visual crouched, HUD streaming_started/installed/br_assets_ready/applied, district map real_map/overview_map, mission factory geo_mode/real_map, vehicle did_refuel). Re-run exact-PR Godot validator before any Android export."
+    "2026-11-18: Exact-PR validator run 44255132454 on head 1701c9d5aec31915e126ee441a9b6685ebbbbad3 passed the project-wide invalid bool(...) constructor scan but failed Godot import because explicit Variant comparisons with == true were used in inferred := declarations. Added explicit bool annotations to affected declarations (world one_way/is_oneway, character_visual crouched, HUD streaming_started/installed/br_assets_ready/applied, district map real_map/overview_map, mission factory geo_mode/real_map, vehicle did_refuel). Re-run exact-PR Godot validator before any Android export.",
+    "2026-11-19: Android run #1102 (44354975442, head 149e6b8314325f3e036787f58eaad4945ea83d82) remains reported in_progress at step 42 after 40 successful completed steps. The workflow timeout is 330 minutes; job-log download returned BlobNotFound; no artifact exists. Cancellation was not performed because authenticated GitHub browser access was unavailable. Do not start a replacement full build before resolving the existing run.",
+    "2026-11-19: PBR validation run 44354592447 passed on current head; it is not an Android export or phone-render pass.",
+    "2026-11-19: Pitchbound 3D runtime smoke currently proves 22 player bodies, one human-controlled player and a rigid-body ball only. Simple AI and low-detail procedural stadium are not eFootball acceptance.",
+    "2026-11-19: Roadline source provides sprint/time-attack/drift prototypes; sprint uses six checkpoints and three simple AI racers. Forza-level garage, tuning, car fleet, event variety and AI remain unimplemented.",
+    "2026-11-19: ENet private-room code has local host/join and ~10 Hz player/vehicle transform replication, but no physical two-device test or complete mode-state synchronization.",
+    "2026-11-19: Greenwake: The Monsoon Relic exists in the experience registry as planned only; no playable level or loop is evidenced.",
+    "2026-11-19: Combat AI has basic line-of-sight, approach/retreat and timed attacks; strategic ranked squad AI tiers are not implemented.",
+    "2026-11-19 live poll update: run #1102 now has 57 successful completed steps, zero failures reported, and step 58 modular core APK export in progress. BR runtime step 45 passed. The temporary full-map APK passed step 55 but is not the canonical uploaded output; steps 57-59 prepare/verify a core APK without district-map content, with the Shariatpur PCK downloaded separately at first boot. Current artifact list remains empty and final signature/integrity/upload steps are pending.",
+    "2026-11-19: Android run #1102 completed success (44354975442, 77/77 main workflow steps). Direct APK 321,119,583 bytes, SHA-256 4e8907179a2856da7febb3b3b21cc0fef029b7e978d3acfa471d79b5378c4030; v2/v3 signature and ZIP integrity passed.",
+    "2026-11-19: Shariatpur direct release includes a separate 2,451,147,626-byte PCK in 10 SHA-256-verified parts. Final core APK excludes all district-map scenes; temporary 1,816,125,286-byte full-map APK passed content verification but was not retained/published.",
+    "2026-11-19: Final APK certificate identity matches workflow-generated debug-fallback signer CN=World Sandbox Development; no stable production signing identity is established. Do not promise in-place upgrades from another signing key.",
+    "2026-11-19: CI passed but no physical Android device launch/gameplay/touch/FPS/RAM/thermal/first-run map download test has been conducted; Shariatpur remains REVIEW_REQUIRED."
   ],
   "build_status": "INVALID_BOOL_CONSTRUCTORS_REPLACED_AND_STATIC_SCAN_PASS; GODOT_IMPORT_FOUND_VARIANT_BOOL_INFERENCE_ERRORS; EXPLICIT_BOOL_ANNOTATIONS_APPLIED; EXACT_PR_RUNTIME_VALIDATION_PENDING; NO_ANDROID_EXPORT",
   "latest_verified_run": 38892036942,
@@ -199,7 +213,7 @@
       ]
     }
   },
-  "latest_development_commit": "79a2bb385292e151e3208b0cd86021c1f0cc81b6",
+  "latest_development_commit": "af871216fe9debd8a75efa1899c3814d33f91b60",
   "latest_development_branch": "feature/lobby-operator-showcase",
   "session_checkpoint": "A_SQUARE_SESSION_CHECKPOINT.md",
   "competitive_reference_blueprint": "COMPETITIVE_REFERENCE_BLUEPRINT.md",
@@ -373,7 +387,121 @@
       "bool_constructor_static_scan": "PASS",
       "apk_built": false
     },
-    "fixes_applied": "explicit bool annotations to all inference sites reported by Godot import"
+    "fixes_applied": "explicit bool annotations to all inference sites reported by Godot import",
+    "global_world_direction": {
+      "date": "2026-11-19",
+      "mode_taxonomy": "Racing and Pitchbound 11v11 football are in-world JibonJatra activities, not separate top-level mode cards",
+      "map_architecture": "Planetary base + regional DEM/infrastructure packs + city/street evidence + curated hero buildings/interiors",
+      "current_gap": "Godot runtime loader/content catalogue remain fixed to assets/world/dhaka_tiles; flat ground remains; no whole-Earth catalogue",
+      "map_pack_generalization": {
+        "builder_commit": "e0c3766be1c7e876d78e53e1940d3b5081c18a47",
+        "tests_commit": "ed7dccd036bbab5f9a0d40dcd3fe5522a72edb82",
+        "workflow_commit": "af871216fe9debd8a75efa1899c3814d33f91b60",
+        "ci_run": 44460503513,
+        "ci_conclusion": "success",
+        "validated_tile_counts": [
+          1,
+          3,
+          60,
+          121
+        ],
+        "remaining": "runtime loader and map content root still district-specific"
+      }
+    },
+    "dem_terrain": {
+      "date": "2026-11-19",
+      "implementation_commits": [
+        "2931e957410da70001bba5e524f3b8d81ba62275",
+        "58f8d2ab738c5437abde2f277513fcc457d9a1e8",
+        "653512245ba61ef2cb286b5ce6181eb040e7ea63",
+        "1142fb44b18e668bab80658a43d213347803e5a1"
+      ],
+      "focused_tests": 8,
+      "focused_test_run": 44461918274,
+      "focused_test_conclusion": "success",
+      "end_to_end_test_run": 44462038457,
+      "end_to_end_test_status": "success",
+      "production_dem_selected": false,
+      "shariatpur_package_rebuilt": false,
+      "runtime_player_vehicle_elevation_qa": false,
+      "end_to_end_tests": 2
+    }
   },
-  "latest_checkpoint_commit": "79a2bb385292e151e3208b0cd86021c1f0cc81b6"
+  "latest_checkpoint_commit": "79a2bb385292e151e3208b0cd86021c1f0cc81b6",
+  "last_audited_branch": "feature/lobby-operator-showcase",
+  "last_audited_head": "af871216fe9debd8a75efa1899c3814d33f91b60",
+  "active_pull_requests": [
+    {
+      "number": 78,
+      "branch": "feature/lobby-operator-showcase",
+      "head": "af871216fe9debd8a75efa1899c3814d33f91b60",
+      "state": "open",
+      "draft": true
+    },
+    {
+      "number": 77,
+      "branch": "feature/medium-stage-integration",
+      "head": "4a8e832bf294e2543d6abc8a47dd1b5976604347",
+      "state": "open",
+      "draft": true
+    }
+  ],
+  "latest_android_run": {
+    "run_id": 44354975442,
+    "run_number": 1102,
+    "head": "149e6b8314325f3e036787f58eaad4945ea83d82",
+    "status": "completed",
+    "successful_completed_steps": 77,
+    "current_step": 58,
+    "current_step_name": "Export modular core Android APK",
+    "timeout_minutes": 330,
+    "android_export_started": true,
+    "artifact_available": false,
+    "log_download": "BlobNotFound",
+    "cancellation": "not performed; authenticated GitHub browser access unavailable",
+    "no_failed_steps_reported": true,
+    "temporary_full_map_apk_export": "completed",
+    "temporary_full_map_content_verification": "completed",
+    "separate_map_pack_export_and_verification": "completed",
+    "compact_core_export_preparation": "completed",
+    "modular_core_export": "in_progress",
+    "final_core_embeds_district_map": false,
+    "final_canonical_delivery": "compact core APK plus separately downloaded map PCK parts",
+    "updated_at_api_stale": true,
+    "conclusion": "success",
+    "failed_steps": 0,
+    "android_export": "success",
+    "apk_bytes": 321119583,
+    "apk_sha256": "4e8907179a2856da7febb3b3b21cc0fef029b7e978d3acfa471d79b5378c4030",
+    "apk_artifact_id": 14457820794,
+    "apk_artifact_container_bytes": 316210871,
+    "verification_report_artifact_id": 14457481076,
+    "direct_apk_release": "https://github.com/titasdev1/WorldSandboxBangladesh/releases/download/shariatpur-review-candidate/world_sandbox_bangladesh.apk",
+    "signing_mode": "debug-fallback (certificate CN=World Sandbox Development; not stable production key)",
+    "signature_verification": "PASS v2 and v3",
+    "map_pack_bytes": 2451147626,
+    "map_pack_parts": 10,
+    "map_pack_verification": "all part sizes/SHA-256 PASS; parts sum to manifest total",
+    "final_apk_embedded_map": false,
+    "physical_device_qa": "NOT VERIFIED"
+  },
+  "latest_pbr_validation_run": {
+    "run_id": 44354592447,
+    "run_number": 8,
+    "head": "149e6b8314325f3e036787f58eaad4945ea83d82",
+    "conclusion": "success"
+  },
+  "current_build_status": "ANDROID_RUN_1102_COMPLETED_SUCCESS_ALL_77_STEPS; BR_RUNTIME_PASS; TEMPORARY_FULL_MAP_APK_VALIDATED_1.816GB; FINAL_MODULAR_APK_321119583_BYTES_SIGNED_DEBUG_FALLBACK_V2_V3_PASS; SHARIATPUR_PCK_2451147626_BYTES_10_PARTS_HASH_PASS; NO_PHYSICAL_DEVICE_QA; MAP_REVIEW_REQUIRED",
+  "new_requirements_recorded": "2026-11-19 correction: Roadline racing and Pitchbound eFootball-style football are activities inside JibonJatra's GTA-style open world, not separate top-level modes. World target is multi-scale whole-Earth: planetary land/water/boundaries/elevation/bathymetry; regional DEM/infrastructure; city/street multi-view facade/sign evidence; manually reviewed hero buildings and truthful authored interiors. Shariatpur is first detailed field test, not blocker for global foundations. Licensed/reusable assets only; no Google 3D Tiles offline extraction.",
+  "latest_published_candidate": {
+    "tag": "shariatpur-review-candidate",
+    "apk_release_url": "https://github.com/titasdev1/WorldSandboxBangladesh/releases/download/shariatpur-review-candidate/world_sandbox_bangladesh.apk",
+    "apk_bytes": 321119583,
+    "apk_sha256": "4e8907179a2856da7febb3b3b21cc0fef029b7e978d3acfa471d79b5378c4030",
+    "map_pack_bytes": 2451147626,
+    "map_pack_parts": 10,
+    "artifact_id": 14457820794,
+    "verification_reports_artifact_id": 14457481076,
+    "map_delivery": "external first-run PCK download; not embedded in core APK"
+  }
 }
