@@ -21,7 +21,7 @@ The exact source feature is:
   - (90.3487220, 23.2187936)
   - (90.3487140, 23.2186062)
 - Approximate centroid: **23.21870138, 90.34867748**
-- Approximate footprint: **173.2 m²**, approximately 20.9 m × 8.3 m.
+- Approximate footprint: **173.2 m²**, approximately 21.2 m × 9.1 m.
 
 This is the first confirmed host-building polygon match in this Palong corridor task. Its source polygon and tile coordinate transform are stored in the JSON.
 
@@ -31,7 +31,7 @@ The current map seed estimates four floors and 12 m height using `AREA_CATEGORY_
 
 Those are pipeline fallbacks, not facts about the actual Thana. The model must not silently turn them into a four-storey measured building or claim the generated anchor is its real entrance.
 
-The seed's local footprint is about 20.9 m × 8.3 m. The exact source polygon is preserved even if later art uses a separate wall thickness, bevels, cutaways and material layers.
+The seed's local footprint is about 21.2 m × 9.1 m. The exact source polygon is preserved even if later art uses a separate wall thickness, bevels, cutaways and material layers.
 
 ## 3. Independent visual and public-building records
 
@@ -58,6 +58,12 @@ The PWD Building Database has a record titled "Police Department's Zorazirno Tha
 
 The page displays a placeholder image and does not publish coordinates or an OSM building ID. It is not yet proven to be the same polygon as way 601571171. Do not attach its two-floor count to the OSM feature until the records are joined:
 [Source: PWD Building Database](https://ss.pwd.gov.bd/buildingdatabase/buildingbyid/7377)
+
+### Historical user-reported floor clue — low confidence
+
+A public place listing for Palong Model Thana contains a user review dated 6 January 2018 that said the station then had two floors and that construction of a third floor was underway. This is a dated, user-generated recollection, not a measured survey or an official building record. It may describe a construction stage that later changed, and it does not establish the 2026 floor count of OSM way 601571171. Record it as historical context only; keep the production floor count unverified until an official, current record or a reliable current view is matched to the exact footprint.
+
+[Source: Vymaps Palong Model Thana listing and dated user review](https://vymaps.com/BD/Palong-Model-Thana-136943/)
 
 ## 4. First ten building footprints around the Thana
 
@@ -145,3 +151,11 @@ The tile's `map_manifest.json` has no DEM/elevation/terrain layer field. The Tha
 Therefore the current tile is a usable planimetric base (roads, building footprints, mapped water, land-use and POIs), not a verified fine-resolution terrain model for slopes, pond banks, road crowns, drains or individual trees. These require a separate licensed DEM/field-source integration and evidence record.
 
 The full machine-readable road/water/tree/terrain findings are stored in `local_context_around_thana` in the JSON.
+
+## 8. Imagery-coverage status for the exact Palong neighbourhood
+
+The successful district-level KartaView audit on 18 November 2026 queried 30 coverage tiles and 30 360-photo metadata sample points across the Shariatpur envelope. It found one OSM-matched coverage track in the north-west part of the audit box and zero qualifying 360-photo candidates in the district-wide sample. The discovered track is not at Palong Model Thana.
+
+A separate approximately 1.1 km local Palong audit is now configured on the production branch (23.2135, 90.3435 to 23.2235, 90.3535; zoom 14; 3×3 photo-query grid; 500 m radius; maximum 30 requests). The workflow change is committed, but no run result exists yet. Do not treat it as evidence of local coverage until the new report artifact is produced and reviewed.
+
+[Local KartaView audit workflow](../../.github/workflows/kartaview-coverage-audit.yml)
