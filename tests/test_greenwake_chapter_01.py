@@ -38,7 +38,7 @@ class GreenwakeChapterOneMapTests(unittest.TestCase):
         puzzle = self.map_data["puzzles"][0]
         self.assertEqual(puzzle["id"], "three_tide_marks")
         self.assertGreaterEqual(len(puzzle["dependencies"]), 2)
-        self.assertIn("water-level", puzzle["logic"])
+        self.assertIn("markers align", puzzle["logic"])
         self.assertTrue(puzzle["fail_state"])
         self.assertTrue(puzzle["accessibility"])
 
