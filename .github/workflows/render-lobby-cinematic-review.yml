@@ -76,10 +76,16 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          report = json.loads(Path("build/ara-operator-candidates/previews/preview_report.json").read_text())
-          assert report.get("high", {}).get("joints") == 69, report
-          assert report.get("high", {}).get("triangles", 0) > 100000, report
-          print("ARA_OPERATOR_REVIEW_SOURCE:", json.dumps(report.get("high", {}), sort_keys=True))
+          report = json.loads(Path("build/ara-operator-candidates/verification.json").read_text())
+          high = report["variants"]["high"]
+          required = high["required_animation_groups"]
+          assert report.get("validation") == "PASS", report.get("errors")
+          assert high.get("max_joint_count") == 69, high
+          assert high.get("triangles", 0) > 100000, high
+          assert high.get("animation_count", 0) >= 200, high
+          assert high.get("weapon_socket") is True, high
+          assert all(required.get(name) is True for name in ("idle", "walk", "run", "sprint", "jump", "rifle", "aim", "fire", "reload")), required
+          print("ARA_OPERATOR_REVIEW_SOURCE:", json.dumps({k: high[k] for k in ("triangles", "max_joint_count", "animation_count", "weapon_socket", "required_animation_groups")}, sort_keys=True))
           PY
 
       - name: Build editable command-hall stage and production GLB
