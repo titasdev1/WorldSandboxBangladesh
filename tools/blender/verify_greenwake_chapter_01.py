@@ -102,7 +102,7 @@ def verify(glb: Path, manifest_path: Path, preview: Path | None = None) -> dict:
     # image bytes must travel with the asset; no file:// or remote texture paths.
     pbr = manifest.get("pbr_provenance", {})
     pbr_materials = pbr.get("materials", {})
-    expected_pbr_materials = {"stone", "stone_trim", "brick", "limewash", "timber", "wet_timber", "crate", "iron"}
+    expected_pbr_materials = {"stone", "stone_trim", "brick", "limewash", "timber", "wet_timber", "crate", "iron", "path"}
     if pbr.get("provider") != "Poly Haven" or pbr.get("license") != "CC0-1.0":
         raise ValueError("Greenwake hero materials must carry verified Poly Haven CC0 provenance")
     if not expected_pbr_materials.issubset(set(pbr_materials)):
@@ -124,7 +124,11 @@ def verify(glb: Path, manifest_path: Path, preview: Path | None = None) -> dict:
     if external_images:
         raise ValueError("Unexpected external image dependencies in the GLB")
     if len(images) < 18 or any("bufferView" not in image and not str(image.get("uri", "")).startswith("data:") for image in images):
-        raise ValueError("The exported GLB does not embed all verified PBR image maps")
+        raise ValueError(
+            "The exported GLB does not embed all verified PBR image maps: "
+            f"images={len(images)}, external={external_images}, "
+            f"without_buffer_view={[i for i, image in enumerate(images) if 'bufferView' not in image and not str(image.get('uri', '')).startswith('data:')]}"
+        )
     if preview is not None and (not preview.is_file() or preview.stat().st_size < 10000):
         raise ValueError("Rendered preview PNG is missing or implausibly small")
 
