@@ -32,7 +32,27 @@
     "source_lineage": "Geofabrik Bangladesh OSM PBF + Overture Maps Foundation Buildings theme; per-feature source IDs preserved in tile GeoJSON",
     "attribution": "© OpenStreetMap contributors, Overture Maps Foundation",
     "licensing": "OSM and Overture Buildings theme: ODbL 1.0. Overture lists Google Open Buildings as CC BY 4.0 source; preserve source lineage and all relevant notices.",
-    "caveat": "Procedural vegetation is not a surveyed tree inventory. Water and footprints come from mapped/source layers; tile feature counts are not evidence of complete real-world coverage."
+    "caveat": "Procedural vegetation is not a surveyed tree inventory. Water and footprints come from mapped/source layers; tile feature counts are not evidence of complete real-world coverage.",
+    "tile_total_building_footprints": 15288,
+    "tile_overture_building_footprints": 14096,
+    "tile_osm_building_footprints_derived": 1192,
+    "tile_map_manifest_feature_counts": {
+      "osm_elements": 15770,
+      "building_footprints": 15288,
+      "overture_building_footprints": 14096,
+      "named_or_tagged_interaction_seeds": 76,
+      "interior_anchors": 15338,
+      "doors_from_mapped_entrance_nodes": 0,
+      "inferred_doors": 15288,
+      "mapped_trees": 2,
+      "mapped_utility_poles": 0,
+      "mapped_street_lamps": 0,
+      "procedural_vegetation_trees": 145,
+      "water_polygons": 60,
+      "waterway_segments": 3,
+      "landuse_areas": 12,
+      "bridge_ways": 13
+    }
   },
   "thana_building": {
     "rank": 1,
@@ -675,5 +695,140 @@
     "Resolve the PWD building record-to-footprint relationship before using its two-storey attribute.",
     "Keep the nine nearby building names null until each business/building identity is independently joined.",
     "Model and validate a single hero building at a time, then review the next candidate."
-  ]
+  ],
+  "local_context_around_thana": {
+    "nearest_road_segments": [
+      {
+        "osm_way_id": 607853530,
+        "road_class": "residential",
+        "name": null,
+        "distance_from_thana_footprint_m": 4.8,
+        "tags": {
+          "highway": "residential"
+        },
+        "note": "Unnamed residential way; no width/surface/lanes tags present in this feature."
+      },
+      {
+        "osm_way_id": 1545306642,
+        "road_class": "service",
+        "name": null,
+        "distance_from_thana_footprint_m": 6.5,
+        "tags": {
+          "highway": "service"
+        },
+        "note": "Short service access way; no width/surface/lanes tags present."
+      },
+      {
+        "osm_way_id": 1225584409,
+        "road_class": "service",
+        "name": null,
+        "distance_from_thana_footprint_m": 16,
+        "tags": {
+          "highway": "service"
+        },
+        "note": "Short service connection; no width/surface/lanes tags present."
+      },
+      {
+        "osm_way_id": 607853679,
+        "road_class": "residential",
+        "name": "Kotowal Bari Road",
+        "distance_from_thana_footprint_m": 32.7,
+        "tags": {
+          "highway": "residential",
+          "name": "Kotowal Bari Road"
+        }
+      },
+      {
+        "osm_way_id": 607839191,
+        "road_class": "primary",
+        "name": "Shariatpur Main Road",
+        "distance_from_thana_footprint_m": 63.1,
+        "tags": {
+          "highway": "primary",
+          "name": "Shariatpur Main Road",
+          "ref": "R861",
+          "surface": "asphalt"
+        }
+      },
+      {
+        "osm_way_id": 607853531,
+        "road_class": "residential",
+        "name": null,
+        "distance_from_thana_footprint_m": 81.4,
+        "tags": {
+          "highway": "residential"
+        }
+      },
+      {
+        "osm_way_id": 607853680,
+        "road_class": "residential",
+        "name": "Palong Bazar - Nirala Road",
+        "distance_from_thana_footprint_m": 131.7,
+        "tags": {
+          "highway": "residential",
+          "name": "Palong Bazar - Nirala Road"
+        }
+      }
+    ],
+    "hydrography": {
+      "tile_water_polygon_count": 60,
+      "tile_waterway_segment_count": 3,
+      "nearest_ponds": [
+        {
+          "osm_way_id": 567299603,
+          "distance_from_thana_footprint_m": 488.4,
+          "tags": {
+            "natural": "water",
+            "water": "pond"
+          },
+          "centroid_estimate": [
+            90.35145,
+            23.21464
+          ]
+        },
+        {
+          "osm_way_id": 607853529,
+          "distance_from_thana_footprint_m": 489.1,
+          "tags": {
+            "natural": "water",
+            "water": "pond"
+          },
+          "centroid_estimate": [
+            90.3494,
+            23.21399
+          ]
+        }
+      ],
+      "note": "Distances are computed from the mapped Thana polygon to the mapped source water geometry. No pond is adjacent to the Thana footprint."
+    },
+    "vegetation": {
+      "tile_mapped_tree_node_count": 2,
+      "nearest_mapped_tree_nodes": [
+        {
+          "osm_node_id": 5461026154,
+          "longitude": 90.3473878,
+          "latitude": 23.2075874,
+          "distance_from_thana_footprint_m": 1233.5
+        },
+        {
+          "osm_node_id": 5461026155,
+          "longitude": 90.3475829,
+          "latitude": 23.2075276,
+          "distance_from_thana_footprint_m": 1238.3
+        }
+      ],
+      "tile_procedural_vegetation_tree_count": 145,
+      "source_method": "Bounded deterministic low-poly props generated from mapped forest/orchard/park/scrub/farm polygons; not individually surveyed trees.",
+      "tile_utility_pole_count": 0,
+      "tile_street_lamp_count": 0,
+      "note": "No mapped individual tree node is within 1.2 km of the Thana. Do not claim exact tree-by-tree inventory near this building."
+    },
+    "terrain": {
+      "tile_map_manifest_has_dem_or_terrain_layer": false,
+      "thana_seed_has_ground_elevation_m": false,
+      "verified_elevation_source": null,
+      "status": "NOT_VERIFIED_FROM_THIS_TILE",
+      "note": "The canonical tile manifest records a local equirectangular XY projection and water/land-use geometry, but has no DEM/elevation layer or per-building ground_elevation_m for this Thana seed. Do not treat the current ground as a surveyed terrain surface."
+    }
+  }
 }

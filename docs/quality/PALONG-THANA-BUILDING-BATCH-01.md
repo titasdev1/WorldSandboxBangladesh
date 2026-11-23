@@ -102,3 +102,46 @@ Start with the exact Palong Model Thana footprint. Build the building and the se
 7. review the rendered result in-game before promoting it.
 
 **Status:** exact footprint joined; first ten nearby footprint candidate set recorded; independent entry-gate visual cues found; floors/entrance/PWD-to-OSM association and Sonali branch footprint remain unresolved. No GLB has yet been generated or device-approved from this dossier.
+
+
+## 8. Roads, water, vegetation and terrain around the exact footprint
+
+The canonical tile manifest `tile_23p1835_90p3053` was inspected in addition to the Thana polygon and ten-building candidate set.
+
+### Roads nearest to the Thana polygon
+
+Distances are polygon-to-road geometry distances from the exact OSM Thana footprint, not route distances:
+
+| OSM way | Road | Class | Distance |
+|---:|---|---|---:|
+| `607853530` | Unnamed residential way | residential | 4.8 m |
+| `1545306642` | Unnamed service access | service | 6.5 m |
+| `1225584409` | Unnamed service connection | service | 16.0 m |
+| `607853679` | Kotowal Bari Road | residential | 32.7 m |
+| `607839191` | Shariatpur Main Road (R861, asphalt) | primary | 63.1 m |
+| `607853531` | Unnamed residential way | residential | 81.4 m |
+| `607853680` | Palong Bazar–Nirala Road | residential | 131.7 m |
+
+The unnamed nearby ways carry no OSM width, surface or lane tags in this tile. Their exact line geometry is present, but road widths and kerb/footpath/drain offsets must not be invented as mapped facts.
+
+### Water
+
+The tile has 60 mapped water polygons and three waterway segments. The nearest mapped ponds are:
+- OSM way `567299603`: approximately 488.4 m from the Thana footprint.
+- OSM way `607853529`: approximately 489.1 m from the Thana footprint.
+
+There is no mapped pond touching the Thana footprint. Both water polygons retain their actual source geometry in the source tile; this is a geographic outline, not a surveyed bathymetric/depth model.
+
+### Trees and streetscape props
+
+- The tile contains only two individually mapped `natural=tree` nodes; both are over 1.2 km from this Thana.
+- The pipeline generates 145 procedural vegetation tree props across mapped forest/orchard/park/scrub/farm land-use areas. These are bounded deterministic placements, not a surveyed inventory of individual trees at this site.
+- The tile records zero mapped utility-pole nodes and zero mapped street-lamp nodes. Their absence in the OSM extract does not prove there are no poles or lamps on the actual street.
+
+### Terrain
+
+The tile's `map_manifest.json` has no DEM/elevation/terrain layer field. The Thana interior seed has no `ground_elevation_m` value. The manifest does state that geometry is projected into local metres with Z up, but that is a coordinate transform, not a height survey.
+
+Therefore the current tile is a usable planimetric base (roads, building footprints, mapped water, land-use and POIs), not a verified fine-resolution terrain model for slopes, pond banks, road crowns, drains or individual trees. These require a separate licensed DEM/field-source integration and evidence record.
+
+The full machine-readable road/water/tree/terrain findings are stored in `local_context_around_thana` in the JSON.
