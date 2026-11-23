@@ -37,6 +37,8 @@ def cli_args():
     parser.add_argument("--preview", type=pathlib.Path, required=True)
     parser.add_argument("--blend", type=pathlib.Path, required=True)
     parser.add_argument("--manifest", type=pathlib.Path, required=True)
+    parser.add_argument("--textures", type=pathlib.Path, required=False, default=None,
+                        help="Optional verified Poly Haven CC0 PBR bundle root")
     return parser.parse_args(raw)
 
 
@@ -104,6 +106,151 @@ def material(name, color, roughness=0.75, metallic=0.0,
     mat["source"] = "Original A-Square procedural Blender material"
     mat["photographic_scan"] = False
     return mat
+
+
+PBR_ASSIGNMENTS = {
+    "stone": "aged_concrete",
+    "stone_trim": "aged_concrete",
+    "brick": "exposed_clay_brick",
+    "limewash": "weathered_plaster",
+    "timber": "aged_wood",
+    "wet_timber": "aged_wood",
+    "crate": "aged_wood",
+    "iron": "galvanized_shutter",
+}
+
+
+def ensure_mesh_uvs():
+    """Add stable local-planar UVs to generated meshes that have no UV layer."""
+    for obj in bpy.context.scene.objects:
+        if obj.type != "MESH" or obj.data is None or len(obj.data.vertices) == 0:
+            continue
+        if len(obj.data.uv_layers) > 0:
+            continue
+        uv = obj.data.uv_layers.new(name="UVMap")
+        xs = [v.co.x for v in obj.data.vertices]
+        ys = [v.co.y for v in obj.data.vertices]
+        x_min, x_max = min(xs), max(xs)
+        y_min, y_max = min(ys), max(ys)
+        x_span = max(x_max - x_min, 1e-5)
+        y_span = max(y_max - y_min, 1e-5)
+        for loop in obj.data.loops:
+            co = obj.data.vertices[loop.vertex_index].co
+            uv.data[loop.index].uv = ((co.x - x_min) / x_span, (co.y - y_min) / y_span)
+
+
+def apply_verified_pbr(material_block, textures_root: pathlib.Path, material_key: str, manifest: dict):
+    """Replace the procedural base/normal/roughness with verified embedded CC0 scan maps."""
+    material_record = manifest.get("materials", {}).get(material_key)
+    if not isinstance(material_record, dict):
+        raise RuntimeError(f"Verified Poly Haven material is missing: {material_key}")
+    maps = material_record.get("maps", {})
+    required = ("base_color", "normal", "roughness")
+    for semantic in required:
+        if semantic not in maps:
+            raise RuntimeError(f"Verified Poly Haven {material_key} lacks {semantic} map")
+
+    def packed_image(semantic: str, non_color: bool):
+        record = maps[semantic]
+        source_path = pathlib.Path(record["path"])
+        if not source_path.is_absolute():
+            source_path = pathlib.Path.cwd() / source_path
+        if not source_path.is_file():
+            candidate = textures_root / "polyhaven" / material_key / (semantic + source_path.suffix)
+            if candidate.is_file():
+                source_path = candidate
+        if not source_path.is_file():
+            raise RuntimeError(f"Poly Haven PBR file is missing: {source_path}")
+        image = bpy.data.images.load(str(source_path), check_existing=True)
+        if non_color:
+            image.colorspace_settings.name = "Non-Color"
+        image.pack()
+        return image, record
+
+    nodes = material_block.node_tree.nodes
+    links = material_block.node_tree.links
+    shader = nodes.get("Principled BSDF")
+    if shader is None:
+        raise RuntimeError(f"Material has no Principled BSDF: {material_block.name}")
+
+    for link in list(links):
+        if link.to_node == shader and link.to_socket.name in {"Base Color", "Roughness", "Normal"}:
+            links.remove(link)
+
+    texcoord = nodes.new("ShaderNodeTexCoord")
+    texcoord.label = "A-Square UV coordinates"
+    base_image, base_record = packed_image("base_color", False)
+    base = nodes.new("ShaderNodeTexImage")
+    base.name = f"PolyHaven_{material_key}_BaseColor"
+    base.label = f"CC0 {material_key} base colour"
+    base.image = base_image
+    links.new(texcoord.outputs["UV"], base.inputs["Vector"])
+    links.new(base.outputs["Color"], shader.inputs["Base Color"])
+
+    rough_image, rough_record = packed_image("roughness", True)
+    rough = nodes.new("ShaderNodeTexImage")
+    rough.name = f"PolyHaven_{material_key}_Roughness"
+    rough.label = f"CC0 {material_key} roughness"
+    rough.image = rough_image
+    links.new(texcoord.outputs["UV"], rough.inputs["Vector"])
+    rough_bw = nodes.new("ShaderNodeRGBToBW")
+    links.new(rough.outputs["Color"], rough_bw.inputs["Color"])
+    links.new(rough_bw.outputs["Val"], shader.inputs["Roughness"])
+
+    normal_image, normal_record = packed_image("normal", True)
+    normal = nodes.new("ShaderNodeTexImage")
+    normal.name = f"PolyHaven_{material_key}_Normal"
+    normal.label = f"CC0 {material_key} tangent-space normal"
+    normal.image = normal_image
+    links.new(texcoord.outputs["UV"], normal.inputs["Vector"])
+    normal_map = nodes.new("ShaderNodeNormalMap")
+    normal_map.inputs["Strength"].default_value = 0.8
+    links.new(normal.outputs["Color"], normal_map.inputs["Color"])
+    links.new(normal_map.outputs["Normal"], shader.inputs["Normal"])
+
+    material_block["source"] = "Poly Haven CC0-1.0 photographic PBR scan"
+    material_block["pbr_provider"] = "Poly Haven"
+    material_block["pbr_asset_id"] = material_record.get("asset_id", "")
+    material_block["pbr_author"] = json.dumps(material_record.get("authors", {}), ensure_ascii=False)
+    material_block["pbr_license"] = "CC0-1.0"
+    material_block["photographic_scan"] = True
+    return {
+        "material": material_block.name,
+        "polyhaven_material_key": material_key,
+        "asset_id": material_record.get("asset_id"),
+        "asset_name": material_record.get("asset_name"),
+        "authors": material_record.get("authors", {}),
+        "license": "CC0-1.0",
+        "maps": {
+            "base_color": {"path": base_record["path"], "md5": base_record["md5"], "bytes": base_record["bytes"]},
+            "normal": {"path": normal_record["path"], "md5": normal_record["md5"], "bytes": normal_record["bytes"]},
+            "roughness": {"path": rough_record["path"], "md5": rough_record["md5"], "bytes": rough_record["bytes"]},
+        }
+    }
+
+
+def load_pbr_library(textures_root: pathlib.Path | None, mats: dict) -> dict:
+    """Apply only the semantically matched licensed scan sets; other surfaces stay original."""
+    if textures_root is None:
+        return {"provider": "A-Square original procedural materials only", "license": "project-authored", "materials": {}}
+    manifest_path = textures_root / "polyhaven_material_manifest.json"
+    if not manifest_path.is_file():
+        raise RuntimeError(f"Verified Poly Haven manifest is missing: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("provider") != "Poly Haven" or manifest.get("asset_license") != "CC0-1.0":
+        raise RuntimeError("Poly Haven provenance manifest has unexpected provider or license")
+    applied = {}
+    ensure_mesh_uvs()
+    for material_key, pbr_key in PBR_ASSIGNMENTS.items():
+        applied[material_key] = apply_verified_pbr(mats[material_key], textures_root, pbr_key, manifest)
+    return {
+        "provider": "Poly Haven",
+        "provider_credit": manifest.get("provider_credit", "Powered by Poly Haven"),
+        "license": "CC0-1.0",
+        "api_terms": manifest.get("api_terms"),
+        "asset_license_url": manifest.get("asset_license_url"),
+        "materials": applied,
+    }
 
 
 def box(name, location, dimensions, mat, root, bevel=0.08, role="architecture"):
@@ -603,7 +750,7 @@ def build_camera_and_lights(scene, root, mats):
     scene.world = world
 
 
-def build_scene():
+def build_scene(textures_root: pathlib.Path | None = None):
     scene = bpy.context.scene
     root = reset_scene()
     mats = {
@@ -627,6 +774,7 @@ def build_scene():
         "earth": material("GW_Exposed_Ridge_Earth", (0.19, 0.16, 0.11), 0.96, 0.0, 22.0, 0.2, 0.24),
         "lantern": material("GW_Warm_Signal_Lantern", (0.88, 0.48, 0.12), 0.22, 0.05, 5.0, 0.0, 0.1),
     }
+    pbr_provenance = load_pbr_library(textures_root, mats)
     terrain, river = build_terrain(root, mats["ground"], mats["water"])
     house = build_customs_house(root, mats)
     jetty = build_jetty(root, mats)
@@ -662,7 +810,8 @@ def build_scene():
     scene.render.filepath = "//greenwake_chapter_01_preview.png"
     scene.frame_set(1)
     return root, mats, {"terrain": terrain, "river": river, "house": house, "jetty": jetty,
-                        "sluice": sluice, "archive": archive, "labels": labels}
+                        "sluice": sluice, "archive": archive, "labels": labels,
+                        "pbr_provenance": pbr_provenance}
 
 
 def export_glb(path: pathlib.Path):
@@ -688,12 +837,14 @@ def export_glb(path: pathlib.Path):
 def main():
     args = cli_args()
     ensure_version()
-    root, mats, landmarks = build_scene()
+    root, mats, landmarks = build_scene(args.textures)
     args.preview.parent.mkdir(parents=True, exist_ok=True)
     args.blend.parent.mkdir(parents=True, exist_ok=True)
     args.manifest.parent.mkdir(parents=True, exist_ok=True)
     # Export the complete scene and preserve the editable source before rendering
     # the review still. A headless render failure must not erase the authored GLB.
+    ensure_mesh_uvs()
+    bpy.ops.file.pack_all()
     export_glb(args.out)
     bpy.ops.wm.save_as_mainfile(filepath=str(args.blend))
     bpy.context.scene.render.filepath = str(args.preview)
@@ -714,7 +865,8 @@ def main():
         "surveyed_location": False,
         "geospatial_coordinates": None,
         "historic_claim": False,
-        "source_policy": "original Blender-authored geometry and procedural materials; no AI generated media, no copied game assets, no Google imagery",
+        "source_policy": "original Blender-authored geometry; Poly Haven CC0-1.0 PBR scans with manifest and hash verification; original procedural water/terrain/vegetation; no AI generated media, no copied game assets, no Google imagery",
+        "pbr_provenance": landmarks.get("pbr_provenance", {}),
         "engine_target": "Godot 4.4.1",
         "authoring_tool": "Blender 5.2.4 LTS",
         "license": "A-Square project-authored original asset; no third-party mesh or texture content",
