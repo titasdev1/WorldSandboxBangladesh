@@ -1,0 +1,248 @@
+{
+  "schema_version": 1,
+  "asset_id": "greenwake_chapter_01_rupjhora_lost_port",
+  "family": "GREENWAKE",
+  "chapter": 1,
+  "title": "Rupjhora Lost Port",
+  "world_type": "original_fictional_composite",
+  "factuality": {
+    "surveyed_location": false,
+    "real_historic_site": false,
+    "geospatial_coordinates": null,
+    "historic_claims": false,
+    "note": "A fictional Bangladesh-rooted river-delta adventure setting. Do not represent this as a real village, port, archaeological site, or measured landscape."
+  },
+  "coordinate_system": {
+    "type": "local_cartesian_meters",
+    "origin_description": "center of the authored chapter environment",
+    "axes": {
+      "x": "west/east",
+      "y": "south/north",
+      "z": "height"
+    },
+    "scale": "1 Blender unit = 1 meter",
+    "wgs84": false
+  },
+  "design_pillars": [
+    "monsoon river delta and tidal side-channels",
+    "Bangladesh-rooted trade-quarter architecture and river transport",
+    "wetland mangroves, reed beds and a low laterite ridge",
+    "lost-heritage mystery treated as fiction rather than invented history",
+    "cinematic traversal and an environmental water-control puzzle"
+  ],
+  "landmarks": [
+    {
+      "id": "arrival_ghat",
+      "name": "Arrival Ghat",
+      "local_xyz_m": [
+        8,
+        -5,
+        0.6
+      ],
+      "type": "starting_area",
+      "purpose": "The protagonist arrives by a small river boat; the narrative hook begins at the landing."
+    },
+    {
+      "id": "trade_quarter",
+      "name": "River Trade Quarter",
+      "local_xyz_m": [
+        -18,
+        8,
+        1
+      ],
+      "type": "exploration_hub",
+      "purpose": "A small fictional cluster of storage sheds, covered market counters and river-port service spaces."
+    },
+    {
+      "id": "old_customs_house",
+      "name": "Old Customs House",
+      "local_xyz_m": [
+        -21,
+        8,
+        0.8
+      ],
+      "type": "hero_building",
+      "purpose": "A two-level fictional port office where the player finds the first ledger fragment."
+    },
+    {
+      "id": "mangrove_walk",
+      "name": "Mangrove Walk",
+      "local_xyz_m": [
+        -30,
+        26,
+        1.1
+      ],
+      "type": "traversal_zone",
+      "purpose": "Roots, low ledges and narrow raised banks form a traversal route through wetland vegetation."
+    },
+    {
+      "id": "broken_jetty",
+      "name": "Broken Jetty",
+      "local_xyz_m": [
+        11,
+        -3,
+        0
+      ],
+      "type": "traversal_zone",
+      "purpose": "A damaged pier with gaps, loose planks and a beached cargo boat."
+    },
+    {
+      "id": "rope_bridge",
+      "name": "Rope Bridge",
+      "local_xyz_m": [
+        5,
+        21,
+        2.5
+      ],
+      "type": "traversal_zone",
+      "purpose": "A swaying authored crossing above a side channel; movement and balance challenge."
+    },
+    {
+      "id": "tidal_sluice",
+      "name": "Tidal Sluice",
+      "local_xyz_m": [
+        30.5,
+        -13.5,
+        0
+      ],
+      "type": "environmental_puzzle",
+      "purpose": "A timber-and-iron gate mechanism controls the water level in the fictional archive channel."
+    },
+    {
+      "id": "ridge_archive",
+      "name": "Ridge Archive",
+      "local_xyz_m": [
+        40,
+        7,
+        1
+      ],
+      "type": "chapter_reveal",
+      "purpose": "A fictional chamber cut into a low ridge; it contains the route ledger and the chapter reveal."
+    },
+    {
+      "id": "ridge_exit",
+      "name": "Ridge Exit",
+      "local_xyz_m": [
+        49,
+        36,
+        5
+      ],
+      "type": "chapter_exit",
+      "purpose": "The chapter end overlooking the river delta and the next route."
+    }
+  ],
+  "story_sequence": [
+    {
+      "step": 1,
+      "kind": "arrival",
+      "landmark_id": "arrival_ghat",
+      "event": "A damaged cargo tag carries a partial route mark and a name that should not appear on a current shipping ledger."
+    },
+    {
+      "step": 2,
+      "kind": "clue_acquisition",
+      "landmark_id": "trade_quarter",
+      "clue_id": "ledger_fragment_a",
+      "event": "A torn ledger fragment links three stamped tide marks to the old customs house."
+    },
+    {
+      "step": 3,
+      "kind": "investigation",
+      "landmark_id": "old_customs_house",
+      "clue_id": "port_chart_b",
+      "event": "The player compares a hand-drawn channel chart with the river-facing building markers."
+    },
+    {
+      "step": 4,
+      "kind": "traversal",
+      "landmark_id": "mangrove_walk",
+      "event": "The route follows raised roots and a broken embankment to the old jetty."
+    },
+    {
+      "step": 5,
+      "kind": "traversal",
+      "landmark_id": "broken_jetty",
+      "event": "The player balances across missing boards and uses a moored boat as a moving foothold."
+    },
+    {
+      "step": 6,
+      "kind": "traversal",
+      "landmark_id": "rope_bridge",
+      "event": "A rope bridge crosses the narrow side channel toward the sluice approach."
+    },
+    {
+      "step": 7,
+      "kind": "puzzle",
+      "landmark_id": "tidal_sluice",
+      "puzzle_id": "three_tide_marks",
+      "event": "The player uses the ledger and port chart to align the gate wheel to the correct water sequence."
+    },
+    {
+      "step": 8,
+      "kind": "reveal",
+      "landmark_id": "ridge_archive",
+      "event": "The water falls enough to reveal the submerged archive entry; the chamber contains evidence of a redirected trade route."
+    },
+    {
+      "step": 9,
+      "kind": "consequence",
+      "landmark_id": "ridge_exit",
+      "event": "The protagonist chooses whether to preserve the route evidence for the community or take the only intact copy onward."
+    }
+  ],
+  "puzzles": [
+    {
+      "id": "three_tide_marks",
+      "title": "The Three Tide Marks",
+      "type": "multi_clue_environmental_mechanism",
+      "dependencies": [
+        "ledger_fragment_a",
+        "port_chart_b"
+      ],
+      "components": [
+        "rotating_gate_wheel",
+        "three_carved_stone_markers",
+        "sluice_gate",
+        "water_level_sensor",
+        "archive_entry_trigger"
+      ],
+      "logic": "Read the tide sequence from the torn ledger, match it to the port chart, and rotate the wheel until all three markers align. The sluice opens only when the correct sequence is entered.",
+      "feedback": [
+        "marker click and scrape",
+        "wheel ratchet sound",
+        "water-level movement",
+        "gate timber strain",
+        "archive-entry stone movement"
+      ],
+      "fail_state": "The mechanism returns to neutral without damaging the puzzle or trapping the player.",
+      "accessibility": "Provide optional symbol names and a slower wheel-interaction mode."
+    }
+  ],
+  "traversal_requirements": [
+    "context-sensitive climb and vault points",
+    "ledge hang and release at the mangrove embankment",
+    "balance movement on the broken jetty and rope bridge",
+    "optional swimming recovery path beside the jetty",
+    "boat interaction at Arrival Ghat and Broken Jetty"
+  ],
+  "technical_layers": {
+    "visual_meshes": "Blender-authored scene GLB",
+    "collision": "separate simplified collision proxies to be authored during Godot integration",
+    "navigation": "hand-authored chapter path and traversal links; no claim of navigation implementation yet",
+    "triggers": "separate Godot interaction volumes and chapter state graph",
+    "save_points": [
+      "arrival_ghat",
+      "after_three_tide_marks",
+      "ridge_exit"
+    ],
+    "streaming_group": "greenwake_chapter_01"
+  },
+  "status": {
+    "asset_authoring": "development_pipeline_started",
+    "blender_export": "pending_workflow_validation",
+    "godot_integration": "not_started",
+    "gameplay": "not_playable",
+    "android_qa": "not_started",
+    "visual_approval": "not_reviewed"
+  }
+}
