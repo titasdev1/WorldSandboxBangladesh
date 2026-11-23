@@ -379,13 +379,21 @@ func _build_authored_hero(packed: PackedScene) -> void:
     var ground_blend_points := 0
     var aim_blend_points := 0
     if locomotion_blend_ready and is_instance_valid(_authored_locomotion_tree):
-        var blend_machine := _authored_locomotion_tree.tree_root as AnimationNodeStateMachine
-        var ground_space := blend_machine.get_node("GroundLocomotion") as AnimationNodeBlendSpace1D
-        if ground_space != null:
-            ground_blend_points = ground_space.get_blend_point_count()
-        var aim_space := blend_machine.get_node("AimLocomotion") as AnimationNodeBlendSpace2D
-        if aim_space != null:
-            aim_blend_points = aim_space.get_blend_point_count()
+        # The tree root is a layered BlendTree; the state machine lives inside
+        # its "Locomotion" node. Never cast the top-level root to StateMachine.
+        var layered_root := _authored_locomotion_tree.tree_root as AnimationNodeBlendTree
+        var locomotion_machine: AnimationNodeStateMachine
+        if layered_root != null:
+            locomotion_machine = layered_root.get_node("Locomotion") as AnimationNodeStateMachine
+        if locomotion_machine != null:
+            var ground_space := locomotion_machine.get_node("GroundLocomotion") as AnimationNodeBlendSpace1D
+            if ground_space != null:
+                ground_blend_points = ground_space.get_blend_point_count()
+            var aim_space := locomotion_machine.get_node("AimLocomotion") as AnimationNodeBlendSpace2D
+            if aim_space != null:
+                aim_blend_points = aim_space.get_blend_point_count()
+        else:
+            push_warning("AUTHORED_LOCOMOTION_TREE_INVALID: nested Locomotion state machine is missing.")
     print("AUTHORED_LOCOMOTION_BLEND • ready=%s • ground_points=%d • aim_2d=%s • aim_points=%d • upper_body_fire=%s • filtered_tracks=%d" % [
         str(locomotion_blend_ready),
         ground_blend_points,
