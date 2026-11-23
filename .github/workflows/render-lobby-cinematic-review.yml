@@ -26,7 +26,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: lobby-cinematic-review-\${{ github.ref }}
+  group: lobby-cinematic-review-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -63,8 +63,8 @@ jobs:
         with:
           name: A-Square-Ara3D-Operator-Candidates
           path: build/ara-operator-candidates
-          github-token: \${{ github.token }}
-          repository: \${{ github.repository }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
           run-id: 45213313474
 
       - name: Verify operator GLB and license record
@@ -87,46 +87,46 @@ jobs:
         run: |
           set -euo pipefail
           OUT_DIR="build/asquare_lobby"
-          mkdir -p "\${OUT_DIR}"
+          mkdir -p "${OUT_DIR}"
           if ! blender --background --factory-startup \
             --python tools/blender/build_asquare_lobby_scene.py -- \
-            --out "\${OUT_DIR}/asquare_command_hall.glb" \
-            --preview "\${OUT_DIR}/command_hall_preview.png" \
-            --blend "\${OUT_DIR}/asquare_command_hall.blend" \
-            > "\${OUT_DIR}/stage-authoring.log" 2>&1; then
-            cat "\${OUT_DIR}/stage-authoring.log"
+            --out "${OUT_DIR}/asquare_command_hall.glb" \
+            --preview "${OUT_DIR}/command_hall_preview.png" \
+            --blend "${OUT_DIR}/asquare_command_hall.blend" \
+            > "${OUT_DIR}/stage-authoring.log" 2>&1; then
+            cat "${OUT_DIR}/stage-authoring.log"
             exit 1
           fi
-          cat "\${OUT_DIR}/stage-authoring.log"
-          grep -Fq "A2_LOBBY_STAGE_READY:" "\${OUT_DIR}/stage-authoring.log"
+          cat "${OUT_DIR}/stage-authoring.log"
+          grep -Fq "A2_LOBBY_STAGE_READY:" "${OUT_DIR}/stage-authoring.log"
           python3 tools/blender/verify_asquare_lobby_scene.py \
-            --glb "\${OUT_DIR}/asquare_command_hall.glb" \
-            --out "\${OUT_DIR}/stage-verification.json"
+            --glb "${OUT_DIR}/asquare_command_hall.glb" \
+            --out "${OUT_DIR}/stage-verification.json"
 
       - name: Render five operator-led still angles and a cinematic camera orbit
         shell: bash
         run: |
           set -euo pipefail
           OUT_DIR="build/asquare_lobby"
-          REVIEW_DIR="\${OUT_DIR}/review_media"
-          if ! blender --background "\${OUT_DIR}/asquare_command_hall.blend" \
+          REVIEW_DIR="${OUT_DIR}/review_media"
+          if ! blender --background "${OUT_DIR}/asquare_command_hall.blend" \
             --python tools/blender/render_asquare_lobby_cinematic_review.py -- \
-            --blend "\${OUT_DIR}/asquare_command_hall.blend" \
+            --blend "${OUT_DIR}/asquare_command_hall.blend" \
             --operator-glb "build/ara-operator-candidates/high/a_square_bangladesh_operator_candidate_20261117.glb" \
-            --review-dir "\${REVIEW_DIR}" \
-            > "\${OUT_DIR}/cinematic-review.log" 2>&1; then
-            cat "\${OUT_DIR}/cinematic-review.log"
+            --review-dir "${REVIEW_DIR}" \
+            > "${OUT_DIR}/cinematic-review.log" 2>&1; then
+            cat "${OUT_DIR}/cinematic-review.log"
             exit 1
           fi
-          cat "\${OUT_DIR}/cinematic-review.log"
-          grep -Fq "A2_LOBBY_CINEMATIC_REVIEW_READY:" "\${OUT_DIR}/cinematic-review.log"
-          test -s "\${REVIEW_DIR}/A-Square-Lobby-Operator-Orbit.mp4"
-          test -s "\${REVIEW_DIR}/lobby_01_hero_front.png"
-          test -s "\${REVIEW_DIR}/lobby_02_left_three_quarter.png"
-          test -s "\${REVIEW_DIR}/lobby_03_right_three_quarter.png"
-          test -s "\${REVIEW_DIR}/lobby_04_rear_high_overlook.png"
-          test -s "\${REVIEW_DIR}/lobby_05_operator_closeup.png"
-          python3 -m json.tool "\${REVIEW_DIR}/cinematic_review_manifest.json" > /dev/null
+          cat "${OUT_DIR}/cinematic-review.log"
+          grep -Fq "A2_LOBBY_CINEMATIC_REVIEW_READY:" "${OUT_DIR}/cinematic-review.log"
+          test -s "${REVIEW_DIR}/A-Square-Lobby-Operator-Orbit.mp4"
+          test -s "${REVIEW_DIR}/lobby_01_hero_front.png"
+          test -s "${REVIEW_DIR}/lobby_02_left_three_quarter.png"
+          test -s "${REVIEW_DIR}/lobby_03_right_three_quarter.png"
+          test -s "${REVIEW_DIR}/lobby_04_rear_high_overlook.png"
+          test -s "${REVIEW_DIR}/lobby_05_operator_closeup.png"
+          python3 -m json.tool "${REVIEW_DIR}/cinematic_review_manifest.json" > /dev/null
 
       - name: Upload cinematic-review diagnostics even on failure
         if: always()
