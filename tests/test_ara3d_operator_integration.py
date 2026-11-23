@@ -15,6 +15,14 @@ def block(source: str, start: str, end: str) -> str:
     return source[a:b]
 
 
+def function_block(source: str, function_name: str) -> str:
+    """Return one GDScript function, stopping before the next top-level func."""
+    marker = f"func {function_name}("
+    start = source.index(marker)
+    end = source.find("\nfunc ", start + len(marker))
+    return source[start:] if end == -1 else source[start:end]
+
+
 class AraOperatorIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -138,7 +146,8 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         self.assertIn('state_machine.add_node("AimLocomotion", aim_space', self.visual)
         self.assertIn('state_machine.add_transition("GroundLocomotion", "AimLocomotion"', self.visual)
         self.assertIn('state_machine.add_transition("AimLocomotion", "GroundLocomotion"', self.visual)
-        self.assertIn("global_basis.orthonormalized().inverse()", self.visual)
+        self.assertIn("var facing_basis := global_basis.orthonormalized()", self.visual)
+        self.assertIn("var local_velocity := facing_basis.inverse() * Vector3(body.velocity.x, 0.0, body.velocity.z)", self.visual)
         self.assertIn("Vector2(local_velocity.x, -local_velocity.z)", self.visual)
         self.assertIn("parameters/Locomotion/AimLocomotion/blend_position", self.visual)
         self.assertIn("parameters/Locomotion/GroundLocomotion/blend_position", self.visual)
