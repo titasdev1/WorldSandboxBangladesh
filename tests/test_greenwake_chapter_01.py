@@ -47,7 +47,8 @@ class GreenwakeChapterOneMapTests(unittest.TestCase):
             "def build_terrain", "def build_customs_house", "def build_jetty",
             "def build_rope_bridge", "def build_sluice", "def build_archive_vault",
             "def build_vegetation", "BLENDER_EXPECTED = (5, 2, 4)",
-            "export_animations=True", "GREENWAKE_CH01_READY"
+            "PBR_ASSIGNMENTS = {", "def apply_verified_pbr", "image.pack()",
+            "def load_pbr_library", "export_animations=True", "GREENWAKE_CH01_READY"
         ):
             self.assertIn(marker, self.builder)
         for required_node in (
@@ -66,6 +67,9 @@ class GreenwakeChapterOneMapTests(unittest.TestCase):
             'manifest.get("historic_claim") is not False',
             'manifest.get("gameplay_state") != "NOT_YET_INTEGRATED_OR_PLAYABLE"',
             "external_image_references",
+            'pbr.get("provider") != "Poly Haven"',
+            'pbr.get("license") != "CC0-1.0"',
+            "embedded_pbr_images",
             "GREENWAKE_CH01_VERIFICATION: PASS"
         ):
             self.assertIn(marker, self.verifier)
