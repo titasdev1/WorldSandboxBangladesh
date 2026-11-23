@@ -117,6 +117,7 @@ PBR_ASSIGNMENTS = {
     "wet_timber": "aged_wood",
     "crate": "aged_wood",
     "iron": "galvanized_shutter",
+    "path": "wet_asphalt",
 }
 
 
@@ -494,6 +495,49 @@ def build_customs_house(root, mats):
     return (x, y, z)
 
 
+def build_port_service_path(root, mats):
+    """A narrow repaired service strip on the fictional west bank, not a district road."""
+    points = [(-30.5, 13.5), (-28.5, 8.0), (-26.0, 1.5), (-23.0, -4.5),
+              (-20.0, -9.5), (-17.5, -15.5), (-15.5, -21.0)]
+    half_width = 1.35
+    left = []
+    right = []
+    for index, (x, y) in enumerate(points):
+        if index == 0:
+            dx, dy = points[1][0] - x, points[1][1] - y
+        elif index == len(points) - 1:
+            dx, dy = x - points[index - 1][0], y - points[index - 1][1]
+        else:
+            dx = points[index + 1][0] - points[index - 1][0]
+            dy = points[index + 1][1] - points[index - 1][1]
+        length = max(math.hypot(dx, dy), 1e-5)
+        nx, ny = -dy / length, dx / length
+        lx, ly = x + nx * half_width, y + ny * half_width
+        rx, ry = x - nx * half_width, y - ny * half_width
+        left.append((lx, ly, terrain_height(lx, ly) + 0.10))
+        right.append((rx, ry, terrain_height(rx, ry) + 0.10))
+    vertices = left + right
+    count = len(points)
+    faces = []
+    for i in range(count - 1):
+        faces.append((i, i + 1, count + i + 1, count + i))
+    mesh_object("GW_WestBank_Repaired_Tar_Service_Path", vertices, faces,
+                mats["path"], root, "service_path", False)
+    curve("GW_ServicePath_Stone_Edge_Left",
+          [(x, y, z + 0.08) for x, y, z in left], 0.075, mats["stone_trim"], root, "path_kerb")
+    curve("GW_ServicePath_Stone_Edge_Right",
+          [(x, y, z + 0.08) for x, y, z in right], 0.075, mats["stone_trim"], root, "path_kerb")
+    # Broken patch seams and tar repairs make the modern maintenance strip read as used.
+    for index in (1, 3, 5):
+        x, y = points[index]
+        z = terrain_height(x, y) + 0.16
+        curve(f"GW_ServicePath_PatchSeam_{index}",
+              [(x - 0.52, y - 0.12, z), (x - 0.22, y + 0.05, z + 0.006),
+               (x + 0.36, y + 0.10, z)],
+              0.018, mats["shadow"], root, "asphalt_patch")
+    return points
+
+
 def build_jetty(root, mats):
     x0, y0 = 11.0, -3.0
     base_z = -0.06
@@ -773,9 +817,11 @@ def build_scene(textures_root: pathlib.Path | None = None):
         "crate": material("GW_Trade_Crate_Wood", (0.28, 0.19, 0.10), 0.79, 0.0, 26.0, 0.13, 0.2),
         "earth": material("GW_Exposed_Ridge_Earth", (0.19, 0.16, 0.11), 0.96, 0.0, 22.0, 0.2, 0.24),
         "lantern": material("GW_Warm_Signal_Lantern", (0.88, 0.48, 0.12), 0.22, 0.05, 5.0, 0.0, 0.1),
+        "path": material("GW_Wet_Bitumen_Service_Path", (0.11, 0.13, 0.13), 0.88, 0.02, 22.0, 0.18, 0.14),
     }
     pbr_provenance = load_pbr_library(textures_root, mats)
     terrain, river = build_terrain(root, mats["ground"], mats["water"])
+    service_path = build_port_service_path(root, mats)
     house = build_customs_house(root, mats)
     jetty = build_jetty(root, mats)
     build_boat(root, mats, 8.0, -5.0, 0.65, "GW_Delta_Ferry", 0.9, math.radians(7))
@@ -811,7 +857,7 @@ def build_scene(textures_root: pathlib.Path | None = None):
     scene.frame_set(1)
     return root, mats, {"terrain": terrain, "river": river, "house": house, "jetty": jetty,
                         "sluice": sluice, "archive": archive, "labels": labels,
-                        "pbr_provenance": pbr_provenance}
+                        "service_path": service_path, "pbr_provenance": pbr_provenance}
 
 
 def export_glb(path: pathlib.Path):
