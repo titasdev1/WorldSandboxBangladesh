@@ -47,13 +47,15 @@ class GreenwakeChapterOneMapTests(unittest.TestCase):
             "def build_terrain", "def build_customs_house", "def build_jetty",
             "def build_rope_bridge", "def build_sluice", "def build_archive_vault",
             "def build_vegetation", "BLENDER_EXPECTED = (5, 2, 4)",
-            "PBR_ASSIGNMENTS = {", "def apply_verified_pbr", "image.pack()",
+            "PBR_ASSIGNMENTS = {", '"path": "wet_asphalt"', "def build_port_service_path",
+            "def apply_verified_pbr", "image.pack()",
             "def load_pbr_library", "export_animations=True", "GREENWAKE_CH01_READY"
         ):
             self.assertIn(marker, self.builder)
         for required_node in (
             "GW_Tidal_Floodplain_and_Ridge_Terrain",
             "GW_River_Rupjhora_Monsoon_Channel",
+            "GW_WestBank_Repaired_Tar_Service_Path",
             "GW_CustomsHouse_MainVolume",
             "GW_Sluice_GateLeaf",
             "GW_Archive_LedgerPedestal"
