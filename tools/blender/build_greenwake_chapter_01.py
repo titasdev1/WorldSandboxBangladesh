@@ -709,7 +709,7 @@ def main():
         "source_policy": "original Blender-authored geometry and procedural materials; no AI generated media, no copied game assets, no Google imagery",
         "engine_target": "Godot 4.4.1",
         "authoring_tool": "Blender 5.2.4 LTS",
-        "license": "CC0-1.0 for original A-Square authored mesh/material/export source, subject to repository attribution record",
+        "license": "A-Square project-authored original asset; no third-party mesh or texture content",
         "triangles": triangles,
         "mesh_objects": len(mesh_objects),
         "materials": sorted(m.name for m in mats.values()),
