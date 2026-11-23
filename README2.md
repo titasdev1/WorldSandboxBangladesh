@@ -295,3 +295,38 @@ PR #90 commits:
 - GPL-3.0 BlenderProc: useful PBR/rendering concepts to study, not bundled into the game pipeline.
 
 **Status:** authoring code, tests, CI workflow and dossier committed. No Blender render, GLB export, Godot import, Android build or visual acceptance is claimed until the focused workflow runs and outputs are reviewed.
+
+
+---
+
+## 10. Palong source corrections + local imagery/terrain route — 23 November 2026
+
+### Geometry correction and historical clue
+- Recomputed from the canonical local-metre OSM polygon: the Thana footprint's axis-aligned extents are approximately **21.18 m × 9.11 m**, with area about **173.21 m²**. Earlier dossier wording (20.9 × 8.3 m) was incorrect and has been corrected.
+- A Vymaps user review dated 6 January 2018 reports that the station then had two floors and a third-floor construction was underway. This is a low-confidence historical anecdote, not an official survey, and does not establish the 2026 floor count. It is recorded separately from the PWD two-storey candidate.
+- Current production floor height, entrance side, interior and ground level all remain unverified until a current official record or exact local evidence is joined to OSM way 601571171.
+
+### KartaView local audit
+- Prior district-wide audit run #44231084589: 30/30 coverage tile requests, 30/30 photo metadata probes; one OSM-matched track at the far northwest of the district audit bbox; zero qualifying 360-photo candidates in the sampled grid. No local Palong coverage is proven by that audit.
+- Local audit workflow update [58cfd10f238536715942153e6afd605ce6bdc311](https://github.com/titasdev1/WorldSandboxBangladesh/commit/58cfd10f238536715942153e6afd605ce6bdc311) narrows the next scan to `23.2135,90.3435,23.2235,90.3535`, zoom 14, 3×3 photo probes, 500 m radius, max 30 requests. It renames the output artifact to `Project-A-Square-Palong-KartaView-360-Coverage`.
+- The focused workflow has been committed but no successful run/artifact is present yet. Do not claim any local panorama or street imagery until the artifact is produced and individual records are checked for photographer, permalink, capture time, projection/FOV, direction, location match and CC BY-SA 4.0 attribution.
+
+### Street photo references
+- [Jago News (28 Oct 2022)](https://www.jagonews24.com/country/news/805575): red-brick entry arch and Bangla identity fascia, a partial view of the structure behind it, palms and compound traffic.
+- [Prothom Alo (30 Apr 2025)](https://www.prothomalo.com/bangladesh/district/9dk8y7bpff): brick entry frontage, fence, worn boundary wall and visible side/upper building windows.
+- [Vymaps historical listing/review](https://vymaps.com/BD/Palong-Model-Thana-136943/): user-reported two floors and ongoing third-floor work as of 6 Jan 2018; low confidence.
+These are reference observations only; press-photo pixels are not embedded as game textures.
+
+### Terrain and land-cover sources
+- The Shariatpur review tile is still `FLAT_FALLBACK_NO_DEM`; the map sequencer calls the optional DEM-capable renderer without DEM arguments.
+- Copernicus DEM GLO-30 is free worldwide with required DLR/Airbus/Copernicus notice, but it is a 30 m **digital surface model** affected by roofs and vegetation. Treat it as a macro elevation layer; mask/interpolate buildings and vegetation before using it for ground/road placement.
+- ESA WorldCover 2021 is 10 m, derived from Sentinel-1/2 and CC BY 4.0. Use it for broad land-cover context (built-up, cropland, vegetation, wetland and water), not individual trees, houses, façades or roof detail.
+- Sentinel-2 10/20/60 m imagery can provide seasonal land/water context, not street-level asset reference.
+- OpenAerialMap/Shariatpur STAC audit found two Copernicus DEM records and zero visual aerial imagery scenes in the searched envelope; the DEM records were held pending provenance/license review at that time.
+
+Primary references:
+- [Copernicus DEM licensing and attribution](https://dataspace.copernicus.eu/explore-data/data-collections/copernicus-contributing-missions/collections-description/COP-DEM)
+- [ESA WorldCover data access](https://esa-worldcover.org/en/data-access)
+- [WorldCover CC BY 4.0 metadata](https://github.com/ESA-WorldCover/esa-worldcover-datasets/blob/main/README.md)
+
+**Status:** corrected source dimensions, historical low-confidence note, focused imagery audit config and terrain-source strategy are documented. Neither a new KartaView local audit nor DEM-backed Shariatpur package has been produced yet.
