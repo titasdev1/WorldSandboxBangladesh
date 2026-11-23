@@ -6,7 +6,7 @@ materials are explicit art-direction choices rather than survey claims. The gate
 is exported separately at local origin until its real site position is matched.
 """
 from __future__ import annotations
-import argparse, hashlib, json, math
+import argparse, hashlib, json, math, sys
 from pathlib import Path
 from typing import Any
 
@@ -329,7 +329,8 @@ def main():
     p.add_argument("--out-dir",required=True,type=Path)
     p.add_argument("--bengali-font",default="/usr/share/fonts/truetype/noto/NotoSansBengali-Regular.ttf")
     p.add_argument("--pbr-manifest",type=Path)
-    args=p.parse_args()
+    raw=sys.argv[sys.argv.index("--")+1:] if "--" in sys.argv else []
+    args=p.parse_args(raw)
     build_blender(args)
 
 if __name__=="__main__": main()
