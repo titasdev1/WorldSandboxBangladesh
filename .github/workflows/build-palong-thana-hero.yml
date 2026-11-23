@@ -26,7 +26,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: palong-thana-hero-\${{ github.ref }}
+  group: palong-thana-hero-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -63,8 +63,8 @@ jobs:
         with:
           name: Project-A-Square-Dhaka-Division-45152539785-batch-0-attempt-0
           path: build/shariatpur-source
-          github-token: \${{ github.token }}
-          repository: \${{ github.repository }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
           run-id: 45152539785
 
       - name: Verify exact Palong Model Thana source polygon is present
@@ -72,10 +72,10 @@ jobs:
         run: |
           set -euo pipefail
           TILE_DIR="$(find build/shariatpur-source -type f -path "*/tile_23p1835_90p3053/map_manifest.json" -print -quit | xargs -r dirname)"
-          test -n "\${TILE_DIR}"
-          test -s "\${TILE_DIR}/Dhaka_OSM_Source.geojson"
-          test -s "\${TILE_DIR}/map_manifest.json"
-          python3 - "\${TILE_DIR}/Dhaka_OSM_Source.geojson" <<'PY'
+          test -n "${TILE_DIR}"
+          test -s "${TILE_DIR}/Dhaka_OSM_Source.geojson"
+          test -s "${TILE_DIR}/map_manifest.json"
+          python3 - "${TILE_DIR}/Dhaka_OSM_Source.geojson" <<'PY'
           import json, sys
           from pathlib import Path
           data=json.loads(Path(sys.argv[1]).read_text())
@@ -111,10 +111,10 @@ jobs:
           BENGALI_FONT="$(fc-match -f '%{file}' 'Noto Sans Bengali' | head -n 1)"
           if ! blender --background --factory-startup \
             --python tools/blender/build_palong_thana_hero.py -- \
-            --source-geojson "\${TILE_DIR}/Dhaka_OSM_Source.geojson" \
-            --tile-manifest "\${TILE_DIR}/map_manifest.json" \
+            --source-geojson "${TILE_DIR}/Dhaka_OSM_Source.geojson" \
+            --tile-manifest "${TILE_DIR}/map_manifest.json" \
             --out-dir build/palong-thana \
-            --bengali-font "\${BENGALI_FONT}" \
+            --bengali-font "${BENGALI_FONT}" \
             --pbr-manifest build/palong-thana/textures/polyhaven_material_manifest.json \
             > build/palong-thana/authoring.log 2>&1; then
             cat build/palong-thana/authoring.log
