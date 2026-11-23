@@ -98,13 +98,33 @@ def verify(glb: Path, manifest_path: Path, preview: Path | None = None) -> dict:
     channels = sum(len(a.get("channels", [])) for a in animations)
     if not animations or channels < 2:
         raise ValueError("Environment animation channels are missing")
-    # This scene uses original procedural shader nodes; no remote/external image references.
+    # Require licensed photographic surface maps to be embedded in the GLB. The
+    # image bytes must travel with the asset; no file:// or remote texture paths.
+    pbr = manifest.get("pbr_provenance", {})
+    pbr_materials = pbr.get("materials", {})
+    expected_pbr_materials = {"stone", "stone_trim", "brick", "limewash", "timber", "wet_timber", "crate", "iron"}
+    if pbr.get("provider") != "Poly Haven" or pbr.get("license") != "CC0-1.0":
+        raise ValueError("Greenwake hero materials must carry verified Poly Haven CC0 provenance")
+    if not expected_pbr_materials.issubset(set(pbr_materials)):
+        raise ValueError("One or more required Greenwake surfaces lack a CC0 PBR assignment")
+    for key, record in pbr_materials.items():
+        if record.get("license") != "CC0-1.0" or len(record.get("maps", {})) != 3:
+            raise ValueError(f"Invalid PBR provenance for material {key}")
+        if not record.get("asset_id") or not record.get("authors"):
+            raise ValueError(f"Missing source identity/author for PBR material {key}")
+        for map_record in record["maps"].values():
+            if not map_record.get("md5") or int(map_record.get("bytes", 0)) <= 0:
+                raise ValueError(f"Missing verified hash/size for PBR material {key}")
+
+    images = doc.get("images", [])
     external_images = [
-        image.get("uri") for image in doc.get("images", [])
+        image.get("uri") for image in images
         if isinstance(image.get("uri"), str) and not image["uri"].startswith("data:")
     ]
     if external_images:
         raise ValueError("Unexpected external image dependencies in the GLB")
+    if len(images) < 18 or any("bufferView" not in image and not str(image.get("uri", "")).startswith("data:") for image in images):
+        raise ValueError("The exported GLB does not embed all verified PBR image maps")
     if preview is not None and (not preview.is_file() or preview.stat().st_size < 10000):
         raise ValueError("Rendered preview PNG is missing or implausibly small")
 
@@ -119,6 +139,10 @@ def verify(glb: Path, manifest_path: Path, preview: Path | None = None) -> dict:
         "animations": len(animations),
         "animation_channels": channels,
         "external_image_references": 0,
+        "embedded_pbr_images": len(doc.get("images", [])),
+        "pbr_provider": pbr.get("provider"),
+        "pbr_license": pbr.get("license"),
+        "pbr_material_assignments": sorted(pbr_materials),
         "fictional_composite": True,
         "playable": False,
         "required_nodes": REQUIRED_NODES,
