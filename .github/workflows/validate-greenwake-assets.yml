@@ -8,6 +8,8 @@ on:
     paths:
       - "tools/blender/build_greenwake_chapter_01.py"
       - "tools/blender/verify_greenwake_chapter_01.py"
+      - "tools/fetch_polyhaven_pbr_materials.py"
+      - "tests/test_polyhaven_material_fetcher.py"
       - "assets/world/greenwake/**"
       - "tests/test_greenwake_chapter_01.py"
       - "docs/quality/GREENWAKE_CHAPTER_01_VERTICAL_SLICE.md"
@@ -27,7 +29,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: greenwake-ch01-blender-\${{ github.ref }}
+  group: greenwake-ch01-blender-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -51,11 +53,22 @@ jobs:
         run: |
           python3 -m py_compile \
             tools/blender/build_greenwake_chapter_01.py \
-            tools/blender/verify_greenwake_chapter_01.py
+            tools/blender/verify_greenwake_chapter_01.py \
+            tools/fetch_polyhaven_pbr_materials.py
           python3 -m json.tool assets/world/greenwake/chapter_01_map.json > /dev/null
 
       - name: Verify Greenwake route, puzzle dependencies and factuality boundaries
         run: python3 -m unittest discover -s tests -p "test_greenwake_chapter_01.py" -v
+
+      - name: Test Poly Haven CC0 PBR selection and checksum policy
+        run: python3 -m unittest discover -s tests -p "test_polyhaven_material_fetcher.py" -v
+
+      - name: Fetch six verified Poly Haven 2K CC0 PBR sets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_polyhaven_pbr_materials.py \
+            --out build/greenwake/textures --resolution 2k
 
       - name: Author the original Rupjhora Lost Port environment in Blender 5.2.4
         shell: bash
@@ -69,6 +82,7 @@ jobs:
             --preview "${OUT_DIR}/greenwake_ch01_preview.png" \
             --blend "${OUT_DIR}/greenwake_ch01.blend" \
             --manifest "${OUT_DIR}/asset_manifest.json" \
+            --textures build/greenwake/textures \
             > "${OUT_DIR}/authoring.log" 2>&1; then
             cat "${OUT_DIR}/authoring.log"
             exit 1
