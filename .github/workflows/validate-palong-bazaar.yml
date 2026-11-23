@@ -13,6 +13,9 @@ on:
       - "tests/test_palong_bazaar_environment.py"
       - "tests/test_polyhaven_material_fetcher.py"
       - "docs/quality/PALONG-BAZAAR-ART-DIRECTION.md"
+      - "docs/quality/PALONG-THANA-HERO-ART-DIRECTION.md"
+      - "tools/blender/build_palong_thana_hero.py"
+      - "tests/test_palong_thana_hero.py"
       - ".github/workflows/validate-palong-bazaar.yml"
   push:
     branches:
@@ -24,10 +27,14 @@ on:
       - "tools/verify_palong_bazaar_environment.py"
       - "tests/test_palong_bazaar_environment.py"
       - "tests/test_polyhaven_material_fetcher.py"
+      - "tools/blender/build_palong_thana_hero.py"
+      - "tests/test_palong_thana_hero.py"
+      - "docs/quality/PALONG-THANA-HERO-ART-DIRECTION.md"
       - ".github/workflows/validate-palong-bazaar.yml"
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -73,6 +80,18 @@ jobs:
             tests/test_palong_bazaar_environment.py \
             tests/test_polyhaven_material_fetcher.py
           python3 -m unittest discover -s tests -p "test_polyhaven_material_fetcher.py" -v
+          python3 -m py_compile tools/blender/build_palong_thana_hero.py tests/test_palong_thana_hero.py
+          python3 -m unittest discover -s tests -p "test_palong_thana_hero.py" -v
+
+
+      - name: Download retained source tile for Palong Model Thana
+        uses: actions/download-artifact@v4
+        with:
+          name: Project-A-Square-Dhaka-Division-44257499872-batch-0-attempt-0
+          path: build/shariatpur-source
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 44257499872
 
       - name: Generate original Bengali sign artwork and fallback materials
         shell: bash
@@ -133,6 +152,31 @@ CREDITS
           A2_PALONG_BAZAAR_OUTPUT="$OUT_DIR" \
             python3 -m unittest discover -s tests -p "test_palong_bazaar_environment.py" -v
 
+
+      - name: Author source-aligned Palong Model Thana and detached gateway in Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          TILE_DIR="$(find build/shariatpur-source -type f -path "*/tile_23p1835_90p3053/map_manifest.json" -print -quit | xargs -r dirname)"
+          if [[ -z "${TILE_DIR}" ]]; then
+            echo "Pinned Shariatpur artifact did not contain tile_23p1835_90p3053." >&2
+            exit 1
+          fi
+          BENGALI_FONT="$(fc-match -f '%{file}' 'Noto Sans Bengali' | head -n 1)"
+          OUT_DIR="build/palong-thana"
+          mkdir -p "${OUT_DIR}"
+          blender --background --factory-startup \
+            --python tools/blender/build_palong_thana_hero.py -- \
+            --source-geojson "${TILE_DIR}/Dhaka_OSM_Source.geojson" \
+            --tile-manifest "${TILE_DIR}/map_manifest.json" \
+            --out-dir "${OUT_DIR}" \
+            --bengali-font "${BENGALI_FONT}" \
+            --pbr-manifest "build/palong-bazaar/textures/polyhaven_material_manifest.json" \
+            > "build/palong-thana-authoring.log" 2>&1 || { cat build/palong-thana-authoring.log; exit 1; }
+          cat build/palong-thana-authoring.log
+          grep -Fq "A2_PALONG_THANA_HERO_READY:" build/palong-thana-authoring.log
+          python3 -m json.tool "${OUT_DIR}/asset_manifest.json" > /dev/null
+
       - name: Upload Palong Bazar authoring diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -159,3 +203,28 @@ CREDITS
             build/palong-bazaar/LICENSE.txt
           if-no-files-found: error
           retention-days: 30
+
+
+      - name: Upload Palong Model Thana hero diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Palong-Thana-Hero-Diagnostics
+          path: build/palong-thana-authoring.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload source-aligned Palong Thana shell and detached gateway review assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: Palong-Thana-Hero-Review
+          path: |
+            build/palong-thana/palong_thana_authoring.blend
+            build/palong-thana/palong_thana_shell.glb
+            build/palong-thana/palong_thana_entrance_gate_concept.glb
+            build/palong-thana/palong_thana_shell_preview.png
+            build/palong-thana/palong_thana_gate_concept_preview.png
+            build/palong-thana/asset_manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
