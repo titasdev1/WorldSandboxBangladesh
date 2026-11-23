@@ -87,11 +87,11 @@ jobs:
       - name: Download retained source tile for Palong Model Thana
         uses: actions/download-artifact@v4
         with:
-          name: Project-A-Square-Dhaka-Division-44257499872-batch-0-attempt-0
+          name: Project-A-Square-Dhaka-Division-45152539785-batch-0-attempt-0
           path: build/shariatpur-source
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
-          run-id: 44257499872
+          run-id: 45152539785
 
       - name: Generate original Bengali sign artwork and fallback materials
         shell: bash
