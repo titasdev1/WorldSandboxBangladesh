@@ -642,12 +642,17 @@ def build_scene():
 
     scene.frame_start = FRAME_START
     scene.frame_end = FRAME_END
-    scene.render.engine = "BLENDER_EEVEE"
+    scene.render.engine = "CYCLES"
     scene.render.resolution_x = 1600
     scene.render.resolution_y = 900
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = "PNG"
-    scene.render.resolution_percentage = 80
+    scene.render.resolution_percentage = 75
+    scene.cycles.device = "CPU"
+    scene.cycles.samples = 16
+    scene.cycles.use_denoising = True
+    scene.render.threads_mode = "FIXED"
+    scene.render.threads = 4
     scene.view_settings.view_transform = "AgX"
     scene.render.film_transparent = False
     scene.camera.data.dof.use_dof = True
@@ -687,10 +692,13 @@ def main():
     args.preview.parent.mkdir(parents=True, exist_ok=True)
     args.blend.parent.mkdir(parents=True, exist_ok=True)
     args.manifest.parent.mkdir(parents=True, exist_ok=True)
-    bpy.context.scene.render.filepath = str(args.preview)
-    bpy.ops.render.render(write_still=True)
+    # Export the complete scene and preserve the editable source before rendering
+    # the review still. A headless render failure must not erase the authored GLB.
     export_glb(args.out)
     bpy.ops.wm.save_as_mainfile(filepath=str(args.blend))
+    bpy.context.scene.render.filepath = str(args.preview)
+    print("GREENWAKE_RENDER_START: Cycles CPU, 16 samples, denoising enabled")
+    bpy.ops.render.render(write_still=True)
 
     mesh_objects = [o for o in OBJECTS if o.type == "MESH"]
     triangles = sum(max(0, len(poly.vertices) - 2) for obj in mesh_objects for poly in obj.data.polygons)
