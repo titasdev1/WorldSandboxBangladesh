@@ -63,8 +63,8 @@ def inspect_glb(path: Path, minimum_triangles: int = 1000) -> dict:
         raise ValueError(f"{path.name}: missing scene, nodes or meshes")
     if len(materials) < 6:
         raise ValueError(f"{path.name}: too few materials ({len(materials)})")
-    if len(images) < 9 or len(textures) < 9:
-        raise ValueError(f"{path.name}: expected embedded 3x3 PBR library, got images={len(images)} textures={len(textures)}")
+    if len(images) < 6 or len(textures) < 6:
+        raise ValueError(f"{path.name}: expected embedded plaster/concrete or brick/concrete PBR maps, got images={len(images)} textures={len(textures)}")
     if external_images or non_embedded:
         raise ValueError(f"{path.name}: external or non-embedded textures: {external_images} / {len(non_embedded)}")
     if triangles < minimum_triangles:
