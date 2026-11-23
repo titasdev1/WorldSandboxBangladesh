@@ -1,0 +1,102 @@
+name: Validate Greenwake Chapter 01 Blender Assets
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/greenwake-chapter-01
+    paths:
+      - "tools/blender/build_greenwake_chapter_01.py"
+      - "tools/blender/verify_greenwake_chapter_01.py"
+      - "assets/world/greenwake/**"
+      - "tests/test_greenwake_chapter_01.py"
+      - "docs/quality/GREENWAKE_CHAPTER_01_VERTICAL_SLICE.md"
+      - ".github/workflows/validate-greenwake-assets.yml"
+  pull_request:
+    branches:
+      - feature/lobby-operator-showcase
+    paths:
+      - "tools/blender/build_greenwake_chapter_01.py"
+      - "tools/blender/verify_greenwake_chapter_01.py"
+      - "assets/world/greenwake/**"
+      - "tests/test_greenwake_chapter_01.py"
+      - "docs/quality/GREENWAKE_CHAPTER_01_VERTICAL_SLICE.md"
+      - ".github/workflows/validate-greenwake-assets.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: greenwake-ch01-blender-\${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  author-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout Greenwake chapter source
+        uses: actions/checkout@v5
+
+      - name: Install Python and Blender system dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl xz-utils python3-numpy
+          source tools/install_blender_ci.sh
+          blender --version
+
+      - name: Compile authoring and verification scripts
+        run: |
+          python3 -m py_compile \
+            tools/blender/build_greenwake_chapter_01.py \
+            tools/blender/verify_greenwake_chapter_01.py
+          python3 -m json.tool assets/world/greenwake/chapter_01_map.json > /dev/null
+
+      - name: Verify Greenwake route, puzzle dependencies and factuality boundaries
+        run: python3 -m unittest discover -s tests -p "test_greenwake_chapter_01.py" -v
+
+      - name: Author the original Rupjhora Lost Port environment in Blender 5.2.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/greenwake"
+          mkdir -p "\${OUT_DIR}"
+          blender --background --factory-startup \
+            --python tools/blender/build_greenwake_chapter_01.py -- \
+            --out "\${OUT_DIR}/greenwake_ch01.glb" \
+            --preview "\${OUT_DIR}/greenwake_ch01_preview.png" \
+            --blend "\${OUT_DIR}/greenwake_ch01.blend" \
+            --manifest "\${OUT_DIR}/asset_manifest.json" \
+            > "\${OUT_DIR}/authoring.log" 2>&1
+          cat "\${OUT_DIR}/authoring.log"
+          grep -Fq "GREENWAKE_CH01_READY:" "\${OUT_DIR}/authoring.log"
+
+      - name: Verify GLB structure, authored scene density and provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/blender/verify_greenwake_chapter_01.py \
+            --glb build/greenwake/greenwake_ch01.glb \
+            --manifest build/greenwake/asset_manifest.json \
+            --preview build/greenwake/greenwake_ch01_preview.png \
+            --out build/greenwake/verification.json
+          python3 -m json.tool build/greenwake/asset_manifest.json > /dev/null
+          python3 -m json.tool build/greenwake/verification.json > /dev/null
+
+      - name: Upload Greenwake Chapter 01 review bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: A-Square-Greenwake-Ch01-Rupjhora-Review
+          path: |
+            build/greenwake/greenwake_ch01.glb
+            build/greenwake/greenwake_ch01_preview.png
+            build/greenwake/greenwake_ch01.blend
+            build/greenwake/asset_manifest.json
+            build/greenwake/verification.json
+            build/greenwake/authoring.log
+            assets/world/greenwake/chapter_01_map.json
+            docs/quality/GREENWAKE_CHAPTER_01_VERTICAL_SLICE.md
+          if-no-files-found: error
+          retention-days: 30
