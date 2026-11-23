@@ -74,7 +74,7 @@ class GreenwakeChapterOneMapTests(unittest.TestCase):
         self.assertIn("not yet playable", self.production_doc.lower())
         self.assertIn("Godot 4.4.1", self.production_doc)
         self.assertIn("Android", self.production_doc)
-        self.assertIn("no AI-generated game art", self.production_doc.lower())
+        self.assertIn("no ai-generated game art", self.production_doc.lower())
 
 
 if __name__ == "__main__":
