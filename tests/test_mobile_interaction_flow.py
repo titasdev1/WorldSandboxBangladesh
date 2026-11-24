@@ -275,5 +275,19 @@ class MobileInteractionFlowTests(unittest.TestCase):
         self.assertNotIn('manifest.get("tile_count_total", -1)', self.pack_verifier)
 
 
+    def test_vehicle_drive_mode_has_dedicated_exit_control(self):
+        prompt = function_block(self.hud, "_update_interaction_prompt")
+        exit_action = function_block(self.hud, "_exit_occupied_vehicle")
+        vehicle_entry = function_block(self.vehicle, "_complete_enter_player")
+        vehicle_exit = function_block(self.vehicle, "exit_player")
+        self.assertIn('exit_vehicle_button.visible = true', prompt)
+        self.assertIn('exit_vehicle_button.visible = false', prompt)
+        self.assertIn('wrapper.call("exit_player")', exit_action)
+        self.assertIn('occupied_vehicle.get("vehicle_wrapper")', exit_action)
+        self.assertIn('world.set("occupied_vehicle",body)', vehicle_entry)
+        self.assertIn('_play_entry_exit_action(p, "alight_vehicle")', vehicle_exit)
+        self.assertIn('body.freeze = true', vehicle_exit)
+
+
 if __name__ == "__main__":
     unittest.main()
