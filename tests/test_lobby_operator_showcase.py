@@ -184,7 +184,8 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('operator_visual.call("apply_operator_preset", preset_id)', selector)
         self.assertIn('layer_root.visible = not (String(layer_name) == "clothing_jacket" and not jacket_visible)', visual)
         self.assertIn('func get_operator_preset_name() -> String:', visual)
-        self.assertIn("Separate selectable body models", operator_page)
+        self.assertIn("One body rig is currently wired", operator_page)
+        self.assertIn("they are not three separate characters", operator_page)
 
     def test_showcase_is_live_godot_geometry_not_a_baked_background(self):
         self.assertIn('CylinderMesh.new()', self.showcase)
