@@ -142,7 +142,7 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         pages = function_block(self.hud, "_show_lobby_page")
         card = function_block(self.hud, "_lobby_add_experience_card")
         self.assertIn('elif page == "play":', pages)
-        for title in ("JIBONJATRA", "DESHI STORIES", "CITY SANDBOX", "STREET LIFE", "LAST STAND", "COMBAT LAB", "STREET SKIRMISH", "SOLO DROP", "QUICK PLAY", "RANKED", "ZOMBIES"):
+        for title in ("JIBONJATRA", "DESHI STORIES", "CITY SANDBOX", "STREET LIFE", "LAST STAND", "COMBAT LAB", "STREET SKIRMISH", "STRIKEFRONT SQUADS"):
             self.assertIn('"' + title + '"', pages)
         self.assertIn('func _lobby_add_experience_grid() -> GridContainer:', self.hud)
         self.assertIn('grid.columns = 2', self.hud)
@@ -165,7 +165,7 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('button.toggle_mode = true', self.hud)
         self.assertIn('button.icon = load(String(item[2])) as Texture2D', lobby)
         self.assertIn('button.tooltip_text = String(item[0]).capitalize()', lobby)
-        for icon_name in ("home", "play", "downloads", "loadout", "operator", "events", "store", "clan", "profile"):
+        for icon_name in ("home", "play", "downloads", "loadout", "operator", "events", "store", "clan", "profile", "attributions"):
             self.assertIn(f'"res://assets/ui/icons/{icon_name}.svg"', lobby)
             icon_path = ROOT / "assets" / "ui" / "icons" / f"{icon_name}.svg"
             self.assertTrue(icon_path.is_file(), f"Missing lobby navigation icon: {icon_name}")
@@ -312,9 +312,10 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('_lobby_add_featured_play()', home)
         self.assertIn('var world_grid := _lobby_add_experience_grid()', home)
         self.assertIn('"JIBONJATRA"', home)
-        self.assertIn('"DESHI STORIES"', home)
-        self.assertIn('"CITY SANDBOX"', home)
-        self.assertIn('"COMBAT LAB"', home)
+        self.assertNotIn('"DESHI STORIES"', home)
+        self.assertNotIn('"CITY SANDBOX"', home)
+        self.assertNotIn('"COMBAT LAB"', home)
+        self.assertNotIn("QUICK DEPLOYMENT", home)
         self.assertIn('"WORLD INTELLIGENCE"', home)
         self.assertIn('"No real-player server is connected', home)
         self.assertNotIn('_lobby_add_action("SHARIATPUR WORLD"', home)
@@ -326,6 +327,58 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
         self.assertIn('item.modulate.a = 0.0', reveal)
         self.assertIn('tween_property(item, "modulate:a", 1.0, 0.18)', reveal)
         self.assertIn('set_delay(minf(float(index) * 0.028, 0.22))', reveal)
+
+
+    def test_strikefront_mode_ids_match_solo_br_skirmish_and_real_lan_boundaries(self):
+        pages = function_block(self.hud, "_show_lobby_page")
+        start = pages.index('elif page == "strikefront":')
+        end = pages.index('elif page == "greenwake":', start)
+        strike = pages[start:end]
+        self.assertIn('"LAST STAND", "SOLO  /  BATTLE ROYALE"', strike)
+        self.assertIn('Callable(self, "_choose_mode").bind("battle_royale_solo")', strike)
+        self.assertIn('"STREET SKIRMISH", "SOLO  /  AI ELIMINATION"', strike)
+        self.assertIn('Callable(self, "_choose_mode").bind("street_skirmish")', strike)
+        self.assertIn('"COMBAT LAB", "MULTIPLAYER  /  LAN"', strike)
+        self.assertIn('"STRIKEFRONT SQUADS"', strike)
+        self.assertNotIn("SOLO DROP", strike)
+        self.assertNotIn("QUICK PLAY", strike)
+        self.assertNotIn('"RANKED"', strike)
+        self.assertNotIn('"ZOMBIES"', strike)
+        self.assertNotIn('bind("survival")', strike)
+        self.assertNotIn('bind("arena_training")', strike)
+        self.assertIn('Callable(), Color("#5c7484"), false', strike)
+
+    def test_gameplay_touch_controls_are_icons_and_sources_are_in_the_lobby_only(self):
+        touch = function_block(self.hud, "add_touch_button")
+        lobby = function_block(self.hud, "_build_lobby_ui")
+        pages = function_block(self.hud, "_show_lobby_page")
+        process = function_block(self.hud, "_process")
+        self.assertIn('b.text = ""', touch)
+        for icon_name in ("sprint", "fire", "aim", "reload", "jump", "crouch", "interact", "throttle", "brake", "handbrake", "reverse", "weather"):
+            self.assertIn(f'"{icon_name}"', touch)
+            icon_path = ROOT / "assets" / "ui" / "icons" / f"{icon_name}.svg"
+            self.assertTrue(icon_path.is_file(), f"Missing touch icon: {icon_name}")
+        self.assertIn('["ATTRIBUTIONS", "attributions", "res://assets/ui/icons/attributions.svg"]', lobby)
+        self.assertIn('elif page == "attributions":', pages)
+        self.assertIn("© OpenStreetMap contributors", pages)
+        self.assertNotIn("© OpenStreetMap contributors", process)
+
+    def test_vehicle_has_a_dedicated_visible_exit_icon_and_suppresses_foot_actions(self):
+        prompt = function_block(self.hud, "_update_interaction_prompt")
+        exit_action = function_block(self.hud, "_exit_occupied_vehicle")
+        self.assertIn('exit_vehicle_button.visible = true', prompt)
+        self.assertIn('exit_vehicle_button.visible = false', prompt)
+        self.assertIn('"interact"]', prompt)
+        self.assertIn('get("vehicle_wrapper")', exit_action)
+        self.assertIn('wrapper.call("exit_player")', exit_action)
+        self.assertIn('exit_vehicle_button.icon = load("res://assets/ui/icons/exit-vehicle.svg") as Texture2D', self.hud)
+
+    def test_character_catalogue_does_not_misrepresent_outfit_presets_or_lods_as_characters(self):
+        pages = function_block(self.hud, "_show_lobby_page")
+        self.assertIn("One body rig is currently wired", pages)
+        self.assertIn("they are not three separate characters", pages)
+        self.assertIn("level-of-detail copies of the same operator", pages)
+        self.assertNotIn("These are three live outfit presets", pages)
 
 
 if __name__ == "__main__":
