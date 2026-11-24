@@ -22,6 +22,7 @@ var mode_buttons: Array[Button] = []
 var district_map: Control
 var map_button: Button
 var interaction_button: Button
+var exit_vehicle_button: Button
 var roadline_event_button: Button
 var driving_status: Label
 var br_deployment_button: Button
@@ -100,7 +101,7 @@ func _ready():
  hint.text = "CIRCULAR MOVE • DRAG TO LOOK • AIM • AUTO FIRE • RELOAD • VIEW: FPP/TPP"
  hint.position = Vector2(28, 680)
  hint.add_theme_font_size_override("font_size", 16)
- add_child(hint)
+ hint.queue_free()
 
  # CODM/PUBG-style circular analog movement control replaces the four directional buttons.
  var stick = Control.new()
@@ -121,7 +122,11 @@ func _ready():
  interaction_button = add_touch_button("INTERACT", Vector2(900, 650), Vector2(170, 55), "interact")
  br_deployment_button = Button.new()
  br_deployment_button.name = "BattleRoyaleDeploymentAction"
- br_deployment_button.text = "JUMP FROM PLANE"
+ br_deployment_button.text = ""
+ br_deployment_button.icon = load("res://assets/ui/icons/parachute.svg") as Texture2D
+ br_deployment_button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+ br_deployment_button.expand_icon = true
+ br_deployment_button.tooltip_text = "Deploy parachute / leave aircraft"
  br_deployment_button.position = Vector2(690, 625)
  br_deployment_button.size = Vector2(250, 58)
  br_deployment_button.add_theme_font_size_override("font_size", 19)
@@ -151,9 +156,26 @@ func _ready():
  for drive_button in [throttle_button,brake_button,handbrake_button,reverse_button]:
   drive_button.add_to_group("vehicle_driving_controls")
   drive_button.visible = false
+ exit_vehicle_button = Button.new()
+ exit_vehicle_button.name = "ExitVehicleAction"
+ exit_vehicle_button.position = Vector2(1110, 420)
+ exit_vehicle_button.size = Vector2(78, 72)
+ exit_vehicle_button.icon = load("res://assets/ui/icons/exit-vehicle.svg") as Texture2D
+ exit_vehicle_button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+ exit_vehicle_button.expand_icon = true
+ exit_vehicle_button.tooltip_text = "Exit vehicle"
+ exit_vehicle_button.visible = false
+ exit_vehicle_button.z_index = 20
+ exit_vehicle_button.focus_mode = Control.FOCUS_NONE
+ exit_vehicle_button.pressed.connect(_exit_occupied_vehicle)
+ add_child(exit_vehicle_button)
  roadline_event_button = Button.new()
  roadline_event_button.name = "RoadlineEventButton"
- roadline_event_button.text = "ROADLINE  /  RACE"
+ roadline_event_button.text = ""
+ roadline_event_button.icon = load("res://assets/ui/icons/events.svg") as Texture2D
+ roadline_event_button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+ roadline_event_button.expand_icon = true
+ roadline_event_button.tooltip_text = "Roadline race"
  roadline_event_button.position = Vector2(1080,465)
  roadline_event_button.size = Vector2(150,48)
  roadline_event_button.add_theme_font_size_override("font_size",14)
@@ -163,7 +185,11 @@ func _ready():
  add_child(roadline_event_button)
  var camera_view_button := Button.new()
  camera_view_button.name = "CameraViewToggle"
- camera_view_button.text = "VIEW: TPP"
+ camera_view_button.text = ""
+ camera_view_button.icon = load("res://assets/ui/icons/camera.svg") as Texture2D
+ camera_view_button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+ camera_view_button.expand_icon = true
+ camera_view_button.tooltip_text = "Switch camera view"
  camera_view_button.position = Vector2(870, 555)
  camera_view_button.size = Vector2(170, 48)
  camera_view_button.add_theme_font_size_override("font_size", 17)
@@ -280,7 +306,11 @@ func _build_navigation_map() -> void:
  district_map.z_index = 5
  add_child(district_map)
  map_button = Button.new()
- map_button.text = "CITY MAP"
+ map_button.text = ""
+ map_button.icon = load("res://assets/ui/icons/map.svg") as Texture2D
+ map_button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+ map_button.expand_icon = true
+ map_button.tooltip_text = "Open map"
  map_button.position = Vector2(915, 18)
  map_button.size = Vector2(100, 44)
  map_button.add_theme_font_size_override("font_size", 15)
@@ -290,7 +320,11 @@ func _build_navigation_map() -> void:
 func _build_teleport_ui() -> void:
  var teleport_button := Button.new()
  teleport_button.name = "TeleportOpenButton"
- teleport_button.text = "TELEPORT"
+ teleport_button.text = ""
+ teleport_button.icon = load("res://assets/ui/icons/navigation.svg") as Texture2D
+ teleport_button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+ teleport_button.expand_icon = true
+ teleport_button.tooltip_text = "Navigate / teleport"
  teleport_button.position = Vector2(675, 18)
  teleport_button.size = Vector2(120, 44)
  teleport_button.add_theme_font_size_override("font_size", 15)
@@ -559,7 +593,7 @@ func _toggle_map() -> void:
 
 func _sync_map_button_state() -> void:
  if is_instance_valid(map_button) and is_instance_valid(district_map):
-  map_button.text = "CLOSE MAP" if (district_map.get("expanded") == true) else "CITY MAP"
+  map_button.tooltip_text = "Close map" if (district_map.get("expanded") == true) else "Open map"
 
 func _build_settings_ui() -> void:
  var settings_button := Button.new()
@@ -739,17 +773,29 @@ func _save_graphics_settings() -> void:
 
 
 func add_touch_button(label_text: String, pos: Vector2, size: Vector2, action_name: String) -> Button:
- var b = Button.new()
+ var b := Button.new()
  b.name = "TouchAction_" + action_name
  b.add_to_group("touch_action_buttons")
  b.set_meta("action_name", action_name)
- b.text = label_text
+ var icon_names := {
+  "sprint": "sprint", "fire": "fire", "aim": "aim", "reload": "reload",
+  "jump": "jump", "crouch": "crouch", "interact": "interact",
+  "vehicle_accelerate": "throttle", "vehicle_brake": "brake",
+  "vehicle_handbrake": "handbrake", "vehicle_reverse": "reverse", "rain": "weather"
+ }
+ var icon_path := "res://assets/ui/icons/%s.svg" % String(icon_names.get(action_name, "interact"))
+ b.icon = load(icon_path) as Texture2D
+ b.text = ""
+ b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+ b.alignment = HORIZONTAL_ALIGNMENT_CENTER
+ b.expand_icon = true
+ b.tooltip_text = label_text
+ b.focus_mode = Control.FOCUS_NONE
  b.position = pos
  b.size = size
- b.add_theme_font_size_override("font_size", 18)
+ b.add_theme_stylebox_override("normal", _lobby_style(Color(0.015, 0.045, 0.065, 0.84), Color("#3c8291"), 1, 12))
+ b.add_theme_stylebox_override("hover", _lobby_style(Color("#17465a"), Color("#e2b95f"), 2, 12))
  if action_name == "jump":
-  # A direct buffered request is reliable even when a touch tap lasts less
-  # than one rendered frame. Keyboard jump remains on the normal InputMap.
   b.button_down.connect(_queue_player_jump)
  else:
   b.button_down.connect(func(): Input.action_press(action_name))
@@ -894,8 +940,7 @@ func _process(_delta):
    has_live_target = true
  var target_distance := int(w.player.global_position.distance_to(active_target_position)) if w.player and has_live_target else -1
  var objective_text := "TARGET %dm" % target_distance if target_distance >= 0 else "FREE ROAM"
- var map_attribution := "\n© OpenStreetMap contributors" if (w.get("real_dhaka_loaded") == true) else ""
- status.text = "%s • %s\nAMMO %s%s   %s%s" % [district_name.to_upper(), objective_text, ammo_text, reload_text, w.event_text if w.event_time_left > 0 else "Explore • drive • bargain • fight", map_attribution]
+ status.text = "%s • %s\nAMMO %s%s   %s" % [district_name.to_upper(), objective_text, ammo_text, reload_text, w.event_text if w.event_time_left > 0 else "Explore • drive • bargain • fight"]
 
 func _current_route_instruction() -> String:
  if not is_instance_valid(w) or not (w.get("real_dhaka_loaded") == true):
@@ -997,14 +1042,17 @@ func _build_lobby_ui() -> void:
   ["STORE", "store", "res://assets/ui/icons/store.svg"],
   ["CLAN", "clan", "res://assets/ui/icons/clan.svg"],
   ["PROFILE", "profile", "res://assets/ui/icons/profile.svg"],
+  ["ATTRIBUTIONS", "attributions", "res://assets/ui/icons/attributions.svg"],
  ]
  for item in nav_items:
   var button := Button.new()
   var page_id := String(item[1])
   var is_play_navigation := page_id == "play"
   button.name = "LobbyNav_" + page_id.capitalize()
-  button.text = String(item[0])
+  button.text = ""
   button.icon = load(String(item[2])) as Texture2D
+  button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+  button.expand_icon = true
   button.add_theme_constant_override("h_separation", 11)
   button.tooltip_text = String(item[0]).capitalize()
   button.toggle_mode = true
@@ -1044,15 +1092,6 @@ func _build_lobby_ui() -> void:
  save_feedback_label.add_theme_font_size_override("font_size", 12)
  save_feedback_label.add_theme_color_override("font_color", Color("#b3c9d6"))
  lobby_overlay.add_child(save_feedback_label)
- lobby_attribution_label = Label.new()
- lobby_attribution_label.name = "WorldMaterialAttribution"
- lobby_attribution_label.position = Vector2(205.0, viewport_size.y - 38.0)
- lobby_attribution_label.size = Vector2(viewport_size.x - 225.0, 22.0)
- lobby_attribution_label.text = "ENVIRONMENT MATERIAL SCANS  •  POWERED BY POLY HAVEN (CC0)"
- lobby_attribution_label.add_theme_font_size_override("font_size", 9)
- lobby_attribution_label.add_theme_color_override("font_color", Color("#89a6b8"))
- lobby_attribution_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
- lobby_overlay.add_child(lobby_attribution_label)
  if is_instance_valid(w) and is_instance_valid(w.player):
   w.player.set_camera_view_mode("third_person")
   w.player.camera_yaw = 24.0
@@ -1260,7 +1299,7 @@ func _show_lobby_page(page: String) -> void:
  if not is_instance_valid(lobby_content):
   return
  lobby_section = page
- var play_branch := page in ["play", "jibonjatra", "strikefront", "greenwake", "briefing"]
+ var play_branch := page in ["play", "jibonjatra", "strikefront", "greenwake", "briefing", "attributions"]
  for page_id in lobby_nav_buttons.keys():
   var nav_button := lobby_nav_buttons[page_id] as Button
   if is_instance_valid(nav_button):
@@ -1276,11 +1315,6 @@ func _show_lobby_page(page: String) -> void:
   _lobby_add_experience_card("JIBONJATRA", "LIVING BANGLADESH  /  OPEN WORLD", "Explore, work, drive, race and follow local stories. Shariatpur is an optional regional download.", Callable(self, "_show_lobby_page").bind("jibonjatra"), Color("#4aa99c"), true, true, world_grid)
   _lobby_add_experience_card("STRIKEFRONT", "COMBAT  /  OFFLINE FIRST", "Enter the available solo and AI combat experiences. Online queues remain locked until real services exist.", Callable(self, "_show_lobby_page").bind("strikefront"), Color("#b17c58"), true, true, world_grid)
   _lobby_add_experience_card("GREENWAKE", "ACTION  /  ADVENTURE", "A Bangladesh-rooted mystery and exploration pillar. Its first playable chapter is still in development.", Callable(self, "_show_lobby_page").bind("greenwake"), Color("#7a9b75"), true, true, world_grid)
-  _lobby_add_section("QUICK DEPLOYMENT  /  FAMILY SHORTCUTS")
-  var action_grid_home := _lobby_add_experience_grid()
-  _lobby_add_experience_card("DESHI STORIES", "JIBONJATRA  /  LOCAL MISSIONS", "Jump directly into the existing local job flow.", Callable(self, "_choose_mode").bind("deshi_story"), Color("#c1a064"), true, true, action_grid_home)
-  _lobby_add_experience_card("CITY SANDBOX", "JIBONJATRA  /  FREE ROAM", "Explore the currently installed area.", Callable(self, "_choose_mode").bind("free_roam"), Color("#6096ae"), true, true, action_grid_home)
-  _lobby_add_experience_card("COMBAT LAB", "STRIKEFRONT  /  TRAINING", "Enter offline movement and weapon practice.", Callable(self, "_choose_mode").bind("arena_training"), Color("#8498ad"), true, true, action_grid_home)
   _lobby_add_section("WORLD INTELLIGENCE")
   var installed_home: bool = is_instance_valid(w) and (w.get("real_dhaka_loaded") == true)
   _lobby_add_info("SHARIATPUR WORLD", "District map mounted and ready." if installed_home else "The lightweight starter world is active; Shariatpur remains a separate verified download.")
@@ -1310,21 +1344,18 @@ func _show_lobby_page(page: String) -> void:
   _lobby_add_action("ALL EXPERIENCE FAMILIES", "Return to the JibonJatra / Strikefront / Greenwake selector.", Callable(self, "_show_lobby_page").bind("play"))
  elif page == "strikefront":
   _lobby_add_heading("STRIKEFRONT", "The combat family. Offline modes are clearly separated from future online services.")
-  _lobby_add_section("AVAILABLE OFFLINE MODES")
+  _lobby_add_section("SOLO / OFFLINE DEPLOYMENTS")
   var strike_grid := _lobby_add_experience_grid()
-  _lobby_add_experience_card("LAST STAND", "OFFLINE  /  AI WAVES", "Three escalating enemy waves.", Callable(self, "_choose_mode").bind("survival"), Color("#b17c58"), true, true, strike_grid)
-  _lobby_add_experience_card("COMBAT LAB", "TRAINING", "Practice movement, aiming and weapon handling.", Callable(self, "_choose_mode").bind("arena_training"), Color("#8498ad"), true, true, strike_grid)
-  _lobby_add_experience_card("STREET SKIRMISH", "ELIMINATION  /  AI", "Ten AI opponents in a local elimination round.", Callable(self, "_choose_mode").bind("street_skirmish"), Color("#9b6f69"), true, true, strike_grid)
   var br_controller_family: Node = w.get("battle_royale_controller") as Node if is_instance_valid(w) else null
   var br_assets_ready_family: bool = is_instance_valid(br_controller_family) and (br_controller_family.call("can_start_solo_deployment") == true)
-  _lobby_add_experience_card("SOLO DROP", "BATTLE ROYALE  /  OFFLINE AI", "Aircraft insertion, freefall, canopy glide and a closing safe zone.", Callable(self, "_choose_mode").bind("battle_royale_solo"), Color("#8e9c72"), br_assets_ready_family, true, strike_grid)
+  _lobby_add_experience_card("LAST STAND", "SOLO  /  BATTLE ROYALE", "One-player battle royale insertion, parachute landing, AI opposition and a closing safe zone.", Callable(self, "_choose_mode").bind("battle_royale_solo"), Color("#b17c58"), br_assets_ready_family, true, strike_grid)
+  _lobby_add_experience_card("STREET SKIRMISH", "SOLO  /  AI ELIMINATION", "A separate ten-opponent urban elimination round. No human players are simulated.", Callable(self, "_choose_mode").bind("street_skirmish"), Color("#9b6f69"), true, true, strike_grid)
   if not br_assets_ready_family:
-   _lobby_add_info("SOLO DROP STATUS", "Locked until the verified aircraft and parachute assets are available.")
-  _lobby_add_section("CONNECTED PLAY  /  NOT AVAILABLE")
+   _lobby_add_info("LAST STAND STATUS", "Locked until the aircraft and parachute package passes its asset and runtime checks.")
+  _lobby_add_section("MULTIPLAYER / LAN  •  NOT CONNECTED")
   var strike_online_grid := _lobby_add_experience_grid()
-  _lobby_add_experience_card("QUICK PLAY", "MULTIPLAYER", "No real-player server is connected.", Callable(), Color("#5c7484"), false, true, strike_online_grid)
-  _lobby_add_experience_card("RANKED", "COMPETITIVE", "Requires authoritative matchmaking, server scoring and anti-cheat.", Callable(), Color("#5c7484"), false, true, strike_online_grid)
-  _lobby_add_experience_card("ZOMBIES", "SPECIAL MODE", "Dedicated mode rules, enemies and content are not ready.", Callable(), Color("#5c7484"), false, true, strike_online_grid)
+  _lobby_add_experience_card("COMBAT LAB", "MULTIPLAYER  /  LAN", "Reserved for real host and client players. It stays locked until ENet sessions and replicated matches are implemented.", Callable(), Color("#5c7484"), false, true, strike_online_grid)
+  _lobby_add_experience_card("STRIKEFRONT SQUADS", "SQUAD BATTLE ROYALE  /  LAN", "A separate squad battle-royale experience. It remains locked until real squad networking, parachute deployment and authoritative match state are ready.", Callable(), Color("#5c7484"), false, true, strike_online_grid)
   _lobby_add_action("ALL EXPERIENCE FAMILIES", "Return to the family selector.", Callable(self, "_show_lobby_page").bind("play"))
  elif page == "greenwake":
   _lobby_add_heading("GREENWAKE", "An original Bangladesh-rooted action-adventure pillar.")
@@ -1373,6 +1404,16 @@ func _show_lobby_page(page: String) -> void:
     _lobby_add_info("CURRENT STATUS", "No side job is active. Start Deshi Stories to begin a local mission.")
   else:
    _lobby_add_info("MISSION BOARD", "Mission services are still initializing.")
+ elif page == "attributions":
+  _lobby_add_heading("ATTRIBUTIONS / SOURCES", "Map, environment and third-party asset credits. Source records remain outside live gameplay.")
+  _lobby_add_section("REAL-WORLD MAP DATA")
+  _lobby_add_info("OPENSTREETMAP", "© OpenStreetMap contributors. Geographic data is licensed under the Open Database License (ODbL 1.0).")
+  _lobby_add_section("MATERIALS")
+  _lobby_add_info("POLY HAVEN", "Photographic PBR material scans used in authored environment studies are CC0 1.0. Individual material IDs and checksums are recorded in their asset manifests.")
+  _lobby_add_section("CHARACTER / ANIMATION / OTHER ASSETS")
+  _lobby_add_info("THIRD-PARTY ASSETS", "Character, motion-capture, vehicle and environment credits and restrictions are recorded in the ASSET-LICENSES.txt file bundled with each relevant asset package.")
+  _lobby_add_section("PROJECT ORIGINALS")
+  _lobby_add_info("A-SQUARE", "Original Bangladesh-rooted locations, scene composition, Bengali signage, mission writing and original assets are authored for Project A-Square.")
  elif page == "store":
   _lobby_add_heading("MARKET", "Use earned local cash to buy supplies for the open-world experience.")
   _lobby_add_action("OPEN LOCAL MARKET", "Food, medical supplies, ammunition and fuel", Callable(self, "_open_shop_panel"))
@@ -1563,10 +1604,10 @@ func _build_mode_briefing() -> void:
   "deshi_story": "Local destination missions, transport fares, shops and chapter-based work.",
   "free_roam": "Roam the currently installed city area without a mission objective.",
   "street_life": "Explore shops, markets, transport and local activities.",
-  "survival": "Three escalating waves of armed AI opponents. Offline solo combat.",
-  "arena_training": "Six stationary practice targets for movement and weapon training.",
-  "street_skirmish": "Ten armed AI opponents in a local elimination round.",
-  "battle_royale_solo": "Cargo aircraft insertion, freefall steering, an inflating ram-air canopy, a landing-zone choice, local AI operators and a closing safe zone."
+  "survival": "Legacy survival-wave encounter; separate from Last Stand.",
+  "arena_training": "Internal training range; not advertised as multiplayer.",
+  "street_skirmish": "Ten armed AI opponents in a local urban elimination round.",
+  "battle_royale_solo": "LAST STAND: solo battle royale insertion, aircraft exit, controlled parachute flight, landing and survival against local AI operators."
  }
  _lobby_add_heading("DEPLOYMENT BRIEF", String(descriptions.get(selected_mode, "Local deployment.")))
  _lobby_add_section("MISSION PARAMETERS")
@@ -1575,7 +1616,7 @@ func _build_mode_briefing() -> void:
  if is_instance_valid(w) and (w.get("real_dhaka_loaded") == true):
   map_name = "Shariatpur, Bangladesh"
  _lobby_add_info("AREA", map_name)
- if selected_mode in ["survival", "arena_training", "street_skirmish"]:
+ if selected_mode in ["survival", "arena_training", "street_skirmish", "battle_royale_solo"]:
   var targets := 6 if selected_mode == "arena_training" or selected_mode == "survival" else 10
   _lobby_add_section("LOCAL ROSTER • NO ONLINE PLAYERS")
   _lobby_add_info("YOU", "Local operator • active player")
@@ -1944,12 +1985,26 @@ func _open_pitchbound_event() -> void:
   _set_save_feedback("PITCHBOUND HUB IS NOT READY", false)
 
 
+func _exit_occupied_vehicle() -> void:
+ if not is_instance_valid(w):
+  return
+ var driving_body: Node = w.get("occupied_vehicle") as Node
+ if not is_instance_valid(driving_body):
+  return
+ var wrapper: Node = driving_body.get("vehicle_wrapper") as Node
+ if is_instance_valid(wrapper) and wrapper.has_method("exit_player"):
+  wrapper.call("exit_player")
+
+
 func _update_interaction_prompt() -> void:
  if not is_instance_valid(w) or not is_instance_valid(w.player) or not is_instance_valid(interaction_button) or not is_instance_valid(driving_status):
   return
  var occupied_vehicle: Node3D = w.get("occupied_vehicle") as Node3D
  if is_instance_valid(occupied_vehicle):
-  interaction_button.text = "EXIT VEHICLE"
+  interaction_button.tooltip_text = "Exit vehicle"
+  interaction_button.visible = false
+  if is_instance_valid(exit_vehicle_button):
+   exit_vehicle_button.visible = true
   roadline_event_button.visible = true
   for drive_button in get_tree().get_nodes_in_group("vehicle_driving_controls"):
    if is_instance_valid(drive_button):
@@ -1958,7 +2013,7 @@ func _update_interaction_prompt() -> void:
    if not is_instance_valid(action_button):
     continue
    var action_name := String(action_button.get_meta("action_name",""))
-   if action_name in ["sprint","fire","aim","reload","jump","crouch","rain"]:
+   if action_name in ["sprint", "fire", "aim", "reload", "jump", "crouch", "rain", "interact"]:
     action_button.visible = false
   var vehicle_speed := absf(float(occupied_vehicle.get("speed")))*3.6
   var engine_rpm := int(occupied_vehicle.get("engine_rpm")) if occupied_vehicle.get("engine_rpm")!=null else 0
@@ -1967,6 +2022,9 @@ func _update_interaction_prompt() -> void:
   driving_status.visible = true
   return
 
+ if is_instance_valid(exit_vehicle_button):
+  exit_vehicle_button.visible = false
+ interaction_button.visible = true
  roadline_event_button.visible = false
  for drive_button in get_tree().get_nodes_in_group("vehicle_driving_controls"):
   if is_instance_valid(drive_button):
@@ -1987,7 +2045,7 @@ func _update_interaction_prompt() -> void:
     nearest_distance = distance
     nearest_vehicle = node as Node3D
  if is_instance_valid(nearest_vehicle):
-  interaction_button.text = "DRIVE"
+  interaction_button.tooltip_text = "Drive"
   driving_status.visible = false
   return
 
@@ -1995,16 +2053,16 @@ func _update_interaction_prompt() -> void:
  if is_instance_valid(activity_director) and activity_director.has_method("get_interaction_label"):
   var activity_label: String = String(activity_director.call("get_interaction_label",w.player.global_position))
   if not activity_label.is_empty():
-   interaction_button.text = activity_label
+   interaction_button.tooltip_text = activity_label
    driving_status.visible = false
    return
  if w.has_method("get_interior_interaction_label"):
   var interior_label: String = w.get_interior_interaction_label(w.player.global_position)
   if not interior_label.is_empty():
-   interaction_button.text = interior_label
+   interaction_button.tooltip_text = interior_label
    driving_status.visible = false
    return
- interaction_button.text = "INTERACT"
+ interaction_button.tooltip_text = "Interact"
  driving_status.visible = false
 
 
@@ -2161,7 +2219,7 @@ func _complete_enter_selected_mode() -> void:
    w.event_text = "STREET LIFE: MARKETS • TRANSPORT • CITY EVENTS"
   elif selected_mode == "survival":
    w.mission_active = false
-   w.event_text = "LAST STAND • OFFLINE AI MODE"
+   w.event_text = "SURVIVAL WAVES • LEGACY OFFLINE MODE"
   elif selected_mode == "street_skirmish":
    w.mission_active = false
    w.event_text = "STREET SKIRMISH • ELIMINATE 10 ENEMIES"
@@ -2185,7 +2243,7 @@ func _complete_enter_selected_mode() -> void:
      lobby_overlay.visible = true
      _show_lobby_page("play")
     return
-   w.event_text = "BATTLE ROYALE • CARGO FLIGHT • CHOOSE YOUR DROP"
+   w.event_text = "LAST STAND • SOLO BATTLE ROYALE • CHOOSE YOUR DROP"
   elif selected_mode == "district_explorer":
    w.mission_active = true
    w.event_text = "DISTRICT ATLAS: FOLLOW THE CITY MARKER"
