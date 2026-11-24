@@ -7,7 +7,7 @@ on:
       - ".github/workflows/kartaview-coverage-audit.yml"
       - "MAP_PIPELINE.md"
   push:
-    branches: [main, "feature/real-world-navigation-floor-fidelity-verified", "feature/medium-stage-integration"]
+    branches: [main, "feature/real-world-navigation-floor-fidelity-verified", "feature/medium-stage-integration", "art/shariatpur-riverfront-streetfront"]
     paths:
       - "tools/map_pipeline/audit_kartaview_coverage.py"
       - ".github/workflows/kartaview-coverage-audit.yml"
@@ -25,7 +25,7 @@ jobs:
   coverage-audit:
     # Run one bounded live coverage audit on main or the active development branch.
     # PRs still use offline mocked tests and do not consume public API quota.
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feature/lobby-operator-showcase') || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/real-world-navigation-floor-fidelity-verified' || github.ref == 'refs/heads/feature/medium-stage-integration'))
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feature/lobby-operator-showcase') || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/real-world-navigation-floor-fidelity-verified' || github.ref == 'refs/heads/feature/medium-stage-integration' || github.ref == 'refs/heads/art/shariatpur-riverfront-streetfront'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -35,18 +35,19 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Audit public 360 street-level coverage around Shariatpur
+      - name: Audit public 360 street-level coverage around Palong Thana
         shell: bash
         run: |
           set -euo pipefail
           python -m py_compile tools/map_pipeline/audit_kartaview_coverage.py
           python -m unittest discover -s tests -p "test_kartaview_coverage.py"
+          # Focused local audit; this is not a district-wide coverage claim.
           python tools/map_pipeline/audit_kartaview_coverage.py \
-            --bbox 23.003880881,90.220512089,23.451613610,90.607763484 \
-            --zoom 12 \
-            --max-requests 90 \
-            --photo-grid 6 \
-            --photo-max-queries 30 \
+            --bbox 23.2135,90.3435,23.2235,90.3535 \
+            --zoom 14 \
+            --max-requests 30 \
+            --photo-grid 3 \
+            --photo-max-queries 9 \
             --photo-radius-m 500 \
             --out build/kartaview-coverage | tee build-kartaview-summary.json
           python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
@@ -70,7 +71,7 @@ jobs:
       - name: Upload coverage and gap report
         uses: actions/upload-artifact@v4
         with:
-          name: Project-A-Square-Shariatpur-KartaView-360-Coverage
+          name: Project-A-Square-Palong-KartaView-360-Coverage
           path: |
             build/kartaview-coverage/kartaview_coverage.geojson
             build/kartaview-coverage/kartaview_coverage_report.json

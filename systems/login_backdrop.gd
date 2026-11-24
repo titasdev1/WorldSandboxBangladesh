@@ -1,5 +1,7 @@
 extends Node3D
 
+const SHARIATPUR_SHOPFRONT_PATH := "res://assets/login/shariatpur_riverfront_shophouse_hero.glb"
+
 # These two properties are deliberately present because HumanoidVisual's
 # background loader checks the parent world before it requests the same rig
 # used by the actual player. The login stage has no streamed map.
@@ -8,6 +10,9 @@ var real_dhaka_loaded := false
 
 var _elapsed := 0.0
 var _vehicle_root: Node3D
+var _vehicle_wheels: Array[MeshInstance3D] = []
+var _camera: Camera3D
+var _timeline: AnimationPlayer
 var _tree_pivots: Array[Node3D] = []
 var _wind_cloth_pivot: Node3D
 var _operator_visual: Node3D
@@ -21,29 +26,19 @@ func _ready() -> void:
 	_build_trees()
 	_build_cng()
 	_build_operator()
+	_build_login_timeline()
 
 
 func _process(delta: float) -> void:
 	_elapsed += delta
 
 	if is_instance_valid(_vehicle_root):
-		# The three-wheeler loops behind the login card and never blocks input.
+		# The three-wheeler follows a continuous street pass; wheel rotation is
+		# tied to its travel speed rather than an unrelated decorative spin.
 		_vehicle_root.position.x = fposmod(_elapsed * 3.8 + 5.0, 34.0) - 17.0
-
-	for index in range(_tree_pivots.size()):
-		var branch := _tree_pivots[index]
-		if is_instance_valid(branch):
-			branch.rotation.z = sin(_elapsed * 0.78 + float(index) * 0.83) * 0.045
-			branch.rotation.x = cos(_elapsed * 0.62 + float(index) * 0.71) * 0.022
-
-	if is_instance_valid(_wind_cloth_pivot):
-		_wind_cloth_pivot.rotation.z = sin(_elapsed * 1.55) * 0.035
-		_wind_cloth_pivot.rotation.x = cos(_elapsed * 1.18) * 0.025
-
-	if is_instance_valid(_operator_visual):
-		# The production rig supplies the actual idle/breathing animation; this
-		# very small presentation sway adds a calm lobby-style camera presence.
-		_operator_visual.rotation.y = PI + sin(_elapsed * 0.28) * 0.025
+		for wheel in _vehicle_wheels:
+			if is_instance_valid(wheel):
+				wheel.rotation.z -= delta * 15.2
 
 
 func _build_lighting() -> void:
@@ -74,13 +69,13 @@ func _build_lighting() -> void:
 	sun.shadow_enabled = false
 	add_child(sun)
 
-	var camera := Camera3D.new()
-	camera.name = "LoginBackdropCamera"
-	camera.position = Vector3(0.0, 3.6, 12.8)
-	camera.fov = 48.0
-	add_child(camera)
-	camera.look_at(Vector3(0.0, 1.45, -2.1), Vector3.UP)
-	camera.current = true
+	_camera = Camera3D.new()
+	_camera.name = "LoginBackdropCamera"
+	_camera.position = Vector3(0.0, 3.6, 12.8)
+	_camera.fov = 46.0
+	add_child(_camera)
+	_camera.look_at(Vector3(0.0, 1.45, -2.1), Vector3.UP)
+	_camera.current = true
 
 
 func _build_ground_and_road() -> void:
@@ -139,7 +134,12 @@ func _build_city_silhouette() -> void:
 		Color("#53606a"), Color("#665d55"), Color("#495b61"),
 		Color("#736654"), Color("#45545c"), Color("#625d65")
 	]
+	var shariatpur_shopfront_loaded := _add_shariatpur_shopfront()
 	for index in range(9):
+		# Reserve the centre for the authored local hero frontage. The fallback
+		# boxes are illustrative skyline dressing, not surveyed map geometry.
+		if shariatpur_shopfront_loaded and index == 4:
+			continue
 		var width := 2.4 + float(index % 3) * 0.48
 		var height := 3.4 + float((index * 7) % 5) * 0.58
 		var x := -13.0 + float(index) * 3.25
@@ -177,6 +177,17 @@ func _build_city_silhouette() -> void:
 				)
 				window.material_override = _material(Color("#294655"), 0.28, 0.12)
 				window.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				if index % 3 == 0 and row_index > 0 and column_index == 0:
+					var balcony_deck := _box(building, "BalconyDeck_%d" % row_index, Vector3(0.0, 0.62 + float(row_index) * 0.92, depth * 0.5 + 0.12), Vector3(width * 0.84, 0.075, 0.34), Color("#424b4c"))
+					balcony_deck.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+					var balcony_rail := _box(building, "BalconyRail_%d" % row_index, Vector3(0.0, 0.91 + float(row_index) * 0.92, depth * 0.5 + 0.27), Vector3(width * 0.80, 0.045, 0.045), Color("#a2a29a"))
+					balcony_rail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+		if index % 2 == 0:
+			var rooftop_tank := _box(building, "RoofWaterTank", Vector3(width * 0.25, height + 0.48, 0.0), Vector3(0.62, 0.68, 0.58), Color("#354b53"))
+			rooftop_tank.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var rooftop_rim := _box(building, "RoofTankRim", Vector3(width * 0.25, height + 0.84, 0.0), Vector3(0.66, 0.045, 0.62), Color("#83908b"))
+			rooftop_rim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	var sign_post := _box(
 		self,
@@ -197,12 +208,35 @@ func _build_city_silhouette() -> void:
 
 	var sign_text := Label3D.new()
 	sign_text.name = "ShariatpurSignText"
-	sign_text.text = "SHARIATPUR  •  BANGLADESH"
+	sign_text.text = "SHARIATPUR  /  01"
 	sign_text.font_size = 36
 	sign_text.pixel_size = 0.006
 	sign_text.modulate = Color("#f2e5bd")
 	sign_text.position = Vector3(-7.6, 2.88, -4.44)
 	add_child(sign_text)
+	var regional_green := _box(self, "RegionalAccentGreen", Vector3(-6.28, 2.9, -4.43), Vector3(0.055, 0.38, 0.035), Color("#1f7655"))
+	regional_green.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var regional_red := _box(self, "RegionalAccentRed", Vector3(-6.28, 2.9, -4.405), Vector3(0.11, 0.11, 0.028), Color("#bd554b"))
+	regional_red.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+
+func _add_shariatpur_shopfront() -> bool:
+	if not ResourceLoader.exists(SHARIATPUR_SHOPFRONT_PATH):
+		return false
+	var shopfront_pack := load(SHARIATPUR_SHOPFRONT_PATH) as PackedScene
+	if shopfront_pack == null:
+		push_warning("SHARIATPUR_SHOPFRONT_LOAD_FAILED: keeping procedural skyline fallback.")
+		return false
+	var shopfront := shopfront_pack.instantiate() as Node3D
+	if shopfront == null:
+		push_warning("SHARIATPUR_SHOPFRONT_INSTANCE_FAILED: keeping procedural skyline fallback.")
+		return false
+	shopfront.name = "ShariatpurHeroShopfront"
+	shopfront.position = Vector3(0.0, 0.0, -8.5)
+	shopfront.scale = Vector3.ONE * 0.42
+	add_child(shopfront)
+	return true
 
 
 func _build_trees() -> void:
@@ -319,6 +353,14 @@ func _build_cng() -> void:
 		wheel.material_override = _material(Color("#15191c"), 0.98)
 		wheel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_vehicle_root.add_child(wheel)
+		_vehicle_wheels.append(wheel)
+
+	var lower_trim := _box(_vehicle_root, "CNGBodyTrim", Vector3(-0.12, 0.32, 0.57), Vector3(1.28, 0.055, 0.035), Color("#d2b96d"))
+	lower_trim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var front_grille := _box(_vehicle_root, "CNGFrontGrille", Vector3(1.005, 0.30, 0.0), Vector3(0.035, 0.14, 0.42), Color("#15282b"))
+	front_grille.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var rear_lamp := _box(_vehicle_root, "CNGRearLamp", Vector3(-1.0, 0.43, -0.34), Vector3(0.035, 0.13, 0.18), Color("#d45b45"))
+	rear_lamp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	var cng_label := Label3D.new()
 	cng_label.name = "CNGSideLabel"
@@ -354,6 +396,7 @@ func _build_operator() -> void:
 		return
 	_operator_visual = Node3D.new()
 	_operator_visual.name = "HumanoidVisual"
+	_operator_visual.rotation.y = PI
 	_operator_visual.set_script(visual_script)
 	_operator_visual.set("is_player_character", true)
 	actor.add_child(_operator_visual)
@@ -373,6 +416,69 @@ func _build_operator() -> void:
 	)
 	cloth.rotation.x = -0.16
 	cloth.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+
+func _build_login_timeline() -> void:
+	_timeline = AnimationPlayer.new()
+	_timeline.name = "LoginArtDirectionTimeline"
+	_timeline.root_node = NodePath("..")
+	add_child(_timeline)
+
+	var animation := Animation.new()
+	animation.resource_name = "StreetReveal"
+	animation.length = 10.0
+	animation.step = 1.0 / 30.0
+	animation.loop_mode = Animation.LOOP_LINEAR
+
+	# A restrained, hand-shaped camera drift and environmental breeze. The
+	# imported operator rig retains ownership of its authored idle motion.
+	_add_float_track(animation, NodePath("LoginBackdropCamera:position:x"), [
+		Vector2(0.0, 0.0), Vector2(2.5, 0.22), Vector2(5.0, 0.0),
+		Vector2(7.5, -0.22), Vector2(10.0, 0.0)
+	])
+	_add_float_track(animation, NodePath("LoginBackdropCamera:position:y"), [
+		Vector2(0.0, 3.6), Vector2(2.5, 3.65), Vector2(5.0, 3.6),
+		Vector2(7.5, 3.56), Vector2(10.0, 3.6)
+	])
+	_add_float_track(animation, NodePath("LoginBackdropCamera:fov"), [
+		Vector2(0.0, 46.0), Vector2(3.0, 45.5), Vector2(6.0, 46.4), Vector2(10.0, 46.0)
+	])
+
+	for index in range(_tree_pivots.size()):
+		var branch := _tree_pivots[index]
+		if not is_instance_valid(branch):
+			continue
+		var branch_path := str(get_path_to(branch))
+		var direction := 1.0 if index % 2 == 0 else -1.0
+		_add_float_track(animation, NodePath(branch_path + ":rotation:z"), [
+			Vector2(0.0, 0.0), Vector2(2.5, 0.038 * direction),
+			Vector2(5.0, 0.0), Vector2(7.5, -0.038 * direction), Vector2(10.0, 0.0)
+		])
+		_add_float_track(animation, NodePath(branch_path + ":rotation:x"), [
+			Vector2(0.0, 0.0), Vector2(3.0, 0.018 * direction),
+			Vector2(6.0, 0.0), Vector2(8.0, -0.018 * direction), Vector2(10.0, 0.0)
+		])
+
+	if is_instance_valid(_wind_cloth_pivot):
+		var cloth_path := str(get_path_to(_wind_cloth_pivot))
+		_add_float_track(animation, NodePath(cloth_path + ":rotation:z"), [
+			Vector2(0.0, 0.0), Vector2(2.0, 0.035), Vector2(5.0, 0.0),
+			Vector2(8.0, -0.035), Vector2(10.0, 0.0)
+		])
+
+	var library := AnimationLibrary.new()
+	library.add_animation("StreetReveal", animation)
+	_timeline.add_animation_library("login", library)
+	_timeline.play("login/StreetReveal")
+
+
+func _add_float_track(animation: Animation, track_path: NodePath, keyframes: Array[Vector2]) -> void:
+	var track_index := animation.add_track(Animation.TYPE_VALUE)
+	animation.track_set_path(track_index, track_path)
+	animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_CUBIC)
+	for keyframe in keyframes:
+		animation.track_insert_key(track_index, keyframe.x, keyframe.y)
 
 
 func _box(parent: Node3D, node_name: String, local_position: Vector3, box_size: Vector3, color: Color) -> MeshInstance3D:

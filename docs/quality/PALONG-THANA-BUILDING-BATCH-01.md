@@ -1,0 +1,161 @@
+# Palong Model Thana — exact building and 10-footprint neighbourhood dossier
+
+**Audit date:** 23 November 2026  
+**Canonical source tile:** `tile_23p1835_90p3053`  
+**Sequence:** `44257499872` — Shariatpur review map  
+**Detailed data:** [`palong_thana_building_batch_01.json`](../../assets/world/reference_batches/palong_thana_building_batch_01.json)
+
+## 1. Exact map join completed
+
+The 567 MB assembled Shariatpur review artifact was too large for the GitHub artifact downloader's 512 MiB single-file limit, so the original bounded tile batch containing Palong was retrieved instead. Batch 00 is 125,349,114 bytes and contains the canonical GeoJSON, building-interior seed file, GLB, tile manifest and OSM attribution for the Thana's tile.
+
+The exact source feature is:
+
+- OSM way: `601571171`
+- Tile GeoJSON feature: `way/601571171001` (internal transformed feature ID; original OSM identity remains `source_osm_id=601571171`)
+- Name: **Palong Model Thana / পালং মডেল থানা**
+- Tags: `amenity=police`, `building=yes`
+- WGS84 footprint:
+  - (90.3486329, 23.2186092)
+  - (90.3486410, 23.2187965)
+  - (90.3487220, 23.2187936)
+  - (90.3487140, 23.2186062)
+- Approximate centroid: **23.21870138, 90.34867748**
+- Approximate footprint: **173.2 m²**, approximately 21.2 m × 9.1 m.
+
+This is the first confirmed host-building polygon match in this Palong corridor task. Its source polygon and tile coordinate transform are stored in the JSON.
+
+## 2. Do not mistake inferred runtime data for surveyed facts
+
+The current map seed estimates four floors and 12 m height using `AREA_CATEGORY_ESTIMATE_UNVERIFIED`. It also assigns a door anchor using `PROCEDURAL_LONGEST_EXTERIOR_EDGE_NO_MAPPED_ENTRANCE_NODE` and a flat-cap roof default.
+
+Those are pipeline fallbacks, not facts about the actual Thana. The model must not silently turn them into a four-storey measured building or claim the generated anchor is its real entrance.
+
+The seed's local footprint is about 21.2 m × 9.1 m. The exact source polygon is preserved even if later art uses a separate wall thickness, bevels, cutaways and material layers.
+
+## 3. Independent visual and public-building records
+
+The Jago News article from 28 October 2022 includes a file photograph identified with Palong Model Thana. The visible clues support:
+- a Bengali identity sign;
+- a red-brick entrance arch/gateway;
+- a building behind the gateway with visible rows of windows;
+- a compound with motorcycles and a police vehicle;
+- tall palms near the entry.
+
+This is a **single low-resolution press view**, not a measured elevation or a texture license. Use it only as qualitative research, and manually author original geometry/materials rather than copying its pixels.
+
+[Source: Jago News, 28 October 2022](https://www.jagonews24.com/country/news/805575)
+
+A Prothom Alo photo caption also identifies a photo as Palong Model Thana, Shariatpur Sadar, but the article text supplies no architectural dimensions:
+[Source: Prothom Alo](https://www.prothomalo.com/bangladesh/district/9dk8y7bpff)
+
+The Shariatpur District Police page mentions a newly built police officers' dormitory adjacent to Palong Model Thana. That is adjacent-building context, not a floor plan or description of the mapped Thana shell:
+[Source: Shariatpur District Police](https://police.shariatpur.gov.bd/pages/static-pages/6995cbaf35ce18e1c07a67b9)
+
+### PWD record — candidate, not a confirmed match
+
+The PWD Building Database has a record titled "Police Department's Zorazirno Thana Building, Construction of Type Plan (2nd phase 95 of the Shariatpur Palang Sadar thana)". It records code BARSHA0049, 2015, masonry, two floors and 1,097.92 sq ft.
+
+The page displays a placeholder image and does not publish coordinates or an OSM building ID. It is not yet proven to be the same polygon as way 601571171. Do not attach its two-floor count to the OSM feature until the records are joined:
+[Source: PWD Building Database](https://ss.pwd.gov.bd/buildingdatabase/buildingbyid/7377)
+
+### Historical user-reported floor clue — low confidence
+
+A public place listing for Palong Model Thana contains a user review dated 6 January 2018 that said the station then had two floors and that construction of a third floor was underway. This is a dated, user-generated recollection, not a measured survey or an official building record. It may describe a construction stage that later changed, and it does not establish the 2026 floor count of OSM way 601571171. Record it as historical context only; keep the production floor count unverified until an official, current record or a reliable current view is matched to the exact footprint.
+
+[Source: Vymaps Palong Model Thana listing and dated user review](https://vymaps.com/BD/Palong-Model-Thana-136943/)
+
+## 4. First ten building footprints around the Thana
+
+The JSON lists the Thana plus its nine closest mapped footprints, sorted by centroid distance:
+- 1 exact OSM building: Palong Model Thana.
+- 1 additional OSM building footprint, 20.23 m away.
+- 8 Overture Buildings-theme footprints, approximately 24.42–39.45 m away.
+
+The eight Overture features preserve their Overture IDs and `Google Open Buildings` upstream source metadata. They are not OSM ways simply because the tile exporter gives them internal feature IDs shaped like `way/...`. All nine nearby neighbours currently have unknown business/building names; all their floor and height values are explicitly flagged as unverified area-category estimates.
+
+The whole source tile contains 15,288 building footprints, including 14,096 Overture supplements; 325 road ways; two mapped tree nodes; 145 procedural vegetation trees; 60 water polygons and three waterway segments. This is one 0.05° tile, not a complete district micro-survey. Procedural vegetation is not a surveyed tree inventory.
+
+## 5. Local landmarks and road relationship
+
+- Palong Bazar OSM node `5759840117`: about 160 m north.
+- National Bank Limited, Shariatpur OSM node `11890615507`: about 126 m west.
+- Sree Sree Shyam Sundar Jiu Palong Horishova Jila Central Temple: OSM way `601571189`, about 170 m northeast.
+- Shoulpara Monor Khar Khandi High School: OSM node `11890607546`, about 177 m northeast.
+- Shariatpur Main Road: OSM way `607839191`, primary, about 217 m away.
+- Palong Bazar–Nirala Road: OSM way `607853680`, residential, about 240 m away.
+
+These are geospatial relationships derived from the canonical tile, not a claim that the Thana directly fronts each named road.
+
+## 6. Sonali Bank — identity known, building still unmatched
+
+The official Sonali Bank branch directory lists a Shariatpur Branch. A secondary branch directory gives the address only as Shariatpur Sadar, Shariatpur. Neither record joins the branch to a precise host-building footprint in this tile.
+
+The nearby OSM point `11890615507` is **National Bank Limited, Shariatpur**. It is a different bank, not a Sonali Bank location. Do not use that point to place the Sonali branch.
+
+- [Sonali Bank official branch directory](https://www.sonalibank.com.bd/citizens_charter_br.php)
+- [Secondary Shariatpur branch address record](https://www.banksbd.org/sbl/shariatpur-branch-7355.html)
+
+## 7. Manual Blender production target
+
+Start with the exact Palong Model Thana footprint. Build the building and the separate front gate as separately evidenced components:
+1. preserve the exact building polygon and tile transform;
+2. keep the gate as a separate authored object, with its exact position/clearance marked uncertain until an independently mapped entrance/site plan is available;
+3. model the visible red-brick arch and Bengali identity panel as original geometry/materials using the news photo only as a qualitative reference;
+4. keep floor count, internal room plan, rear/side elevations and door location unknown unless additional reliable records support them;
+5. use separately licensed PBR materials for brick, render, plaster, metal, glass, paint and paving;
+6. export a Blender source file and GLB with a source manifest; import into Godot and validate world placement, collision, door flow, lighting, LOD and streaming;
+7. review the rendered result in-game before promoting it.
+
+**Status:** exact footprint joined; first ten nearby footprint candidate set recorded; independent entry-gate visual cues found; floors/entrance/PWD-to-OSM association and Sonali branch footprint remain unresolved. No GLB has yet been generated or device-approved from this dossier.
+
+
+## 8. Roads, water, vegetation and terrain around the exact footprint
+
+The canonical tile manifest `tile_23p1835_90p3053` was inspected in addition to the Thana polygon and ten-building candidate set.
+
+### Roads nearest to the Thana polygon
+
+Distances are polygon-to-road geometry distances from the exact OSM Thana footprint, not route distances:
+
+| OSM way | Road | Class | Distance |
+|---:|---|---|---:|
+| `607853530` | Unnamed residential way | residential | 4.8 m |
+| `1545306642` | Unnamed service access | service | 6.5 m |
+| `1225584409` | Unnamed service connection | service | 16.0 m |
+| `607853679` | Kotowal Bari Road | residential | 32.7 m |
+| `607839191` | Shariatpur Main Road (R861, asphalt) | primary | 63.1 m |
+| `607853531` | Unnamed residential way | residential | 81.4 m |
+| `607853680` | Palong Bazar–Nirala Road | residential | 131.7 m |
+
+The unnamed nearby ways carry no OSM width, surface or lane tags in this tile. Their exact line geometry is present, but road widths and kerb/footpath/drain offsets must not be invented as mapped facts.
+
+### Water
+
+The tile has 60 mapped water polygons and three waterway segments. The nearest mapped ponds are:
+- OSM way `567299603`: approximately 488.4 m from the Thana footprint.
+- OSM way `607853529`: approximately 489.1 m from the Thana footprint.
+
+There is no mapped pond touching the Thana footprint. Both water polygons retain their actual source geometry in the source tile; this is a geographic outline, not a surveyed bathymetric/depth model.
+
+### Trees and streetscape props
+
+- The tile contains only two individually mapped `natural=tree` nodes; both are over 1.2 km from this Thana.
+- The pipeline generates 145 procedural vegetation tree props across mapped forest/orchard/park/scrub/farm land-use areas. These are bounded deterministic placements, not a surveyed inventory of individual trees at this site.
+- The tile records zero mapped utility-pole nodes and zero mapped street-lamp nodes. Their absence in the OSM extract does not prove there are no poles or lamps on the actual street.
+
+### Terrain
+
+The tile's `map_manifest.json` has no DEM/elevation/terrain layer field. The Thana interior seed has no `ground_elevation_m` value. The manifest does state that geometry is projected into local metres with Z up, but that is a coordinate transform, not a height survey.
+
+Therefore the current tile is a usable planimetric base (roads, building footprints, mapped water, land-use and POIs), not a verified fine-resolution terrain model for slopes, pond banks, road crowns, drains or individual trees. These require a separate licensed DEM/field-source integration and evidence record.
+
+The full machine-readable road/water/tree/terrain findings are stored in `local_context_around_thana` in the JSON.
+
+## 8. Imagery-coverage status for the exact Palong neighbourhood
+
+The successful district-level KartaView audit on 18 November 2026 queried 30 coverage tiles and 30 360-photo metadata sample points across the Shariatpur envelope. It found one OSM-matched coverage track in the north-west part of the audit box and zero qualifying 360-photo candidates in the district-wide sample. The discovered track is not at Palong Model Thana.
+
+A separate approximately 1.1 km local Palong audit is now configured on the production branch (23.2135, 90.3435 to 23.2235, 90.3535; zoom 14; 3×3 photo-query grid; 500 m radius; maximum 30 requests). The workflow change is committed, but no run result exists yet. Do not treat it as evidence of local coverage until the new report artifact is produced and reviewed.
+
+[Local KartaView audit workflow](../../.github/workflows/kartaview-coverage-audit.yml)

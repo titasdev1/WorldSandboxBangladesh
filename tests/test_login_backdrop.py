@@ -27,11 +27,13 @@ class LoginBackdropTests(unittest.TestCase):
         cls.backdrop = read("systems/login_backdrop.gd")
         cls.actor = read("systems/login_operator_actor.gd")
 
-    def test_first_run_login_mounts_live_backdrop_before_shade_and_controls(self):
+    def test_first_run_login_reuses_the_persistent_cinematic_backdrop(self):
         login = function_block(self.boot, "_show_guest_login_screen")
-        self.assertIn('backdrop.name = "LoginBackdrop"', login)
-        self.assertIn('load("res://systems/login_backdrop_view.gd")', login)
-        self.assertLess(login.index("login_overlay.add_child(backdrop)"), login.index("login_overlay.add_child(background)"))
+        build = function_block(self.boot, "_build_screen")
+        self.assertIn('cinematic_backdrop.name = "BootCinematicBackdrop"', build)
+        self.assertIn('load("res://systems/login_backdrop_view.gd")', build)
+        self.assertIn('get_node_or_null("BootCinematicBackdrop")', login)
+        self.assertNotIn("SubViewportContainer.new()", login)
         self.assertLess(login.index("login_overlay.add_child(background)"), login.index("login_overlay.add_child(center)"))
         self.assertIn('guest_button.pressed.connect(_continue_as_guest)', login)
         self.assertIn('callsign_input.grab_focus()', login)
@@ -61,11 +63,81 @@ class LoginBackdropTests(unittest.TestCase):
         self.assertIn("move_and_slide()", self.actor)
         self.assertIn("_wind_cloth_pivot.rotation.z = sin", function_block(self.backdrop, "_process"))
 
-    def test_map_install_screen_remains_separate_from_the_animated_login_scene(self):
-        install = function_block(self.boot, "_show_map_install_screen")
-        self.assertNotIn("LoginBackdrop", install)
-        self.assertIn('entrance.tween_property(boot_content, "modulate:a", 1.0, 0.32)', install)
-        self.assertIn("_show_map_install_screen()", function_block(self.boot, "_continue_as_guest"))
+    def test_login_shot_uses_camera_parallax_and_animated_cng_wheels(self):
+        process = function_block(self.backdrop, "_process")
+        timeline = function_block(self.backdrop, "_build_login_timeline")
+        self.assertNotIn("_camera.position = Vector3(sin", process)
+        self.assertIn('NodePath("LoginBackdropCamera:position:x")', timeline)
+        self.assertIn("wheel.rotation.z -= delta * 15.2", process)
+        self.assertIn("_vehicle_wheels.append(wheel)", self.backdrop)
+        self.assertIn("BalconyDeck_", self.backdrop)
+        self.assertIn("RoofWaterTank", self.backdrop)
+        self.assertIn('sign_text.text = "SHARIATPUR  /  01"', self.backdrop)
+        self.assertIn("RegionalAccentGreen", self.backdrop)
+        self.assertIn("RegionalAccentRed", self.backdrop)
+
+    def test_login_camera_and_breeze_use_cubic_animation_timeline(self):
+        timeline = function_block(self.backdrop, "_build_login_timeline")
+        self.assertIn('animation.loop_mode = Animation.LOOP_LINEAR', timeline)
+        self.assertIn('Animation.INTERPOLATION_CUBIC', self.backdrop)
+        self.assertIn('LoginArtDirectionTimeline', self.backdrop)
+        self.assertIn('login/StreetReveal', self.backdrop)
+        self.assertIn('get_path_to(branch)', timeline)
+        self.assertIn('get_path_to(_wind_cloth_pivot)', timeline)
+
+    def test_map_loading_keeps_the_same_live_cinematic_backdrop(self):
+        build = function_block(self.boot, "_build_screen")
+        self.assertIn('cinematic_backdrop.name = "BootCinematicBackdrop"', build)
+        self.assertIn('load("res://systems/login_backdrop_view.gd")', build)
+        self.assertIn('backdrop_shade.name = "BootCinematicShade"', build)
+        self.assertIn('Color(0.008, 0.026, 0.043, 0.78)', build)
+        self.assertLess(build.index("add_child(cinematic_backdrop)"), build.index("add_child(shell)"))
+
+    def test_guest_login_handoff_opens_the_lobby_without_a_mandatory_map_installer(self):
+        boot_flow = function_block(self.boot, "_run_boot_sequence")
+        handoff = function_block(self.boot, "_continue_as_guest")
+        launch = function_block(self.boot, "_launch_main_lobby")
+        self.assertIn('call_deferred("_launch_main_lobby")', boot_flow)
+        self.assertIn("_launch_main_lobby()", handoff)
+        self.assertNotIn("_show_map_install_screen()", boot_flow)
+        self.assertNotIn("_show_map_install_screen()", handoff)
+        self.assertIn('change_scene_to_file("res://Main.tscn")', launch)
+        self.assertIn("optional and is not required to launch the starter experience", launch)
+
+    def test_login_street_prefers_authored_shariatpur_frontage_and_keeps_safe_fallback(self):
+        self.assertIn('SHARIATPUR_SHOPFRONT_PATH := "res://assets/login/shariatpur_riverfront_shophouse_hero.glb"', self.backdrop)
+        loader = function_block(self.backdrop, "_add_shariatpur_shopfront")
+        city = function_block(self.backdrop, "_build_city_silhouette")
+        self.assertIn("ResourceLoader.exists(SHARIATPUR_SHOPFRONT_PATH)", loader)
+        self.assertIn('shopfront.name = "ShariatpurHeroShopfront"', loader)
+        self.assertIn("shopfront.scale = Vector3.ONE * 0.42", loader)
+        self.assertIn("if shariatpur_shopfront_loaded and index == 4:", city)
+        self.assertIn("continue", city)
+
+
+    def test_guest_login_uses_operator_visible_left_dock_and_animated_handoff(self):
+        login = function_block(self.boot, "_show_guest_login_screen")
+        handoff = function_block(self.boot, "_continue_as_guest")
+        self.assertIn("center.anchor_right = 0.48", login)
+        self.assertIn('brand_tile.add_theme_stylebox_override("panel"', login)
+        self.assertIn('brand_mark.text = "A²"', login)
+        self.assertIn('accent_line.name = "LoginRevealAccent"', login)
+        self.assertIn("panel.custom_minimum_size = Vector2(minf(440.0", login)
+        self.assertIn('entrance.tween_property(login_overlay, "modulate:a"', login)
+        self.assertIn('entrance.tween_property(panel, "scale"', login)
+        self.assertIn('exit_tween.tween_property(login_overlay, "modulate:a"', handoff)
+        self.assertIn("await exit_tween.finished", handoff)
+
+    def test_cinematic_login_is_followed_by_a_lobby_owned_download_centre(self):
+        build = function_block(self.boot, "_build_screen")
+        self.assertIn("Color(0.008, 0.026, 0.043, 0.78)", build)
+        self.assertIn("backdrop_shade.color = Color(0.008, 0.018, 0.03, 0.30)", build)
+        hud = read("hud.gd")
+        lobby = function_block(hud, "_build_lobby_ui")
+        downloads = function_block(hud, "_build_downloads_page")
+        self.assertIn('["DOWNLOADS", "downloads", "res://assets/ui/icons/downloads.svg"]', lobby)
+        self.assertIn('"DOWNLOAD CENTRE"', downloads)
+        self.assertIn("starter lobby and local city remain available", downloads)
 
 
 if __name__ == "__main__":

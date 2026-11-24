@@ -103,6 +103,56 @@ class MobileInteractionFlowTests(unittest.TestCase):
         self.assertIn('set_meta("door_open", false)', closing)
         self.assertIn('tween_property(door_hinge, "rotation:y"', closing)
 
+    def test_interior_stays_at_the_buildings_world_coordinates(self):
+        opening = function_block(self.interior, "open_interior")
+        self.assertNotIn("-300.0", opening)
+        self.assertIn("doorway_world_position", opening)
+        self.assertIn("ground_y := exterior_position.y - 0.15", opening)
+        self.assertIn("SAME-WORLD INTERIOR", opening)
+        self.assertNotIn("player.global_position = active_root.to_global", opening)
+        self.assertIn("player.velocity = Vector3.ZERO", opening)
+
+    def test_same_world_room_restores_its_mapped_footprint_collision(self):
+        opening = function_block(self.interior, "open_interior")
+        closing = function_block(self.interior, "_close_interior")
+        collision = function_block(self.loader, "set_seed_building_collision_enabled")
+        self.assertIn("set_seed_building_collision_enabled", opening)
+        self.assertIn("world_space_interior", opening)
+        self.assertIn("set_seed_building_collision_enabled", closing)
+        self.assertIn("collision_layer = 0", collision)
+        self.assertIn("collision.disabled = true", collision)
+        self.assertIn("collision.disabled = false", collision)
+
+    def test_ci_selected_shariatpur_osm_anchor_is_prioritized_and_reports_provenance(self):
+        loader = read("real_dhaka_tile_loader.gd")
+        anchors = function_block(loader, "_load_interior_anchors")
+        self.assertIn('OS.get_environment("WSB_EXPECT_INTERIOR_OSM_ID")', anchors)
+        self.assertIn("A2_SHARIATPUR_EXPECTED_SEED_FOUND", anchors)
+        self.assertIn("a_expected != b_expected", anchors)
+        self.assertIn("A2_SHARIATPUR_BUILDING_ENTRY_ANCHOR_READY", anchors)
+        self.assertIn("door_placement_source", anchors)
+        self.assertIn("A2_SHARIATPUR_EXPECTED_SEED_NOT_ANCHORED", anchors)
+
+    def test_large_osm_ids_are_normalized_before_seed_anchor_and_collision_matching(self):
+        normalize = function_block(self.loader, "_normalize_osm_id")
+        anchor_loader = function_block(self.loader, "_load_interior_anchors")
+        collision_builder = function_block(self.loader, "_add_seed_building_collisions")
+        interior_normalize = function_block(self.interior, "_normalize_osm_id")
+        closing = function_block(self.interior, "_close_interior")
+        self.assertIn("if value is float:", normalize)
+        self.assertIn("roundi(numeric_id)", normalize)
+        self.assertIn("_normalize_seed_osm_ids(seeds)", anchor_loader)
+        self.assertIn("_normalize_osm_id(seed.get(\"osm_id\", \"unknown\"))", collision_builder)
+        self.assertIn("roundi(numeric_id)", interior_normalize)
+        self.assertIn("_normalize_osm_id(active_seed.get(\"osm_id\", \"\"))", closing)
+
+    def test_seed_building_collisions_follow_dem_ground_elevation(self):
+        collision_builder = function_block(self.loader, "_add_seed_building_collisions")
+        anchor_builder = function_block(self.loader, "_interior_anchor_placement")
+        self.assertIn('seed.get("ground_elevation_m", 0.0)', collision_builder)
+        self.assertIn("ground_elevation + height * 0.5", collision_builder)
+        self.assertIn("ground_y + 0.15", anchor_builder)
+
     def test_vehicle_has_separate_first_and_third_person_cameras(self):
         self.assertIn("var vehicle_first_person_camera: Camera3D", self.vehicle)
         self.assertIn("func toggle_vehicle_camera_mode() -> String:", self.vehicle)
@@ -189,22 +239,54 @@ class MobileInteractionFlowTests(unittest.TestCase):
         self.assertIn("lat_lon_to_world", function_block(self.hud, "_navigate_to_named_place"))
         self.assertIn("teleport_status.text = \"Selected \"", self.hud)
 
+    def test_fast_world_traversal_prioritizes_one_predictive_map_tile(self):
+        loader = read("real_dhaka_tile_loader.gd")
+        predictive = function_block(loader, "_find_predictive_prefetch_record")
+        streaming = function_block(loader, "_stream_tiles")
+        self.assertIn("PREDICTIVE_PREFETCH_MIN_SPEED_MPS", loader)
+        self.assertIn('var player := _world.get("player") as CharacterBody3D', predictive)
+        self.assertIn('occupied_vehicle := _world.get("occupied_vehicle")', predictive)
+        self.assertIn("movement_source.velocity.x", predictive)
+        self.assertIn("movement_source.velocity.z", predictive)
+        self.assertIn("PREDICTIVE_PREFETCH_LOOKAHEAD_SECONDS", predictive)
+        self.assertIn("PREDICTIVE_PREFETCH_CAPTURE_RADIUS_M", predictive)
+        self.assertIn("_find_predictive_prefetch_record(player_position)", streaming)
+        self.assertIn("predictive_prefetch_key", streaming)
+        self.assertIn("MAX_TILE_LOADS_PER_STREAM_TICK := 1", loader)
+        self.assertIn("REAL_MAP_PREDICTIVE_PREFETCH", predictive)
+
     def test_large_map_pack_is_chunked_verified_and_reassembled_before_mount(self):
-        self.assertIn('get("schema_version", 0)) != 2', self.boot)
-        self.assertIn('downloaded_metadata.get("parts", [])', self.boot)
-        self.assertIn("ALLOWED_ASSET_BASE_URL + \".part%03d\"", self.boot)
-        self.assertIn("func _verify_and_append_part() -> bool:", self.boot)
-        self.assertIn("context.update(chunk)", self.boot)
-        self.assertIn("output.store_buffer(chunk)", self.boot)
-        self.assertIn("func _verify_and_install_pack() -> bool:", self.boot)
-        self.assertIn('context.finish().hex_encode().to_lower() != expected_sha256', self.boot)
-        self.assertIn("MERGED_PART_PATH", self.boot)
+        manager = read("systems/content_download_manager.gd")
+        self.assertIn('get("schema_version", 0)) != 2', manager)
+        self.assertIn('downloaded_metadata.get("parts", [])', manager)
+        self.assertIn("ALLOWED_ASSET_BASE_URL + \".part%03d\"", manager)
+        self.assertIn("func _verify_and_append_part() -> bool:", manager)
+        self.assertIn("context.update(chunk)", manager)
+        self.assertIn("output.store_buffer(chunk)", manager)
+        self.assertIn("func _verify_and_install_pack() -> bool:", manager)
+        self.assertIn('context.finish().hex_encode().to_lower() != expected_sha256', manager)
+        self.assertIn("MERGED_PART_PATH", manager)
         self.assertIn('ProjectSettings.load_resource_pack', self.loader)
+        self.assertIn('ContentDownloadManager="*res://systems/content_download_manager.gd"', read("project.godot"))
 
     def test_pck_verifier_uses_the_actual_manifest_schema(self):
         self.assertIn('manifest.get("tile_batch_count", tiles.size())', self.pack_verifier)
         self.assertIn('manifest.get("tile_count_intersecting_boundary", tiles.size())', self.pack_verifier)
         self.assertNotIn('manifest.get("tile_count_total", -1)', self.pack_verifier)
+
+
+    def test_vehicle_drive_mode_has_dedicated_exit_control(self):
+        prompt = function_block(self.hud, "_update_interaction_prompt")
+        exit_action = function_block(self.hud, "_exit_occupied_vehicle")
+        vehicle_entry = function_block(self.vehicle, "_complete_enter_player")
+        vehicle_exit = function_block(self.vehicle, "exit_player")
+        self.assertIn('exit_vehicle_button.visible = true', prompt)
+        self.assertIn('exit_vehicle_button.visible = false', prompt)
+        self.assertIn('wrapper.call("exit_player")', exit_action)
+        self.assertIn('occupied_vehicle.get("vehicle_wrapper")', exit_action)
+        self.assertIn('world.set("occupied_vehicle",body)', vehicle_entry)
+        self.assertIn('_play_entry_exit_action(p, "alight_vehicle")', vehicle_exit)
+        self.assertIn('body.freeze = true', vehicle_exit)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,168 @@
+name: Build Source-Aligned Palong Thana Hero Art
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - art/shariatpur-riverfront-streetfront
+    paths:
+      - "tools/blender/build_palong_thana_hero.py"
+      - "tools/blender/verify_palong_thana_hero.py"
+      - "tools/fetch_polyhaven_pbr_materials.py"
+      - "tests/test_palong_thana_hero.py"
+      - ".github/workflows/build-palong-thana-hero.yml"
+  pull_request:
+    branches:
+      - feature/lobby-operator-showcase
+    paths:
+      - "tools/blender/build_palong_thana_hero.py"
+      - "tools/blender/verify_palong_thana_hero.py"
+      - "tools/fetch_polyhaven_pbr_materials.py"
+      - "tests/test_palong_thana_hero.py"
+      - ".github/workflows/build-palong-thana-hero.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: palong-thana-hero-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-source-aligned-thana:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v5
+
+      - name: Install image/font dependencies and Blender 5.2.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl xz-utils python3-numpy python3-pil fontconfig fonts-noto-core
+          source tools/install_blender_ci.sh
+          blender --version
+          fc-match -f '%{file}\n' 'Noto Sans Bengali' | head -n 1
+
+      - name: Compile Palong authoring and verification code
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/blender/build_palong_thana_hero.py \
+            tools/blender/verify_palong_thana_hero.py \
+            tools/fetch_polyhaven_pbr_materials.py
+          python3 -m unittest discover -s tests -p "test_palong_thana_hero.py" -v
+          python3 -m unittest discover -s tests -p "test_polyhaven_material_fetcher.py" -v
+
+      - name: Download the retained current Shariatpur source tile batch
+        uses: actions/download-artifact@v4
+        with:
+          name: Project-A-Square-Dhaka-Division-45152539785-batch-0-attempt-0
+          path: build/shariatpur-source
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 45152539785
+
+      - name: Verify exact Palong Model Thana source polygon is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          TILE_DIR="$(find build/shariatpur-source -type f -path "*/tile_23p1835_90p3053/map_manifest.json" -print -quit | xargs -r dirname)"
+          test -n "${TILE_DIR}"
+          test -s "${TILE_DIR}/Dhaka_OSM_Source.geojson"
+          test -s "${TILE_DIR}/map_manifest.json"
+          python3 - "${TILE_DIR}/Dhaka_OSM_Source.geojson" <<'PY'
+          import json, sys
+          from pathlib import Path
+          data=json.loads(Path(sys.argv[1]).read_text())
+          found=[f for f in data.get("features",[]) if str(f.get("properties",{}).get("source_osm_id",""))=="601571171"]
+          assert len(found)==1, f"Expected exactly one OSM way/601571171, got {len(found)}"
+          print("PALONG_THANA_SOURCE_FEATURE:", found[0]["properties"].get("osm_type"), found[0]["properties"].get("osm_id"))
+          PY
+
+      - name: Fetch and hash-verify the six CC0 photographic PBR sets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/palong-thana
+          python3 tools/fetch_polyhaven_pbr_materials.py \
+            --out build/palong-thana/textures --resolution 2k \
+            > build/palong-thana/pbr-download.log 2>&1
+          cat build/palong-thana/pbr-download.log
+          grep -Fq "A2_POLYHAVEN_PBR_READY:" build/palong-thana/pbr-download.log
+          cat > build/palong-thana/LICENSE.txt <<'CREDITS'
+          ORIGINAL A-SQUARE PALONG MODEL THANA ART STUDY
+          OSM footprint source: OpenStreetMap contributors, ODbL 1.0.
+          Photographic PBR scan maps: Poly Haven, CC0 1.0.
+          Required provider credit: Powered by Poly Haven.
+          Exact source IDs, authors and map hashes: asset_manifest.json and polyhaven_material_manifest.json.
+          Press-photo pixels, Google Maps/Street View images and third-party game assets are not embedded.
+          CREDITS
+
+      - name: Author source-aligned Thana shell and detached gateway concept in Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          TILE_DIR="$(find build/shariatpur-source -type f -path "*/tile_23p1835_90p3053/map_manifest.json" -print -quit | xargs -r dirname)"
+          BENGALI_FONT="$(fc-match -f '%{file}' 'Noto Sans Bengali' | head -n 1)"
+          if ! blender --background --factory-startup \
+            --python tools/blender/build_palong_thana_hero.py -- \
+            --source-geojson "${TILE_DIR}/Dhaka_OSM_Source.geojson" \
+            --tile-manifest "${TILE_DIR}/map_manifest.json" \
+            --out-dir build/palong-thana \
+            --bengali-font "${BENGALI_FONT}" \
+            --pbr-manifest build/palong-thana/textures/polyhaven_material_manifest.json \
+            > build/palong-thana/authoring.log 2>&1; then
+            cat build/palong-thana/authoring.log
+            exit 1
+          fi
+          cat build/palong-thana/authoring.log
+          grep -Fq "A2_PALONG_THANA_HERO_READY:" build/palong-thana/authoring.log
+
+      - name: Verify GLB structure, exact source identity and embedded CC0 maps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/blender/verify_palong_thana_hero.py \
+            --shell build/palong-thana/palong_thana_shell.glb \
+            --gate build/palong-thana/palong_thana_entrance_gate_concept.glb \
+            --manifest build/palong-thana/asset_manifest.json \
+            --blend build/palong-thana/palong_thana_authoring.blend \
+            --shell-preview build/palong-thana/palong_thana_shell_preview.png \
+            --gate-preview build/palong-thana/palong_thana_gate_concept_preview.png \
+            --pbr-manifest build/palong-thana/textures/polyhaven_material_manifest.json \
+            --out build/palong-thana/verification.json
+          python3 -m json.tool build/palong-thana/asset_manifest.json > /dev/null
+          python3 -m json.tool build/palong-thana/verification.json > /dev/null
+
+      - name: Upload Palong Thana authoring diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Palong-Thana-Hero-Authoring-Diagnostics
+          path: |
+            build/palong-thana/pbr-download.log
+            build/palong-thana/authoring.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload source-aligned Palong Thana Blender review bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: Palong-Thana-Source-Aligned-Hero-Review
+          path: |
+            build/palong-thana/palong_thana_authoring.blend
+            build/palong-thana/palong_thana_shell.glb
+            build/palong-thana/palong_thana_entrance_gate_concept.glb
+            build/palong-thana/palong_thana_shell_preview.png
+            build/palong-thana/palong_thana_gate_concept_preview.png
+            build/palong-thana/asset_manifest.json
+            build/palong-thana/verification.json
+            build/palong-thana/LICENSE.txt
+            build/palong-thana/textures/polyhaven_material_manifest.json
+          if-no-files-found: error
+          retention-days: 30

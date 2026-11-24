@@ -1,0 +1,163 @@
+name: Render A-Square Lobby Cinematic Review
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - art/shariatpur-riverfront-streetfront
+    paths:
+      - "tools/blender/build_asquare_lobby_scene.py"
+      - "tools/blender/render_asquare_lobby_cinematic_review.py"
+      - "tools/blender/verify_asquare_lobby_scene.py"
+      - "tests/test_lobby_cinematic_review.py"
+      - ".github/workflows/render-lobby-cinematic-review.yml"
+  pull_request:
+    branches:
+      - feature/lobby-operator-showcase
+    paths:
+      - "tools/blender/build_asquare_lobby_scene.py"
+      - "tools/blender/render_asquare_lobby_cinematic_review.py"
+      - "tools/blender/verify_asquare_lobby_scene.py"
+      - "tests/test_lobby_cinematic_review.py"
+      - ".github/workflows/render-lobby-cinematic-review.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: lobby-cinematic-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  render-cinematic-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout project source
+        uses: actions/checkout@v5
+
+      - name: Install review dependencies and pinned Blender 5.2.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl xz-utils ffmpeg python3-numpy
+          source tools/install_blender_ci.sh
+          blender --version
+          ffmpeg -version | head -n 2
+
+      - name: Compile scripts and test cinematic-review acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/blender/build_asquare_lobby_scene.py \
+            tools/blender/verify_asquare_lobby_scene.py \
+            tools/blender/render_asquare_lobby_cinematic_review.py \
+            tests/test_lobby_cinematic_review.py
+          python3 -m unittest discover -s tests -p "test_lobby_cinematic_review.py" -v
+
+      - name: Download the exact validated Ara 3D operator rig
+        uses: actions/download-artifact@v4
+        with:
+          name: A-Square-Ara3D-Operator-Candidates
+          path: build/ara-operator-candidates
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 45213313474
+
+      - name: Verify operator GLB and license record
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s build/ara-operator-candidates/high/a_square_bangladesh_operator_candidate_20261117.glb
+          test -s build/ara-operator-candidates/ASSET-LICENSES.txt
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("build/ara-operator-candidates/verification.json").read_text())
+          high = report["variants"]["high"]
+          required = high["required_animation_groups"]
+          assert report.get("validation") == "PASS", report.get("errors")
+          assert high.get("max_joint_count") == 69, high
+          assert high.get("triangles", 0) > 100000, high
+          assert high.get("animation_count", 0) >= 200, high
+          assert high.get("weapon_socket") is True, high
+          assert all(required.get(name) is True for name in ("idle", "walk", "run", "sprint", "jump", "rifle", "aim", "fire", "reload")), required
+          print("ARA_OPERATOR_REVIEW_SOURCE:", json.dumps({k: high[k] for k in ("triangles", "max_joint_count", "animation_count", "weapon_socket", "required_animation_groups")}, sort_keys=True))
+          PY
+
+      - name: Build editable command-hall stage and production GLB
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/asquare_lobby"
+          mkdir -p "${OUT_DIR}"
+          if ! blender --background --factory-startup \
+            --python tools/blender/build_asquare_lobby_scene.py -- \
+            --out "${OUT_DIR}/asquare_command_hall.glb" \
+            --preview "${OUT_DIR}/command_hall_preview.png" \
+            --blend "${OUT_DIR}/asquare_command_hall.blend" \
+            > "${OUT_DIR}/stage-authoring.log" 2>&1; then
+            cat "${OUT_DIR}/stage-authoring.log"
+            exit 1
+          fi
+          cat "${OUT_DIR}/stage-authoring.log"
+          grep -Fq "A2_LOBBY_STAGE_READY:" "${OUT_DIR}/stage-authoring.log"
+          python3 tools/blender/verify_asquare_lobby_scene.py \
+            --glb "${OUT_DIR}/asquare_command_hall.glb" \
+            --out "${OUT_DIR}/stage-verification.json"
+
+      - name: Render five operator-led still angles and a cinematic camera orbit
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="build/asquare_lobby"
+          REVIEW_DIR="${OUT_DIR}/review_media"
+          if ! blender --background "${OUT_DIR}/asquare_command_hall.blend" \
+            --python tools/blender/render_asquare_lobby_cinematic_review.py -- \
+            --blend "${OUT_DIR}/asquare_command_hall.blend" \
+            --operator-glb "build/ara-operator-candidates/high/a_square_bangladesh_operator_candidate_20261117.glb" \
+            --review-dir "${REVIEW_DIR}" \
+            > "${OUT_DIR}/cinematic-review.log" 2>&1; then
+            cat "${OUT_DIR}/cinematic-review.log"
+            exit 1
+          fi
+          cat "${OUT_DIR}/cinematic-review.log"
+          grep -Fq "A2_LOBBY_CINEMATIC_REVIEW_READY:" "${OUT_DIR}/cinematic-review.log"
+          test -s "${REVIEW_DIR}/A-Square-Lobby-Operator-Orbit.mp4"
+          test -s "${REVIEW_DIR}/lobby_01_hero_front.png"
+          test -s "${REVIEW_DIR}/lobby_02_left_three_quarter.png"
+          test -s "${REVIEW_DIR}/lobby_03_right_three_quarter.png"
+          test -s "${REVIEW_DIR}/lobby_04_rear_high_overlook.png"
+          test -s "${REVIEW_DIR}/lobby_05_operator_closeup.png"
+          python3 -m json.tool "${REVIEW_DIR}/cinematic_review_manifest.json" > /dev/null
+
+      - name: Upload cinematic-review diagnostics even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: A-Square-Lobby-Cinematic-Diagnostics
+          path: |
+            build/asquare_lobby/stage-authoring.log
+            build/asquare_lobby/cinematic-review.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload multi-angle lobby stills, orbit clip and editable review scene
+        uses: actions/upload-artifact@v4
+        with:
+          name: A-Square-Lobby-Cinematic-Review
+          path: |
+            build/asquare_lobby/asquare_command_hall.glb
+            build/asquare_lobby/asquare_command_hall.blend
+            build/asquare_lobby/command_hall_preview.png
+            build/asquare_lobby/stage-verification.json
+            build/asquare_lobby/review_media/lobby_*.png
+            build/asquare_lobby/review_media/A-Square-Lobby-Operator-Orbit.mp4
+            build/asquare_lobby/review_media/A-Square-Lobby-Cinematic-Review.blend
+            build/asquare_lobby/review_media/cinematic_review_manifest.json
+            build/ara-operator-candidates/ASSET-LICENSES.txt
+          if-no-files-found: error
+          retention-days: 30
