@@ -878,7 +878,7 @@ func _process(_delta):
  if replay_round_button:
   var combat = w.get("combat_controller")
   var current_combat_mode := String(combat.get("active_mode")) if is_instance_valid(combat) else ""
-  replay_round_button.visible = is_instance_valid(combat) and (combat.get("run_over") == true) and not (lobby_overlay.visible == true) and current_combat_mode in ["survival", "arena_training", "street_skirmish"]
+  replay_round_button.visible = is_instance_valid(combat) and (combat.get("run_over") == true) and not (lobby_overlay.visible == true) and current_combat_mode in ["survival", "arena_training", "street_skirmish", "battle_royale_solo"]
  _update_interaction_prompt()
  _update_br_deployment_ui()
  var health_value: int = w.player.health if w.player else 100
@@ -917,7 +917,7 @@ func _process(_delta):
     mission.text += "\nROAD ROUTE: " + route_instruction
  else:
   mission.text = "STORY COMPLETE  +৳1000   FREE ROAM"
- if w.combat_controller and w.combat_controller.active_mode in ["survival", "arena_training", "street_skirmish"]:
+ if w.combat_controller and w.combat_controller.active_mode in ["survival", "arena_training", "street_skirmish", "battle_royale_solo"]:
   mission.text = w.combat_controller.get_status_text()
  var ammo_text = "%d/%d" % [w.player.ammo, w.player.reserve_ammo] if w.player else "30/120"
  var reload_text = " • RELOADING" if w.player and w.player.reload_time > 0.0 else ""
@@ -1388,7 +1388,7 @@ func _show_lobby_page(page: String) -> void:
   _lobby_add_action("FIELD TACTICAL", "Olive field shirt, jacket, dark trousers and boots", Callable(self, "_select_operator_preset").bind("field_tactical"))
   _lobby_add_action("URBAN PATROL", "Navy/blue uniform palette with jacket", Callable(self, "_select_operator_preset").bind("urban_patrol"))
   _lobby_add_action("CIVILIAN EXPLORER", "Sand shirt, no jacket, neutral trousers and boots", Callable(self, "_select_operator_preset").bind("civilian_explorer"))
-  _lobby_add_info("MODEL CATALOGUE", "These are three live outfit presets on the same validated body rig. Separate selectable body models and country-specific character packs still need to be added.")
+  _lobby_add_info("MODEL CATALOGUE", "One body rig is currently wired. The three appearance presets change clothing layers; they are not three separate characters, and the high / medium / low GLBs are level-of-detail copies of the same operator. A distinct multi-character roster is not complete.")
   _lobby_add_info("ANIMATION", "Imported rig and clips drive the player in gameplay and the lobby showcase; visual quality still needs device review.")
  elif page == "events":
   _lobby_add_heading("DESHI JOBS", "Local mission catalogue and current chapter progress.")
