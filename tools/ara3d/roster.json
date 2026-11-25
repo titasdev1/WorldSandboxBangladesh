@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "generator": "Ara 3D Gen",
+  "generator_commit": "4122e90633fda0384c6611115b64a15102e5463d",
+  "required_operator_count": 3,
+  "operators": [
+    {
+      "id": "field_ranger",
+      "name": "Field Ranger",
+      "role": "Frontline operator",
+      "description": "Distinct male field operator with tactical helmet, carrier and camouflaged field uniform.",
+      "profile": "tools/ara3d/profiles/field_ranger.json"
+    },
+    {
+      "id": "delta_recon",
+      "name": "Delta Recon",
+      "role": "Recon operator",
+      "description": "Distinct female reconnaissance operator with separate body proportions, face, hair, rig and blue-grey field kit.",
+      "profile": "tools/ara3d/profiles/delta_recon.json"
+    },
+    {
+      "id": "river_scout",
+      "name": "River Scout",
+      "role": "Scout operator",
+      "description": "Distinct older, heavier-built field scout with separate face, body proportions, hair, facial hair and tan river-country field kit.",
+      "profile": "tools/ara3d/profiles/river_scout.json"
+    }
+  ]
+}
