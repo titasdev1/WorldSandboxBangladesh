@@ -1,0 +1,74 @@
+{
+  "name": "asquare_operator_delta_recon",
+  "seed": 20261126,
+  "gender": 0,
+  "age": 0.54,
+  "muscle": 0.68,
+  "weight": 0.46,
+  "height": 0.55,
+  "proportions": 0.76,
+  "african": 0.04,
+  "asian": 0.9,
+  "caucasian": 0.06,
+  "eyes": "blackbrown",
+  "eyebrows": "eyebrow010",
+  "eyelashes": "eyelashes02",
+  "hair": "cornrows",
+  "hairColor": "#17130f",
+  "hairTint": "#ffffff",
+  "facialHair": "none",
+  "beardColor": "#241a13",
+  "skin": "auto",
+  "skinTint": "#ffffff",
+  "outfit": "none",
+  "top": "fatigue_shirt",
+  "bottom": "fatigue_pants",
+  "shoes": "combat_boots",
+  "accessories": [
+    "tactical_vest",
+    "helmet",
+    "belt"
+  ],
+  "garmentStyles": {
+    "fatigue_shirt": {
+      "pattern": "camo",
+      "color": "#334754",
+      "color2": "#71808a"
+    },
+    "fatigue_pants": {
+      "pattern": "camo",
+      "color": "#303b47",
+      "color2": "#66717c"
+    },
+    "tactical_vest": {
+      "pattern": "molle",
+      "color": "#34414c",
+      "color2": "#5d6b74"
+    },
+    "helmet": {
+      "pattern": "camo",
+      "color": "#394754",
+      "color2": "#6b7780"
+    },
+    "belt": {
+      "pattern": "leather",
+      "color": "#262b30",
+      "color2": "#15191d"
+    }
+  },
+  "detail": "high",
+  "rig": "game",
+  "faceBones": true,
+  "restPose": "T",
+  "animations": true,
+  "weapon": "none",
+  "carry": "none",
+  "vehicle": "none",
+  "expression": "neutral",
+  "faceShapes": true,
+  "speechShapes": true,
+  "teeth": "teeth_base",
+  "tongue": true,
+  "breastSize": 0.54,
+  "breastFirmness": 0.58
+}
