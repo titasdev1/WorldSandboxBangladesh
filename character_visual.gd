@@ -191,6 +191,8 @@ func _queue_selected_authored_hero_load() -> bool:
         return false
     if not ResourceLoader.exists(_selected_authored_hero_path):
         return false
+    if _authored_hero_ready and _loaded_operator_id == _selected_operator_id:
+        return true
     if _authored_hero_load_pending:
         return _authored_hero_load_path == _selected_authored_hero_path
     var request_path := _selected_authored_hero_path
@@ -213,8 +215,12 @@ func has_operator_character(character_id: String) -> bool:
 func get_operator_character_status() -> String:
     if _authored_hero_ready and _loaded_operator_id == _selected_operator_id:
         return "READY"
-    if _authored_hero_load_pending or _authored_hero != null:
+    if _authored_hero_load_pending:
         return "LOADING"
+    if _authored_hero_ready and _loaded_operator_id == "legacy_default":
+        return "LEGACY SINGLE-OPERATOR FALLBACK"
+    if _authored_hero_ready:
+        return "PREVIOUS CHARACTER RETAINED • SWITCH FAILED"
     return "NOT LOADED"
 
 
@@ -332,7 +338,8 @@ func _poll_authored_hero_load() -> void:
             _queue_selected_authored_hero_load()
         return
     if completed_path != _selected_authored_hero_path:
-        _queue_selected_authored_hero_load()
+        if not (_authored_hero_ready and _loaded_operator_id == _selected_operator_id):
+            _queue_selected_authored_hero_load()
         return
     call_deferred("_build_authored_hero", packed, completed_path, _selected_operator_id)
 
@@ -349,7 +356,8 @@ func _build_authored_hero(packed: PackedScene, requested_path: String = "", requ
     if not is_inside_tree():
         return
     if requested_path != _selected_authored_hero_path or requested_operator_id != _selected_operator_id:
-        _queue_selected_authored_hero_load()
+        if not (_authored_hero_ready and _loaded_operator_id == _selected_operator_id):
+            _queue_selected_authored_hero_load()
         return
     var previous_state := _capture_authored_hero_state()
     var instance := packed.instantiate()
@@ -617,13 +625,18 @@ func _build_authored_hero(packed: PackedScene, requested_path: String = "", requ
         _build_authored_combat_gear()
     _play_authored_animation("idle")
 
-    _loaded_operator_id = requested_operator_id
+    var roster_resource_path := String(ARA_OPERATOR_ROSTER.get(requested_operator_id, ""))
+    var is_distinct_roster_asset := is_ara3d and requested_path == roster_resource_path
+    _loaded_operator_id = requested_operator_id if is_distinct_roster_asset else "legacy_default"
     var previous_hero := previous_state.get("hero") as Node3D
     if is_instance_valid(previous_hero) and previous_hero != _authored_hero:
         previous_hero.queue_free()
-    print("OPERATOR_CHARACTER_READY • id=%s • name=%s • distinct_rig_asset=true" % [
-        _loaded_operator_id, get_operator_character_name()
-    ])
+    if is_distinct_roster_asset:
+        print("OPERATOR_CHARACTER_READY • id=%s • name=%s • distinct_rig_asset=true" % [
+            _loaded_operator_id, get_operator_character_name()
+        ])
+    else:
+        print("AUTHORED_HERO_READY • source=%s • legacy_single_operator_fallback=true" % _authored_hero_source)
 
     if is_character_creator:
         _sync_charactercreator_layer_skeletons()
