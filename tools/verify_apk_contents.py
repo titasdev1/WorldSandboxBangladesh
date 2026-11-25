@@ -494,6 +494,174 @@ def main() -> int:
                 raise SystemExit("APK CONTENT GATE FAILED: Ara 3D operator imported scene is absent or empty.")
             ara_imported_scene_count = 1
 
+            # Verify every separately generated operator, not merely the legacy
+            # Field Ranger compatibility copy. Each distinct GLB must have a
+            # matching source checksum, geometry signature, Godot import remap
+            # and non-empty imported PackedScene in the actual APK.
+            operator_roster = ara_manifest.get("roster", [])
+            if ara_manifest.get("roster_count") != 3 or not isinstance(operator_roster, list) or len(operator_roster) != 3:
+                raise SystemExit("APK CONTENT GATE FAILED: Ara operator roster must contain exactly three separately generated characters.")
+            operator_ids = [str(item.get("id", "")) for item in operator_roster if isinstance(item, dict)]
+            if len(operator_ids) != 3 or len(set(operator_ids)) != 3 or set(operator_ids) != {"field_ranger", "delta_recon", "river_scout"}:
+                raise SystemExit("APK CONTENT GATE FAILED: Ara operator roster IDs are incomplete or duplicated.")
+            geometry_signatures = set()
+            operator_imported_scene_count = 0
+            for operator in operator_roster:
+                operator_id = str(operator.get("id", ""))
+                expected_source = f"external_content/ara3d_operator/roster/{operator_id}.glb"
+                source_resource = str(operator.get("file", ""))
+                if source_resource != expected_source:
+                    raise SystemExit(f"APK CONTENT GATE FAILED: unexpected GLB path for operator {operator_id}: {source_resource}")
+                source_path = pathlib.Path(source_resource)
+                if not source_path.is_file():
+                    raise SystemExit(f"APK CONTENT GATE FAILED: high-detail GLB missing from build workspace for operator {operator_id}")
+                source_sha = hashlib.sha256(source_path.read_bytes()).hexdigest()
+                if source_sha != str(operator.get("sha256", "")).lower():
+                    raise SystemExit(f"APK CONTENT GATE FAILED: GLB checksum mismatch for operator {operator_id}")
+                if int(operator.get("triangles", 0)) < 60000:
+                    raise SystemExit(f"APK CONTENT GATE FAILED: high-detail operator {operator_id} has fewer than 60,000 triangles")
+                if int(operator.get("joint_count", 0)) < 65 or int(operator.get("animation_count", 0)) < 180:
+                    raise SystemExit(f"APK CONTENT GATE FAILED: operator {operator_id} is missing the expected full rig or animation library")
+                if operator.get("weapon_socket") is not True or int(operator.get("facial_morph_targets", 0)) <= 0:
+                    raise SystemExit(f"APK CONTENT GATE FAILED: operator {operator_id} is missing the WeaponR socket or face morphs")
+                geometry_signature = str(operator.get("geometry_sha256", "")).lower()
+                if len(geometry_signature) != 64:
+                    raise SystemExit(f"APK CONTENT GATE FAILED: operator {operator_id} has no valid baked geometry signature")
+                geometry_signatures.add(geometry_signature)
+
+                import_meta_path = "assets/" + source_resource + ".import"
+                if import_meta_path not in names:
+                    raise SystemExit(f"APK CONTENT GATE FAILED: no Godot import remap for operator {operator_id}")
+                try:
+                    remap = apk.read(import_meta_path).decode("utf-8")
+                except (KeyError, UnicodeDecodeError) as exc:
+                    raise SystemExit(f"APK CONTENT GATE FAILED: unreadable Godot import remap for operator {operator_id}") from exc
+                remap_match = re.search(
+                    r'(?m)^path="res://\\.godot/imported/([^"/]+\\.scn)"\\s*
+            # body plus rig-compatible hair and clothing. Check every source GLB,
+            # its pinned checksum, Godot remap and actual imported scene in the APK.
+            creator_manifest_path = "assets/external_content/asquare_charactercreator/asset_manifest.json"
+            creator_manifest = {"available": False, "asset_files": {}, "body": {}}
+            creator_asset_records = {}
+            creator_imported_scenes = 0
+            creator_glb_record_count = 0
+            if creator_manifest_path in names:
+                creator_manifest = json.loads(apk.read(creator_manifest_path).decode("utf-8"))
+                if creator_manifest.get("available") is True:
+                    creator_asset_records = creator_manifest.get("asset_files", {})
+                    creator_glb_record_count = sum(1 for item in creator_asset_records if item.endswith(".glb"))
+                elif args.require_charactercreator:
+                    raise SystemExit("APK CONTENT GATE FAILED: CharacterCreator modular human manifest is unavailable.")
+            elif args.require_charactercreator:
+                raise SystemExit("APK CONTENT GATE FAILED: CharacterCreator modular human manifest is missing.")
+            for filename, record in creator_asset_records.items():
+                if not filename.endswith(".glb"):
+                    continue
+                source_resource = f"external_content/asquare_charactercreator/{filename}"
+                source_path = pathlib.Path(source_resource)
+                if not source_path.is_file():
+                    raise SystemExit(f"APK CONTENT GATE FAILED: CharacterCreator source GLB is missing: {filename}")
+                source_sha = hashlib.sha256(source_path.read_bytes()).hexdigest()
+                if source_sha != str(record.get("sha256", "")).lower():
+                    raise SystemExit(f"APK CONTENT GATE FAILED: CharacterCreator source SHA mismatch: {filename}")
+                import_meta_path = "assets/" + source_resource + ".import"
+                if import_meta_path not in names:
+                    raise SystemExit(f"APK CONTENT GATE FAILED: no Godot import remap for CharacterCreator layer: {filename}")
+                try:
+                    remap = apk.read(import_meta_path).decode("utf-8")
+                except (KeyError, UnicodeDecodeError) as exc:
+                    raise SystemExit(f"APK CONTENT GATE FAILED: unreadable CharacterCreator remap: {filename}") from exc
+                remap_match = re.search(
+                    r'(?m)^path="res://\.godot/imported/([^"/]+\.scn)"\s*$',
+                    remap,
+                )
+                if not remap_match:
+                    raise SystemExit(f"APK CONTENT GATE FAILED: invalid CharacterCreator remap for {filename}")
+                imported_name = remap_match.group(1)
+                if not imported_name.startswith(filename + "-"):
+                    raise SystemExit(f"APK CONTENT GATE FAILED: unexpected imported scene mapping for {filename}")
+                imported_path = IMPORTED_ROOT + imported_name
+                if imported_path not in names or not apk.read(imported_path):
+                    raise SystemExit(f"APK CONTENT GATE FAILED: imported CharacterCreator scene missing or empty: {filename}")
+                creator_imported_scenes += 1
+            creator_body = creator_manifest.get("body", {})
+            if creator_manifest.get("available") is True:
+                if creator_imported_scenes != creator_glb_record_count:
+                    raise SystemExit(
+                        f"APK CONTENT GATE FAILED: only {creator_imported_scenes}/{creator_glb_record_count} CharacterCreator GLBs imported."
+                    )
+                if int(creator_body.get("bone_count", 0)) < 50:
+                    raise SystemExit("APK CONTENT GATE FAILED: CharacterCreator body rig has fewer than 50 bones.")
+                if int(creator_body.get("animation_count", 0)) < 10:
+                    raise SystemExit("APK CONTENT GATE FAILED: CharacterCreator body has fewer than 10 animation clips.")
+                if int(creator_body.get("morph_target_count_per_primitive", 0)) < 50:
+                    raise SystemExit("APK CONTENT GATE FAILED: CharacterCreator body has fewer than 50 morph targets.")
+
+            counts = navigation.get("counts", {})
+            named_places = int(counts.get("named_places", 0))
+            named_roads = int(counts.get("named_roads", 0))
+            if named_places < 1 or named_roads < 1:
+                raise SystemExit("APK CONTENT GATE FAILED: packaged navigation index has no named places or named roads")
+
+            verified_floors = int(counts.get("buildings_with_independently_verified_floor_count", 0))
+            source_floors = int(counts.get("buildings_with_source_floor_count", 0))
+            lines = [
+                "APK content integration: PASS",
+                f"APK: {args.apk.name} ({args.apk.stat().st_size:,} bytes)",
+                f"Selected map package: {args.map_package}",
+                f"Tile records/manifests: {len(tiles)}/{len(tile_manifests)}",
+                f"GLB import remaps: {len(tile_glb_imports)}/{expected}",
+                f"Imported GLB scenes: {len(imported_scenes)}/{expected}",
+                f"Named places in packaged navigation index: {named_places}",
+                f"Named roads in packaged navigation index: {named_roads}",
+                f"Buildings with source floor counts: {source_floors}",
+                f"Independently verified floor counts: {verified_floors}",
+                f"Licensed exterior façade panels in packaged manifest: {declared_panel_count}",
+                f"Licensed exterior façade panels validated in source GLBs and mapped into APK scenes: {verified_facade_glb_panels}",
+                f"Approved exterior photo IDs present: {len(required_facade_ids & facade_image_ids)}/{len(required_facade_ids)}" if args.map_package == "shariatpur_review" else "Approved Shariatpur photo coverage: not applicable",
+                f"Interior reference photo assets SHA-256 verified and linked to runtime seeds: {verified_interior_photos}/{len(interior_matches)}",
+                f"Core art pack manifests present: {len(REQUIRED_ASSET_MANIFESTS)}/{len(REQUIRED_ASSET_MANIFESTS)}",
+                f"Authored CC0 hero packaged/imported: {'yes' if hero_available else 'no — procedural fallback'}",
+                f"Authored hero imported Godot scenes: {hero_imported_scene_count}",
+                f"Distinct Ara operator models packaged/imported: {operator_imported_scene_count}/3",
+                f"Authored hero animation clips: {int(hero_manifest.get('animation_count', 0)) if hero_available else 0}",
+                f"Ara 3D operator imported Godot scenes: {ara_imported_scene_count}",
+                f"Ara 3D operator rig/animation count: {int(ara_manifest.get('joint_count', 0))} joints / {int(ara_manifest.get('animation_count', 0))} clips",
+                f"CharacterCreator modular GLBs imported: {creator_imported_scenes}/{len(creator_asset_records)}",
+                f"CharacterCreator rig/animation/morph targets: {int(creator_body.get('bone_count', 0))} bones / {int(creator_body.get('animation_count', 0))} clips / {int(creator_body.get('morph_target_count_per_primitive', 0))} morph targets",
+                f"CharacterCreator generated asset license: {creator_manifest.get('generated_asset_license', 'not declared')}",
+                "Limit: verified GLB import and clip presence do not prove CODM-level art quality, correct cloth deformation or on-device frame rate.",
+            ]
+            output = "\n".join(lines) + "\n"
+            print(output, end="")
+            report_path = pathlib.Path("build/apk-content-verification.txt")
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(output, encoding="utf-8")
+    except (OSError, zipfile.BadZipFile, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise SystemExit(f"APK CONTENT GATE FAILED: could not inspect APK contents: {exc}") from exc
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+,
+                    remap,
+                )
+                if not remap_match:
+                    raise SystemExit(f"APK CONTENT GATE FAILED: invalid imported scene remap for operator {operator_id}")
+                imported_name = remap_match.group(1)
+                if not imported_name.startswith(f"{operator_id}.glb-"):
+                    raise SystemExit(f"APK CONTENT GATE FAILED: unexpected imported scene name for operator {operator_id}")
+                imported_path = IMPORTED_ROOT + imported_name
+                if imported_path not in names or not apk.read(imported_path):
+                    raise SystemExit(f"APK CONTENT GATE FAILED: imported scene missing or empty for operator {operator_id}")
+                operator_imported_scene_count += 1
+
+            if ara_manifest.get("geometry_signatures_unique") is not True or len(geometry_signatures) != 3:
+                raise SystemExit("APK CONTENT GATE FAILED: operator roster contains duplicate baked character geometry; color-only variants are not accepted.")
+            if operator_imported_scene_count != 3:
+                raise SystemExit(f"APK CONTENT GATE FAILED: only {operator_imported_scene_count}/3 distinct operator scenes were imported.")
+
             # The current player candidate uses a modular CharacterCreator base
             # body plus rig-compatible hair and clothing. Check every source GLB,
             # its pinned checksum, Godot remap and actual imported scene in the APK.
