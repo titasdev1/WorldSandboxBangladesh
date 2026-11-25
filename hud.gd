@@ -1221,18 +1221,28 @@ func _show_lobby_page(page: String) -> void:
   _lobby_add_info("SERVICE RIFLE", "Equipped • %d / %d rounds" % [ammo, reserve])
   _lobby_add_info("WEAPON CONFIGURATION", "A single base rifle is available. Weapon attachments, skins and a multi-weapon inventory are not yet wired.")
  elif page == "operator":
-  _lobby_add_heading("OPERATOR", "Change the outfit shown by your live third-person character.")
+  _lobby_add_heading("OPERATOR", "Choose a separately rigged character identity for your field profile.")
   var operator_visual: Node = w.player.get_node_or_null("HumanoidVisual") as Node if is_instance_valid(w) and is_instance_valid(w.player) else null
-  var selected_preset := String(operator_visual.call("get_operator_preset_name")) if is_instance_valid(operator_visual) and operator_visual.has_method("get_operator_preset_name") else "Field Tactical"
-  _lobby_add_section("ACTIVE OPERATOR")
-  _lobby_add_info("CURRENT APPEARANCE", selected_preset)
-  _lobby_add_info("CHARACTER RIG", "The modular CharacterCreator human, skinned clothing layers and imported movement clips are loaded into the live player when their asset gate succeeds.")
-  _lobby_add_section("APPEARANCE PRESETS")
-  _lobby_add_action("FIELD TACTICAL", "Olive field shirt, jacket, dark trousers and boots", Callable(self, "_select_operator_preset").bind("field_tactical"))
-  _lobby_add_action("URBAN PATROL", "Navy/blue uniform palette with jacket", Callable(self, "_select_operator_preset").bind("urban_patrol"))
-  _lobby_add_action("CIVILIAN EXPLORER", "Sand shirt, no jacket, neutral trousers and boots", Callable(self, "_select_operator_preset").bind("civilian_explorer"))
-  _lobby_add_info("MODEL CATALOGUE", "These are three live outfit presets on the same validated body rig. Separate selectable body models and country-specific character packs still need to be added.")
-  _lobby_add_info("ANIMATION", "Imported rig and clips drive the player in gameplay and the lobby showcase; visual quality still needs device review.")
+  var selected_operator := String(operator_visual.call("get_operator_character_name")) if is_instance_valid(operator_visual) and operator_visual.has_method("get_operator_character_name") else "Field Ranger"
+  var operator_status := String(operator_visual.call("get_operator_character_status")) if is_instance_valid(operator_visual) and operator_visual.has_method("get_operator_character_status") else "NOT LOADED"
+  _lobby_add_section("ACTIVE CHARACTER")
+  _lobby_add_info("SELECTED OPERATOR", selected_operator)
+  _lobby_add_info("ASSET STATUS", operator_status)
+  _lobby_add_section("OPERATOR ROSTER")
+  var operator_choices := [
+   ["FIELD RANGER", "Male frontline field operator • helmet, carrier and camouflaged kit", "field_ranger"],
+   ["DELTA RECON", "Female reconnaissance operator • distinct body proportions, face, hair and blue-grey field kit", "delta_recon"],
+   ["RIVER SCOUT", "Older river-country scout • distinct build, face, hair and tan field kit", "river_scout"]
+  ]
+  for choice in operator_choices:
+   var operator_id := String(choice[2])
+   var available: bool = is_instance_valid(operator_visual) and operator_visual.has_method("has_operator_character") and (operator_visual.call("has_operator_character", operator_id) == true)
+   var action_title := String(choice[0])
+   if is_instance_valid(operator_visual) and String(operator_visual.call("get_operator_character_id")) == operator_id:
+    action_title = "✓  " + action_title
+   _lobby_add_action(action_title, String(choice[1]), Callable(self, "_select_operator_character").bind(operator_id), available)
+  _lobby_add_info("CHARACTER SELECTION", "Each roster entry is generated from its own character profile and exported as a separate skinned GLB with its own baked geometry, rig, materials and animation library. Switching loads the selected model asynchronously.")
+  _lobby_add_info("VISUAL REVIEW", "Structural rig and animation checks do not certify final face, cloth, silhouette, deformation or on-device art quality.")
  elif page == "events":
   _lobby_add_heading("DESHI JOBS", "Local mission catalogue and current chapter progress.")
   var factory: Node = w.get_node_or_null("MissionFactory") if is_instance_valid(w) else null
@@ -1262,18 +1272,34 @@ func _show_lobby_page(page: String) -> void:
  _update_lobby_header()
 
 
+func _select_operator_character(operator_id: String) -> void:
+ var player_node: Node = w.get("player") as Node if is_instance_valid(w) else null
+ var operator_visual: Node = player_node.get_node_or_null("HumanoidVisual") as Node if is_instance_valid(player_node) else null
+ if not is_instance_valid(operator_visual) or not operator_visual.has_method("select_operator_character"):
+  _set_save_feedback("OPERATOR CHARACTER SYSTEM IS NOT READY", false)
+  return
+ var queued: bool = (operator_visual.call("select_operator_character", operator_id) == true)
+ if not queued:
+  _set_save_feedback("OPERATOR ASSET NOT INSTALLED OR NOT AVAILABLE", false)
+  _show_lobby_page("operator")
+  return
+ var display_name := String(operator_visual.call("get_operator_character_name"))
+ _show_lobby_page("operator")
+ _set_save_feedback("OPERATOR LOAD QUEUED • " + display_name.to_upper(), true)
+
+
 func _select_operator_preset(preset_id: String) -> void:
+ # Legacy compatibility only. Outfit tints are not presented as separate operators.
  var player_node: Node = w.get("player") as Node if is_instance_valid(w) else null
  var operator_visual: Node = player_node.get_node_or_null("HumanoidVisual") as Node if is_instance_valid(player_node) else null
  if not is_instance_valid(operator_visual) or not operator_visual.has_method("apply_operator_preset"):
-  _set_save_feedback("OPERATOR APPEARANCE IS NOT READY", false)
+  _set_save_feedback("LEGACY OUTFIT PRESET IS NOT AVAILABLE", false)
   return
  var applied: bool = (operator_visual.call("apply_operator_preset", preset_id) == true)
  if not applied:
-  _set_save_feedback("UNKNOWN OPERATOR PRESET", false)
+  _set_save_feedback("UNKNOWN LEGACY OUTFIT PRESET", false)
   return
- _show_lobby_page("operator")
- _set_save_feedback("OPERATOR UPDATED • " + String(operator_visual.call("get_operator_preset_name")).to_upper(), true)
+ _set_save_feedback("LEGACY OUTFIT UPDATED", true)
 
 
 func _show_map_information() -> void:
