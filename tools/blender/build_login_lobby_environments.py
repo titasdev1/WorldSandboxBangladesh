@@ -18,7 +18,7 @@ import math
 import pathlib
 import random
 import sys
-from mathutils import Vector
+from mathutils import Vector, noise
 import bpy
 
 
@@ -73,6 +73,61 @@ def clear_scene() -> bpy.types.Scene:
     return scene
 
 
+def _pbr_bitmap_images(name: str, colour: tuple[float, float, float, float], scale: float) -> tuple[bpy.types.Image, bpy.types.Image, bpy.types.Image]:
+    """Bake deterministic colour, roughness and tangent-normal bitmaps for glTF."""
+    width = height = 128
+    seed = sum(ord(char) for char in name) * 0.071
+    heights: list[float] = []
+    colour_pixels: list[float] = []
+    rough_pixels: list[float] = []
+    for y in range(height):
+        v = y / max(1, height - 1)
+        for x in range(width):
+            u = x / max(1, width - 1)
+            p = Vector((u * scale, v * scale, seed))
+            broad = noise.noise(p)
+            fine = noise.noise(Vector((u * scale * 5.3 + seed, v * scale * 5.3, seed * 0.37)))
+            grain = noise.noise(Vector((u * scale * 18.0, v * scale * 18.0 + seed, seed * 0.61)))
+            h = max(0.0, min(1.0, 0.50 + broad * 0.21 + fine * 0.11 + grain * 0.045))
+            heights.append(h)
+            tint = 0.76 + h * 0.42
+            colour_pixels.extend((
+                max(0.0, min(1.0, colour[0] * tint)),
+                max(0.0, min(1.0, colour[1] * tint)),
+                max(0.0, min(1.0, colour[2] * tint)),
+                1.0,
+            ))
+            rough = max(0.05, min(1.0, 0.42 + fine * 0.18 + grain * 0.10))
+            rough_pixels.extend((rough, rough, rough, 1.0))
+
+    normal_pixels: list[float] = []
+    strength = 2.8
+    for y in range(height):
+        for x in range(width):
+            left = heights[y * width + max(0, x - 1)]
+            right = heights[y * width + min(width - 1, x + 1)]
+            down = heights[max(0, y - 1) * width + x]
+            up = heights[min(height - 1, y + 1) * width + x]
+            nx = -(right - left) * strength
+            ny = -(up - down) * strength
+            nz = 1.0
+            length = math.sqrt(nx * nx + ny * ny + nz * nz)
+            normal_pixels.extend((nx / length * 0.5 + 0.5, ny / length * 0.5 + 0.5, nz / length * 0.5 + 0.5, 1.0))
+
+    images = []
+    for suffix, pixels, colour_space in (
+        ("BaseColor", colour_pixels, "sRGB"),
+        ("Roughness", rough_pixels, "Non-Color"),
+        ("Normal", normal_pixels, "Non-Color"),
+    ):
+        image = bpy.data.images.new(f"{name}_{suffix}", width=width, height=height, alpha=True, float_buffer=False)
+        image.pixels.foreach_set(pixels)
+        image.colorspace_settings.name = colour_space
+        image.pack()
+        images.append(image)
+    return images[0], images[1], images[2]
+
+
 def material(
     name: str,
     colour: tuple[float, float, float, float],
@@ -98,30 +153,28 @@ def material(
         shader.inputs["Emission Color"].default_value = colour
         shader.inputs["Emission Strength"].default_value = emission
     if texture_scale > 0.0:
+        base_image, rough_image, normal_image = _pbr_bitmap_images(name, colour, texture_scale)
         texcoord = nodes.new("ShaderNodeTexCoord")
-        noise = nodes.new("ShaderNodeTexNoise")
-        noise.inputs["Scale"].default_value = texture_scale
-        noise.inputs["Detail"].default_value = 4.2
-        noise.inputs["Roughness"].default_value = 0.72
-        noise.inputs["Distortion"].default_value = 0.16
-        ramp = nodes.new("ShaderNodeValToRGB")
-        low = tuple(max(0.0, c * 0.72) for c in colour[:3]) + (1.0,)
-        high = tuple(min(1.0, c * 1.22 + 0.012) for c in colour[:3]) + (1.0,)
-        ramp.color_ramp.elements[0].position = 0.19
-        ramp.color_ramp.elements[0].color = low
-        ramp.color_ramp.elements[1].position = 0.84
-        ramp.color_ramp.elements[1].color = high
-        bump = nodes.new("ShaderNodeBump")
-        bump.inputs["Strength"].default_value = bump_strength
-        bump.inputs["Distance"].default_value = 0.045
-        links.new(texcoord.outputs["Generated"], noise.inputs["Vector"])
-        links.new(noise.outputs["Fac"], ramp.inputs["Fac"])
-        links.new(ramp.outputs["Color"], shader.inputs["Base Color"])
-        if bump_strength > 0.0:
-            links.new(noise.outputs["Fac"], bump.inputs["Height"])
-            links.new(bump.outputs["Normal"], shader.inputs["Normal"])
+        base_node = nodes.new("ShaderNodeTexImage")
+        base_node.image = base_image
+        base_node.interpolation = "Linear"
+        rough_node = nodes.new("ShaderNodeTexImage")
+        rough_node.image = rough_image
+        rough_node.interpolation = "Linear"
+        rough_sep = nodes.new("ShaderNodeSeparateRGB")
+        normal_node = nodes.new("ShaderNodeTexImage")
+        normal_node.image = normal_image
+        normal_node.interpolation = "Linear"
+        normal_map = nodes.new("ShaderNodeNormalMap")
+        links.new(texcoord.outputs["UV"], base_node.inputs["Vector"])
+        links.new(texcoord.outputs["UV"], rough_node.inputs["Vector"])
+        links.new(texcoord.outputs["UV"], normal_node.inputs["Vector"])
+        links.new(base_node.outputs["Color"], shader.inputs["Base Color"])
+        links.new(rough_node.outputs["Color"], rough_sep.inputs["Image"])
+        links.new(rough_sep.outputs["R"], shader.inputs["Roughness"])
+        links.new(normal_node.outputs["Color"], normal_map.inputs["Color"])
+        links.new(normal_map.outputs["Normal"], shader.inputs["Normal"])
     return mat
-
 
 def set_parent(obj: bpy.types.Object, parent: bpy.types.Object | None) -> bpy.types.Object:
     if parent is not None:
@@ -454,10 +507,10 @@ def add_cng(name: str, x: float, y: float, mats: dict[str, bpy.types.Material]) 
         bpy.context.collection.objects.link(hub)
         hub.location = pos
         set_parent(hub, root)
-        wheel = cylinder(name + f"_Tyre_{index}", (0.0, 0.0, 0.0), 0.34, 0.16, mats["rubber"], 32, (math.pi * 0.5, 0.0, 0.0), hub)
+        wheel = cylinder(name + f"_Tyre_{index}", pos, 0.34, 0.16, mats["rubber"], 32, (math.pi * 0.5, 0.0, 0.0), hub)
         wheel.rotation_euler[1] = math.pi * 0.5
-        cylinder(name + f"_AlloyHub_{index}", (0.0, 0.0, 0.0), 0.18, 0.18, mats["aluminium"], 24, (math.pi * 0.5, 0.0, 0.0), hub)
-        cylinder(name + f"_HubCap_{index}", (0.0, 0.0, 0.0), 0.075, 0.19, mats["brass"], 20, (math.pi * 0.5, 0.0, 0.0), hub)
+        cylinder(name + f"_AlloyHub_{index}", pos, 0.18, 0.18, mats["aluminium"], 24, (math.pi * 0.5, 0.0, 0.0), hub)
+        cylinder(name + f"_HubCap_{index}", pos, 0.075, 0.19, mats["brass"], 20, (math.pi * 0.5, 0.0, 0.0), hub)
         wheels.append(hub)
     root["wheel_pivots"] = [obj.name for obj in wheels]
     root["asset_role"] = "Bangladesh_CNG_AutoRickshaw"
