@@ -24,6 +24,11 @@ var _muzzle_flash_timer := 0.0
 var _weapon_recoil_offset := 0.0
 
 const ARA_HERO_PATH := "res://external_content/ara3d_operator/high/a_square_bangladesh_operator.glb"
+const ARA_OPERATOR_ROSTER := {
+    "field_ranger": "res://external_content/ara3d_operator/roster/field_ranger.glb",
+    "delta_recon": "res://external_content/ara3d_operator/roster/delta_recon.glb",
+    "river_scout": "res://external_content/ara3d_operator/roster/river_scout.glb"
+}
 const AUTHORED_HERO_PATH := "res://external_content/quaternius_hero/Project_A_Square_Hero.glb"
 const CHARACTER_CREATOR_HERO_PATH := "res://external_content/asquare_charactercreator/base_body_anim.glb"
 const CHARACTER_CREATOR_LAYER_PATHS := [
@@ -43,6 +48,9 @@ var _authored_skeleton: Skeleton3D
 var _charactercreator_layer_skeletons: Array[Skeleton3D] = []
 var _charactercreator_layers: Dictionary = {}
 var _selected_operator_preset := "field_tactical"
+var _selected_operator_id := "field_ranger"
+var _loaded_operator_id := ""
+var _authored_hero_load_path := ""
 var _procedural_root: Node3D
 var _authored_hero: Node3D
 var _authored_animation_player: AnimationPlayer
@@ -108,10 +116,13 @@ func _find_authored_animation(candidates: Array[String]) -> String:
 
 
 func _try_load_authored_hero() -> void:
-    # Prefer the validated Ara 3D Gen operator: one textured, skinned GLB carries
-    # the full tactical outfit, weapon socket, facial shapes and 216 animation clips.
-    # CharacterCreator and Quaternius remain intact as compatibility fallbacks.
-    if ResourceLoader.exists(ARA_HERO_PATH):
+    # Prefer the separately generated character selected in the operator roster.
+    # The single-GLB path remains a compatibility fallback for older APKs.
+    var roster_path := String(ARA_OPERATOR_ROSTER.get(_selected_operator_id, ""))
+    if not roster_path.is_empty() and ResourceLoader.exists(roster_path):
+        _selected_authored_hero_path = roster_path
+        _authored_hero_source = "Ara3D"
+    elif ResourceLoader.exists(ARA_HERO_PATH):
         _selected_authored_hero_path = ARA_HERO_PATH
         _authored_hero_source = "Ara3D"
     if _selected_authored_hero_path.is_empty() and ResourceLoader.exists(CHARACTER_CREATOR_HERO_PATH):
@@ -124,14 +135,16 @@ func _try_load_authored_hero() -> void:
             _selected_authored_hero_path = CHARACTER_CREATOR_HERO_PATH
             _authored_hero_source = "CharacterCreator"
         else:
-            push_warning("CHARACTER_CREATOR_LAYERS_MISSING: retaining the existing authored hero.")
+            push_warning("CHARACTER_CREATOR_LAYERS_MISSING: retaining the procedural fallback.")
     if _selected_authored_hero_path.is_empty() and ResourceLoader.exists(AUTHORED_HERO_PATH):
         _selected_authored_hero_path = AUTHORED_HERO_PATH
         _authored_hero_source = "QuaterniusFallback"
     if _selected_authored_hero_path.is_empty():
         push_warning("AUTHORED_HERO_FALLBACK: no rigged hero package is available; keeping procedural hero.")
         return
-    print("AUTHORED_HERO_SELECTED • source=%s • path=%s" % [_authored_hero_source, _selected_authored_hero_path])
+    print("AUTHORED_HERO_SELECTED • source=%s • operator=%s • path=%s" % [
+        _authored_hero_source, _selected_operator_id, _selected_authored_hero_path
+    ])
     # Keep the tested fallback visible while the first district and hero are staged.
     call_deferred("_begin_staged_authored_hero_load")
 
@@ -169,39 +182,162 @@ func _begin_staged_authored_hero_load() -> void:
         await get_tree().process_frame
     if not is_inside_tree():
         return
-    var request_error := ResourceLoader.load_threaded_request(_selected_authored_hero_path, "PackedScene")
+    if not _queue_selected_authored_hero_load():
+        push_warning("AUTHORED_HERO_FALLBACK: staged background rig/animation request could not be queued.")
+
+
+func _queue_selected_authored_hero_load() -> bool:
+    if not is_inside_tree() or _selected_authored_hero_path.is_empty():
+        return false
+    if not ResourceLoader.exists(_selected_authored_hero_path):
+        return false
+    if _authored_hero_load_pending:
+        return _authored_hero_load_path == _selected_authored_hero_path
+    var request_path := _selected_authored_hero_path
+    var request_error := ResourceLoader.load_threaded_request(request_path, "PackedScene")
     if request_error != OK and request_error != ERR_BUSY:
-        push_warning("AUTHORED_HERO_FALLBACK: threaded hero request failed: " + str(request_error))
-        return
+        push_warning("AUTHORED_HERO_LOAD_QUEUE_FAILED • path=%s • error=%d" % [request_path, request_error])
+        return false
+    _authored_hero_load_path = request_path
     _authored_hero_load_pending = true
-    print("AUTHORED_HERO_LOAD_QUEUED • staged background rig/animation load started")
+    print("AUTHORED_HERO_LOAD_QUEUED • background rig/animation load • path=%s" % request_path)
+    return true
+
+
+func get_operator_character_id() -> String:
+    return _selected_operator_id
+
+
+func get_operator_character_name() -> String:
+    match _selected_operator_id:
+        "delta_recon":
+            return "Delta Recon"
+        "river_scout":
+            return "River Scout"
+        _:
+            return "Field Ranger"
+
+
+func select_operator_character(character_id: String) -> bool:
+    if not ARA_OPERATOR_ROSTER.has(character_id):
+        return false
+    var target_path := String(ARA_OPERATOR_ROSTER[character_id])
+    if not ResourceLoader.exists(target_path):
+        push_warning("OPERATOR_ASSET_NOT_INSTALLED • id=%s • path=%s" % [character_id, target_path])
+        return false
+    if character_id == _loaded_operator_id and _authored_hero_ready:
+        _selected_operator_id = character_id
+        _selected_authored_hero_path = target_path
+        return true
+    _selected_operator_id = character_id
+    _selected_authored_hero_path = target_path
+    _authored_hero_source = "Ara3D"
+    if not is_inside_tree():
+        return true
+    if _authored_hero_load_pending:
+        # Let the in-flight request finish; its poll handler will queue the
+        # newly selected resource without discarding the currently visible rig.
+        return true
+    return _queue_selected_authored_hero_load()
+
+
+func _capture_authored_hero_state() -> Dictionary:
+    return {
+        "hero": _authored_hero,
+        "animation_player": _authored_animation_player,
+        "skeleton": _authored_skeleton,
+        "locomotion_tree": _authored_locomotion_tree,
+        "locomotion_playback": _authored_locomotion_playback,
+        "animation_lookup": _authored_animation_lookup.duplicate(),
+        "weapon_attachment": _authored_weapon_attachment,
+        "ara_materials": _ara_base_surface_materials.duplicate(),
+        "creator_skeletons": _charactercreator_layer_skeletons.duplicate(),
+        "creator_layers": _charactercreator_layers.duplicate(),
+        "aim_blend_ready": _authored_aim_blend_ready,
+        "aim_blend_position": _authored_aim_blend_position,
+        "fire_layer_ready": _authored_fire_layer_ready,
+        "fire_layer_track_count": _authored_fire_layer_track_count,
+        "current_animation": _authored_current_animation,
+        "hero_ready": _authored_hero_ready
+    }
+
+
+func _restore_authored_hero_state(state: Dictionary) -> void:
+    _authored_hero = state.get("hero") as Node3D
+    _authored_animation_player = state.get("animation_player") as AnimationPlayer
+    _authored_skeleton = state.get("skeleton") as Skeleton3D
+    _authored_locomotion_tree = state.get("locomotion_tree") as AnimationTree
+    _authored_locomotion_playback = state.get("locomotion_playback") as AnimationNodeStateMachinePlayback
+    var saved_lookup: Dictionary = state.get("animation_lookup", {})
+    _authored_animation_lookup = saved_lookup.duplicate()
+    _authored_weapon_attachment = state.get("weapon_attachment") as BoneAttachment3D
+    _ara_base_surface_materials.clear()
+    for item in state.get("ara_materials", []):
+        if item is Dictionary:
+            _ara_base_surface_materials.append(item)
+    _charactercreator_layer_skeletons.clear()
+    for item in state.get("creator_skeletons", []):
+        if item is Skeleton3D:
+            _charactercreator_layer_skeletons.append(item)
+    _charactercreator_layers = state.get("creator_layers", {}).duplicate()
+    _authored_aim_blend_ready = bool(state.get("aim_blend_ready", false))
+    _authored_aim_blend_position = state.get("aim_blend_position", Vector2.ZERO)
+    _authored_fire_layer_ready = bool(state.get("fire_layer_ready", false))
+    _authored_fire_layer_track_count = int(state.get("fire_layer_track_count", 0))
+    _authored_current_animation = String(state.get("current_animation", ""))
+    _authored_hero_ready = bool(state.get("hero_ready", false))
+
+
+func _discard_candidate_authored_hero(previous_state: Dictionary, reason: String) -> void:
+    var failed_hero := _authored_hero
+    _restore_authored_hero_state(previous_state)
+    if is_instance_valid(failed_hero) and failed_hero != _authored_hero:
+        failed_hero.queue_free()
+    push_warning("AUTHORED_HERO_SWITCH_REJECTED • " + reason)
 
 
 func _poll_authored_hero_load() -> void:
     if not _authored_hero_load_pending:
         return
+    var completed_path := _authored_hero_load_path
     var progress: Array = []
-    var status := ResourceLoader.load_threaded_get_status(_selected_authored_hero_path, progress)
+    var status := ResourceLoader.load_threaded_get_status(completed_path, progress)
     if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
         return
     _authored_hero_load_pending = false
+    _authored_hero_load_path = ""
     if status != ResourceLoader.THREAD_LOAD_LOADED:
-        push_warning("AUTHORED_HERO_FALLBACK: threaded hero load failed with status " + str(status))
+        push_warning("AUTHORED_HERO_LOAD_FAILED • path=%s • status=%d" % [completed_path, status])
+        if completed_path != _selected_authored_hero_path:
+            _queue_selected_authored_hero_load()
         return
-    var packed := ResourceLoader.load_threaded_get(_selected_authored_hero_path) as PackedScene
+    var packed := ResourceLoader.load_threaded_get(completed_path) as PackedScene
     if packed == null:
         push_warning("AUTHORED_HERO_FALLBACK: loaded hero resource was not a PackedScene.")
+        if completed_path != _selected_authored_hero_path:
+            _queue_selected_authored_hero_load()
         return
-    call_deferred("_build_authored_hero", packed)
+    if completed_path != _selected_authored_hero_path:
+        _queue_selected_authored_hero_load()
+        return
+    call_deferred("_build_authored_hero", packed, completed_path, _selected_operator_id)
 
 
-func _build_authored_hero(packed: PackedScene) -> void:
+func _build_authored_hero(packed: PackedScene, requested_path: String = "", requested_operator_id: String = "") -> void:
     if packed == null:
         push_warning("AUTHORED_HERO_FALLBACK: no packed hero scene was provided.")
         return
+    if requested_path.is_empty():
+        requested_path = _selected_authored_hero_path
+    if requested_operator_id.is_empty():
+        requested_operator_id = _selected_operator_id
     await get_tree().process_frame
     if not is_inside_tree():
         return
+    if requested_path != _selected_authored_hero_path or requested_operator_id != _selected_operator_id:
+        _queue_selected_authored_hero_load()
+        return
+    var previous_state := _capture_authored_hero_state()
     var instance := packed.instantiate()
     if not (instance is Node3D):
         instance.free()
@@ -209,8 +345,23 @@ func _build_authored_hero(packed: PackedScene) -> void:
         return
     _authored_hero = instance as Node3D
     _authored_hero.name = "AuthoredHeroCharacter"
-    add_child(_authored_hero)
     _authored_hero.transform = Transform3D.IDENTITY
+    _authored_animation_player = null
+    _authored_skeleton = null
+    _authored_locomotion_tree = null
+    _authored_locomotion_playback = null
+    _authored_animation_lookup.clear()
+    _authored_weapon_attachment = null
+    _ara_base_surface_materials.clear()
+    _charactercreator_layer_skeletons.clear()
+    _charactercreator_layers.clear()
+    _authored_aim_blend_ready = false
+    _authored_aim_blend_position = Vector2.ZERO
+    _authored_fire_layer_ready = false
+    _authored_fire_layer_track_count = 0
+    _authored_current_animation = ""
+    _authored_hero_ready = false
+    add_child(_authored_hero)
 
     var skeletons := _authored_hero.find_children("*", "Skeleton3D", true, false)
     var players := _authored_hero.find_children("*", "AnimationPlayer", true, false)
@@ -247,10 +398,7 @@ func _build_authored_hero(packed: PackedScene) -> void:
             selected_player_clip_count
         ])
     if skeletons.is_empty() or not is_instance_valid(_authored_animation_player):
-        _authored_hero.queue_free()
-        _authored_hero = null
-        _authored_animation_player = null
-        push_warning("AUTHORED_HERO_FALLBACK: imported GLB has no usable skeleton/AnimationPlayer.")
+        _discard_candidate_authored_hero(previous_state, "imported GLB has no usable skeleton/AnimationPlayer")
         return
 
     var mesh_nodes := _authored_hero.find_children("*", "MeshInstance3D", true, false)
@@ -268,10 +416,7 @@ func _build_authored_hero(packed: PackedScene) -> void:
             max_y = maxf(max_y, in_avatar_space.y)
     var raw_height := max_y - min_y
     if min_y == INF or max_y <= min_y or raw_height <= 0.05:
-        _authored_hero.queue_free()
-        _authored_hero = null
-        _authored_animation_player = null
-        push_warning("AUTHORED_HERO_FALLBACK: could not measure imported character height.")
+        _discard_candidate_authored_hero(previous_state, "could not measure imported character height")
         return
 
     # Account for the parent's world-scale so the imported feet/head match the
@@ -308,10 +453,7 @@ func _build_authored_hero(packed: PackedScene) -> void:
     var run_name := _find_authored_animation(run_candidates)
     if idle_name.is_empty() or walk_name.is_empty() or run_name.is_empty():
         print("AUTHORED_HERO_CLIP_NAMES • " + str(_authored_animation_player.get_animation_list()))
-        _authored_hero.queue_free()
-        _authored_hero = null
-        _authored_animation_player = null
-        push_warning("AUTHORED_HERO_FALLBACK: imported clips do not contain idle, walk, and run/sprint.")
+        _discard_candidate_authored_hero(previous_state, "imported clips do not contain idle, walk, and run/sprint")
         return
 
     var jump_name := _find_authored_animation(["Jump", "Jump_Start", "jump"]) if is_ara3d else _find_authored_animation(["Jump_Loop", "Jump_Start", "jump", "Jump"])
@@ -369,10 +511,7 @@ func _build_authored_hero(packed: PackedScene) -> void:
     var minimum_clip_count := 180 if is_ara3d else (10 if is_character_creator else 30)
     var has_air_motion := not jump_name.is_empty() and not fall_name.is_empty() and not land_name.is_empty()
     if hero_clip_count < minimum_clip_count or (is_character_creator and not has_air_motion):
-        _authored_hero.queue_free()
-        _authored_hero = null
-        _authored_animation_player = null
-        push_warning("AUTHORED_HERO_FALLBACK: %d clips; minimum %d; jump/fall/land ready=%s." % [hero_clip_count, minimum_clip_count, str(has_air_motion)])
+        _discard_candidate_authored_hero(previous_state, "clip gate failed; clips=%d; minimum=%d; air_motion=%s" % [hero_clip_count, minimum_clip_count, str(has_air_motion)])
         return
 
     var locomotion_blend_ready := _build_authored_locomotion_blend_space()
@@ -411,11 +550,7 @@ func _build_authored_hero(packed: PackedScene) -> void:
         _cache_ara_operator_materials(mesh_nodes)
     if is_character_creator:
         if not await _attach_charactercreator_layers():
-            _authored_hero.queue_free()
-            _authored_hero = null
-            _authored_animation_player = null
-            _authored_skeleton = null
-            push_warning("CHARACTER_CREATOR_FALLBACK: one or more skinned clothing or hair layers failed to import.")
+            _discard_candidate_authored_hero(previous_state, "one or more skinned clothing or hair layers failed to import")
             return
         _tint_charactercreator_body()
 
@@ -460,13 +595,21 @@ func _build_authored_hero(packed: PackedScene) -> void:
     _authored_hero_ready = true
     if _first_person_requested:
         _apply_first_person_pose(true)
-    if is_character_creator or is_ara3d:
+    if is_character_creator:
         apply_operator_preset(_selected_operator_preset)
     if is_player_character and is_character_creator:
         _build_charactercreator_combat_gear(skeleton)
     elif is_player_character and not is_ara3d:
         _build_authored_combat_gear()
     _play_authored_animation("idle")
+
+    _loaded_operator_id = requested_operator_id
+    var previous_hero := previous_state.get("hero") as Node3D
+    if is_instance_valid(previous_hero) and previous_hero != _authored_hero:
+        previous_hero.queue_free()
+    print("OPERATOR_CHARACTER_READY • id=%s • name=%s • distinct_rig_asset=true" % [
+        _loaded_operator_id, get_operator_character_name()
+    ])
 
     if is_character_creator:
         _sync_charactercreator_layer_skeletons()
