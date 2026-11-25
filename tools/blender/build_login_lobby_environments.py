@@ -172,8 +172,8 @@ def material(
         links.new(texcoord.outputs["UV"], rough_node.inputs["Vector"])
         links.new(texcoord.outputs["UV"], normal_node.inputs["Vector"])
         links.new(base_node.outputs["Color"], shader.inputs["Base Color"])
-        links.new(rough_node.outputs["Color"], rough_sep.inputs["Image"])
-        links.new(rough_sep.outputs["R"], shader.inputs["Roughness"])
+        links.new(rough_node.outputs["Color"], rough_sep.inputs["Color"])
+        links.new(rough_sep.outputs["Red"], shader.inputs["Roughness"])
         links.new(normal_node.outputs["Color"], normal_map.inputs["Color"])
         links.new(normal_map.outputs["Normal"], shader.inputs["Normal"])
     return mat
