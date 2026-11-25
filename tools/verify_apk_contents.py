@@ -537,7 +537,24 @@ def main() -> int:
                 except (KeyError, UnicodeDecodeError) as exc:
                     raise SystemExit(f"APK CONTENT GATE FAILED: unreadable Godot import remap for operator {operator_id}") from exc
                 remap_match = re.search(
-                    r'(?m)^path="res://\.godot/imported/([^"/]+\.scn)"\s*
+                    r'(?m)^path="res://\.godot/imported/([^"/]+\.scn)"\s*$',
+                    remap,
+                )
+                if not remap_match:
+                    raise SystemExit(f"APK CONTENT GATE FAILED: invalid imported scene remap for operator {operator_id}")
+                imported_name = remap_match.group(1)
+                if not imported_name.startswith(f"{operator_id}.glb-"):
+                    raise SystemExit(f"APK CONTENT GATE FAILED: unexpected imported scene name for operator {operator_id}")
+                imported_path = IMPORTED_ROOT + imported_name
+                if imported_path not in names or not apk.read(imported_path):
+                    raise SystemExit(f"APK CONTENT GATE FAILED: imported scene missing or empty for operator {operator_id}")
+                operator_imported_scene_count += 1
+
+            if ara_manifest.get("geometry_signatures_unique") is not True or len(geometry_signatures) != 3:
+                raise SystemExit("APK CONTENT GATE FAILED: operator roster contains duplicate baked character geometry; color-only variants are not accepted.")
+            if operator_imported_scene_count != 3:
+                raise SystemExit(f"APK CONTENT GATE FAILED: only {operator_imported_scene_count}/3 distinct operator scenes were imported.")
+
             # its pinned checksum, Godot remap and actual imported scene in the APK.
             creator_manifest_path = "assets/external_content/asquare_charactercreator/asset_manifest.json"
             creator_manifest = {"available": False, "asset_files": {}, "body": {}}
