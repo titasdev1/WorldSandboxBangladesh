@@ -61,7 +61,7 @@ def clear_scene() -> bpy.types.Scene:
     scene.frame_start = 1
     scene.frame_end = 180
     scene.render.fps = 30
-    scene.render.engine = "BLENDER_EEVEE_NEXT"
+    scene.render.engine = "BLENDER_EEVEE"
     scene.render.resolution_x = 1600
     scene.render.resolution_y = 900
     scene.render.resolution_percentage = 72
