@@ -1,0 +1,124 @@
+name: Validate authored login and lobby art
+
+on:
+  push:
+    branches:
+      - feature/three-distinct-ara-operators
+    paths:
+      - "tools/blender/build_login_lobby_environments.py"
+      - "tools/blender/verify_login_lobby_environments.py"
+      - ".github/workflows/validate-lobby-art.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: authored-lobby-art-\${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout Project A-Square
+        uses: actions/checkout@v5
+
+      - name: Cache Blender 5.2.4 LTS
+        uses: actions/cache@v4
+        with:
+          path: \${{ runner.temp }}/blender-5.2.4
+          key: blender-linux-5.2.4-lts
+
+      - name: Install checksum-verified Blender 5.2.4 LTS
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl xz-utils python3-numpy
+          source tools/install_blender_ci.sh
+          blender --version
+
+      - name: Compile Blender authoring and verifier scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/blender/build_login_lobby_environments.py \
+            tools/blender/verify_login_lobby_environments.py
+
+      - name: Build and render Shariatpur login environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/lobby-art
+          blender --background --factory-startup \
+            --python tools/blender/build_login_lobby_environments.py -- \
+            --kind login \
+            --out build/lobby-art/a_square_login_riverside.glb \
+            --preview build/lobby-art/a_square_login_riverside.png \
+            > build/lobby-art/login-authoring.log 2>&1
+          cat build/lobby-art/login-authoring.log
+          python3 tools/blender/verify_login_lobby_environments.py \
+            --kind login \
+            --glb build/lobby-art/a_square_login_riverside.glb \
+            --out build/lobby-art/login-verification.json
+
+      - name: Build and render Delta Command lobby environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          blender --background --factory-startup \
+            --python tools/blender/build_login_lobby_environments.py -- \
+            --kind lobby \
+            --out build/lobby-art/a_square_delta_command_lobby.glb \
+            --preview build/lobby-art/a_square_delta_command_lobby.png \
+            > build/lobby-art/lobby-authoring.log 2>&1
+          cat build/lobby-art/lobby-authoring.log
+          python3 tools/blender/verify_login_lobby_environments.py \
+            --kind lobby \
+            --glb build/lobby-art/a_square_delta_command_lobby.glb \
+            --out build/lobby-art/lobby-verification.json
+
+      - name: Record original asset licence and manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > build/lobby-art/ASSET-LICENSES.txt <<'EOF'
+          PROJECT A-SQUARE ORIGINAL ENVIRONMENT ART
+          Generated meshes, materials, baked maps and animation curves:
+          CC0 1.0 Universal. Original source: tools/blender/build_login_lobby_environments.py
+          No third-party assets, game rips, logos, street-view images or map-provider 3D tiles.
+          EOF
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("build/lobby-art")
+          manifest = {
+              "schema_version": 1,
+              "source_branch": "\${{ github.ref_name }}",
+              "source_commit": "\${{ github.sha }}",
+              "license": "CC0-1.0",
+              "assets": [
+                  json.loads((root / "login-verification.json").read_text()),
+                  json.loads((root / "lobby-verification.json").read_text()),
+              ],
+              "status": "STRUCTURAL_PASS_REQUIRES_GODOT_IMPORT_AND_ANDROID_DEVICE_REVIEW",
+          }
+          if any(item["status"] != "PASS" for item in manifest["assets"]):
+              raise SystemExit("Lobby art build manifest contains a failed scene gate")
+          (root / "lobby_art_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+          PY
+
+      - name: Upload inspectable Blender source previews and GLB candidates
+        uses: actions/upload-artifact@v4
+        with:
+          name: A-Square-Authored-Login-Lobby-Art
+          path: |
+            build/lobby-art/*.glb
+            build/lobby-art/*.png
+            build/lobby-art/*.json
+            build/lobby-art/*.txt
+            build/lobby-art/*-authoring.log
+          if-no-files-found: error
