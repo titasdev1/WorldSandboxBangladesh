@@ -450,7 +450,7 @@ jobs:
           set -euo pipefail
           python3 tools/convert_charactercreator_glbs.py
 
-      - name: Resolve validated three-operator build for the exact roster revision
+      - name: Resolve validated three-operator build matching this exact roster
         id: ara-operator
         shell: bash
         env:
@@ -458,51 +458,46 @@ jobs:
         run: |
           set -euo pipefail
           BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
-          PROFILE_COMMIT="$(gh api "repos/${GITHUB_REPOSITORY}/commits?path=tools/ara3d/roster.json&sha=${BRANCH}&per_page=1" --jq '.[0].sha // empty')"
-          if [[ -z "${PROFILE_COMMIT}" ]]; then
-            echo "Could not resolve the latest Ara character-roster commit from GitHub history." >&2
+          CURRENT_ROSTER_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/contents/tools/ara3d/roster.json?ref=${BRANCH}" --jq '.sha // empty')"
+          if [[ -z "$CURRENT_ROSTER_SHA" ]]; then
+            echo "Could not resolve the current three-operator roster blob from $BRANCH." >&2
             exit 1
           fi
-          echo "Ara character roster commit: $PROFILE_COMMIT on $BRANCH"
+          echo "Required Ara roster blob: $CURRENT_ROSTER_SHA on $BRANCH"
           RUN_ID=""
           for attempt in $(seq 1 100); do
-            # The workflow-specific endpoint can return 404 on some GitHub CLI
-            # token contexts. The repository-wide Actions list is readable with
-            # the existing actions:read permission and is filtered by workflow ID,
-            # exact profile commit and branch to avoid stale candidate artifacts.
-            RUN_RECORD="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=$PROFILE_COMMIT&per_page=100" \
-              --jq ".workflow_runs | map(select(.workflow_id == 417330351 and .head_sha == \"$PROFILE_COMMIT\" and .head_branch == \"$BRANCH\")) | sort_by(.created_at) | last // empty | [.id, .status, (.conclusion // \"\")] | @tsv" \
+            RUNS="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?branch=${BRANCH}&per_page=100" \
+              --jq '.workflow_runs | map(select(.workflow_id == 417330351 and .head_branch == "'"${BRANCH}"'" and .status == "completed" and .conclusion == "success")) | sort_by(.created_at) | reverse | .[0:30][] | [.id, .head_sha] | @tsv' \
               || true)"
-            if [[ -n "$RUN_RECORD" ]]; then
-              read -r CANDIDATE_ID STATUS CONCLUSION <<< "$RUN_RECORD"
-              echo "Profile-matched Ara run $CANDIDATE_ID: status=$STATUS conclusion=$CONCLUSION"
-              if [[ "$STATUS" == "completed" ]]; then
-                if [[ "$CONCLUSION" != "success" ]]; then
-                  echo "Ara profile-matched asset build failed: $CONCLUSION" >&2
-                  exit 1
-                fi
+            while IFS=$'\t' read -r CANDIDATE_ID CANDIDATE_SHA; do
+              [[ -n "${CANDIDATE_ID:-}" && -n "${CANDIDATE_SHA:-}" ]] || continue
+              CANDIDATE_ROSTER_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/contents/tools/ara3d/roster.json?ref=${CANDIDATE_SHA}" --jq '.sha // empty' || true)"
+              if [[ "$CANDIDATE_ROSTER_SHA" == "$CURRENT_ROSTER_SHA" ]]; then
+                echo "Found exact-roster Ara workflow run $CANDIDATE_ID at $CANDIDATE_SHA"
                 RUN_ID="$CANDIDATE_ID"
                 break
               fi
-            else
-              echo "Waiting for Ara workflow 417330351 on roster commit $PROFILE_COMMIT (branch $BRANCH)."
+            done <<< "$RUNS"
+            if [[ -n "$RUN_ID" ]]; then
+              break
             fi
+            echo "No successful Ara artifact yet matches roster $CURRENT_ROSTER_SHA; checking again."
             sleep 15
           done
           if [[ -z "$RUN_ID" ]]; then
-            echo "Timed out waiting for the Ara build matching $PROFILE_COMMIT." >&2
+            echo "Timed out waiting for a successful Ara build matching the current roster blob $CURRENT_ROSTER_SHA." >&2
             exit 1
           fi
           ARTIFACT_DIGEST="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$RUN_ID/artifacts" \
             --jq '.artifacts[] | select(.name == "A-Square-Ara3D-Operator-Candidates" and .expired == false) | .digest' \
             | head -n 1)"
           if [[ -z "$ARTIFACT_DIGEST" ]]; then
-            echo "Ara build succeeded but did not upload the validated operator artifact." >&2
+            echo "Ara build succeeded but did not upload the three-operator candidate artifact." >&2
             exit 1
           fi
           {
             echo "run_id=$RUN_ID"
-            echo "profile_commit=$PROFILE_COMMIT"
+            echo "roster_blob_sha=$CURRENT_ROSTER_SHA"
             echo "artifact_digest=$ARTIFACT_DIGEST"
           } >> "$GITHUB_OUTPUT"
 
@@ -518,7 +513,7 @@ jobs:
       - name: Verify and install all three distinct high-detail Ara operators
         shell: bash
         env:
-          ARA_PROFILE_COMMIT: ${{ steps.ara-operator.outputs.profile_commit }}
+          ARA_ROSTER_BLOB_SHA: ${{ steps.ara-operator.outputs.roster_blob_sha }}
           ARA_WORKFLOW_RUN_ID: ${{ steps.ara-operator.outputs.run_id }}
           ARA_ARTIFACT_DIGEST: ${{ steps.ara-operator.outputs.artifact_digest }}
         run: |
@@ -531,7 +526,7 @@ jobs:
             --roster tools/ara3d/roster.json \
             --out "$ROOT/roster_manifest.json"
           ARA_OPERATOR_ROOT="$ROOT" \
-          ARA_PROFILE_COMMIT="$ARA_PROFILE_COMMIT" \
+          ARA_ROSTER_BLOB_SHA="$ARA_ROSTER_BLOB_SHA" \
           ARA_WORKFLOW_RUN_ID="$ARA_WORKFLOW_RUN_ID" \
           ARA_ARTIFACT_DIGEST="$ARA_ARTIFACT_DIGEST" \
           python3 - <<'PY'
@@ -596,7 +591,7 @@ jobs:
               "source": "Ara 3D Gen",
               "source_repository": "https://github.com/olatunde85/3d-gen",
               "source_commit": report.get("generator_commit", ""),
-              "profile_commit": os.environ["ARA_PROFILE_COMMIT"],
+              "roster_blob_sha": os.environ["ARA_ROSTER_BLOB_SHA"],
               "workflow_run_id": int(os.environ["ARA_WORKFLOW_RUN_ID"]),
               "artifact_digest": os.environ["ARA_ARTIFACT_DIGEST"],
               "file": legacy_target.as_posix(),
