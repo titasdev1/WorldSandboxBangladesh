@@ -81,11 +81,13 @@ class AraOperatorIntegrationTests(unittest.TestCase):
 
     def test_android_pipeline_fetches_the_validated_artifact_for_current_parameter_revision(self):
         self.assertIn("workflow_id == 417330351", self.android)
-        self.assertIn("actions/runs?head_sha=$PROFILE_COMMIT&per_page=100", self.android)
+        self.assertIn("contents/tools/ara3d/roster.json", self.android)
+        self.assertIn("roster_blob_sha=$CURRENT_ROSTER_SHA", self.android)
+        self.assertIn("actions/runs?branch=${BRANCH}&per_page=100", self.android)
         self.assertNotIn("actions/workflows/ara-operator-assets.yml/runs", self.android)
         self.assertIn("actions/download-artifact@v4", self.android)
         self.assertIn("A-Square-Ara3D-Operator-Candidates", self.android)
-        self.assertIn('installed = high_dir / "a_square_bangladesh_operator.glb"', self.android)
+        self.assertIn('legacy_target = high_dir / "a_square_bangladesh_operator.glb"', self.android)
         self.assertIn("tools/ara3d/roster.json", self.android)
         self.assertIn("verify_ara_roster.py", self.android)
         self.assertIn("roster_manifest.json", self.android)
