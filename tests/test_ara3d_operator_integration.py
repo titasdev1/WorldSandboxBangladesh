@@ -32,6 +32,7 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         cls.android = read(".github/workflows/android.yml")
         cls.smoke = read("tests/ara_operator_runtime_smoke.gd")
         cls.profile = json.loads(read("tools/ara3d/asquare_operator.params.json"))
+        cls.roster = json.loads(read("tools/ara3d/roster.json"))
         cls.asset_workflow = read(".github/workflows/ara-operator-assets.yml")
         cls.preview_script = read("tools/ara3d/render_operator_contact_sheet.py")
 
@@ -85,9 +86,27 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         self.assertIn("actions/download-artifact@v4", self.android)
         self.assertIn("A-Square-Ara3D-Operator-Candidates", self.android)
         self.assertIn('installed = high_dir / "a_square_bangladesh_operator.glb"', self.android)
-        self.assertIn("tools/ara3d/asquare_operator.params.json", self.android)
+        self.assertIn("tools/ara3d/roster.json", self.android)
+        self.assertIn("verify_ara_roster.py", self.android)
+        self.assertIn("roster_manifest.json", self.android)
+        self.assertIn("roster_dir / f\"{operator_id}.glb\"", self.android)
+        self.assertIn("three independently rigged high-detail Ara operators", self.android)
         self.assertIn("ara_operator_runtime_smoke.gd", self.android)
         self.assertIn("ARA_STATUS=$?", self.android)
+
+    def test_roster_defines_three_unique_operator_profiles_and_runtime_glb_paths(self):
+        self.assertEqual(3, self.roster["required_operator_count"])
+        self.assertEqual(3, len(self.roster["operators"]))
+        operator_ids = [item["id"] for item in self.roster["operators"]]
+        self.assertEqual(3, len(set(operator_ids)))
+        for operator_id in ("field_ranger", "delta_recon", "river_scout"):
+            profile = json.loads(read(f"tools/ara3d/profiles/{operator_id}.json"))
+            self.assertEqual(f"asquare_operator_{operator_id}", profile["name"])
+            self.assertTrue(profile["animations"])
+            self.assertEqual("high", profile["detail"])
+            self.assertIn(f'res://external_content/ara3d_operator/roster/{operator_id}.glb', self.visual)
+        self.assertIn("geometry_signature(path", read("tools/ara3d/verify_ara_roster.py"))
+        self.assertIn("geometry_signatures_unique", read("tools/ara3d/verify_ara_roster.py"))
 
     def test_android_apk_requires_the_canonical_ara_glb_and_imported_scene(self):
         for marker in (
@@ -122,12 +141,15 @@ class AraOperatorIntegrationTests(unittest.TestCase):
     def test_ci_renders_reviewable_blender_previews_for_all_operator_lods(self):
         self.assertIn("source tools/install_blender_ci.sh", self.asset_workflow)
         self.assertIn("render_operator_contact_sheet.py", self.asset_workflow)
-        self.assertIn("build/ara_operator/previews/*.png", self.asset_workflow)
+        self.assertIn('for OPERATOR_ID in field_ranger delta_recon river_scout', self.asset_workflow)
+        self.assertIn("build/ara_operator/*/previews/*.png", self.asset_workflow)
+        self.assertIn("verify_ara_roster.py", self.asset_workflow)
         self.assertIn("bpy.ops.import_scene.gltf", self.preview_script)
         self.assertIn("operator_lod_front.png", self.preview_script)
         self.assertIn("operator_lod_three_quarter.png", self.preview_script)
         self.assertIn("ARA_OPERATOR_PREVIEW_PASS", self.preview_script)
         self.assertIn("PREVIEW_RENDERED_NOT_ART_APPROVED", self.preview_script)
+        self.assertIn("A-Square-Ara3D-Operator-Candidates", self.asset_workflow)
 
 
 
