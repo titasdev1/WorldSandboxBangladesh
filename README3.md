@@ -236,3 +236,40 @@ Validation sequence:
 - When an add-on is tested, append exact Blender/Godot version, source commit/tag, license, test log, successful/failed checks and adoption decision here.
 - When a tool is rejected, retain the reason so future work does not repeat the same compatibility or licensing mistake.
 - Keep this file as the single animation-toolchain index. Detailed scene briefs, shot lists and per-asset manifests belong in the production workstream, linked back here.
+
+
+## 12. A-Square implementation update — 2026-11-25
+
+### Separate Ara3D operator roster (structural pipeline now validated)
+
+The original active branch supplied one Ara3D character model with high/medium/low detail variants. Those three LOD files were one identity, not three characters. That single-model setup did not meet the three-operator requirement.
+
+A dedicated branch, `feature/three-distinct-ara-operators`, now defines three independent profiles and a roster:
+- `field_ranger` — frontline field operator
+- `delta_recon` — reconnaissance operator with different body/face/hair profile and blue-grey uniform treatment
+- `river_scout` — older, broader river-country scout with separate face/hair/body profile and tan kit
+
+The new `tools/ara3d/verify_ara_roster.py` validates each character's high/medium/low GLB, rig/animation/material/facial gates and hashes the actual baked vertex POSITION streams. The latest successful Ara workflow produced all nine GLBs and passed the unique-geometry gate and integration tests.
+
+**Visual decision: not art-approved.** The contact sheets still show a generic generated character style with limited differentiation in faces and costume design. Three distinct meshes fix the false-one-character issue; they do not make the operators CODM/PC-grade. Do not mark these as final art or ship them as a premium roster until a close-up character-art review, cloth/hair/face pass, animation/deformation check and Redmi import/device review have passed.
+
+### New Blender environment authoring source (pending build and visual review)
+
+`tools/blender/build_login_lobby_environments.py` is an original Blender 5.2.4 authoring script for two separate source scenes:
+- Shariatpur riverfront/login environment: mixed-use Bangladesh shopfronts, road/pavement/drainage, banyan-style foliage, CNG auto-rickshaw, river ghat, launch and an animated camera reveal.
+- Delta Command/operator lobby environment: authored river-facing hall, glass/metal structure, ceiling louvres, displays, port service details, ferry and environmental/camera motion.
+
+The script creates packed bitmap base-colour, roughness and tangent-normal maps rather than relying only on Blender procedural shader nodes that would not transfer to a glTF game import. Static meshes are batched by material/animation parent to reduce draw calls. It is still an authored-candidate scene, not a finished photoreal environment.
+
+`tools/blender/verify_login_lobby_environments.py` and `.github/workflows/validate-lobby-art.yml` provide structural validation and render previews. The first run found a Blender 5.2.4 renderer enum mismatch and stopped before export; the script was corrected to use the renderer identifier exposed by the pinned executable. The next run must pass before the generated GLBs can be reviewed.
+
+**Runtime status:** neither Blender environment GLB has yet been approved, imported into the canonical Godot project, wired into login/lobby, built into the Android APK, or tested on the Redmi. Until that happens, the currently integrated primitive-based login/lobby remains the active fallback.
+
+### Promotion rules
+
+- Keep the Ara3D roster and Blender lobby-art work in their dedicated feature branch until all relevant automated tests pass.
+- Download and inspect the actual preview images. A structural PASS does not substitute for human visual review.
+- Import both environment GLBs into Godot 4.4.1 and verify camera ownership, animation clip names, materials/textures, scale, transform origin and Android import output.
+- Wire the authored login stage behind an explicit resource-exists/import-success gate; keep the old scene only as fallback during validation.
+- Wire the lobby environment without overriding the player's active camera or moving the player's coordinate origin. Verify operator feet contact the actual stage floor and that the lobby animation does not update hidden/offscreen scenes.
+- Run the Android package verifier and on-device smoke test before calling the art pipeline shipped.
