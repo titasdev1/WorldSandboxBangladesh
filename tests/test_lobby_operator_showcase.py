@@ -116,18 +116,22 @@ class LobbyOperatorShowcaseTests(unittest.TestCase):
             self.assertIn('viewBox="0 0 64 64"', icon)
             self.assertIn("<path", icon)
 
-    def test_operator_page_exposes_live_appearance_presets_on_player_visual(self):
+    def test_operator_page_selects_three_separate_rigged_character_assets(self):
         operator_page = function_block(self.hud, "_show_lobby_page")
-        selector = function_block(self.hud, "_select_operator_preset")
+        selector = function_block(self.hud, "_select_operator_character")
         visual = read("character_visual.gd")
         self.assertIn('elif page == "operator":', operator_page)
-        for preset in ("field_tactical", "urban_patrol", "civilian_explorer"):
-            self.assertIn(preset, operator_page)
-            self.assertIn(preset, visual)
-        self.assertIn('operator_visual.call("apply_operator_preset", preset_id)', selector)
-        self.assertIn('layer_root.visible = not (String(layer_name) == "clothing_jacket" and not jacket_visible)', visual)
-        self.assertIn('func get_operator_preset_name() -> String:', visual)
-        self.assertIn("Separate selectable body models", operator_page)
+        for operator_id in ("field_ranger", "delta_recon", "river_scout"):
+            self.assertIn(operator_id, operator_page)
+            self.assertIn(f'"{operator_id}"', visual)
+            self.assertIn(f"/roster/{operator_id}.glb", visual)
+        self.assertIn('operator_visual.call("select_operator_character", operator_id)', selector)
+        self.assertIn('func get_operator_character_name() -> String:', visual)
+        self.assertIn('func has_operator_character(character_id: String) -> bool:', visual)
+        self.assertIn('func _queue_selected_authored_hero_load() -> bool:', visual)
+        self.assertIn('func _restore_authored_hero_state(state: Dictionary) -> void:', visual)
+        self.assertNotIn("APPEARANCE PRESETS", operator_page)
+        self.assertNotIn("same validated body rig", operator_page)
 
     def test_showcase_is_live_godot_geometry_not_a_baked_background(self):
         self.assertIn('CylinderMesh.new()', self.showcase)
