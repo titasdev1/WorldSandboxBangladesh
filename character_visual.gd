@@ -204,6 +204,20 @@ func _queue_selected_authored_hero_load() -> bool:
     return true
 
 
+func has_operator_character(character_id: String) -> bool:
+    if not ARA_OPERATOR_ROSTER.has(character_id):
+        return false
+    return ResourceLoader.exists(String(ARA_OPERATOR_ROSTER[character_id]))
+
+
+func get_operator_character_status() -> String:
+    if _authored_hero_ready and _loaded_operator_id == _selected_operator_id:
+        return "READY"
+    if _authored_hero_load_pending or _authored_hero != null:
+        return "LOADING"
+    return "NOT LOADED"
+
+
 func get_operator_character_id() -> String:
     return _selected_operator_id
 
