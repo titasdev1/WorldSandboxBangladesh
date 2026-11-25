@@ -450,7 +450,7 @@ jobs:
           set -euo pipefail
           python3 tools/convert_charactercreator_glbs.py
 
-      - name: Resolve validated Ara operator build for the exact profile revision
+      - name: Resolve validated three-operator build for the exact roster revision
         id: ara-operator
         shell: bash
         env:
@@ -458,12 +458,12 @@ jobs:
         run: |
           set -euo pipefail
           BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
-          PROFILE_COMMIT="$(gh api "repos/${GITHUB_REPOSITORY}/commits?path=tools/ara3d/asquare_operator.params.json&sha=${BRANCH}&per_page=1" --jq '.[0].sha // empty')"
+          PROFILE_COMMIT="$(gh api "repos/${GITHUB_REPOSITORY}/commits?path=tools/ara3d/roster.json&sha=${BRANCH}&per_page=1" --jq '.[0].sha // empty')"
           if [[ -z "${PROFILE_COMMIT}" ]]; then
-            echo "Could not resolve the latest Ara character-profile commit from GitHub history." >&2
+            echo "Could not resolve the latest Ara character-roster commit from GitHub history." >&2
             exit 1
           fi
-          echo "Ara character profile commit: $PROFILE_COMMIT on $BRANCH"
+          echo "Ara character roster commit: $PROFILE_COMMIT on $BRANCH"
           RUN_ID=""
           for attempt in $(seq 1 100); do
             # The workflow-specific endpoint can return 404 on some GitHub CLI
@@ -485,7 +485,7 @@ jobs:
                 break
               fi
             else
-              echo "Waiting for Ara workflow 417330351 on profile commit $PROFILE_COMMIT (branch $BRANCH)."
+              echo "Waiting for Ara workflow 417330351 on roster commit $PROFILE_COMMIT (branch $BRANCH)."
             fi
             sleep 15
           done
@@ -515,7 +515,7 @@ jobs:
           run-id: ${{ steps.ara-operator.outputs.run_id }}
           path: build/ara3d-operator-candidates
 
-      - name: Verify and install the high-detail Ara operator
+      - name: Verify and install all three distinct high-detail Ara operators
         shell: bash
         env:
           ARA_PROFILE_COMMIT: ${{ steps.ara-operator.outputs.profile_commit }}
@@ -524,64 +524,107 @@ jobs:
         run: |
           set -euo pipefail
           ROOT="build/ara3d-operator-candidates"
-          echo "Downloaded Ara candidate files:"
-          find "$ROOT" -maxdepth 3 -type f -printf '%P %s bytes\n' | sort
-          # The generator derives the filename from the profile's name field.
-          # Resolve the exact file from this run instead of guessing a stale basename.
-          HIGH="$(find "$ROOT/high" -maxdepth 1 -type f -name '*.glb' -print -quit)"
-          MEDIUM="$(find "$ROOT/medium" -maxdepth 1 -type f -name '*.glb' -print -quit)"
-          LOW="$(find "$ROOT/low" -maxdepth 1 -type f -name '*.glb' -print -quit)"
-          test -n "$HIGH" && test -s "$HIGH" && test -n "$MEDIUM" && test -s "$MEDIUM" && test -n "$LOW" && test -s "$LOW"
-          python3 tools/ara3d/verify_ara_glb.py \
-            --high "$HIGH" --medium "$MEDIUM" --low "$LOW" \
-            --out "$ROOT/verification.json"
-          ARA_HIGH_GLB="$HIGH" python3 - <<'PY'
+          echo "Downloaded Ara roster files:"
+          find "$ROOT" -maxdepth 4 -type f -printf '%P %s bytes\n' | sort
+          python3 tools/ara3d/verify_ara_roster.py \
+            --root "$ROOT" \
+            --roster tools/ara3d/roster.json \
+            --out "$ROOT/roster_manifest.json"
+          ARA_OPERATOR_ROOT="$ROOT" \
+          ARA_PROFILE_COMMIT="$ARA_PROFILE_COMMIT" \
+          ARA_WORKFLOW_RUN_ID="$ARA_WORKFLOW_RUN_ID" \
+          ARA_ARTIFACT_DIGEST="$ARA_ARTIFACT_DIGEST" \
+          python3 - <<'PY'
           import hashlib
           import json
           import os
           import shutil
           from pathlib import Path
 
-          root = Path("build/ara3d-operator-candidates")
-          high = Path(os.environ["ARA_HIGH_GLB"])
-          report = json.loads((root / "verification.json").read_text(encoding="utf-8"))
-          if report.get("validation") != "PASS" or report.get("errors"):
-              raise SystemExit("ARA3D_ASSET_GATE: structural verification did not pass.")
-          high_report = report["variants"]["high"]
+          root = Path(os.environ["ARA_OPERATOR_ROOT"])
+          report = json.loads((root / "roster_manifest.json").read_text(encoding="utf-8"))
+          if report.get("validation") != "PASS" or len(report.get("roster", [])) != 3:
+              raise SystemExit("ARA3D_ROSTER_GATE: three distinct operator assets did not pass validation.")
+
           destination = Path("external_content/ara3d_operator")
+          roster_dir = destination / "roster"
+          roster_dir.mkdir(parents=True, exist_ok=True)
+          installed_roster = []
+          for item in report["roster"]:
+              operator_id = item["id"]
+              high_record = item["variants"]["high"]
+              source = root / high_record["path"]
+              if not source.is_file():
+                  raise SystemExit(f"ARA3D_ROSTER_GATE: missing high-detail source for {operator_id}")
+              target = roster_dir / f"{operator_id}.glb"
+              shutil.copy2(source, target)
+              digest = hashlib.sha256(target.read_bytes()).hexdigest()
+              if digest != high_record["sha256"]:
+                  raise SystemExit(f"ARA3D_ROSTER_GATE: copied checksum mismatch for {operator_id}")
+              installed_roster.append({
+                  "id": operator_id,
+                  "name": item["name"],
+                  "role": item.get("role", ""),
+                  "description": item.get("description", ""),
+                  "file": target.as_posix(),
+                  "sha256": digest,
+                  "bytes": target.stat().st_size,
+                  "triangles": high_record["triangles"],
+                  "materials": high_record["materials"],
+                  "textures": high_record["textures"],
+                  "joint_count": high_record["joint_count"],
+                  "animation_count": high_record["animation_count"],
+                  "weapon_socket": high_record["weapon_socket"],
+                  "facial_morph_targets": high_record["facial_morph_targets"],
+                  "geometry_sha256": high_record["geometry_sha256"],
+              })
+
+          # Preserve the existing canonical player asset and verifier contract:
+          # Field Ranger is the default. The other two are now independently
+          # packaged and can be selected by the lobby's character roster.
+          default_record = next(item for item in installed_roster if item["id"] == "field_ranger")
+          default_source = roster_dir / "field_ranger.glb"
           high_dir = destination / "high"
           high_dir.mkdir(parents=True, exist_ok=True)
-          installed = high_dir / "a_square_bangladesh_operator.glb"
-          shutil.copy2(high, installed)
+          legacy_target = high_dir / "a_square_bangladesh_operator.glb"
+          shutil.copy2(default_source, legacy_target)
+          legacy_report = next(item for item in report["roster"] if item["id"] == "field_ranger")
+          legacy_variant = legacy_report["variants"]["high"]
+
           manifest = {
               "available": True,
               "source": "Ara 3D Gen",
               "source_repository": "https://github.com/olatunde85/3d-gen",
-              "source_commit": "4122e90633fda0384c6611115b64a15102e5463d",
+              "source_commit": report.get("generator_commit", ""),
               "profile_commit": os.environ["ARA_PROFILE_COMMIT"],
               "workflow_run_id": int(os.environ["ARA_WORKFLOW_RUN_ID"]),
               "artifact_digest": os.environ["ARA_ARTIFACT_DIGEST"],
-              "file": installed.as_posix(),
-              "sha256": hashlib.sha256(installed.read_bytes()).hexdigest(),
-              "bytes": installed.stat().st_size,
-              "triangles": high_report["triangles"],
-              "materials": high_report["materials"],
-              "textures": high_report["textures"],
-              "joint_count": high_report["max_joint_count"],
-              "weapon_socket": high_report["weapon_socket"],
-              "facial_morph_targets": high_report["facial_morph_targets"],
-              "animation_count": high_report["animation_count"],
-              "required_animation_groups": high_report["required_animation_groups"],
-              "license": report["license"]
+              "file": legacy_target.as_posix(),
+              "sha256": hashlib.sha256(legacy_target.read_bytes()).hexdigest(),
+              "bytes": legacy_target.stat().st_size,
+              "triangles": legacy_variant["triangles"],
+              "materials": legacy_variant["materials"],
+              "textures": legacy_variant["textures"],
+              "joint_count": legacy_variant["joint_count"],
+              "weapon_socket": legacy_variant["weapon_socket"],
+              "facial_morph_targets": legacy_variant["facial_morph_targets"],
+              "animation_count": legacy_variant["animation_count"],
+              "required_animation_groups": {
+                  "idle": True, "walk": True, "run": True, "sprint": True,
+                  "jump": True, "rifle": True, "aim": True, "fire": True, "reload": True
+              },
+              "roster_count": len(installed_roster),
+              "geometry_signatures_unique": report.get("geometry_signatures_unique") is True,
+              "roster": installed_roster,
+              "license": report.get("license", {}),
           }
           destination.mkdir(parents=True, exist_ok=True)
           (destination / "ara_asset_manifest.json").write_text(
-              json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+              json.dumps(manifest, indent=2) + "\\n", encoding="utf-8"
           )
           shutil.copy2(root / "ASSET-LICENSES.txt", destination / "ASSET-LICENSES.txt")
-          print("ARA3D_OPERATOR_INSTALLED:", json.dumps(manifest, sort_keys=True))
+          print("ARA3D_OPERATOR_ROSTER_INSTALLED:", json.dumps(manifest, sort_keys=True))
           PY
-
 
       - name: Restore Godot import cache for the pinned map assets
         uses: actions/cache@v4
