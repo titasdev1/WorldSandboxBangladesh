@@ -92,7 +92,7 @@ class AraOperatorIntegrationTests(unittest.TestCase):
         self.assertIn("verify_ara_roster.py", self.android)
         self.assertIn("roster_manifest.json", self.android)
         self.assertIn("roster_dir / f\"{operator_id}.glb\"", self.android)
-        self.assertIn("three independently rigged high-detail Ara operators", self.android)
+        self.assertIn("Verify and install all three distinct high-detail Ara operators", self.android)
         self.assertIn("ara_operator_runtime_smoke.gd", self.android)
         self.assertIn("ARA_STATUS=$?", self.android)
 
