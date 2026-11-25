@@ -162,7 +162,8 @@ def material(
         rough_node = nodes.new("ShaderNodeTexImage")
         rough_node.image = rough_image
         rough_node.interpolation = "Linear"
-        rough_sep = nodes.new("ShaderNodeSeparateRGB")
+        rough_sep = nodes.new("ShaderNodeSeparateColor")
+        rough_sep.mode = "RGB"
         normal_node = nodes.new("ShaderNodeTexImage")
         normal_node.image = normal_image
         normal_node.interpolation = "Linear"
