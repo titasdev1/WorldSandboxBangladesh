@@ -18,7 +18,8 @@ import math
 import pathlib
 import random
 import sys
-from mathutils import Vector, noise
+from mathutils import Vector, Matrix, noise
+import bmesh
 import bpy
 
 
@@ -759,6 +760,53 @@ def build_lobby(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material]) -> 
     cam.rotation_euler = (Vector((0.0, 1.0, 3.1)) - cam.location).to_track_quat("-Z", "Y").to_euler()
 
 
+
+def consolidate_static_meshes(scene: bpy.types.Scene) -> None:
+    """Collapse static meshes by material and animation parent to keep draw calls bounded."""
+    groups: dict[tuple[str, str], list[bpy.types.Object]] = {}
+    for obj in list(scene.objects):
+        if obj.type != "MESH" or obj.animation_data is not None:
+            continue
+        if len(obj.data.materials) != 1 or obj.data.materials[0] is None:
+            continue
+        parent_key = obj.parent.name if obj.parent else "__WORLD_STATIC__"
+        groups.setdefault((parent_key, obj.data.materials[0].name), []).append(obj)
+
+    for (parent_name, material_name), objects in groups.items():
+        if len(objects) < 2:
+            continue
+        parent = bpy.data.objects.get(parent_name) if parent_name != "__WORLD_STATIC__" else None
+        material_slot = bpy.data.materials.get(material_name)
+        if material_slot is None:
+            continue
+        bm = bmesh.new()
+        for obj in objects:
+            source_mesh = obj.data.copy()
+            if parent is None:
+                source_mesh.transform(obj.matrix_world)
+            else:
+                source_mesh.transform(obj.matrix_local)
+            bm.from_mesh(source_mesh)
+            bpy.data.meshes.remove(source_mesh)
+        combined_mesh = bpy.data.meshes.new(f"Batch_{parent_name}_{material_name}")
+        bm.to_mesh(combined_mesh)
+        bm.free()
+        combined_mesh.materials.append(material_slot)
+        combined_mesh.update()
+        combined = bpy.data.objects.new(f"Batch_{parent_name}_{material_name}", combined_mesh)
+        scene.collection.objects.link(combined)
+        if parent is not None:
+            combined.parent = parent
+            combined.matrix_parent_inverse = Matrix.Identity(4)
+            combined.location = (0.0, 0.0, 0.0)
+            combined.rotation_euler = (0.0, 0.0, 0.0)
+            combined.scale = (1.0, 1.0, 1.0)
+        for polygon in combined_mesh.polygons:
+            polygon.use_smooth = False
+        for obj in objects:
+            bpy.data.objects.remove(obj, do_unlink=True)
+
+
 def create_manifest(scene: bpy.types.Scene, args: argparse.Namespace) -> dict:
     mesh_count = sum(1 for obj in scene.objects if obj.type == "MESH")
     triangles = sum(len(poly.vertices) - 2 for obj in scene.objects if obj.type == "MESH" for poly in obj.data.polygons)
@@ -791,6 +839,7 @@ def main() -> int:
         build_login(scene, mats)
     else:
         build_lobby(scene, mats)
+    consolidate_static_meshes(scene)
     scene.frame_set(76)
     args.preview.parent.mkdir(parents=True, exist_ok=True)
     args.out.parent.mkdir(parents=True, exist_ok=True)
