@@ -146,9 +146,11 @@ jobs:
           set -euo pipefail
           cat > build/lobby-art/ASSET-LICENSES.txt <<'EOF'
           PROJECT A-SQUARE ORIGINAL ENVIRONMENT ART
-          Generated meshes, materials, baked maps and animation curves:
-          CC0 1.0 Universal. Original source: tools/blender/build_login_lobby_environments.py
-          No third-party assets, game rips, logos, street-view images or map-provider 3D tiles.
+          Original meshes, material setups and animation curves:
+          CC0 1.0 Universal. Authoring source: tools/blender/build_login_lobby_environments.py
+          Embedded Poly Haven PBR images: CC0 1.0 Universal; exact source asset IDs,
+          source URLs and downloaded channels are recorded in asset_manifest.json.
+          No game rips, commercial-game assets, logos, street-view images or map-provider 3D tiles.
           EOF
           python3 - <<'PY'
           import json
@@ -180,4 +182,5 @@ jobs:
             build/lobby-art/*.json
             build/lobby-art/*.txt
             build/lobby-art/*-authoring.log
+            external_content/polyhaven_pbr/asset_manifest.json
           if-no-files-found: error
