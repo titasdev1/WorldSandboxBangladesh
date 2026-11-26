@@ -133,6 +133,95 @@ def _pbr_bitmap_images(name: str, colour: tuple[float, float, float, float], sca
     return images[0], images[1], images[2]
 
 
+POLYHAVEN_MANIFEST_PATH = ROOT / "external_content" / "polyhaven_pbr" / "asset_manifest.json"
+_POLYHAVEN_MANIFEST: dict | None = None
+_POLYHAVEN_IMAGE_CACHE: dict[str, bpy.types.Image] = {}
+
+
+def _polyhaven_surface_for_material(name: str) -> str | None:
+    value = name.lower()
+    if "asphalt" in value or "road" in value or "pavement" in value:
+        return "road"
+    if "brick" in value or "masonry" in value:
+        return "brick"
+    if "concrete" in value or "stone" in value or "cement" in value:
+        return "concrete"
+    if "plaster" in value or "stucco" in value:
+        return "plaster"
+    if "metal" in value or "aluminium" in value or "aluminum" in value or "brass" in value or "shutter" in value:
+        return "metal"
+    if "wood" in value or "teak" in value or "bark" in value or "timber" in value:
+        return "wood"
+    if "mud" in value or "dirt" in value or "gravel" in value:
+        return "ground"
+    return None
+
+
+def _polyhaven_manifest() -> dict:
+    global _POLYHAVEN_MANIFEST
+    if _POLYHAVEN_MANIFEST is not None:
+        return _POLYHAVEN_MANIFEST
+    try:
+        if POLYHAVEN_MANIFEST_PATH.is_file():
+            parsed = json.loads(POLYHAVEN_MANIFEST_PATH.read_text(encoding="utf-8"))
+            if isinstance(parsed, dict) and parsed.get("available") is True and parsed.get("license") == "CC0-1.0":
+                _POLYHAVEN_MANIFEST = parsed
+                return parsed
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"POLYHAVEN_PBR_MANIFEST_WARNING: {exc}")
+    _POLYHAVEN_MANIFEST = {}
+    return _POLYHAVEN_MANIFEST
+
+
+def _load_polyhaven_image(uri: str, colour_space: str) -> bpy.types.Image | None:
+    if not uri.startswith("res://external_content/polyhaven_pbr/"):
+        return None
+    relative = uri.removeprefix("res://")
+    image_path = ROOT / relative
+    if not image_path.is_file():
+        return None
+    key = str(image_path.resolve())
+    if key in _POLYHAVEN_IMAGE_CACHE:
+        return _POLYHAVEN_IMAGE_CACHE[key]
+    try:
+        image = bpy.data.images.load(key, check_existing=True)
+        image.colorspace_settings.name = colour_space
+        image.pack()
+        _POLYHAVEN_IMAGE_CACHE[key] = image
+        return image
+    except RuntimeError as exc:
+        print(f"POLYHAVEN_PBR_IMAGE_WARNING: {image_path.name}: {exc}")
+        return None
+
+
+def _polyhaven_surface_record(name: str) -> dict:
+    surface = _polyhaven_surface_for_material(name)
+    surfaces = _polyhaven_manifest().get("surfaces", {})
+    entry = surfaces.get(surface, {}) if isinstance(surfaces, dict) and surface else {}
+    return entry if isinstance(entry, dict) else {}
+
+
+def _all_used_polyhaven_sources() -> list[dict]:
+    used: dict[str, dict] = {}
+    for material_name in (
+        "Asphalt_With_Fine_Aggregate", "Riverbank_Brickwork", "Cast_Stone_Concrete",
+        "Weathered_Concrete", "Aged_Lime_Plasters", "Brushed_Antique_Brass",
+        "Anodised_Aluminium", "Painted_Roller_Shutter", "Oiled_Teak",
+        "Rain_Darkened_Bark",
+    ):
+        surface = _polyhaven_surface_for_material(material_name)
+        entry = _polyhaven_surface_record(material_name)
+        if surface and entry:
+            used[surface] = {
+                "asset_id": str(entry.get("asset_id", "")),
+                "name": str(entry.get("name", "")),
+                "source_url": str(entry.get("source_url", "")),
+                "license": str(entry.get("license", "")),
+                "maps": dict(entry.get("maps", {})),
+            }
+    return [{"surface": key, **value} for key, value in sorted(used.items())]
+
+
 def material(
     name: str,
     colour: tuple[float, float, float, float],
@@ -167,28 +256,75 @@ def material(
         if hasattr(mat, "use_transparency_overlap"):
             mat.use_transparency_overlap = False
     if texture_scale > 0.0:
-        base_image, rough_image, normal_image = _pbr_bitmap_images(name, colour, texture_scale)
+        # Always keep a generated fallback so the scene remains editable and
+        # deterministic when the optional Poly Haven API is unavailable.
+        fallback_base, fallback_rough, fallback_normal = _pbr_bitmap_images(name, colour, texture_scale)
+        record = _polyhaven_surface_record(name)
+        maps = record.get("maps", {}) if isinstance(record.get("maps", {}), dict) else {}
+        base_image = _load_polyhaven_image(str(maps.get("albedo", "")), "sRGB") or fallback_base
+        rough_image = _load_polyhaven_image(str(maps.get("roughness", "")), "Non-Color") or fallback_rough
+        normal_image = _load_polyhaven_image(str(maps.get("normal", "")), "Non-Color") or fallback_normal
+        metallic_image = _load_polyhaven_image(str(maps.get("metallic", "")), "Non-Color") if maps.get("metallic") else None
+        ao_image = _load_polyhaven_image(str(maps.get("ao", "")), "Non-Color") if maps.get("ao") else None
+        height_image = _load_polyhaven_image(str(maps.get("height", "")), "Non-Color") if maps.get("height") else None
+
         texcoord = nodes.new("ShaderNodeTexCoord")
-        base_node = nodes.new("ShaderNodeTexImage")
-        base_node.image = base_image
-        base_node.interpolation = "Linear"
-        rough_node = nodes.new("ShaderNodeTexImage")
-        rough_node.image = rough_image
-        rough_node.interpolation = "Linear"
+
+        def add_image_node(label: str, image: bpy.types.Image) -> bpy.types.Node:
+            image_node = nodes.new("ShaderNodeTexImage")
+            image_node.label = label
+            image_node.image = image
+            image_node.interpolation = "Linear"
+            links.new(texcoord.outputs["UV"], image_node.inputs["Vector"])
+            return image_node
+
+        base_node = add_image_node("PBR Base Colour", base_image)
+        rough_node = add_image_node("PBR Roughness", rough_image)
         rough_sep = nodes.new("ShaderNodeSeparateColor")
         rough_sep.mode = "RGB"
-        normal_node = nodes.new("ShaderNodeTexImage")
-        normal_node.image = normal_image
-        normal_node.interpolation = "Linear"
-        normal_map = nodes.new("ShaderNodeNormalMap")
-        links.new(texcoord.outputs["UV"], base_node.inputs["Vector"])
-        links.new(texcoord.outputs["UV"], rough_node.inputs["Vector"])
-        links.new(texcoord.outputs["UV"], normal_node.inputs["Vector"])
         links.new(base_node.outputs["Color"], shader.inputs["Base Color"])
         links.new(rough_node.outputs["Color"], rough_sep.inputs["Color"])
         links.new(rough_sep.outputs["Red"], shader.inputs["Roughness"])
+
+        normal_node = add_image_node("PBR Tangent Normal", normal_image)
+        normal_map = nodes.new("ShaderNodeNormalMap")
+        normal_map.inputs["Strength"].default_value = 0.92
         links.new(normal_node.outputs["Color"], normal_map.inputs["Color"])
-        links.new(normal_map.outputs["Normal"], shader.inputs["Normal"])
+
+        if metallic_image is not None:
+            metal_node = add_image_node("PBR Metallic", metallic_image)
+            metal_sep = nodes.new("ShaderNodeSeparateColor")
+            metal_sep.mode = "RGB"
+            links.new(metal_node.outputs["Color"], metal_sep.inputs["Color"])
+            links.new(metal_sep.outputs["Red"], shader.inputs["Metallic"])
+
+        if ao_image is not None:
+            ao_node = add_image_node("PBR Ambient Occlusion", ao_image)
+            ao_mix = nodes.new("ShaderNodeMixRGB")
+            ao_mix.blend_type = "MULTIPLY"
+            ao_mix.inputs["Fac"].default_value = 0.34
+            links.new(base_node.outputs["Color"], ao_mix.inputs["Color1"])
+            links.new(ao_node.outputs["Color"], ao_mix.inputs["Color2"])
+            links.new(ao_mix.outputs["Color"], shader.inputs["Base Color"])
+
+        if height_image is not None and bump_strength > 0.0:
+            height_node = add_image_node("PBR Height", height_image)
+            height_sep = nodes.new("ShaderNodeSeparateColor")
+            height_sep.mode = "RGB"
+            bump = nodes.new("ShaderNodeBump")
+            bump.inputs["Strength"].default_value = min(0.22, bump_strength)
+            bump.inputs["Distance"].default_value = 0.018
+            links.new(height_node.outputs["Color"], height_sep.inputs["Color"])
+            links.new(height_sep.outputs["Red"], bump.inputs["Height"])
+            links.new(normal_map.outputs["Normal"], bump.inputs["Normal"])
+            links.new(bump.outputs["Normal"], shader.inputs["Normal"])
+        else:
+            links.new(normal_map.outputs["Normal"], shader.inputs["Normal"])
+
+        mat["pbr_source"] = str(record.get("source_url", "generated_mobile_fallback"))
+        mat["pbr_license"] = str(record.get("license", "original_generated"))
+        mat["pbr_channels"] = ",".join(sorted(maps.keys()))
+
     return mat
 
 def set_parent(obj: bpy.types.Object, parent: bpy.types.Object | None) -> bpy.types.Object:
@@ -856,7 +992,8 @@ def create_manifest(scene: bpy.types.Scene, args: argparse.Namespace) -> dict:
         "authoring": "tools/blender/build_login_lobby_environments.py",
         "blender_version": bpy.app.version_string,
         "license": "CC0-1.0",
-        "source_assets": [],
+        "source_assets": _all_used_polyhaven_sources(),
+        "pbr_license": "CC0-1.0 Poly Haven maps where present; CC0-1.0 original generated fallback maps otherwise",
         "mesh_object_count": mesh_count,
         "triangle_count": triangles,
         "material_count": len(materials),
