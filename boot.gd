@@ -13,6 +13,7 @@ const BOOT_SPLASH_DURATION_SECONDS := 0.9
 const BOOT_SPLASH_FADE_SECONDS := 0.28
 
 var boot_content: Control
+var boot_backdrop: Control
 var intro_overlay: Control
 var login_overlay: Control
 var callsign_input: LineEdit
@@ -59,6 +60,8 @@ func _ready() -> void:
 
 
 func _run_boot_sequence() -> void:
+	if is_instance_valid(boot_backdrop):
+		boot_backdrop.visible = true
 	intro_overlay = _create_intro_overlay()
 	add_child(intro_overlay)
 	var brand_mark := intro_overlay.get_node("IntroCenter/IntroStack/BrandMark") as Label
@@ -96,7 +99,7 @@ func _create_intro_overlay() -> Control:
 
 	var background := ColorRect.new()
 	background.name = "IntroBackground"
-	background.color = Color("#06111f")
+	background.color = Color(0.015, 0.026, 0.04, 0.26)
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(background)
@@ -159,6 +162,8 @@ func _show_guest_login_screen() -> void:
 	login_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	login_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	login_overlay.modulate.a = 0.0
+	if is_instance_valid(boot_backdrop):
+		boot_backdrop.visible = false
 	add_child(login_overlay)
 
 	var backdrop := SubViewportContainer.new()
@@ -328,6 +333,8 @@ func _show_map_install_screen() -> void:
 	if is_instance_valid(login_overlay):
 		login_overlay.queue_free()
 	login_overlay = null
+	if is_instance_valid(boot_backdrop):
+		boot_backdrop.visible = true
 	if not is_instance_valid(boot_content):
 		return
 	boot_content.visible = true
@@ -339,20 +346,28 @@ func _show_map_install_screen() -> void:
 func _build_screen() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	var background := ColorRect.new()
-	background.name = "BootBackground"
-	background.color = Color("#06111f")
-	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(background)
+
+	boot_backdrop = SubViewportContainer.new()
+	boot_backdrop.name = "MapInstallBackdrop"
+	boot_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	boot_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	boot_backdrop.stretch = true
+	boot_backdrop.visible = false
+	var backdrop_script := load("res://systems/login_backdrop_view.gd") as Script
+	if backdrop_script != null:
+		boot_backdrop.set_script(backdrop_script)
+	add_child(boot_backdrop)
 
 	var shell := MarginContainer.new()
 	shell.name = "BootSafeMargins"
-	shell.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	shell.add_theme_constant_override("margin_left", 26)
-	shell.add_theme_constant_override("margin_right", 26)
-	shell.add_theme_constant_override("margin_top", 22)
-	shell.add_theme_constant_override("margin_bottom", 22)
+	shell.anchor_left = 0.04
+	shell.anchor_top = 0.53
+	shell.anchor_right = 0.46
+	shell.anchor_bottom = 0.95
+	shell.add_theme_constant_override("margin_left", 0)
+	shell.add_theme_constant_override("margin_right", 0)
+	shell.add_theme_constant_override("margin_top", 0)
+	shell.add_theme_constant_override("margin_bottom", 0)
 	add_child(shell)
 	boot_content = shell
 
@@ -360,58 +375,50 @@ func _build_screen() -> void:
 	panel.name = "BootPanel"
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	panel.add_theme_stylebox_override("panel", _panel_style(Color("#0b2032"), Color("#28b8d3"), 2, 18))
+	panel.add_theme_stylebox_override("panel", _panel_style(
+		Color(0.018, 0.041, 0.062, 0.86),
+		Color(0.62, 0.46, 0.22, 0.42),
+		1,
+		12
+	))
 	shell.add_child(panel)
 
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 14)
+	column.add_theme_constant_override("separation", 9)
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	panel.add_child(column)
 
 	var eyebrow := Label.new()
-	eyebrow.text = "PROJECT A-SQUARE  /  BANGLADESH → THE WORLD"
-	eyebrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	eyebrow.add_theme_color_override("font_color", Color("#51d9ed"))
-	eyebrow.add_theme_font_size_override("font_size", 15)
+	eyebrow.text = "A-SQUARE  /  WORLD DATA"
+	eyebrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	eyebrow.add_theme_color_override("font_color", Color("#c2a46c"))
+	eyebrow.add_theme_font_size_override("font_size", 10)
 	column.add_child(eyebrow)
 
 	var title := Label.new()
-	title.text = "WORLD SANDBOX"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	title.add_theme_color_override("font_color", Color("#f4f8ff"))
-	title.add_theme_font_size_override("font_size", 36)
+	title.text = "SHARIATPUR"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	title.add_theme_color_override("font_color", Color("#f3f5f2"))
+	title.add_theme_font_size_override("font_size", 30)
 	column.add_child(title)
-
-	var subtitle := Label.new()
-	subtitle.text = "YOUR WORLD. YOUR DISTRICT. YOUR STORY."
-	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	subtitle.add_theme_color_override("font_color", Color("#a9c3d5"))
-	subtitle.add_theme_font_size_override("font_size", 17)
-	column.add_child(subtitle)
-
-	var separator := HSeparator.new()
-	column.add_child(separator)
 
 	status_label = Label.new()
 	status_label.name = "MapPackStatus"
-	status_label.text = "CHECKING MAP PACK..."
-	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status_label.text = "CHECKING DISTRICT DATA..."
+	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	status_label.add_theme_color_override("font_color", Color("#f2f7ff"))
-	status_label.add_theme_font_size_override("font_size", 18)
-	status_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	status_label.add_theme_color_override("font_color", Color("#e8edf0"))
+	status_label.add_theme_font_size_override("font_size", 14)
 	column.add_child(status_label)
 
 	detail_label = Label.new()
 	detail_label.name = "MapPackDetails"
-	detail_label.text = "The high-detail district is stored separately so the game can open before the map is loaded."
-	detail_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	detail_label.text = "The district installs separately from the base game."
+	detail_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	detail_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	detail_label.add_theme_color_override("font_color", Color("#a9c3d5"))
-	detail_label.add_theme_font_size_override("font_size", 14)
+	detail_label.add_theme_color_override("font_color", Color("#9fb3bb"))
+	detail_label.add_theme_font_size_override("font_size", 11)
 	column.add_child(detail_label)
 
 	progress_bar = ProgressBar.new()
@@ -419,39 +426,39 @@ func _build_screen() -> void:
 	progress_bar.min_value = 0
 	progress_bar.max_value = 100
 	progress_bar.value = 0
-	progress_bar.show_percentage = true
-	progress_bar.custom_minimum_size = Vector2(0, 18)
+	progress_bar.show_percentage = false
+	progress_bar.custom_minimum_size = Vector2(0, 10)
 	column.add_child(progress_bar)
 
 	download_button = Button.new()
 	download_button.name = "DownloadShariatpurMapButton"
-	download_button.text = "DOWNLOAD SHARIATPUR MAP"
-	download_button.custom_minimum_size = Vector2(0, 60)
-	download_button.add_theme_font_size_override("font_size", 20)
-	download_button.add_theme_color_override("font_color", Color("#061724"))
-	download_button.add_theme_stylebox_override("normal", _panel_style(Color("#51d9ed"), Color("#51d9ed"), 1, 10))
-	download_button.add_theme_stylebox_override("hover", _panel_style(Color("#8beafa"), Color("#ffffff"), 2, 10))
+	download_button.text = "DOWNLOAD DISTRICT"
+	download_button.custom_minimum_size = Vector2(0, 50)
+	download_button.add_theme_font_size_override("font_size", 16)
+	download_button.add_theme_color_override("font_color", Color("#171b1a"))
+	download_button.add_theme_stylebox_override("normal", _panel_style(Color("#d8b56b"), Color("#f1dca8"), 1, 8))
+	download_button.add_theme_stylebox_override("hover", _panel_style(Color("#f1dca8"), Color("#fff3d2"), 2, 8))
 	download_button.pressed.connect(_on_download_button_pressed)
 	column.add_child(download_button)
 
 	enter_button = Button.new()
 	enter_button.name = "EnterWorldButton"
 	enter_button.text = "ENTER WORLD  →"
-	enter_button.custom_minimum_size = Vector2(0, 58)
-	enter_button.add_theme_font_size_override("font_size", 20)
-	enter_button.add_theme_color_override("font_color", Color("#f4f8ff"))
-	enter_button.add_theme_stylebox_override("normal", _panel_style(Color("#14354c"), Color("#33728a"), 1, 10))
-	enter_button.add_theme_stylebox_override("hover", _panel_style(Color("#1b4e69"), Color("#51d9ed"), 2, 10))
+	enter_button.custom_minimum_size = Vector2(0, 48)
+	enter_button.add_theme_font_size_override("font_size", 16)
+	enter_button.add_theme_color_override("font_color", Color("#f3f5f2"))
+	enter_button.add_theme_stylebox_override("normal", _panel_style(Color(0.08, 0.16, 0.20, 0.92), Color(0.35, 0.55, 0.59, 0.85), 1, 8))
+	enter_button.add_theme_stylebox_override("hover", _panel_style(Color(0.12, 0.25, 0.29, 0.96), Color("#d8b56b"), 1, 8))
 	enter_button.pressed.connect(_enter_world)
 	column.add_child(enter_button)
 
 	var footer := Label.new()
-	footer.text = "SHARIATPUR WORLD DATA  •  CHECKSUM-VERIFIED INSTALLATION  •  LOCAL SAVE"
-	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	footer.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	footer.add_theme_color_override("font_color", Color("#819aac"))
-	footer.add_theme_font_size_override("font_size", 12)
+	footer.text = "LOCAL INSTALL  •  CHECKSUM VERIFIED"
+	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	footer.add_theme_color_override("font_color", Color("#829ba2"))
+	footer.add_theme_font_size_override("font_size", 9)
 	column.add_child(footer)
+
 
 func _panel_style(fill: Color, border: Color, border_width: int, radius: int) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
