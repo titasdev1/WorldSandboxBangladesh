@@ -992,6 +992,38 @@ def build_lobby(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], ope
         for row in range(4):
             box(f"Display_Data_Rail_{i}_{row}", (x, -3.63, 3.82 + row * 0.27), (1.72 - row * 0.13, 0.025, 0.045), mats["waterline"], 0.008)
         cylinder(f"Display_Lens_{i}", (x + 0.88, -3.66, 4.62), 0.07, 0.045, mats["brass"], 16, (math.pi * 0.5, 0.0, 0.0))
+    # Two staffed command workstations: metal desk frames, timber worktops,
+    # multi-screen consoles, control pads, task lighting and operator chairs.
+    for station, x in enumerate((-10.0, 10.0)):
+        station_y = 1.5
+        box(f"Command_Worktop_{station}", (x, station_y, 1.18), (3.8, 1.45, 0.16), mats["wood"], 0.075)
+        box(f"Command_Worktop_Inset_{station}", (x, station_y - 0.05, 1.27), (3.1, 1.12, 0.035), mats["dark"], 0.018)
+        for leg_x in (-1.58, 1.58):
+            for leg_y in (-0.50, 0.50):
+                cylinder(f"Workstation_Leg_{station}_{leg_x}_{leg_y}", (x + leg_x, station_y + leg_y, 0.58), 0.065, 1.12, mats["aluminium"], 14)
+        for screen_index in range(2):
+            screen_x = x - 0.75 + screen_index * 1.50
+            box(f"Command_Monitor_Housing_{station}_{screen_index}", (screen_x, station_y - 0.48, 2.18), (1.30, 0.14, 0.88), mats["dark"], 0.065)
+            box(f"Command_Monitor_Glass_{station}_{screen_index}", (screen_x, station_y - 0.565, 2.20), (1.12, 0.035, 0.68), mats["screen"], 0.025)
+            cylinder(f"Command_Monitor_Stand_{station}_{screen_index}", (screen_x, station_y - 0.46, 1.70), 0.045, 0.65, mats["aluminium"], 12)
+            for rail in range(3):
+                box(f"Monitor_UI_Rail_{station}_{screen_index}_{rail}", (screen_x, station_y - 0.59, 1.97 + rail * 0.13), (0.76 - rail * 0.08, 0.018, 0.025), mats["waterline"], 0.006)
+        box(f"Command_Control_Deck_{station}", (x, station_y + 0.38, 1.32), (1.22, 0.42, 0.065), mats["aluminium"], 0.025)
+        for button_index in range(12):
+            bx = x - 0.52 + (button_index % 6) * 0.205
+            by = station_y + 0.26 + (button_index // 6) * 0.16
+            cylinder(f"Control_Button_{station}_{button_index}", (bx, by, 1.37), 0.035, 0.035, mats["red"] if button_index % 5 == 0 else mats["waterline"], 12)
+        # Seat silhouette is upholstered and supported by a metal frame.
+        chair_x = x
+        chair_y = station_y + 1.65
+        cylinder(f"Operator_Chair_Post_{station}", (chair_x, chair_y, 0.55), 0.09, 0.75, mats["dark"], 16)
+        cylinder(f"Operator_Chair_Base_{station}", (chair_x, chair_y, 0.20), 0.34, 0.08, mats["aluminium"], 24)
+        box(f"Operator_Chair_Seat_{station}", (chair_x, chair_y, 0.95), (1.12, 0.98, 0.18), mats["blue"], 0.12)
+        box(f"Operator_Chair_Back_{station}", (chair_x, chair_y + 0.43, 1.55), (1.12, 0.22, 1.18), mats["blue"], 0.13)
+        for arm_side in (-1, 1):
+            cylinder(f"Operator_Chair_ArmSupport_{station}_{arm_side}", (chair_x + arm_side * 0.55, chair_y, 1.22), 0.035, 0.52, mats["aluminium"], 10)
+            box(f"Operator_Chair_ArmPad_{station}_{arm_side}", (chair_x + arm_side * 0.55, chair_y, 1.50), (0.20, 0.72, 0.09), mats["dark"], 0.035)
+
     # Container service bay, cargo, crates and workshop fittings.
     for i, x in enumerate((-12.0, 11.0)):
         container = box(f"Service_Container_{i}", (x, 5.8, 1.65), (6.0, 3.0, 3.2), mats["blue"] if i == 0 else mats["brick"], 0.10)
@@ -1057,11 +1089,11 @@ def build_lobby(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], ope
     # Operator-safe camera from the riverfront entrance through the glass hall.
     # The view includes floor contact, the overhead architecture, displays and
     # the ferry/river depth behind the hall; no primitive podium fills the frame.
-    cam = camera(scene, "Lobby_Art_Review_Camera", (0.0, -14.0, 8.5), (0.0, 1.0, 4.0), 30.0)
+    cam = camera(scene, "Lobby_Art_Review_Camera", (-7.0, 7.5, 3.8), (0.0, 0.0, 1.35), 38.0)
     animate_camera_path(cam, "Lobby_Camera_Inspection_Arc", [
-        (1, (1.2, -15.0, 9.0), (0.0, 0.2, 4.0)),
-        (90, (0.0, -14.0, 8.5), (0.0, 1.0, 4.0)),
-        (180, (-1.2, -12.5, 8.0), (0.0, 2.5, 3.8)),
+        (1, (-8.0, 7.2, 3.6), (0.0, -0.2, 1.35)),
+        (90, (-7.0, 7.5, 3.8), (0.0, 0.0, 1.35)),
+        (180, (-6.0, 7.8, 3.7), (0.0, 0.5, 1.40)),
     ])
 
 
