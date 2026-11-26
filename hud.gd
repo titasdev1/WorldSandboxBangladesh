@@ -1683,7 +1683,7 @@ func _replay_combat_round() -> void:
  if not is_instance_valid(combat):
   return
  var mode_id := String(combat.get("active_mode"))
- if mode_id not in ["survival", "arena_training", "street_skirmish", "battle_royale_solo"]:
+ if mode_id != "survival":
   return
  _release_gameplay_inputs()
  if is_instance_valid(lobby_showcase):
@@ -1694,12 +1694,6 @@ func _replay_combat_round() -> void:
  if w.has_method("set_world_traffic_enabled"):
   w.call("set_world_traffic_enabled", false)
  combat.call("start_mode", mode_id)
- if mode_id == "battle_royale_solo":
-  var deployment: Node = w.get("battle_royale_controller") as Node
-  if not is_instance_valid(deployment) or not (deployment.call("start_solo_deployment") == true):
-   combat.call("_finish_match", "DEFEAT")
-   _show_lobby_page("results")
-   return
  if is_instance_valid(lobby_overlay):
   lobby_overlay.visible = false
  get_tree().paused = false
@@ -1932,9 +1926,6 @@ func _complete_enter_selected_mode() -> void:
   elif selected_mode == "survival":
    w.mission_active = false
    w.event_text = "LAST STAND • OFFLINE AI MODE"
-  elif selected_mode == "street_skirmish":
-   w.mission_active = false
-   w.event_text = "STREET SKIRMISH • ELIMINATE 10 ENEMIES"
   elif selected_mode == "arena_training" or selected_mode == "street_skirmish":
    w.mission_active = false
    w.event_text = "PLAYLIST NOT AVAILABLE • SELECT STRIKEFRONT FROM THE LOBBY"
@@ -1948,7 +1939,7 @@ func _complete_enter_selected_mode() -> void:
    w.event_text = "DISTRICT ATLAS: FOLLOW THE CITY MARKER"
   else:
    w.mission_active = false
-   w.event_text = "COMBAT LAB • OFFLINE PRACTICE"
+   w.event_text = "WORLD SESSION ACTIVE"
   if w.combat_controller and selected_mode == "survival":
    w.combat_controller.start_mode(selected_mode)
   w.event_time_left = 8.0
