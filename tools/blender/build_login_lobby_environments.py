@@ -588,6 +588,7 @@ def add_facade_building(
             stripe_obj.rotation_euler[0] = math.radians(7.0)
         for bracket_side in (-1, 1):
             cylinder(name + f"_AwningBracket_{column}_{bracket_side}", (cx + bracket_side * (opening_w * 0.42), front_y + 0.33, 1.82), 0.018, 0.44, mats["aluminium"], 10, (math.radians(60.0), 0.0, 0.0))
+    window_columns = max(2, int(width / 1.2))
     # Architectural identity differs by block: pilasters, deep corner piers,
     # upper-floor sun hoods and parapet mouldings interrupt repeated window grids.
     if style in (0, 2):
@@ -600,7 +601,6 @@ def add_facade_building(
         for canopy_post in (-1, 1):
             cylinder(name + f"_CornerCanopyPost_{canopy_post}", (x + canopy_post * width * 0.42, front_y + 0.62, 1.18), 0.035, 2.15, mats["aluminium"], 12)
     # Repeated but individually modelled windows, sills, lintels and balcony edges.
-    window_columns = max(2, int(width / 1.2))
     for floor in range(1, floors + 1):
         z = 0.30 + floor * 2.42
         floor_mat = mats["warm_glass"] if (floor + style) % 4 == 0 else mats["glass"]
