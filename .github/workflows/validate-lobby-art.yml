@@ -7,6 +7,7 @@ on:
     paths:
       - "tools/blender/build_login_lobby_environments.py"
       - "tools/blender/verify_login_lobby_environments.py"
+      - "tools/install_blender_ci.sh"
       - ".github/workflows/validate-lobby-art.yml"
   workflow_dispatch:
 
@@ -60,6 +61,8 @@ jobs:
             --preview build/lobby-art/a_square_login_riverside.png \
             > build/lobby-art/login-authoring.log 2>&1
           cat build/lobby-art/login-authoring.log
+          test -s build/lobby-art/a_square_login_riverside.glb
+          test -s build/lobby-art/a_square_login_riverside.png
           python3 tools/blender/verify_login_lobby_environments.py \
             --kind login \
             --glb build/lobby-art/a_square_login_riverside.glb \
@@ -76,6 +79,8 @@ jobs:
             --preview build/lobby-art/a_square_delta_command_lobby.png \
             > build/lobby-art/lobby-authoring.log 2>&1
           cat build/lobby-art/lobby-authoring.log
+          test -s build/lobby-art/a_square_delta_command_lobby.glb
+          test -s build/lobby-art/a_square_delta_command_lobby.png
           python3 tools/blender/verify_login_lobby_environments.py \
             --kind lobby \
             --glb build/lobby-art/a_square_delta_command_lobby.glb \
