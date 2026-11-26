@@ -46,6 +46,13 @@ class LoginBackdropTests(unittest.TestCase):
         self.assertIn("viewport.gui_disable_input = true", self.view)
         self.assertIn("Control.MOUSE_FILTER_IGNORE", self.view)
 
+    def test_login_and_loading_use_the_original_vector_brand_emblem(self):
+        boot = read("boot.gd")
+        mark = read("assets/ui/brand/a_square_mark.svg")
+        self.assertIn('brand_mark := TextureRect.new()', boot)
+        self.assertIn('map_brand := TextureRect.new()', boot)
+        self.assertIn('res://assets/ui/brand/a_square_mark.svg', boot)
+        self.assertIn('A-Square', mark)
     def test_authored_login_scene_is_preferred_and_its_clips_loop(self):
         self.assertIn('const AUTHORED_SCENE_PATH := "res://external_content/lobby_art/a_square_login_riverside.glb"', self.view)
         self.assertIn("func _load_authored_login_scene(viewport: SubViewport) -> bool:", self.view)
