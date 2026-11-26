@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: authored-lobby-art-${{ github.ref }}
@@ -51,6 +52,47 @@ jobs:
           python3 -m py_compile \
             tools/blender/build_login_lobby_environments.py \
             tools/blender/verify_login_lobby_environments.py
+
+      - name: Resolve and download the validated Field Ranger rig for lobby art review
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="${GITHUB_REF_NAME}"
+          CURRENT_ROSTER_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/contents/tools/ara3d/roster.json?ref=${BRANCH}" --jq '.sha // empty')"
+          if [[ -z "$CURRENT_ROSTER_SHA" ]]; then
+            echo "Could not resolve the current operator roster blob." >&2
+            exit 1
+          fi
+          RUN_ID=""
+          for attempt in $(seq 1 40); do
+            RUNS="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?branch=${BRANCH}&per_page=100" \
+              --jq '.workflow_runs | map(select(.workflow_id == 417330351 and .head_branch == "'"${BRANCH}"'" and .status == "completed" and .conclusion == "success")) | sort_by(.created_at) | reverse | .[0:30][] | [.id, .head_sha] | @tsv' \
+              || true)"
+            while IFS=$'\t' read -r CANDIDATE_ID CANDIDATE_SHA; do
+              [[ -n "${CANDIDATE_ID:-}" && -n "${CANDIDATE_SHA:-}" ]] || continue
+              CANDIDATE_ROSTER_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/contents/tools/ara3d/roster.json?ref=${CANDIDATE_SHA}" --jq '.sha // empty' || true)"
+              if [[ "$CANDIDATE_ROSTER_SHA" == "$CURRENT_ROSTER_SHA" ]]; then
+                RUN_ID="$CANDIDATE_ID"
+                break
+              fi
+            done <<< "$RUNS"
+            [[ -n "$RUN_ID" ]] && break
+            echo "Waiting for a successful Ara3D run matching roster $CURRENT_ROSTER_SHA."
+            sleep 15
+          done
+          if [[ -z "$RUN_ID" ]]; then
+            echo "No validated Ara3D artifact matches the current operator roster." >&2
+            exit 1
+          fi
+          mkdir -p build/ara-operator
+          gh run download "$RUN_ID" --name A-Square-Ara3D-Operator-Candidates --dir build/ara-operator
+          OPERATOR_GLB="$(find build/ara-operator/field_ranger/high -maxdepth 1 -type f -name '*.glb' -print -quit)"
+          test -s "$OPERATOR_GLB"
+          echo "FIELD_RANGER_GLB=$OPERATOR_GLB"
+          echo "Ara workflow run: $RUN_ID"
+          echo "Roster blob: $CURRENT_ROSTER_SHA"
 
       - name: Fetch original CC0 PBR surfaces within the mobile resolution budget
         shell: bash
