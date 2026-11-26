@@ -555,11 +555,16 @@ def add_operator_preview(glb_path: pathlib.Path, location: tuple[float, float, f
 def remove_operator_preview(wrapper: bpy.types.Object | None) -> None:
     if wrapper is None or wrapper.name not in bpy.data.objects:
         return
-    objects = list(wrapper.children_recursive)
-    objects.append(wrapper)
-    for obj in reversed(objects):
+    # Delete deepest descendants first, and delete the empty wrapper last.
+    # Removing the parent first would detach its children and could leave a
+    # preview-only character mesh in the actual environment GLB export.
+    descendants = list(wrapper.children_recursive)
+    for obj in reversed(descendants):
         if obj.name in bpy.data.objects:
             bpy.data.objects.remove(obj, do_unlink=True)
+    if wrapper.name in bpy.data.objects:
+        bpy.data.objects.remove(wrapper, do_unlink=True)
+    bpy.context.scene["operator_preview_removed_before_export"] = True
 
 
 def animate_transform(obj: bpy.types.Object, name: str, keys: list[tuple[int, tuple[float, float, float], tuple[float, float, float]]], loop: bool = False) -> None:
@@ -1158,6 +1163,7 @@ def create_manifest(scene: bpy.types.Scene, args: argparse.Namespace) -> dict:
         "source_assets": _all_used_polyhaven_sources(),
         "operator_preview_source": str(scene.get("operator_preview_source", "")),
         "operator_preview_sha256": str(scene.get("operator_preview_sha256", "")),
+        "operator_preview_removed_before_export": scene.get("operator_preview_removed_before_export", False) is True,
         "operator_preview_license": {
             "generator_source": "https://github.com/olatunde85/3d-gen",
             "generator_code_license": "MIT",
