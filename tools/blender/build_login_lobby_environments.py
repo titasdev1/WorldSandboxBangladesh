@@ -743,11 +743,10 @@ def build_lobby(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material]) -> 
     fan.rotation_euler[2] = math.tau
     fan.keyframe_insert(data_path="rotation_euler", frame=180, group="Lobby_Fan_Loop")
     if fan.animation_data and fan.animation_data.action:
+        # Blender 5.2 uses layered Actions rather than the legacy Action.fcurves
+        # collection. Leave the keyed fan track intact here; the Godot importer
+        # marks this environmental clip as looping when the GLB is instantiated.
         fan.animation_data.action.name = "Lobby_Fan_Loop"
-        for curve in fan.animation_data.action.fcurves:
-            for point in curve.keyframe_points:
-                point.interpolation = "LINEAR"
-            curve.modifiers.new("CYCLES")
     # Tactical display antennas and satellite dishes on a mezzanine.
     for i, x in enumerate((-13.0, 13.0)):
         cylinder(f"Telemetry_Mast_{i}", (x, 3.8, 5.2), 0.045, 4.6, mats["aluminium"], 14)
