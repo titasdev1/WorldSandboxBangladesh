@@ -39,7 +39,7 @@ func _run_smoke() -> void:
 		return
 
 	if using_authored_scene:
-		var camera := stage.find_child("*", "Camera3D", true, false) as Camera3D
+		var camera := stage.find_child("Login_Cinematic_Camera", true, false) as Camera3D
 		if camera == null:
 			push_error("LOGIN_BACKDROP_RUNTIME_FAIL: authored login scene has no camera.")
 			quit(1)
