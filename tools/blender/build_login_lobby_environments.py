@@ -13,6 +13,7 @@ photorealistic AAA completion.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import pathlib
@@ -47,6 +48,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--kind", choices=("login", "lobby"), required=True)
     parser.add_argument("--out", type=pathlib.Path, required=True)
     parser.add_argument("--preview", type=pathlib.Path, required=True)
+    parser.add_argument("--operator-glb", type=pathlib.Path, required=True, help="Exact roster-matched rigged Field Ranger GLB used for preview only.")
     return parser.parse_args(argv)
 
 
@@ -491,6 +493,75 @@ def camera(
     return obj
 
 
+def add_operator_preview(glb_path: pathlib.Path, location: tuple[float, float, float], name: str) -> bpy.types.Object:
+    """Import the exact roster-matched rig only for preview rendering.
+
+    The operator hierarchy is removed immediately after the PNG render. The
+    gameplay GLB remains an environment-only scene; Godot supplies the live
+    player's HumanoidVisual in the real login/lobby.
+    """
+    if not glb_path.is_file() or glb_path.stat().st_size <= 0:
+        raise FileNotFoundError(f"Rigged operator preview GLB is missing: {glb_path}")
+    before = set(bpy.context.scene.objects)
+    bpy.ops.import_scene.gltf(filepath=str(glb_path))
+    imported = [obj for obj in bpy.context.scene.objects if obj not in before]
+    if not imported:
+        raise RuntimeError(f"Blender glTF importer did not create objects for {glb_path}")
+
+    roots = [obj for obj in imported if obj.parent not in imported]
+    wrapper = bpy.data.objects.new(name, None)
+    bpy.context.collection.objects.link(wrapper)
+    wrapper.location = location
+    wrapper.scale = (0.90, 0.90, 0.90)
+    wrapper["preview_only"] = True
+    wrapper["source_asset"] = glb_path.name
+    wrapper["source_sha256"] = hashlib.sha256(glb_path.read_bytes()).hexdigest()
+
+    for obj in roots:
+        original_basis = obj.matrix_basis.copy()
+        obj.parent = wrapper
+        obj.matrix_parent_inverse = Matrix.Identity(4)
+        obj.matrix_basis = original_basis
+
+    # Choose a real imported idle action for the still/contact-sheet pose.
+    # The exported lobby environment never receives this operator or its clips.
+    idle_actions = sorted(
+        (action for action in bpy.data.actions if "idle" in action.name.lower()),
+        key=lambda action: ("idle" not in action.name.lower(), action.name.lower()),
+    )
+    armatures = [obj for obj in imported if obj.type == "ARMATURE"]
+    if armatures and idle_actions:
+        for armature in armatures:
+            armature.animation_data_create()
+            try:
+                armature.animation_data.action = idle_actions[0]
+            except (AttributeError, TypeError, RuntimeError) as exc:
+                print(f"OPERATOR_PREVIEW_IDLE_WARNING: {exc}")
+
+    bpy.context.scene["operator_preview_source"] = glb_path.name
+    bpy.context.scene["operator_preview_sha256"] = wrapper["source_sha256"]
+    bpy.context.scene["operator_preview_only"] = True
+    print("OPERATOR_PREVIEW_IMPORTED:", json.dumps({
+        "name": name,
+        "source": glb_path.name,
+        "sha256": wrapper["source_sha256"],
+        "objects": len(imported),
+        "armatures": len(armatures),
+        "idle_actions": [action.name for action in idle_actions[:4]],
+    }, sort_keys=True))
+    return wrapper
+
+
+def remove_operator_preview(wrapper: bpy.types.Object | None) -> None:
+    if wrapper is None or wrapper.name not in bpy.data.objects:
+        return
+    objects = list(wrapper.children_recursive)
+    objects.append(wrapper)
+    for obj in reversed(objects):
+        if obj.name in bpy.data.objects:
+            bpy.data.objects.remove(obj, do_unlink=True)
+
+
 def animate_transform(obj: bpy.types.Object, name: str, keys: list[tuple[int, tuple[float, float, float], tuple[float, float, float]]], loop: bool = False) -> None:
     for frame, location, rotation in keys:
         obj.location = location
@@ -808,7 +879,7 @@ def river_plane(mats: dict[str, bpy.types.Material], y: float, width: float, dep
     return water
 
 
-def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material]) -> None:
+def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], operator_glb: pathlib.Path) -> bpy.types.Object:
     scene["scene_role"] = "A-Square Login — Shariatpur Riverfront"
     world_and_lighting(scene, True)
     # Ground layers and asphalt apron with actual roughness/bump material detail.
@@ -875,9 +946,12 @@ def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material]) -> 
         (180, (1.5, 15.0, 7.0), (-3.0, 4.0, 1.8)),
     ])
     scene.render.filepath = "//login_preview.png"
+    operator_preview = add_operator_preview(operator_glb, (-4.0, 6.3, 0.05), "Login_Field_Ranger_Preview")
+    operator_preview.rotation_euler[2] = math.pi
+    return operator_preview
 
 
-def build_lobby(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material]) -> None:
+def build_lobby(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], operator_glb: pathlib.Path) -> bpy.types.Object:
     scene["scene_role"] = "A-Square Delta Command — Operator Lobby"
     world_and_lighting(scene, False)
     # A river-facing command terminal with a real roof profile, glass curtain wall and structural rhythm.
@@ -1050,6 +1124,8 @@ def create_manifest(scene: bpy.types.Scene, args: argparse.Namespace) -> dict:
         "blender_version": bpy.app.version_string,
         "license": "CC0-1.0",
         "source_assets": _all_used_polyhaven_sources(),
+        "operator_preview_source": str(scene.get("operator_preview_source", "")),
+        "operator_preview_sha256": str(scene.get("operator_preview_sha256", "")),
         "pbr_license": "CC0-1.0 Poly Haven maps where present; CC0-1.0 original generated fallback maps otherwise",
         "mesh_object_count": mesh_count,
         "triangle_count": triangles,
@@ -1068,15 +1144,18 @@ def main() -> int:
     scene = clear_scene()
     mats = make_material_set()
     if args.kind == "login":
-        build_login(scene, mats)
+        operator_preview = build_login(scene, mats, args.operator_glb)
     else:
-        build_lobby(scene, mats)
+        operator_preview = build_lobby(scene, mats, args.operator_glb)
     consolidate_static_meshes(scene)
     scene.frame_set(90)
     args.preview.parent.mkdir(parents=True, exist_ok=True)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     scene.render.filepath = str(args.preview)
     bpy.ops.render.render(write_still=True)
+    # Operator model is a render subject only; the engine scene uses the actual
+    # player's HumanoidVisual and must not contain a second baked-in operator.
+    remove_operator_preview(operator_preview)
     bpy.ops.export_scene.gltf(
         filepath=str(args.out),
         export_format="GLB",
