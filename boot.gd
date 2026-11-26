@@ -223,12 +223,13 @@ func _show_guest_login_screen() -> void:
 	eyebrow.add_theme_font_size_override("font_size", 11)
 	content.add_child(eyebrow)
 
-	var brand_mark := Label.new()
+	var brand_mark := TextureRect.new()
 	brand_mark.name = "LoginBrandMark"
-	brand_mark.text = "A²"
-	brand_mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	brand_mark.add_theme_color_override("font_color", Color("#f3e6c8"))
-	brand_mark.add_theme_font_size_override("font_size", 70)
+	brand_mark.texture = load("res://assets/ui/brand/a_square_mark.svg") as Texture2D
+	brand_mark.custom_minimum_size = Vector2(92.0, 92.0)
+	brand_mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	brand_mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	brand_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(brand_mark)
 
 	var title := Label.new()
@@ -395,6 +396,15 @@ func _build_screen() -> void:
 	eyebrow.add_theme_color_override("font_color", Color("#c2a46c"))
 	eyebrow.add_theme_font_size_override("font_size", 10)
 	column.add_child(eyebrow)
+
+	var map_brand := TextureRect.new()
+	map_brand.name = "MapInstallBrandMark"
+	map_brand.texture = load("res://assets/ui/brand/a_square_mark.svg") as Texture2D
+	map_brand.custom_minimum_size = Vector2(48.0, 48.0)
+	map_brand.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	map_brand.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	map_brand.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_child(map_brand)
 
 	var title := Label.new()
 	title.text = "SHARIATPUR"
