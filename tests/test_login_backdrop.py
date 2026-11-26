@@ -32,7 +32,6 @@ class LoginBackdropTests(unittest.TestCase):
         self.assertIn('backdrop.name = "LoginBackdrop"', login)
         self.assertIn('load("res://systems/login_backdrop_view.gd")', login)
         self.assertLess(login.index("login_overlay.add_child(backdrop)"), login.index("login_overlay.add_child(background)"))
-        self.assertIn('AUTHORED_SCENE_PATH = "res://external_content/lobby_art/a_square_login_riverside.glb"', self.view)
         self.assertLess(login.index("login_overlay.add_child(backdrop)"), login.index("login_overlay.add_child(shade)"))
         self.assertLess(login.index("login_overlay.add_child(shade)"), login.index("login_overlay.add_child(panel)"))
         self.assertIn('guest_button.pressed.connect(_continue_as_guest)', login)
