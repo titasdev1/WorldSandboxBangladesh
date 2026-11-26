@@ -70,6 +70,14 @@ def validate(kind: str, path: pathlib.Path) -> dict:
     if len(nodes) < 24:
         errors.append(f"only {len(nodes)} scene nodes")
     names = [str(node.get("name", "")) for node in nodes]
+    manifest_path = path.with_suffix(".manifest.json")
+    manifest = {}
+    if manifest_path.is_file():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    operator_preview_source = str(manifest.get("operator_preview_source", ""))
+    operator_preview_sha256 = str(manifest.get("operator_preview_sha256", ""))
+    if not operator_preview_source or len(operator_preview_sha256) != 64:
+        errors.append("the preview was not rendered with a verified rigged operator source asset")
     if kind == "login":
         if not cameras:
             errors.append("login scene does not export its cinematic camera")
