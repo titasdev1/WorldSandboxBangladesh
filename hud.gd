@@ -910,140 +910,171 @@ func _current_route_instruction() -> String:
 
 # First-boot mode lobby: intentionally uses vector UI so it stays crisp at any resolution.
 func _build_lobby_ui() -> void:
- lobby_overlay = ColorRect.new()
- lobby_overlay.name = "ModeLobby"
- lobby_overlay.color = Color(0.006, 0.014, 0.024, 0.30)
- lobby_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
- lobby_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
- lobby_overlay.z_index = 100
- lobby_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
- add_child(lobby_overlay)
- var viewport_size := get_viewport().get_visible_rect().size
- var header := PanelContainer.new()
- header.name = "LobbyTopBar"
- header.position = Vector2(20.0, 16.0)
- header.size = Vector2(viewport_size.x - 40.0, 70.0)
- header.add_theme_stylebox_override("panel", _lobby_style(Color(0.008, 0.026, 0.043, 0.92), Color(0.18, 0.62, 0.72, 0.88), 1, 10))
- lobby_overlay.add_child(header)
- var header_row := HBoxContainer.new()
- header_row.add_theme_constant_override("separation", 18)
- header_row.alignment = BoxContainer.ALIGNMENT_CENTER
- header.add_child(header_row)
- var identity := VBoxContainer.new()
- identity.custom_minimum_size = Vector2(260.0, 0.0)
- identity.add_theme_constant_override("separation", 1)
- header_row.add_child(identity)
- var identity_name := Label.new()
- identity_name.text = "PROJECT A-SQUARE  /  FIELD COMMAND"
- identity_name.add_theme_font_size_override("font_size", 11)
- identity_name.add_theme_color_override("font_color", Color("#66dce9"))
- identity.add_child(identity_name)
- lobby_profile_label = Label.new()
- lobby_profile_label.name = "CareerIdentity"
- lobby_profile_label.text = "LOCAL OPERATOR  •  LEVEL 01  •  ROOKIE"
- lobby_profile_label.add_theme_font_size_override("font_size", 17)
- lobby_profile_label.add_theme_color_override("font_color", Color("#f2f7fb"))
- identity.add_child(lobby_profile_label)
- var spacer := Control.new()
- spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
- header_row.add_child(spacer)
- var map_box := VBoxContainer.new()
- map_box.custom_minimum_size = Vector2(240.0, 0.0)
- map_box.add_theme_constant_override("separation", 2)
- header_row.add_child(map_box)
- lobby_loading_label = Label.new()
- lobby_loading_label.name = "StartupMapStatus"
- lobby_loading_label.text = "SHARIATPUR WORLD DATA"
- lobby_loading_label.add_theme_font_size_override("font_size", 11)
- lobby_loading_label.add_theme_color_override("font_color", Color("#b8d0dc"))
- map_box.add_child(lobby_loading_label)
- lobby_loading_progress = ProgressBar.new()
- lobby_loading_progress.name = "StartupMapProgress"
- lobby_loading_progress.custom_minimum_size = Vector2(220.0, 9.0)
- lobby_loading_progress.max_value = 100
- lobby_loading_progress.show_percentage = false
- map_box.add_child(lobby_loading_progress)
- lobby_cash_label = Label.new()
- lobby_cash_label.name = "CareerCurrency"
- lobby_cash_label.text = "৳ 0"
- lobby_cash_label.custom_minimum_size = Vector2(120.0, 0.0)
- lobby_cash_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
- lobby_cash_label.add_theme_font_size_override("font_size", 22)
- lobby_cash_label.add_theme_color_override("font_color", Color("#f5d27a"))
- header_row.add_child(lobby_cash_label)
- var nav_panel := PanelContainer.new()
- nav_panel.name = "LobbyNavigation"
- nav_panel.position = Vector2(20.0, 100.0)
- nav_panel.size = Vector2(160.0, viewport_size.y - 194.0)
- nav_panel.add_theme_stylebox_override("panel", _lobby_style(Color(0.008, 0.025, 0.042, 0.90), Color(0.10, 0.37, 0.49, 0.70), 1, 10))
- lobby_overlay.add_child(nav_panel)
- var nav := VBoxContainer.new()
- nav.add_theme_constant_override("separation", 8)
- nav_panel.add_child(nav)
- var nav_items := [
-  ["HOME", "home", "res://assets/ui/icons/home.svg"],
-  ["PLAY", "play", "res://assets/ui/icons/play.svg"],
-  ["LOADOUT", "loadout", "res://assets/ui/icons/loadout.svg"],
-  ["OPERATOR", "operator", "res://assets/ui/icons/operator.svg"],
-  ["EVENTS", "events", "res://assets/ui/icons/events.svg"],
-  ["STORE", "store", "res://assets/ui/icons/store.svg"],
-  ["CLAN", "clan", "res://assets/ui/icons/clan.svg"],
-  ["PROFILE", "profile", "res://assets/ui/icons/profile.svg"],
- ]
- for item in nav_items:
-  var button := Button.new()
-  var page_id := String(item[1])
-  var is_play_navigation := page_id == "play"
-  button.name = "LobbyNav_" + page_id.capitalize()
-  button.text = String(item[0])
-  button.icon = load(String(item[2])) as Texture2D
-  button.add_theme_constant_override("h_separation", 11)
-  button.tooltip_text = String(item[0]).capitalize()
-  button.toggle_mode = true
-  button.button_pressed = page_id == "home"
-  button.custom_minimum_size = Vector2(0.0, 60.0 if is_play_navigation else 48.0)
-  button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-  button.add_theme_font_size_override("font_size", 17 if is_play_navigation else 14)
-  button.add_theme_color_override("font_color", Color("#102332") if is_play_navigation else Color("#e4eff5"))
-  var normal_fill := Color("#d5ad58") if is_play_navigation else Color("#102b3d")
-  var normal_border := Color("#f2d58f") if is_play_navigation else Color("#24546a")
-  button.add_theme_stylebox_override("normal", _lobby_style(normal_fill, normal_border, 1, 7))
-  button.add_theme_stylebox_override("hover", _lobby_style(Color("#19475a"), Color("#59d7e5"), 2, 7))
-  button.add_theme_stylebox_override("pressed", _lobby_style(Color("#1e596c"), Color("#8beafa"), 2, 7))
-  button.pressed.connect(_show_lobby_page.bind(page_id))
-  lobby_nav_buttons[page_id] = button
-  nav.add_child(button)
- var content_panel := PanelContainer.new()
- content_panel.name = "LobbyContentPanel"
- content_panel.position = Vector2(viewport_size.x - 555.0, 100.0)
- content_panel.size = Vector2(535.0, viewport_size.y - 194.0)
- content_panel.add_theme_stylebox_override("panel", _lobby_style(Color(0.008, 0.022, 0.038, 0.93), Color(0.16, 0.56, 0.68, 0.82), 1, 12))
- lobby_overlay.add_child(content_panel)
- var scroll := ScrollContainer.new()
- scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
- scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
- content_panel.add_child(scroll)
- lobby_content = VBoxContainer.new()
- lobby_content.name = "LobbyPageContent"
- lobby_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
- lobby_content.add_theme_constant_override("separation", 12)
- scroll.add_child(lobby_content)
- save_feedback_label = Label.new()
- save_feedback_label.name = "LobbyFooterStatus"
- save_feedback_label.position = Vector2(205.0, viewport_size.y - 77.0)
- save_feedback_label.size = Vector2(viewport_size.x - 225.0, 35.0)
- save_feedback_label.text = "SHARIATPUR  /  PROJECT A-SQUARE"
- save_feedback_label.add_theme_font_size_override("font_size", 12)
- save_feedback_label.add_theme_color_override("font_color", Color("#b3c9d6"))
- lobby_overlay.add_child(save_feedback_label)
- if is_instance_valid(w) and is_instance_valid(w.player):
-  w.player.set_camera_view_mode("third_person")
-  w.player.camera_yaw = 24.0
-  w.player.camera_pitch = -8.0
-  w.player.call("_update_camera")
- _ensure_lobby_showcase()
- _update_lobby_header()
- _show_lobby_page("home")
+	lobby_overlay = ColorRect.new()
+	lobby_overlay.name = "ModeLobby"
+	lobby_overlay.color = Color(0.004, 0.010, 0.016, 0.12)
+	lobby_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	lobby_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	lobby_overlay.z_index = 100
+	lobby_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(lobby_overlay)
+
+	var viewport_size := get_viewport().get_visible_rect().size
+
+	# Compact command header: identity, district streaming, currency and settings.
+	var header := PanelContainer.new()
+	header.name = "LobbyTopBar"
+	header.position = Vector2(18.0, 12.0)
+	header.size = Vector2(viewport_size.x - 36.0, 58.0)
+	header.add_theme_stylebox_override("panel", _lobby_style(Color(0.008, 0.022, 0.034, 0.84), Color(0.42, 0.34, 0.20, 0.62), 1, 9))
+	lobby_overlay.add_child(header)
+
+	var header_row := HBoxContainer.new()
+	header_row.add_theme_constant_override("separation", 12)
+	header_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	header.add_child(header_row)
+
+	var identity := VBoxContainer.new()
+	identity.custom_minimum_size = Vector2(190.0, 0.0)
+	identity.add_theme_constant_override("separation", 0)
+	header_row.add_child(identity)
+
+	var identity_name := Label.new()
+	identity_name.text = "A-SQUARE"
+	identity_name.add_theme_font_size_override("font_size", 12)
+	identity_name.add_theme_color_override("font_color", Color("#d7b979"))
+	identity.add_child(identity_name)
+
+	lobby_profile_label = Label.new()
+	lobby_profile_label.name = "CareerIdentity"
+	lobby_profile_label.text = "OPERATOR  •  LEVEL 01"
+	lobby_profile_label.add_theme_font_size_override("font_size", 14)
+	lobby_profile_label.add_theme_color_override("font_color", Color("#edf0ed"))
+	identity.add_child(lobby_profile_label)
+
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_row.add_child(spacer)
+
+	var map_box := VBoxContainer.new()
+	map_box.custom_minimum_size = Vector2(170.0, 0.0)
+	map_box.add_theme_constant_override("separation", 2)
+	header_row.add_child(map_box)
+
+	lobby_loading_label = Label.new()
+	lobby_loading_label.name = "StartupMapStatus"
+	lobby_loading_label.text = "SHARIATPUR DATA"
+	lobby_loading_label.add_theme_font_size_override("font_size", 9)
+	lobby_loading_label.add_theme_color_override("font_color", Color("#c2c9c5"))
+	map_box.add_child(lobby_loading_label)
+
+	lobby_loading_progress = ProgressBar.new()
+	lobby_loading_progress.name = "StartupMapProgress"
+	lobby_loading_progress.custom_minimum_size = Vector2(160.0, 7.0)
+	lobby_loading_progress.max_value = 100
+	lobby_loading_progress.show_percentage = false
+	map_box.add_child(lobby_loading_progress)
+
+	lobby_cash_label = Label.new()
+	lobby_cash_label.name = "CareerCurrency"
+	lobby_cash_label.text = "৳ 0"
+	lobby_cash_label.custom_minimum_size = Vector2(82.0, 0.0)
+	lobby_cash_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	lobby_cash_label.add_theme_font_size_override("font_size", 17)
+	lobby_cash_label.add_theme_color_override("font_color", Color("#e8cc8d"))
+	header_row.add_child(lobby_cash_label)
+
+	var settings_button := Button.new()
+	settings_button.name = "LobbySettingsButton"
+	settings_button.text = "⚙"
+	settings_button.tooltip_text = "Settings"
+	settings_button.custom_minimum_size = Vector2(42.0, 40.0)
+	settings_button.add_theme_font_size_override("font_size", 22)
+	settings_button.add_theme_color_override("font_color", Color("#e8ece8"))
+	settings_button.add_theme_stylebox_override("normal", _lobby_style(Color(0.08, 0.12, 0.14, 0.68), Color(0.28, 0.36, 0.35, 0.45), 1, 7))
+	settings_button.pressed.connect(_toggle_settings)
+	header_row.add_child(settings_button)
+
+	# Icon-led navigation rail. Tooltips carry the full labels; the artwork and
+	# operator stage remain unobstructed by a permanent column of text.
+	var nav_panel := PanelContainer.new()
+	nav_panel.name = "LobbyNavigation"
+	nav_panel.position = Vector2(18.0, 84.0)
+	nav_panel.size = Vector2(72.0, viewport_size.y - 154.0)
+	nav_panel.add_theme_stylebox_override("panel", _lobby_style(Color(0.008, 0.022, 0.034, 0.78), Color(0.30, 0.37, 0.35, 0.36), 1, 9))
+	lobby_overlay.add_child(nav_panel)
+
+	var nav := VBoxContainer.new()
+	nav.add_theme_constant_override("separation", 6)
+	nav.alignment = BoxContainer.ALIGNMENT_CENTER
+	nav_panel.add_child(nav)
+
+	var nav_items := [
+		["HOME", "home", "res://assets/ui/icons/home.svg"],
+		["PLAY", "play", "res://assets/ui/icons/play.svg"],
+		["LOADOUT", "loadout", "res://assets/ui/icons/loadout.svg"],
+		["OPERATOR", "operator", "res://assets/ui/icons/operator.svg"],
+		["EVENTS", "events", "res://assets/ui/icons/events.svg"],
+		["STORE", "store", "res://assets/ui/icons/store.svg"],
+		["CLAN", "clan", "res://assets/ui/icons/clan.svg"],
+		["PROFILE", "profile", "res://assets/ui/icons/profile.svg"],
+	]
+	for item in nav_items:
+		var button := Button.new()
+		var page_id := String(item[1])
+		button.name = "LobbyNav_" + page_id.capitalize()
+		button.text = ""
+		button.icon = load(String(item[2])) as Texture2D
+		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		button.expand_icon = true
+		button.tooltip_text = String(item[0]).capitalize()
+		button.toggle_mode = true
+		button.button_pressed = page_id == "home"
+		button.custom_minimum_size = Vector2(52.0, 52.0)
+		button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		button.add_theme_stylebox_override("normal", _lobby_style(Color(0.035, 0.075, 0.09, 0.68), Color(0.20, 0.31, 0.32, 0.35), 1, 8))
+		button.add_theme_stylebox_override("hover", _lobby_style(Color(0.12, 0.22, 0.23, 0.92), Color("#d6b674"), 1, 8))
+		button.add_theme_stylebox_override("pressed", _lobby_style(Color(0.20, 0.26, 0.22, 0.96), Color("#e5c780"), 2, 8))
+		button.pressed.connect(_show_lobby_page.bind(page_id))
+		lobby_nav_buttons[page_id] = button
+		nav.add_child(button)
+
+	# A narrow contextual panel leaves the authored world as the dominant view.
+	var content_panel := PanelContainer.new()
+	content_panel.name = "LobbyContentPanel"
+	content_panel.position = Vector2(viewport_size.x - 372.0, 84.0)
+	content_panel.size = Vector2(354.0, viewport_size.y - 154.0)
+	content_panel.add_theme_stylebox_override("panel", _lobby_style(Color(0.008, 0.020, 0.031, 0.86), Color(0.34, 0.36, 0.30, 0.48), 1, 10))
+	lobby_overlay.add_child(content_panel)
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content_panel.add_child(scroll)
+
+	lobby_content = VBoxContainer.new()
+	lobby_content.name = "LobbyPageContent"
+	lobby_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lobby_content.add_theme_constant_override("separation", 9)
+	scroll.add_child(lobby_content)
+
+	save_feedback_label = Label.new()
+	save_feedback_label.name = "LobbyFooterStatus"
+	save_feedback_label.position = Vector2(104.0, viewport_size.y - 48.0)
+	save_feedback_label.size = Vector2(viewport_size.x - 500.0, 24.0)
+	save_feedback_label.text = "SHARIATPUR  /  PROJECT A-SQUARE"
+	save_feedback_label.add_theme_font_size_override("font_size", 10)
+	save_feedback_label.add_theme_color_override("font_color", Color("#c1c9c1"))
+	lobby_overlay.add_child(save_feedback_label)
+
+	if is_instance_valid(w) and is_instance_valid(w.player):
+		w.player.set_camera_view_mode("third_person")
+		w.player.camera_yaw = 24.0
+		w.player.camera_pitch = -8.0
+		w.player.call("_update_camera")
+	_ensure_lobby_showcase()
+	_update_lobby_header()
+	_show_lobby_page("home")
 
 
 func _ensure_lobby_showcase() -> void:
