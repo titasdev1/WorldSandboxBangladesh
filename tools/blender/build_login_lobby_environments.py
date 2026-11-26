@@ -64,7 +64,11 @@ def clear_scene() -> bpy.types.Scene:
     scene.render.engine = "BLENDER_EEVEE"
     scene.render.resolution_x = 1600
     scene.render.resolution_y = 900
-    scene.render.resolution_percentage = 72
+    # A contact-sheet preview is intentionally lighter than the exported GLB.
+    # It is for art-direction review, not final-resolution film rendering.
+    scene.render.resolution_percentage = 55
+    if hasattr(scene, "eevee") and hasattr(scene.eevee, "taa_render_samples"):
+        scene.eevee.taa_render_samples = 16
     scene.render.image_settings.file_format = "PNG"
     scene.view_settings.view_transform = "AgX"
     scene.view_settings.look = "AgX - Medium High Contrast"
