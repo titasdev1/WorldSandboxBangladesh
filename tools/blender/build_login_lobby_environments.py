@@ -781,11 +781,11 @@ def build_lobby(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material]) -> 
     # Operator-safe camera from the riverfront entrance through the glass hall.
     # The view includes floor contact, the overhead architecture, displays and
     # the ferry/river depth behind the hall; no primitive podium fills the frame.
-    cam = camera(scene, "Lobby_Art_Review_Camera", (0.0, -13.5, 7.5), (0.0, 2.0, 4.0), 30.0)
+    cam = camera(scene, "Lobby_Art_Review_Camera", (-7.5, -7.6, 7.8), (0.0, 1.0, 3.7), 34.0)
     animate_camera_path(cam, "Lobby_Camera_Inspection_Arc", [
-        (1, (1.2, -14.5, 8.0), (0.0, 1.0, 4.0)),
-        (90, (0.0, -13.5, 7.5), (0.0, 2.0, 4.0)),
-        (180, (-1.2, -12.0, 7.2), (0.0, 3.0, 4.0)),
+        (1, (-8.2, -8.2, 8.0), (0.0, 0.2, 3.8)),
+        (90, (-7.5, -7.6, 7.8), (0.0, 1.0, 3.7)),
+        (180, (-6.6, -6.9, 7.4), (0.0, 2.0, 3.5)),
     ])
 
 
