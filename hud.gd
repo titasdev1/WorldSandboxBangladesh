@@ -934,6 +934,15 @@ func _build_lobby_ui() -> void:
 	header_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	header.add_child(header_row)
 
+	var brand_icon := TextureRect.new()
+	brand_icon.name = "LobbyBrandEmblem"
+	brand_icon.texture = load("res://assets/ui/brand/a_square_mark.svg") as Texture2D
+	brand_icon.custom_minimum_size = Vector2(42.0, 42.0)
+	brand_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	brand_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	brand_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(brand_icon)
+
 	var identity := VBoxContainer.new()
 	identity.custom_minimum_size = Vector2(190.0, 0.0)
 	identity.add_theme_constant_override("separation", 0)
