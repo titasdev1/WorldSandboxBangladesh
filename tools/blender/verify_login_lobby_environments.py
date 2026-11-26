@@ -78,6 +78,10 @@ def validate(kind: str, path: pathlib.Path) -> dict:
     operator_preview_sha256 = str(manifest.get("operator_preview_sha256", ""))
     if not operator_preview_source or len(operator_preview_sha256) != 64:
         errors.append("the preview was not rendered with a verified rigged operator source asset")
+    if manifest.get("operator_preview_removed_before_export") is not True:
+        errors.append("the rigged operator preview was not removed before environment GLB export")
+    if any("Field_Ranger_Preview" in str(node.get("name", "")) for node in nodes):
+        errors.append("preview-only rigged operator nodes remain inside the environment GLB")
     if kind == "login":
         if not cameras:
             errors.append("login scene does not export its cinematic camera")
