@@ -238,38 +238,62 @@ Validation sequence:
 - Keep this file as the single animation-toolchain index. Detailed scene briefs, shot lists and per-asset manifests belong in the production workstream, linked back here.
 
 
-## 12. A-Square implementation update — 2026-11-25
+## 12. A-Square implementation update — 2026-11-26
 
-### Separate Ara3D operator roster (structural pipeline now validated)
+### Three separate Ara3D operator profiles
 
-The original active branch supplied one Ara3D character model with high/medium/low detail variants. Those three LOD files were one identity, not three characters. That single-model setup did not meet the three-operator requirement.
+The old successful Ara build contained one character mesh in three LODs. That did not meet the three-character requirement.
 
-A dedicated branch, `feature/three-distinct-ara-operators`, now defines three independent profiles and a roster:
-- `field_ranger` — frontline field operator
-- `delta_recon` — reconnaissance operator with different body/face/hair profile and blue-grey uniform treatment
-- `river_scout` — older, broader river-country scout with separate face/hair/body profile and tan kit
+The dedicated 'feature/three-distinct-ara-operators' branch now has three independent profiles and a roster:
+- 'field_ranger' — frontline operator
+- 'delta_recon' — reconnaissance operator with its own body/face/hair settings and blue-grey kit
+- 'river_scout' — older river-country scout with a different body/face/hair profile and tan kit
 
-The new `tools/ara3d/verify_ara_roster.py` validates each character's high/medium/low GLB, rig/animation/material/facial gates and hashes the actual baked vertex POSITION streams. The latest successful Ara workflow produced all nine GLBs and passed the unique-geometry gate and integration tests.
+'tools/ara3d/verify_ara_roster.py' validates the three high/medium/low exports, rig/animation/material/facial requirements, LOD ordering and hashes baked vertex-position buffers. The Ara asset workflow produced all nine GLBs and passed the unique-geometry gate. The Android pipeline has been wired to require all three distinct assets and their imported scenes before an APK can pass.
 
-**Visual decision: not art-approved.** The contact sheets still show a generic generated character style with limited differentiation in faces and costume design. Three distinct meshes fix the false-one-character issue; they do not make the operators CODM/PC-grade. Do not mark these as final art or ship them as a premium roster until a close-up character-art review, cloth/hair/face pass, animation/deformation check and Redmi import/device review have passed.
+**Visual decision: NOT ART-APPROVED.** The three meshes are separate, but their faces, clothing construction, hair, silhouette and material treatment still look like generic generated characters. They are not yet premium CODM-level operators. Do not call them final or ship them as a finished roster without a close-up art review, refined cloth/hair/face design, animation-deformation checks and Android device review.
 
-### New Blender environment authoring source (pending build and visual review)
+### Blender-authored login and lobby environment workflow
 
-`tools/blender/build_login_lobby_environments.py` is an original Blender 5.2.4 authoring script for two separate source scenes:
-- Shariatpur riverfront/login environment: mixed-use Bangladesh shopfronts, road/pavement/drainage, banyan-style foliage, CNG auto-rickshaw, river ghat, launch and an animated camera reveal.
-- Delta Command/operator lobby environment: authored river-facing hall, glass/metal structure, ceiling louvres, displays, port service details, ferry and environmental/camera motion.
+'tools/blender/build_login_lobby_environments.py' authors two original scenes in Blender 5.2.4:
+- Shariatpur login riverfront: Bangladesh mixed-use blocks, road, pavement/drainage, shopfront details, banyan foliage, CNG, river ghat, launch and an animated camera/traffic pass.
+- Delta Command lobby: river-terminal command hall with glass/steel architecture, roof louvres, displays, equipment/service areas, port crane, ferry and environmental animation.
 
-The script creates packed bitmap base-colour, roughness and tangent-normal maps rather than relying only on Blender procedural shader nodes that would not transfer to a glTF game import. Static meshes are batched by material/animation parent to reduce draw calls. It is still an authored-candidate scene, not a finished photoreal environment.
+The scene materials include embedded base-colour, roughness and tangent-normal maps. Static meshes are batched by material/animation parent; high-detail source geometry is retained in the GLB candidate. The login GLB is approximately 14.6 MB; the lobby GLB is approximately 3.6 MB. Structural validation reports 66 embedded PBR images and three animation clips for login. These counts prove file structure only—not photorealism or device performance.
 
-`tools/blender/verify_login_lobby_environments.py` and `.github/workflows/validate-lobby-art.yml` provide structural validation and render previews. The first run found a Blender 5.2.4 renderer enum mismatch and stopped before export; the script was corrected to use the renderer identifier exposed by the pinned executable. The next run must pass before the generated GLBs can be reviewed.
+Workflow: 'validate-lobby-art.yml', run **45833745139**, passed both Blender scene exports, previews, and structural verification. The first rendered review was rejected:
+- Login showed mostly dark/blank rear building faces and a misplaced diagonal strip.
+- Lobby was almost black and viewed through the dark exterior glass.
+The camera system was corrected to use Z-up look-at quaternions; shopfront details were turned toward the login camera; a directional sun and stronger key/fill/rim lights were added; and the lobby review camera moved inside the hall. A second adjustment moved the lobby camera off-centre to inspect the interior and operator stage.
 
-**Runtime status:** neither Blender environment GLB has yet been approved, imported into the canonical Godot project, wired into login/lobby, built into the Android APK, or tested on the Redmi. Until that happens, the currently integrated primitive-based login/lobby remains the active fallback.
+The latest camera/lighting/facade build is running in workflow **45835493065**. Its preview must be inspected before art approval.
 
-### Promotion rules
+### Runtime integration status
 
-- Keep the Ara3D roster and Blender lobby-art work in their dedicated feature branch until all relevant automated tests pass.
-- Download and inspect the actual preview images. A structural PASS does not substitute for human visual review.
-- Import both environment GLBs into Godot 4.4.1 and verify camera ownership, animation clip names, materials/textures, scale, transform origin and Android import output.
-- Wire the authored login stage behind an explicit resource-exists/import-success gate; keep the old scene only as fallback during validation.
-- Wire the lobby environment without overriding the player's active camera or moving the player's coordinate origin. Verify operator feet contact the actual stage floor and that the lobby animation does not update hidden/offscreen scenes.
-- Run the Android package verifier and on-device smoke test before calling the art pipeline shipped.
+- 'systems/login_backdrop_view.gd' now prefers the authored login GLB and loops imported environment clips, with the earlier procedural scene retained as a fallback.
+- 'systems/lobby_showcase.gd' now prefers the authored lobby GLB and loops imported environment clips, with the earlier podium retained as a fallback.
+- The Android workflow has **not yet been updated to consume the successful Blender artifact**. Until the source-matched art artifact is downloaded, verified, copied to 'external_content/lobby_art/', imported into Godot and embedded in a new APK, the in-game GLB paths will fall back to the previous scene.
+- No current APK has been built from this art branch; no Redmi device visual/FPS/memory/thermal review has passed.
+
+### Current lobby hierarchy and mode semantics
+
+The active branch now uses a compact, icon-led navigation rail, a small player/data header and a narrower contextual panel to keep the environment and character showcase dominant. The login and district-loading screens were also redesigned as scene-first layouts rather than large text-heavy cards.
+
+The lobby's pillar structure is separated:
+- JibonJatra — open-world life and exploration.
+- Modern Warfare Missions — separate story campaign (not active yet).
+- Greenwake — separate adventure/mystery exploration pillar (not active yet).
+- Strikefront — competitive playlist family. Last Stand is solo survival; Strike Front is reserved for solo/squad multiplayer queues; Combat Lab is a multiplayer playlist; Skirmish is a separate future ruleset.
+
+Only Last Stand and JibonJatra are currently launchable in this branch. Strike Front and Combat Lab are marked unavailable until a real multiplayer service exists; Skirmish and the narrative campaigns remain in development. The old duplicate solo Battle Royale menu/replay route has been removed from the lobby controller. Do not treat a disabled playlist card as a functioning online mode.
+
+### Promotion and acceptance gates
+
+A scene is promoted only after:
+1. Blender 5.2.4 source scene and render are inspectable.
+2. The visual review accepts composition, silhouette, detail, materials, lighting and color.
+3. GLB import into Godot 4.4.1 validates camera ownership, transforms, scale, animation names, embedded textures and scene origin.
+4. Android APK content verification confirms each source hash, imported scene and manifest.
+5. The actual Android device shows the scene without stutter, incorrect camera framing, black materials, visible pop-in or memory/thermal problems.
+
+A green workflow and a non-empty GLB are necessary gates, not an artistic sign-off.
