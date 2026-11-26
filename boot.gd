@@ -161,9 +161,6 @@ func _show_guest_login_screen() -> void:
 	login_overlay.modulate.a = 0.0
 	add_child(login_overlay)
 
-	# The first-run login is a live, low-cost 3D scene rather than a static card
-	# over a flat colour. Keep it behind the existing UI and ignore all pointer
-	# input so callsign entry and the guest button retain their normal behavior.
 	var backdrop := SubViewportContainer.new()
 	backdrop.name = "LoginBackdrop"
 	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -174,62 +171,87 @@ func _show_guest_login_screen() -> void:
 		backdrop.set_script(backdrop_script)
 	login_overlay.add_child(backdrop)
 
-	var background := ColorRect.new()
-	background.name = "LoginBackdropShade"
-	background.color = Color("#06111f")
-	background.color.a = 0.48
-	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	login_overlay.add_child(background)
-
-	var center := CenterContainer.new()
-	center.name = "GuestLoginCenter"
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	login_overlay.add_child(center)
+	# Keep the authored environment visible. A left-side gradient protects the
+	# callsign controls without covering the operator, traffic or riverfront.
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(0.012, 0.022, 0.035, 0.96))
+	gradient.add_point(0.58, Color(0.012, 0.022, 0.035, 0.66))
+	gradient.add_point(1.0, Color(0.012, 0.022, 0.035, 0.0))
+	var gradient_texture := GradientTexture2D.new()
+	gradient_texture.gradient = gradient
+	gradient_texture.fill_from = Vector2(0.0, 0.5)
+	gradient_texture.fill_to = Vector2(1.0, 0.5)
+	var shade := TextureRect.new()
+	shade.name = "LoginLeftGradient"
+	shade.texture = gradient_texture
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	login_overlay.add_child(shade)
 
 	var panel := PanelContainer.new()
 	panel.name = "GuestLoginPanel"
-	panel.custom_minimum_size = Vector2(minf(440.0, maxf(280.0, get_viewport_rect().size.x - 44.0)), 0.0)
-	panel.add_theme_stylebox_override("panel", _panel_style(Color("#0b2032"), Color("#28b8d3"), 2, 18))
-	center.add_child(panel)
+	panel.anchor_left = 0.045
+	panel.anchor_top = 0.085
+	panel.anchor_right = 0.415
+	panel.anchor_bottom = 0.915
+	panel.offset_left = 0.0
+	panel.offset_top = 0.0
+	panel.offset_right = 0.0
+	panel.offset_bottom = 0.0
+	panel.custom_minimum_size = Vector2(360.0, 0.0)
+	panel.add_theme_stylebox_override("panel", _panel_style(
+		Color(0.018, 0.041, 0.062, 0.84),
+		Color(0.62, 0.46, 0.22, 0.46),
+		1,
+		14
+	))
+	login_overlay.add_child(panel)
 
 	var content := VBoxContainer.new()
-	content.add_theme_constant_override("separation", 13)
+	content.add_theme_constant_override("separation", 12)
 	panel.add_child(content)
 
 	var eyebrow := Label.new()
-	eyebrow.text = "PROJECT A-SQUARE  /  LOCAL PROFILE"
-	eyebrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	eyebrow.add_theme_color_override("font_color", Color("#51d9ed"))
-	eyebrow.add_theme_font_size_override("font_size", 12)
+	eyebrow.text = "BANGLADESH  /  OPEN WORLD"
+	eyebrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	eyebrow.add_theme_color_override("font_color", Color("#c2a46c"))
+	eyebrow.add_theme_font_size_override("font_size", 11)
 	content.add_child(eyebrow)
 
+	var brand_mark := Label.new()
+	brand_mark.name = "LoginBrandMark"
+	brand_mark.text = "A²"
+	brand_mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	brand_mark.add_theme_color_override("font_color", Color("#f3e6c8"))
+	brand_mark.add_theme_font_size_override("font_size", 70)
+	content.add_child(brand_mark)
+
 	var title := Label.new()
-	title.text = "WELCOME, OPERATOR"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	title.add_theme_color_override("font_color", Color("#f4f8ff"))
-	title.add_theme_font_size_override("font_size", 25)
+	title.text = "A-SQUARE"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	title.add_theme_color_override("font_color", Color("#f3f5f2"))
+	title.add_theme_font_size_override("font_size", 28)
 	content.add_child(title)
 
-	var description := Label.new()
-	description.text = "Create a local guest profile to save your callsign and career progress on this device."
-	description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	description.add_theme_color_override("font_color", Color("#a9c3d5"))
-	description.add_theme_font_size_override("font_size", 14)
-	content.add_child(description)
+	var tagline := Label.new()
+	tagline.text = "A living world. Your story."
+	tagline.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	tagline.add_theme_color_override("font_color", Color("#b5c4c7"))
+	tagline.add_theme_font_size_override("font_size", 15)
+	content.add_child(tagline)
+
+	var separator := HSeparator.new()
+	content.add_child(separator)
 
 	var callsign_label := Label.new()
-	callsign_label.text = "OPERATOR CALLSIGN"
-	callsign_label.add_theme_color_override("font_color", Color("#73e9fa"))
-	callsign_label.add_theme_font_size_override("font_size", 12)
+	callsign_label.text = "CALLSIGN"
+	callsign_label.add_theme_color_override("font_color", Color("#d5bb83"))
+	callsign_label.add_theme_font_size_override("font_size", 11)
 	content.add_child(callsign_label)
 
 	callsign_input = LineEdit.new()
 	callsign_input.name = "OperatorCallsign"
-	callsign_input.placeholder_text = "Enter a name (max 16 characters)"
+	callsign_input.placeholder_text = "Enter your callsign"
 	callsign_input.text = guest_display_name if guest_display_name != "OPERATOR" else ""
 	callsign_input.max_length = 16
 	callsign_input.custom_minimum_size = Vector2(0, 48)
@@ -238,34 +260,31 @@ func _show_guest_login_screen() -> void:
 
 	var guest_button := Button.new()
 	guest_button.name = "ContinueAsGuestButton"
-	guest_button.text = "CONTINUE AS GUEST  →"
-	guest_button.custom_minimum_size = Vector2(0, 56)
+	guest_button.text = "CONTINUE  →"
+	guest_button.custom_minimum_size = Vector2(0, 58)
 	guest_button.add_theme_font_size_override("font_size", 18)
-	guest_button.add_theme_color_override("font_color", Color("#061724"))
-	guest_button.add_theme_stylebox_override("normal", _panel_style(Color("#51d9ed"), Color("#51d9ed"), 1, 10))
-	guest_button.add_theme_stylebox_override("hover", _panel_style(Color("#8beafa"), Color("#ffffff"), 2, 10))
+	guest_button.add_theme_color_override("font_color", Color("#171b1a"))
+	guest_button.add_theme_stylebox_override("normal", _panel_style(Color("#d8b56b"), Color("#f1dca8"), 1, 8))
+	guest_button.add_theme_stylebox_override("hover", _panel_style(Color("#f1dca8"), Color("#fff3d2"), 2, 8))
 	guest_button.pressed.connect(_continue_as_guest)
 	content.add_child(guest_button)
 
-	var online_note := Label.new()
-	online_note.text = "ONLINE SIGN-IN IS NOT CONNECTED IN THIS BUILD"
-	online_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	online_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	online_note.add_theme_color_override("font_color", Color("#e0b47b"))
-	online_note.add_theme_font_size_override("font_size", 11)
-	content.add_child(online_note)
-
 	var local_note := Label.new()
-	local_note.text = "GUEST PROFILE • SAVED PRIVATELY ON THIS DEVICE"
-	local_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	local_note.add_theme_color_override("font_color", Color("#819aac"))
+	local_note.text = "LOCAL GUEST PROFILE  •  SAVED ON THIS DEVICE"
+	local_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	local_note.add_theme_color_override("font_color", Color("#94a8ad"))
 	local_note.add_theme_font_size_override("font_size", 10)
 	content.add_child(local_note)
 
+	brand_mark.scale = Vector2(0.84, 0.84)
+	brand_mark.modulate.a = 0.0
+	panel.modulate.a = 0.0
 	var entrance := create_tween()
 	entrance.set_parallel(true)
-	entrance.tween_property(login_overlay, "modulate:a", 1.0, 0.28)
-	entrance.tween_property(panel, "scale", Vector2.ONE, 0.32).from(Vector2(0.96, 0.96)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	entrance.tween_property(panel, "modulate:a", 1.0, 0.42)
+	entrance.tween_property(brand_mark, "modulate:a", 1.0, 0.55).set_delay(0.08)
+	entrance.tween_property(brand_mark, "scale", Vector2.ONE, 0.7).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	entrance.tween_property(login_overlay, "modulate:a", 1.0, 0.38)
 	callsign_input.grab_focus()
 
 
