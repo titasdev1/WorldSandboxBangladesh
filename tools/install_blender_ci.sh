@@ -5,7 +5,7 @@ set -euo pipefail
 # Try Blender's official mirror first, then its canonical host, then the NJU
 # mirror. Every candidate is checked against a SHA-256 release manifest before
 # extraction; no unverified archive is ever executed.
-BLENDER_VERSION="${BLENDER_VERSION:-5.2.4}"
+BLENDER_VERSION="${BLENDER_VERSION:-5.2.5}"
 BLENDER_SERIES="Blender5.2"
 ARCHIVE_NAME="blender-${BLENDER_VERSION}-linux-x64.tar.xz"
 CHECKSUM_NAME="blender-${BLENDER_VERSION}.sha256"
@@ -14,8 +14,8 @@ INSTALL_ROOT="${BLENDER_INSTALL_ROOT:-${RUNNER_TEMP_DIR}/blender-${BLENDER_VERSI
 BLENDER_DIR="${INSTALL_ROOT}/blender-${BLENDER_VERSION}-linux-x64"
 BLENDER_BIN="${BLENDER_DIR}/blender"
 
-if [[ "${BLENDER_VERSION}" != "5.2.4" ]]; then
-  echo "This project currently validates Blender 5.2.4 LTS; refusing an unreviewed version: ${BLENDER_VERSION}" >&2
+if [[ "${BLENDER_VERSION}" != "5.2.5" && "${BLENDER_VERSION}" != "5.2.4" ]]; then
+  echo "This project validates Blender 5.2.4/5.2.5 LTS only; refusing an unreviewed version: ${BLENDER_VERSION}" >&2
   exit 2
 fi
 
