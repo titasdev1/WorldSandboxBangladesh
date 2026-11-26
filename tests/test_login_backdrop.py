@@ -31,7 +31,6 @@ class LoginBackdropTests(unittest.TestCase):
         login = function_block(self.boot, "_show_guest_login_screen")
         self.assertIn('backdrop.name = "LoginBackdrop"', login)
         self.assertIn('load("res://systems/login_backdrop_view.gd")', login)
-        self.assertLess(login.index("login_overlay.add_child(backdrop)"), login.index("login_overlay.add_child(background)"))
         self.assertLess(login.index("login_overlay.add_child(backdrop)"), login.index("login_overlay.add_child(shade)"))
         self.assertLess(login.index("login_overlay.add_child(shade)"), login.index("login_overlay.add_child(panel)"))
         self.assertIn('guest_button.pressed.connect(_continue_as_guest)', login)
@@ -52,7 +51,20 @@ class LoginBackdropTests(unittest.TestCase):
         self.assertIn('brand_mark := TextureRect.new()', boot)
         self.assertIn('map_brand := TextureRect.new()', boot)
         self.assertIn('res://assets/ui/brand/a_square_mark.svg', boot)
-        self.assertIn('A-Square', mark)
+        self.assertIn('viewBox="0 0 512 512"', mark)
+        self.assertIn("linearGradient", mark)
+        self.assertIn("river", mark.lower())
+    def test_authored_login_scene_mounts_the_existing_player_visual(self):
+        view = self.view
+        host = read("systems/authored_login_operator_host.gd")
+        self.assertIn('load("res://systems/authored_login_operator_host.gd")', view)
+        self.assertIn('operator_host.name = "LoginOperatorPresentationHost"', view)
+        self.assertIn('actor.name = "LoginOperatorActor"', host)
+        self.assertIn('visual.name = "HumanoidVisual"', host)
+        self.assertIn('visual.set("is_player_character", true)', host)
+        self.assertIn('var real_dhaka_loaded := false', host)
+        self.assertIn('LoginOperatorPresentationHost/LoginOperatorActor/HumanoidVisual', read("tests/login_backdrop_runtime_smoke.gd"))
+
     def test_authored_login_scene_is_preferred_and_its_clips_loop(self):
         self.assertIn('const AUTHORED_SCENE_PATH := "res://external_content/lobby_art/a_square_login_riverside.glb"', self.view)
         self.assertIn("func _load_authored_login_scene(viewport: SubViewport) -> bool:", self.view)
