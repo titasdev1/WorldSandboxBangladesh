@@ -72,6 +72,18 @@ jobs:
             --glb build/lobby-art/a_square_login_riverside.glb \
             --out build/lobby-art/login-verification.json
 
+      - name: Preserve login scene candidate for visual review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: A-Square-Login-Scene-Candidate
+          path: |
+            build/lobby-art/a_square_login_riverside.glb
+            build/lobby-art/a_square_login_riverside.png
+            build/lobby-art/login-verification.json
+            build/lobby-art/login-authoring.log
+          if-no-files-found: ignore
+
       - name: Build and render Delta Command lobby environment
         shell: bash
         run: |
