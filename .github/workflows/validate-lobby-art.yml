@@ -135,6 +135,7 @@ jobs:
           if ! xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 blender --background --factory-startup \
             --python tools/blender/build_login_lobby_environments.py -- \
             --kind login \
+            --operator-glb "$(find build/ara-operator/field_ranger/high -maxdepth 1 -type f -name '*.glb' -print -quit)" \
             --out build/lobby-art/a_square_login_riverside.glb \
             --preview build/lobby-art/a_square_login_riverside.png \
             > build/lobby-art/login-authoring.log 2>&1; then
@@ -168,6 +169,7 @@ jobs:
           if ! xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 blender --background --factory-startup \
             --python tools/blender/build_login_lobby_environments.py -- \
             --kind lobby \
+            --operator-glb "$(find build/ara-operator/field_ranger/high -maxdepth 1 -type f -name '*.glb' -print -quit)" \
             --out build/lobby-art/a_square_delta_command_lobby.glb \
             --preview build/lobby-art/a_square_delta_command_lobby.png \
             > build/lobby-art/lobby-authoring.log 2>&1; then
