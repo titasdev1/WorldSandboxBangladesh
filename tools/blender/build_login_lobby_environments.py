@@ -1158,6 +1158,13 @@ def create_manifest(scene: bpy.types.Scene, args: argparse.Namespace) -> dict:
         "source_assets": _all_used_polyhaven_sources(),
         "operator_preview_source": str(scene.get("operator_preview_source", "")),
         "operator_preview_sha256": str(scene.get("operator_preview_sha256", "")),
+        "operator_preview_license": {
+            "generator_source": "https://github.com/olatunde85/3d-gen",
+            "generator_code_license": "MIT",
+            "character_mesh_morph_skin_hair_clothing_license": "CC0-1.0",
+            "motion_capture": "CMU Graphics Lab Motion Capture Database; not for resale as a standalone converted motion asset",
+            "preview_only": True,
+        },
         "pbr_license": "CC0-1.0 Poly Haven maps where present; CC0-1.0 original generated fallback maps otherwise",
         "mesh_object_count": mesh_count,
         "triangle_count": triangles,
