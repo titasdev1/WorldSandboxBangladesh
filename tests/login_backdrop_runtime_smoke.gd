@@ -40,8 +40,11 @@ func _run_smoke() -> void:
 
 	if using_authored_scene:
 		var camera := stage.find_child("Login_Cinematic_Camera", true, false) as Camera3D
-		if camera == null:
-			push_error("LOGIN_BACKDROP_RUNTIME_FAIL: authored login scene has no camera.")
+		var operator_host := stage.get_node_or_null("LoginOperatorPresentationHost")
+		var actor := stage.get_node_or_null("LoginOperatorPresentationHost/LoginOperatorActor") as CharacterBody3D
+		var visual := actor.get_node_or_null("HumanoidVisual") if is_instance_valid(actor) else null
+		if camera == null or not is_instance_valid(operator_host) or not is_instance_valid(visual):
+			push_error("LOGIN_BACKDROP_RUNTIME_FAIL: authored scene must include its camera and existing rigged login operator.")
 			quit(1)
 			return
 	else:
