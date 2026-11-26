@@ -50,6 +50,15 @@ func _load_authored_login_scene(viewport: SubViewport) -> bool:
 		return false
 	stage.name = "AuthoredShariatpurRiverfront"
 	viewport.add_child(stage)
+	var operator_host_script := load("res://systems/authored_login_operator_host.gd") as Script
+	if operator_host_script == null:
+		stage.queue_free()
+		push_warning("LOGIN_OPERATOR_HOST_SCRIPT_MISSING • rejecting incomplete authored login scene.")
+		return false
+	var operator_host := Node3D.new()
+	operator_host.name = "LoginOperatorPresentationHost"
+	operator_host.set_script(operator_host_script)
+	stage.add_child(operator_host)
 	var camera := _find_camera(stage)
 	if camera == null:
 		stage.queue_free()
