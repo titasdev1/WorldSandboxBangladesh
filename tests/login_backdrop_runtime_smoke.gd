@@ -1,6 +1,8 @@
 extends SceneTree
 
 const LOGIN_BACKDROP_VIEW_SCRIPT := "res://systems/login_backdrop_view.gd"
+const AUTHORED_STAGE_NAME := "AuthoredShariatpurRiverfront"
+const FALLBACK_STAGE_NAME := "BangladeshLoginStreet"
 
 
 func _initialize() -> void:
@@ -27,22 +29,31 @@ func _run_smoke() -> void:
 		quit(1)
 		return
 
-	var stage := viewport.get_node_or_null("BangladeshLoginStreet") as Node3D
+	var stage := viewport.get_node_or_null(AUTHORED_STAGE_NAME) as Node3D
+	var using_authored_scene := is_instance_valid(stage)
+	if not using_authored_scene:
+		stage = viewport.get_node_or_null(FALLBACK_STAGE_NAME) as Node3D
 	if stage == null:
-		push_error("LOGIN_BACKDROP_RUNTIME_FAIL: Bangladesh 3D stage was not created.")
+		push_error("LOGIN_BACKDROP_RUNTIME_FAIL: neither authored scene nor fallback stage was created.")
 		quit(1)
 		return
 
-	var vehicle := stage.get_node_or_null("MovingCNGAutoRickshaw")
-	var tree_pivot := stage.get_node_or_null("BreezeTree_0/LeafClusterPivot_0")
-	var actor := stage.get_node_or_null("LoginOperatorActor") as CharacterBody3D
-	var visual := actor.get_node_or_null("HumanoidVisual") if is_instance_valid(actor) else null
-	if not is_instance_valid(vehicle) or not is_instance_valid(tree_pivot) or not is_instance_valid(visual):
-		push_error("LOGIN_BACKDROP_RUNTIME_FAIL: CNG, foliage or rigged operator is missing.")
-		quit(1)
-		return
-
+	if using_authored_scene:
+		var camera := stage.find_child("*", "Camera3D", true, false) as Camera3D
+		if camera == null:
+			push_error("LOGIN_BACKDROP_RUNTIME_FAIL: authored login scene has no camera.")
+			quit(1)
+			return
+	else:
+		var vehicle := stage.get_node_or_null("MovingCNGAutoRickshaw")
+		var tree_pivot := stage.get_node_or_null("BreezeTree_0/LeafClusterPivot_0")
+		var actor := stage.get_node_or_null("LoginOperatorActor") as CharacterBody3D
+		var visual := actor.get_node_or_null("HumanoidVisual") if is_instance_valid(actor) else null
+		if not is_instance_valid(vehicle) or not is_instance_valid(tree_pivot) or not is_instance_valid(visual):
+			push_error("LOGIN_BACKDROP_RUNTIME_FAIL: fallback CNG, foliage or rigged operator is missing.")
+			quit(1)
+			return
 	await process_frame
 	await process_frame
-	print("LOGIN_BACKDROP_RUNTIME_PASS • viewport=960x540 • CNG=true • foliage=true • operator_rig=true")
+	print("LOGIN_BACKDROP_RUNTIME_PASS • viewport=960x540 • authored_scene=%s" % str(using_authored_scene))
 	quit(0)
