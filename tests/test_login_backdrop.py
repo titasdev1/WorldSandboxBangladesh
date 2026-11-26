@@ -32,9 +32,13 @@ class LoginBackdropTests(unittest.TestCase):
         self.assertIn('backdrop.name = "LoginBackdrop"', login)
         self.assertIn('load("res://systems/login_backdrop_view.gd")', login)
         self.assertLess(login.index("login_overlay.add_child(backdrop)"), login.index("login_overlay.add_child(background)"))
-        self.assertLess(login.index("login_overlay.add_child(background)"), login.index("login_overlay.add_child(center)"))
+        self.assertIn('AUTHORED_SCENE_PATH = "res://external_content/lobby_art/a_square_login_riverside.glb"', self.view)
+        self.assertLess(login.index("login_overlay.add_child(backdrop)"), login.index("login_overlay.add_child(shade)"))
+        self.assertLess(login.index("login_overlay.add_child(shade)"), login.index("login_overlay.add_child(panel)"))
         self.assertIn('guest_button.pressed.connect(_continue_as_guest)', login)
+        self.assertIn('tagline.text = "A living world. Your story."', login)
         self.assertIn('callsign_input.grab_focus()', login)
+        self.assertNotIn("Create a local guest profile to save", login)
 
     def test_backdrop_uses_a_bounded_realtime_subviewport(self):
         self.assertIn("VIEWPORT_SIZE := Vector2i(960, 540)", self.view)
@@ -42,6 +46,15 @@ class LoginBackdropTests(unittest.TestCase):
         self.assertIn("viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS", self.view)
         self.assertIn("viewport.gui_disable_input = true", self.view)
         self.assertIn("Control.MOUSE_FILTER_IGNORE", self.view)
+
+    def test_authored_login_scene_is_preferred_and_its_clips_loop(self):
+        self.assertIn('const AUTHORED_SCENE_PATH := "res://external_content/lobby_art/a_square_login_riverside.glb"', self.view)
+        self.assertIn("func _load_authored_login_scene(viewport: SubViewport) -> bool:", self.view)
+        self.assertIn('camera.current = true', self.view)
+        self.assertIn("func _start_scene_animations(root: Node) -> void:", self.view)
+        self.assertIn("clip.loop_mode = Animation.LOOP", self.view)
+        self.assertIn("LOGIN_ART_SCENE_READY", self.view)
+        self.assertIn("LOGIN_ART_SCENE_NOT_INSTALLED", self.view)
 
     def test_bangladesh_street_set_has_moving_cng_and_swaying_tree_leaves(self):
         self.assertIn('_vehicle_root.name = "MovingCNGAutoRickshaw"', self.backdrop)
