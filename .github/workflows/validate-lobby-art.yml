@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y curl xz-utils python3-numpy
+          sudo apt-get install -y curl xz-utils python3-numpy xvfb libgl1-mesa-dri libegl1 libglx-mesa0
           bash -n tools/install_blender_ci.sh
           source tools/install_blender_ci.sh
           blender --version
@@ -55,12 +55,15 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build/lobby-art
-          blender --background --factory-startup \
+          if ! xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 blender --background --factory-startup \
             --python tools/blender/build_login_lobby_environments.py -- \
             --kind login \
             --out build/lobby-art/a_square_login_riverside.glb \
             --preview build/lobby-art/a_square_login_riverside.png \
-            > build/lobby-art/login-authoring.log 2>&1
+            > build/lobby-art/login-authoring.log 2>&1; then
+            cat build/lobby-art/login-authoring.log
+            exit 1
+          fi
           cat build/lobby-art/login-authoring.log
           test -s build/lobby-art/a_square_login_riverside.glb
           test -s build/lobby-art/a_square_login_riverside.png
@@ -73,12 +76,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          blender --background --factory-startup \
+          if ! xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 blender --background --factory-startup \
             --python tools/blender/build_login_lobby_environments.py -- \
             --kind lobby \
             --out build/lobby-art/a_square_delta_command_lobby.glb \
             --preview build/lobby-art/a_square_delta_command_lobby.png \
-            > build/lobby-art/lobby-authoring.log 2>&1
+            > build/lobby-art/lobby-authoring.log 2>&1; then
+            cat build/lobby-art/lobby-authoring.log
+            exit 1
+          fi
           cat build/lobby-art/lobby-authoring.log
           test -s build/lobby-art/a_square_delta_command_lobby.glb
           test -s build/lobby-art/a_square_delta_command_lobby.png
