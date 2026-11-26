@@ -194,6 +194,9 @@ jobs:
           CC0 1.0 Universal. Authoring source: tools/blender/build_login_lobby_environments.py
           Embedded Poly Haven PBR images: CC0 1.0 Universal; exact source asset IDs,
           source URLs and downloaded channels are recorded in asset_manifest.json.
+          Operator preview only: Ara 3D Gen source code MIT; MakeHuman mesh/morph/skin/hair/clothing CC0 1.0.
+          CMU motion-capture usage restrictions remain in force; no standalone converted-motion resale.
+          The operator is removed before environment GLB export and is not duplicated in the game world.
           No game rips, commercial-game assets, logos, street-view images or map-provider 3D tiles.
           EOF
           python3 - <<'PY'
