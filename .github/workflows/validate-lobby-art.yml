@@ -7,7 +7,9 @@ on:
     paths:
       - "tools/blender/build_login_lobby_environments.py"
       - "tools/blender/verify_login_lobby_environments.py"
+      - "tools/fetch_polyhaven_pbr.py"
       - "tools/install_blender_ci.sh"
+      - "tools/fetch_polyhaven_pbr.py"
       - ".github/workflows/validate-lobby-art.yml"
   workflow_dispatch:
 
@@ -49,6 +51,39 @@ jobs:
           python3 -m py_compile \
             tools/blender/build_login_lobby_environments.py \
             tools/blender/verify_login_lobby_environments.py
+
+      - name: Fetch original CC0 PBR surfaces within the mobile resolution budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/fetch_polyhaven_pbr.py
+          python3 tools/fetch_polyhaven_pbr.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest_path = Path("external_content/polyhaven_pbr/asset_manifest.json")
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          if manifest.get("license") != "CC0-1.0" or manifest.get("available") is not True:
+              raise SystemExit("POLYHAVEN_PBR_GATE: no verified CC0 surface maps were downloaded.")
+          surfaces = manifest.get("surfaces", {})
+          required = {"road", "brick", "concrete", "plaster"}
+          missing = sorted(required - set(surfaces))
+          if missing:
+              raise SystemExit(f"POLYHAVEN_PBR_GATE: required authored surfaces missing: {missing}")
+          for surface, entry in surfaces.items():
+              maps = entry.get("maps", {})
+              if "albedo" not in maps:
+                  raise SystemExit(f"POLYHAVEN_PBR_GATE: {surface} is missing albedo.")
+          print("POLYHAVEN_PBR_GATE:PASS", json.dumps({
+              "surface_count": len(surfaces),
+              "surfaces": sorted(surfaces),
+              "channels": sorted({channel for entry in surfaces.values() for channel in entry.get("maps", {})}),
+              "resolution_policy": manifest.get("resolution_policy", ""),
+              "license": manifest["license"],
+          }, sort_keys=True))
+          PY
+
 
       - name: Build and render Shariatpur login environment
         shell: bash
