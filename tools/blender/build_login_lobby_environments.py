@@ -72,7 +72,7 @@ def clear_scene() -> bpy.types.Scene:
     scene.render.image_settings.file_format = "PNG"
     scene.view_settings.view_transform = "AgX"
     scene.view_settings.look = "AgX - Medium High Contrast"
-    scene.view_settings.exposure = 0.0
+    scene.view_settings.exposure = 0.85
     scene.view_settings.gamma = 1.0
     scene.camera = None
     return scene
@@ -308,12 +308,21 @@ def world_and_lighting(scene: bpy.types.Scene, warm: bool = True) -> None:
     world = bpy.data.worlds.new("A_Square_Atmosphere")
     world.use_nodes = True
     background = world.node_tree.nodes.get("Background")
-    background.inputs["Color"].default_value = (0.085, 0.13, 0.18, 1.0) if warm else (0.028, 0.055, 0.085, 1.0)
-    background.inputs["Strength"].default_value = 0.36 if warm else 0.27
+    background.inputs["Color"].default_value = (0.30, 0.39, 0.47, 1.0) if warm else (0.19, 0.27, 0.34, 1.0)
+    background.inputs["Strength"].default_value = 0.72 if warm else 0.62
     scene.world = world
-    add_area_light(scene, "Sunset_Key", (4.5, -5.5, 12.0), (0.0, 0.0, 0.0), 1650, (1.0, 0.70, 0.46), 8.0)
-    add_area_light(scene, "Cool_Sky_Fill", (-9.0, 1.5, 8.0), (0.0, 0.0, 0.0), 1100, (0.34, 0.66, 0.82), 10.0)
-    add_area_light(scene, "Warm_Rim", (5.0, 9.0, 7.0), (0.0, 0.0, 1.0), 1350, (1.0, 0.42, 0.22), 6.0)
+    # A real directional sun gives the architectural planes readable form at
+    # the scale of the full street/hall instead of relying on weak nearby lamps.
+    sun_data = bpy.data.lights.new("A_Square_Directional_Sun", "SUN")
+    sun_data.energy = 2.4 if warm else 2.0
+    sun_data.angle = math.radians(8.0)
+    sun_obj = bpy.data.objects.new("A_Square_Directional_Sun", sun_data)
+    scene.collection.objects.link(sun_obj)
+    sun_obj.location = (12.0, 8.0, 16.0)
+    sun_obj.rotation_euler = (Vector((0.0, -2.0, 0.0)) - sun_obj.location).to_track_quat("-Z", "Y").to_euler()
+    add_area_light(scene, "Sunset_Key", (4.5, 9.5, 13.0), (0.0, -7.0, 2.0), 14500, (1.0, 0.70, 0.46), 12.0)
+    add_area_light(scene, "Cool_Sky_Fill", (-10.0, 4.0, 11.0), (0.0, -4.0, 3.0), 9500, (0.42, 0.68, 0.82), 14.0)
+    add_area_light(scene, "Warm_Rim", (7.0, -13.0, 9.0), (0.0, -3.0, 2.0), 7800, (1.0, 0.49, 0.28), 10.0)
 
 
 def camera(
@@ -393,18 +402,18 @@ def add_facade_building(
     box(name + "_MainVolume", (x, y, height * 0.5), (width, depth, height), shell_mat, 0.05)
     box(name + "_BasePlinth", (x, y - depth * 0.012, 0.16), (width + 0.15, depth + 0.12, 0.32), mats["stone"], 0.035)
     box(name + "_RoofCoping", (x, y, height + 0.08), (width + 0.14, depth + 0.16, 0.18), mats["concrete"], 0.025)
-    front_y = y - depth * 0.5 - 0.045
+    front_y = y + depth * 0.5 + 0.045
     # Recessed storefronts and weathered metal shutters.
     for column in range(max(2, int(width / 1.45))):
         cx = x - width * 0.5 + (column + 0.5) * width / max(2, int(width / 1.45))
         opening_w = width / max(2, int(width / 1.45)) * 0.70
         if style % 3 == 0:
-            box(name + f"_ShopGlass_{column}", (cx, front_y - 0.025, 1.15), (opening_w, 0.055, 1.55), mats["glass"], 0.018)
-            box(name + f"_ShopHeader_{column}", (cx, front_y - 0.06, 2.07), (opening_w + 0.06, 0.10, 0.16), mats["brass"], 0.015)
+            box(name + f"_ShopGlass_{column}", (cx, front_y + 0.025, 1.15), (opening_w, 0.055, 1.55), mats["glass"], 0.018)
+            box(name + f"_ShopHeader_{column}", (cx, front_y + 0.06, 2.07), (opening_w + 0.06, 0.10, 0.16), mats["brass"], 0.015)
         else:
-            box(name + f"_RollerShutter_{column}", (cx, front_y - 0.028, 1.05), (opening_w, 0.06, 1.30), mats["shutter"], 0.012)
+            box(name + f"_RollerShutter_{column}", (cx, front_y + 0.028, 1.05), (opening_w, 0.06, 1.30), mats["shutter"], 0.012)
             for slat in range(7):
-                box(name + f"_ShutterSlat_{column}_{slat}", (cx, front_y - 0.065, 0.51 + slat * 0.16), (opening_w * 0.96, 0.016, 0.018), mats["aluminium"], 0.006)
+                box(name + f"_ShutterSlat_{column}_{slat}", (cx, front_y + 0.065, 0.51 + slat * 0.16), (opening_w * 0.96, 0.016, 0.018), mats["aluminium"], 0.006)
     # Repeated but individually modelled windows, sills, lintels and balcony edges.
     window_columns = max(2, int(width / 1.2))
     for floor in range(1, floors + 1):
@@ -414,22 +423,22 @@ def add_facade_building(
             cx = x - width * 0.5 + (column + 0.5) * width / window_columns
             ww = width / window_columns * (0.44 if style % 2 else 0.52)
             wh = 1.18 if floor < floors else 0.98
-            box(name + f"_Window_{floor}_{column}", (cx, front_y - 0.045, z), (ww, 0.052, wh), floor_mat, 0.014)
-            box(name + f"_Sill_{floor}_{column}", (cx, front_y - 0.11, z - wh * 0.52), (ww + 0.10, 0.14, 0.08), mats["stone"], 0.014)
+            box(name + f"_Window_{floor}_{column}", (cx, front_y + 0.045, z), (ww, 0.052, wh), floor_mat, 0.014)
+            box(name + f"_Sill_{floor}_{column}", (cx, front_y + 0.11, z - wh * 0.52), (ww + 0.10, 0.14, 0.08), mats["stone"], 0.014)
             # Deep vertical jamb strips catch side light.
             for side in (-1, 1):
-                box(name + f"_Jamb_{floor}_{column}_{side}", (cx + side * ww * 0.53, front_y - 0.08, z), (0.055, 0.11, wh + 0.12), mats["trim"], 0.012)
-        box(name + f"_FloorBand_{floor}", (x, front_y - 0.10, z - 0.78), (width + 0.04, 0.15, 0.10), mats["trim"], 0.015)
+                box(name + f"_Jamb_{floor}_{column}_{side}", (cx + side * ww * 0.53, front_y + 0.08, z), (0.055, 0.11, wh + 0.12), mats["trim"], 0.012)
+        box(name + f"_FloorBand_{floor}", (x, front_y + 0.10, z - 0.78), (width + 0.04, 0.15, 0.10), mats["trim"], 0.015)
         if style in (1, 3) and floor % 2 == 1:
-            balcony_y = front_y - 0.28
+            balcony_y = front_y + 0.28
             box(name + f"_BalconySlab_{floor}", (x, balcony_y, z - 0.53), (width * 0.82, 0.62, 0.10), mats["concrete"], 0.025)
             for railing in range(9):
                 rx = x - width * 0.39 + railing * width * 0.78 / 8
-                cylinder(name + f"_BalconyPost_{floor}_{railing}", (rx, balcony_y - 0.25, z - 0.27), 0.018, 0.50, mats["aluminium"], 8)
+                cylinder(name + f"_BalconyPost_{floor}_{railing}", (rx, balcony_y + 0.25, z - 0.27), 0.018, 0.50, mats["aluminium"], 8)
             path_curve(name + f"_BalconyRail_{floor}", [
-                (x - width * 0.41, balcony_y - 0.25, z - 0.04),
-                (x, balcony_y - 0.25, z - 0.04),
-                (x + width * 0.41, balcony_y - 0.25, z - 0.04),
+                (x - width * 0.41, balcony_y + 0.25, z - 0.04),
+                (x, balcony_y + 0.25, z - 0.04),
+                (x + width * 0.41, balcony_y + 0.25, z - 0.04),
             ], mats["aluminium"], 0.024)
     # Rooftop life: water tank, dish, parapet, antennas, AC units and utility lines.
     parapet = box(name + "_Parapet", (x, y, height + 0.34), (width + 0.16, depth + 0.12, 0.52), mats["concrete"], 0.025)
@@ -442,8 +451,8 @@ def add_facade_building(
     cylinder(name + "_AntennaPole", (x - width * 0.25, y + depth * 0.20, height + 1.35), 0.025, 1.2, mats["aluminium"], 12)
     for ac in range(max(1, floors // 3)):
         ax = x - width * 0.34 + ac * 0.72
-        box(name + f"_ACOutdoor_{ac}", (ax, front_y - 0.18, height * 0.70), (0.52, 0.42, 0.44), mats["aluminium"], 0.035)
-        cylinder(name + f"_ACFan_{ac}", (ax, front_y - 0.41, height * 0.70), 0.15, 0.035, mats["dark"], 20, (math.pi * 0.5, 0.0, 0.0))
+        box(name + f"_ACOutdoor_{ac}", (ax, front_y + 0.18, height * 0.70), (0.52, 0.42, 0.44), mats["aluminium"], 0.035)
+        cylinder(name + f"_ACFan_{ac}", (ax, front_y + 0.41, height * 0.70), 0.15, 0.035, mats["dark"], 20, (math.pi * 0.5, 0.0, 0.0))
     return root
 
 
@@ -657,11 +666,11 @@ def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material]) -> 
     # Login camera: a Z-up, river-facing composition from the near road toward
     # the varied shopfronts, tree canopy and Meghna launch. Every keyframe stores
     # a real look-at quaternion so animation never drifts into the sky or road.
-    cam = camera(scene, "Login_Cinematic_Camera", (1.8, 18.0, 12.0), (0.0, -6.0, 3.8), 30.0)
+    cam = camera(scene, "Login_Cinematic_Camera", (2.0, 18.0, 13.5), (0.0, -7.8, 4.2), 34.0)
     animate_camera_path(cam, "Login_Dolly_Reveal", [
-        (1, (4.1, 19.0, 12.8), (0.0, -4.6, 3.8)),
-        (90, (1.8, 18.0, 12.0), (0.0, -6.0, 3.8)),
-        (180, (-1.2, 16.4, 10.8), (0.0, -7.6, 3.4)),
+        (1, (4.3, 20.0, 13.8), (0.0, -5.8, 4.1)),
+        (90, (2.0, 18.0, 13.5), (0.0, -7.8, 4.2)),
+        (180, (-1.5, 16.2, 12.0), (0.0, -9.0, 4.0)),
     ])
     scene.render.filepath = "//login_preview.png"
 
@@ -772,11 +781,11 @@ def build_lobby(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material]) -> 
     # Operator-safe camera from the riverfront entrance through the glass hall.
     # The view includes floor contact, the overhead architecture, displays and
     # the ferry/river depth behind the hall; no primitive podium fills the frame.
-    cam = camera(scene, "Lobby_Art_Review_Camera", (0.0, -23.0, 10.5), (0.0, 1.5, 4.0), 28.0)
+    cam = camera(scene, "Lobby_Art_Review_Camera", (0.0, -13.5, 7.5), (0.0, 2.0, 4.0), 30.0)
     animate_camera_path(cam, "Lobby_Camera_Inspection_Arc", [
-        (1, (1.4, -24.0, 11.0), (0.0, 0.0, 4.0)),
-        (90, (0.0, -23.0, 10.5), (0.0, 1.5, 4.0)),
-        (180, (-1.4, -21.5, 10.0), (0.0, 2.5, 4.0)),
+        (1, (1.2, -14.5, 8.0), (0.0, 1.0, 4.0)),
+        (90, (0.0, -13.5, 7.5), (0.0, 2.0, 4.0)),
+        (180, (-1.2, -12.0, 7.2), (0.0, 3.0, 4.0)),
     ])
 
 
