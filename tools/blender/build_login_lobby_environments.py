@@ -559,6 +559,46 @@ def add_facade_building(
             box(name + f"_RollerShutter_{column}", (cx, front_y + 0.028, 1.05), (opening_w, 0.06, 1.30), mats["shutter"], 0.012)
             for slat in range(7):
                 box(name + f"_ShutterSlat_{column}_{slat}", (cx, front_y + 0.065, 0.51 + slat * 0.16), (opening_w * 0.96, 0.016, 0.018), mats["aluminium"], 0.006)
+        # Distinct local shopfront treatment: painted fascia, fabric awning,
+        # striped valance, metal brackets and an individually named sign.
+        sign_names = ("TEA STALL", "PHARMACY", "MOBILE REPAIR", "BAKERY", "VARIETY STORE", "FERRY TICKETS")
+        sign_name = sign_names[(style * 2 + column + int(abs(x))) % len(sign_names)]
+        sign_mat = mats["blue"] if style % 2 == 0 else mats["brick"]
+        box(name + f"_ShopSignBoard_{column}", (cx, front_y + 0.105, 2.34), (opening_w + 0.08, 0.11, 0.35), sign_mat, 0.025)
+        text_data = bpy.data.curves.new(name + f"_ShopSignText_{column}_Font", "FONT")
+        text_data.body = sign_name
+        text_data.size = min(0.235, max(0.13, opening_w * 0.18))
+        text_data.extrude = 0.002
+        text_data.bevel_depth = 0.0008
+        text_data.align_x = "CENTER"
+        text_data.align_y = "CENTER"
+        sign_text = bpy.data.objects.new(name + f"_ShopSignText_{column}", text_data)
+        bpy.context.collection.objects.link(sign_text)
+        sign_text.location = (cx, front_y + 0.17, 2.34)
+        sign_text.rotation_euler = (math.pi * 0.5, 0.0, math.pi)
+        text_data.materials.append(mats["cream"])
+        set_parent(sign_text, root)
+        awning_mat = mats["canvas"] if style % 2 == 0 else mats["red"]
+        awning = box(name + f"_ShopAwning_{column}", (cx, front_y + 0.34, 1.93), (opening_w + 0.20, 0.54, 0.11), awning_mat, 0.045)
+        awning.rotation_euler[0] = math.radians(7.0)
+        for stripe in range(4):
+            stripe_x = cx - (opening_w + 0.20) * 0.42 + stripe * (opening_w + 0.20) * 0.28
+            stripe_mat = mats["cream"] if stripe % 2 == 0 else mats["red"]
+            stripe_obj = box(name + f"_AwningStripe_{column}_{stripe}", (stripe_x, front_y + 0.59, 1.89), (0.13, 0.018, 0.12), stripe_mat, 0.015)
+            stripe_obj.rotation_euler[0] = math.radians(7.0)
+        for bracket_side in (-1, 1):
+            cylinder(name + f"_AwningBracket_{column}_{bracket_side}", (cx + bracket_side * (opening_w * 0.42), front_y + 0.33, 1.82), 0.018, 0.44, mats["aluminium"], 10, (math.radians(60.0), 0.0, 0.0))
+    # Architectural identity differs by block: pilasters, deep corner piers,
+    # upper-floor sun hoods and parapet mouldings interrupt repeated window grids.
+    if style in (0, 2):
+        for pier_index in range(window_columns + 1):
+            px = x - width * 0.5 + pier_index * width / window_columns
+            box(name + f"_FacadePier_{pier_index}", (px, front_y + 0.13, height * 0.52), (0.12, 0.20, height * 0.92), mats["trim"] if style == 0 else mats["brick"], 0.025)
+            box(name + f"_PierCapital_{pier_index}", (px, front_y + 0.20, height - 0.14), (0.22, 0.26, 0.16), mats["stone"], 0.025)
+    if style == 3:
+        box(name + "_CornerShopCanopy", (x, front_y + 0.42, 2.10), (width + 0.45, 0.80, 0.16), mats["concrete"], 0.045)
+        for canopy_post in (-1, 1):
+            cylinder(name + f"_CornerCanopyPost_{canopy_post}", (x + canopy_post * width * 0.42, front_y + 0.62, 1.18), 0.035, 2.15, mats["aluminium"], 12)
     # Repeated but individually modelled windows, sills, lintels and balcony edges.
     window_columns = max(2, int(width / 1.2))
     for floor in range(1, floors + 1):
@@ -570,6 +610,16 @@ def add_facade_building(
             wh = 1.18 if floor < floors else 0.98
             box(name + f"_Window_{floor}_{column}", (cx, front_y + 0.045, z), (ww, 0.052, wh), floor_mat, 0.014)
             box(name + f"_Sill_{floor}_{column}", (cx, front_y + 0.11, z - wh * 0.52), (ww + 0.10, 0.14, 0.08), mats["stone"], 0.014)
+            if style in (0, 2):
+                path_curve(name + f"_ArchedLintel_{floor}_{column}", [
+                    (cx - ww * 0.56, front_y + 0.09, z + wh * 0.52),
+                    (cx - ww * 0.30, front_y + 0.10, z + wh * 0.70),
+                    (cx, front_y + 0.10, z + wh * 0.78),
+                    (cx + ww * 0.30, front_y + 0.10, z + wh * 0.70),
+                    (cx + ww * 0.56, front_y + 0.09, z + wh * 0.52),
+                ], mats["brass"] if style == 0 else mats["stone"], 0.027)
+            else:
+                box(name + f"_SunHood_{floor}_{column}", (cx, front_y + 0.20, z + wh * 0.56), (ww + 0.20, 0.34, 0.075), mats["concrete"], 0.024)
             # Deep vertical jamb strips catch side light.
             for side in (-1, 1):
                 box(name + f"_Jamb_{floor}_{column}_{side}", (cx + side * ww * 0.53, front_y + 0.08, z), (0.055, 0.11, wh + 0.12), mats["trim"], 0.012)
@@ -688,6 +738,13 @@ def add_cng(name: str, x: float, y: float, mats: dict[str, bpy.types.Material]) 
         cylinder(name + f"_AlloyHub_{index}", pos, 0.18, 0.18, mats["aluminium"], 24, (math.pi * 0.5, 0.0, 0.0), hub)
         cylinder(name + f"_HubCap_{index}", pos, 0.075, 0.19, mats["brass"], 20, (math.pi * 0.5, 0.0, 0.0), hub)
         wheels.append(hub)
+        hub.rotation_mode = "XYZ"
+        hub.rotation_euler = (0.0, 0.0, 0.0)
+        hub.keyframe_insert(data_path="rotation_euler", frame=1, group=f"CNG_Wheel_Rotation_{index}")
+        hub.rotation_euler[1] = math.tau * 2.0
+        hub.keyframe_insert(data_path="rotation_euler", frame=180, group=f"CNG_Wheel_Rotation_{index}")
+        if hub.animation_data and hub.animation_data.action:
+            hub.animation_data.action.name = f"CNG_Wheel_Rotation_{index}"
     root["wheel_pivots"] = [obj.name for obj in wheels]
     root["asset_role"] = "Bangladesh_CNG_AutoRickshaw"
     return root
@@ -796,8 +853,8 @@ def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material]) -> 
         path_curve(f"StreetLamp_{i}_Arm", [(x, 1, 6.75), (x + 0.3, 1, 7.12), (x + 0.82, 1, 7.20)], mats["dark"], 0.055)
         sphere(f"StreetLamp_{i}_Lantern", (x + 0.82, 1, 7.08), (0.24, 0.18, 0.12), mats["lamp"], 16, 8)
     # Local three-wheeler and a small motor launch on the river.
-    cng = add_cng("Shariatpur_Emerald_CNG", -5.0, 3.5, mats)
-    animate_location(cng, "Login_CNG_Pass", [(1, (-17.0, 3.5, 0.0)), (90, (0.0, 3.5, 0.0)), (180, (17.0, 3.5, 0.0))], True)
+    cng = add_cng("Shariatpur_Emerald_CNG", -5.0, 6.3, mats)
+    animate_location(cng, "Login_CNG_Pass", [(1, (-14.0, 6.3, 0.0)), (90, (-2.0, 6.3, 0.0)), (180, (12.0, 6.3, 0.0))], True)
     boat = bpy.data.objects.new("River_Launch", None)
     bpy.context.collection.objects.link(boat)
     boat.location = (7.0, -17.0, 0.10)
@@ -811,11 +868,11 @@ def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material]) -> 
     # Login camera: a Z-up, river-facing composition from the near road toward
     # the varied shopfronts, tree canopy and Meghna launch. Every keyframe stores
     # a real look-at quaternion so animation never drifts into the sky or road.
-    cam = camera(scene, "Login_Cinematic_Camera", (2.0, 18.0, 13.5), (0.0, -7.8, 4.2), 34.0)
+    cam = camera(scene, "Login_Cinematic_Camera", (5.0, 18.0, 8.6), (0.0, -4.5, 2.4), 27.0)
     animate_camera_path(cam, "Login_Dolly_Reveal", [
-        (1, (4.3, 20.0, 13.8), (0.0, -5.8, 4.1)),
-        (90, (2.0, 18.0, 13.5), (0.0, -7.8, 4.2)),
-        (180, (-1.5, 16.2, 12.0), (0.0, -9.0, 4.0)),
+        (1, (8.0, 20.0, 9.0), (0.0, -5.0, 3.0)),
+        (90, (5.0, 18.0, 8.6), (0.0, -4.5, 2.4)),
+        (180, (1.5, 15.0, 7.0), (-3.0, 4.0, 1.8)),
     ])
     scene.render.filepath = "//login_preview.png"
 
@@ -1015,7 +1072,7 @@ def main() -> int:
     else:
         build_lobby(scene, mats)
     consolidate_static_meshes(scene)
-    scene.frame_set(76)
+    scene.frame_set(90)
     args.preview.parent.mkdir(parents=True, exist_ok=True)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     scene.render.filepath = str(args.preview)
