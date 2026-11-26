@@ -108,8 +108,21 @@ def validate(kind: str, path: pathlib.Path) -> dict:
             ]
         ):
             errors.append("Camera Shakify 0.5.1 animation was not baked into a runtime-independent camera action")
-    if kind == "lobby" and not any("Hall" in name or "Command" in name for name in names):
-        errors.append("lobby scene is missing its authored command-hall structure")
+    if kind == "lobby":
+        if not any("Hall" in name or "Command" in name for name in names):
+            errors.append("lobby scene is missing its authored command-hall structure")
+        roster_previews = manifest.get("operator_preview_sources", [])
+        profile_names = {str(item.get("preview_name", "")) for item in roster_previews}
+        source_hashes = [str(item.get("sha256", "")) for item in roster_previews]
+        required_profiles = {
+            "Lobby_Field_Ranger_Preview",
+            "Lobby_Delta_Recon_Preview",
+            "Lobby_River_Scout_Preview",
+        }
+        if not required_profiles.issubset(profile_names):
+            errors.append("lobby preview does not contain all three named operator profiles")
+        if len(source_hashes) != 3 or len(set(source_hashes)) != 3:
+            errors.append("lobby preview operator GLBs are not three distinct source assets")
     return {
         "kind": kind, "path": str(path), "bytes": path.stat().st_size,
         "node_count": len(nodes), "mesh_batch_count": len(meshes),

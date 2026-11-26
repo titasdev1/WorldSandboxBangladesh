@@ -330,3 +330,30 @@ Mobile promotion separately checks compressed GLB/package size, texture memory, 
 6. After visual approval, run engine import, Android packaging, target-device frame-time/memory/thermal tests, and only then label the APK deliverable.
 
 Do not claim GTA 6 / COD Modern Warfare 4 parity, photorealism, complete cinematics or a release build from a Blender preview, CI green state or triangle count. Treat these references as quality targets, not as already reached outcomes.
+
+
+## 14. Three-operator lobby composition and visual corrections — 2026-11-26
+
+### Last successful authoring build
+Run [45846896918](https://github.com/titasdev1/WorldSandboxBangladesh/actions/runs/45846896918) completed successfully on commit `4ce03b7cef901bd4440146c23d960c0032729beb`.
+
+- Camera Shakify 0.5.1 was fetched at pinned upstream commit, the manifest and licensing were checked, and the subtle `INVESTIGATION` camera movement was sampled and baked into ordinary camera transform channels. The exported scene has no Blender add-on runtime dependency.
+- Poly Haven returned seven CC0 surfaces: road, brick, concrete, plaster, metal, wood and ground. The PBR asset gate passed.
+- Login source GLB: 71,758,708 bytes, 489,968 triangles in the exported GLB verifier, 29 materials, 66 textures, 48 embedded images and six animation clips.
+- Lobby source GLB: 31,728,680 bytes, 61,672 triangles in the exported GLB verifier, 16 materials, 27 textures and 24 embedded images.
+- The workflow validates GLB structure and retains preview images/artifacts. It is **not** an Android build or a Redmi device test.
+
+### Human visual review: previous two previews rejected
+The login image framed a small operator against an overly dominant grey road; the CNG was cropped and the Shariatpur street, shopfronts, river and launch did not read as the intended background.
+The Delta Command image read as a largely empty blue-grey hall with only one dark operator on a medallion. It was not the required three-character roster presentation.
+
+### Corrected production pass
+- Recompose login with a larger foreground operator on the promenade, CNG traffic on the actual road lane, visible street/shopfront depth, tree canopy and river/launch layers.
+- Choose `Rifle idle (low ready)` for the hero pose where it exists; do not let alphabetical sorting select `Carry idle`, `Cover idle` or a crouch variant. Preserve the chosen action name in the source manifest.
+- The lobby review must import three separate high-LOD GLBs from the canonical roster: Field Ranger, Delta Recon and River Scout. Their baked vertex/source hashes must be distinct; recoloured copies are not accepted as separate operators.
+- Compose the roster as three full-body subjects with dedicated face/equipment key, fill and rim lighting, a broad tactical display, rear glazing and visible river depth. Use the actual three source rigs in the preview and remove all three before exporting the environment GLB.
+- Triangulate the remaining meshes before tangent generation; retain road albedo up to 4K, other albedo/normal maps up to 2K, scalar material maps at 1K.
+- Review the new PNG previews before Godot import. Keep the art branch and runtime integration draft unmerged until human visual review and Redmi Android packaging/performance checks are complete.
+
+### Acceptance is not a CI status
+A successful Blender run confirms that a render and structurally valid environment GLB were produced. It does not establish that the scene is photorealistic, CODM-level, artist-approved, smooth on Android, or integrated into the current game. The next result must be reviewed at image level before promotion.

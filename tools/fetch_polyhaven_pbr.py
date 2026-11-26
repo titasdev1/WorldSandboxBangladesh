@@ -51,7 +51,12 @@ def optimize_texture_payload(payload: bytes, surface: str, kind: str, source_suf
     """Cap dimensions and store colour/scalar maps compactly for Android packs."""
     with Image.open(io.BytesIO(payload)) as source:
         image = source.copy()
-        cap = 4096 if surface == "road" and kind == "albedo" else 2048
+        if surface == "road" and kind == "albedo":
+            cap = 4096
+        elif kind in {"roughness", "metallic", "ao", "height"}:
+            cap = 1024
+        else:
+            cap = 2048
         original_size = list(image.size)
         if max(image.size) > cap:
             ratio = cap / max(image.size)
@@ -154,7 +159,7 @@ def write_manifest(surfaces: dict, note: str = "") -> None:
         "api": API,
         "license": "CC0-1.0",
         "attribution_required_for_downloaded_assets": False,
-        "resolution_policy": "Mobile bundle: road albedo up to 4K; all other channels and surfaces up to 2K, with 1K/512 fallback. 8K maps are excluded.",
+        "resolution_policy": "Mobile bundle: road albedo up to 4K; other albedo/normal maps up to 2K; scalar roughness/metallic/AO/height maps capped at 1K. 8K maps are excluded.",
         "surfaces": surfaces,
         "note": note,
     }, indent=2) + "\n", encoding="utf-8")
@@ -211,7 +216,7 @@ def main() -> int:
                     print(f"Prepared {surface}: {asset_id} ({', '.join(sorted(maps))})")
             except Exception as exc:
                 print(f"WARNING: could not prepare {surface} texture: {exc}")
-        write_manifest(surfaces, "Only downloaded CC0 files are included; road albedo is capped at 4K and all other channels at 2K. Albedo/scalar maps use optimized JPEG; source PNG normal maps remain lossless. Missing maps use procedural fallbacks.")
+        write_manifest(surfaces, "Only downloaded CC0 files are included; road albedo is capped at 4K, other albedo/normal maps at 2K, scalar roughness/metallic/AO/height maps at 1K. Normal maps remain lossless where sourced as PNG.")
         print(f"Poly Haven CC0 PBR surfaces prepared: {len(surfaces)}")
         return 0
     except Exception as exc:

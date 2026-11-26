@@ -50,6 +50,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out", type=pathlib.Path, required=True)
     parser.add_argument("--preview", type=pathlib.Path, required=True)
     parser.add_argument("--operator-glb", type=pathlib.Path, required=True, help="Exact roster-matched rigged Field Ranger GLB used for preview only.")
+    parser.add_argument("--operator-glb-delta", type=pathlib.Path, help="Roster-matched Delta Recon high-LOD GLB for lobby review.")
+    parser.add_argument("--operator-glb-river", type=pathlib.Path, help="Roster-matched River Scout high-LOD GLB for lobby review.")
     return parser.parse_args(argv)
 
 
@@ -69,9 +71,9 @@ def clear_scene() -> bpy.types.Scene:
     scene.render.resolution_y = 900
     # A contact-sheet preview is intentionally lighter than the exported GLB.
     # It is for art-direction review, not final-resolution film rendering.
-    scene.render.resolution_percentage = 55
+    scene.render.resolution_percentage = 75
     if hasattr(scene, "eevee") and hasattr(scene.eevee, "taa_render_samples"):
-        scene.eevee.taa_render_samples = 16
+        scene.eevee.taa_render_samples = 24
     scene.render.image_settings.file_format = "PNG"
     scene.view_settings.view_transform = "AgX"
     scene.view_settings.look = "AgX - Medium High Contrast"
@@ -504,7 +506,12 @@ def camera(
     return obj
 
 
-def add_operator_preview(glb_path: pathlib.Path, location: tuple[float, float, float], name: str) -> bpy.types.Object:
+def add_operator_preview(
+    glb_path: pathlib.Path,
+    location: tuple[float, float, float],
+    name: str,
+    preferred_action: str = "Rifle idle (low ready)",
+) -> bpy.types.Object:
     """Import the exact roster-matched rig only for preview rendering.
 
     The operator hierarchy is removed immediately after the PNG render. The
@@ -548,34 +555,52 @@ def add_operator_preview(glb_path: pathlib.Path, location: tuple[float, float, f
         action for action in all_idle_actions
         if not any(token in action.name.lower() for token in excluded_idle_tokens)
     ]
-    idle_actions = sorted(
-        neutral_idle_actions,
-        key=lambda action: (
-            0 if action.name.lower().strip() in {
-                "idle", "standing idle", "unarmed idle"
-            } else 1,
-            action.name.lower(),
+    preferred = next(
+        (
+            action for action in neutral_idle_actions
+            if action.name.lower().strip() == preferred_action.lower().strip()
         ),
+        None,
     )
+    if preferred is None:
+        preferred = next(
+            (
+                action for action in neutral_idle_actions
+                if action.name.lower().strip() in {"idle", "standing idle", "unarmed idle"}
+            ),
+            None,
+        )
+    selected_action = preferred or (neutral_idle_actions[0] if neutral_idle_actions else None)
     armatures = [obj for obj in imported if obj.type == "ARMATURE"]
-    if armatures and idle_actions:
+    if armatures and selected_action:
         for armature in armatures:
             armature.animation_data_create()
             try:
-                armature.animation_data.action = idle_actions[0]
+                armature.animation_data.action = selected_action
             except (AttributeError, TypeError, RuntimeError) as exc:
                 print(f"OPERATOR_PREVIEW_IDLE_WARNING: {exc}")
+    elif armatures:
+        print("OPERATOR_PREVIEW_IDLE_WARNING: no neutral idle action was found; source rig rest pose is retained.")
 
     bpy.context.scene["operator_preview_source"] = glb_path.name
     bpy.context.scene["operator_preview_sha256"] = wrapper["source_sha256"]
     bpy.context.scene["operator_preview_only"] = True
+    source_records = json.loads(str(bpy.context.scene.get("operator_preview_sources_json", "[]")))
+    source_records.append({
+        "preview_name": name,
+        "source": glb_path.name,
+        "sha256": wrapper["source_sha256"],
+        "selected_action": selected_action.name if selected_action else "",
+    })
+    bpy.context.scene["operator_preview_sources_json"] = json.dumps(source_records, sort_keys=True)
     print("OPERATOR_PREVIEW_IMPORTED:", json.dumps({
         "name": name,
         "source": glb_path.name,
         "sha256": wrapper["source_sha256"],
         "objects": len(imported),
         "armatures": len(armatures),
-        "idle_actions": [action.name for action in idle_actions[:4]],
+        "selected_action": selected_action.name if selected_action else "",
+        "neutral_idle_actions": [action.name for action in neutral_idle_actions],
     }, sort_keys=True))
     return wrapper
 
@@ -1115,8 +1140,8 @@ def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], ope
         path_curve(f"StreetLamp_{i}_Arm", [(x, 1, 6.75), (x + 0.3, 1, 7.12), (x + 0.82, 1, 7.20)], mats["dark"], 0.055)
         sphere(f"StreetLamp_{i}_Lantern", (x + 0.82, 1, 7.08), (0.24, 0.18, 0.12), mats["lamp"], 16, 8)
     # Local three-wheeler and a small motor launch on the river.
-    cng = add_cng("Shariatpur_Emerald_CNG", -5.0, 6.3, mats)
-    animate_location(cng, "Login_CNG_Pass", [(1, (-14.0, 6.3, 0.0)), (90, (-2.0, 6.3, 0.0)), (180, (12.0, 6.3, 0.0))], True)
+    cng = add_cng("Shariatpur_Emerald_CNG", 3.0, 3.3, mats)
+    animate_location(cng, "Login_CNG_Pass", [(1, (-15.0, 3.3, 0.0)), (90, (0.0, 3.3, 0.0)), (180, (15.0, 3.3, 0.0))], True)
     boat = bpy.data.objects.new("River_Launch", None)
     bpy.context.collection.objects.link(boat)
     boat.location = (7.0, -17.0, 0.10)
@@ -1130,22 +1155,35 @@ def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], ope
     # Login camera: a Z-up, river-facing composition from the near road toward
     # the varied shopfronts, tree canopy and Meghna launch. Every keyframe stores
     # a real look-at quaternion so animation never drifts into the sky or road.
-    cam = camera(scene, "Login_Cinematic_Camera", (1.0, 16.5, 5.8), (-5.8, 6.3, 1.15), 52.0)
+    cam = camera(scene, "Login_Cinematic_Camera", (0.0, 18.0, 6.0), (-0.7, -2.5, 2.05), 48.0)
     animate_camera_path(cam, "Login_Dolly_Reveal", [
-        (1, (1.5, 17.8, 6.2), (-5.8, 6.3, 1.15)),
-        (90, (1.0, 16.5, 5.8), (-5.8, 6.3, 1.15)),
-        (180, (0.5, 15.2, 5.4), (-5.2, 5.7, 1.10)),
+        (1, (0.8, 19.2, 6.3), (-0.9, -2.1, 2.05)),
+        (90, (0.0, 18.0, 6.0), (-0.7, -2.5, 2.05)),
+        (180, (-0.7, 16.7, 5.6), (-0.2, -1.8, 2.10)),
     ])
     apply_camera_shakify(cam, scene)
     scene.render.filepath = "//login_preview.png"
-    operator_preview = add_operator_preview(operator_glb, (-5.8, 6.3, 0.05), "Login_Field_Ranger_Preview")
+    operator_preview = add_operator_preview(
+        operator_glb, (-5.2, 8.0, 0.05), "Login_Field_Ranger_Preview",
+        "Rifle idle (low ready)",
+    )
     face_operator_to_camera(operator_preview, cam)
     return operator_preview
 
 
-def build_lobby(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], operator_glb: pathlib.Path) -> bpy.types.Object:
+def build_lobby(
+    scene: bpy.types.Scene,
+    mats: dict[str, bpy.types.Material],
+    operator_glb: pathlib.Path,
+    delta_operator_glb: pathlib.Path,
+    river_operator_glb: pathlib.Path,
+) -> list[bpy.types.Object]:
     scene["scene_role"] = "A-Square Delta Command — Operator Lobby"
     world_and_lighting(scene, False)
+    # Dedicated face/equipment lighting; the operators must read clearly against the hall.
+    add_area_light(scene, "Operator_Hero_Key", (-3.0, -7.0, 8.0), (0.0, 0.0, 1.5), 9200, (1.0, 0.82, 0.66), 7.0)
+    add_area_light(scene, "Operator_Hero_Fill", (6.0, -5.0, 5.0), (0.0, 0.0, 1.5), 5100, (0.48, 0.70, 0.88), 8.5)
+    add_area_light(scene, "Operator_Hero_Rim", (0.0, 8.0, 9.0), (0.0, 0.0, 1.5), 6500, (1.0, 0.55, 0.32), 6.5)
     # A river-facing command terminal with a real roof profile, glass curtain wall and structural rhythm.
     box("Command_Terminal_Foundation", (0.0, 0.0, -0.28), (38.0, 25.0, 0.60), mats["dark"], 0.12)
     box("Command_Hall_Interior_Deck", (0.0, 0.0, 0.04), (30.0, 18.0, 0.18), mats["concrete"], 0.04)
@@ -1163,6 +1201,14 @@ def build_lobby(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], ope
         (0.34, 0.26, 0.26), (0.8, 0.0, 0.26), (0.0, -0.92, 0.26),
         (-0.8, 0.0, 0.26)
     ], mats["waterline"], 0.024, cyclic=True)
+    for operator_index, x in enumerate((-3.35, 3.35)):
+        cylinder(f"Operator_Roster_Podium_{operator_index}", (x, 0.0, 0.20), 0.88, 0.055, mats["brass"], 72)
+        cylinder(f"Operator_Roster_Podium_Inset_{operator_index}", (x, 0.0, 0.235), 0.81, 0.032, mats["dark"], 72)
+        path_curve(
+            f"Operator_Roster_Podium_Trace_{operator_index}",
+            [(x - 0.52, 0.0, 0.26), (x, 0.58, 0.26), (x + 0.52, 0.0, 0.26), (x, -0.58, 0.26), (x - 0.52, 0.0, 0.26)],
+            mats["waterline"], 0.018, cyclic=True,
+        )
     # Hall: dark steel ribs, high glazing, transom framing, roof louvres and light baffles.
     for i, x in enumerate((-14, -10.5, -7, -3.5, 0, 3.5, 7, 10.5, 14)):
         cylinder(f"Hall_Structural_Pillar_{i}", (x, -4.0, 4.65), 0.13, 9.0, mats["dark"], 24)
@@ -1177,6 +1223,16 @@ def build_lobby(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], ope
         box(f"Roof_Louvre_{i}", (x, 0.0, 8.61), (0.045, 15.4, 0.09), mats["aluminium"], 0.018)
     for side in (-1, 1):
         box(f"Hall_Roof_Fascia_{side}", (0.0, side * 8.8, 8.86), (31.0, 0.42, 0.35), mats["brass"], 0.06)
+    # Panoramic tactical information wall and a full-height riverfront glass curtain.
+    for i, x in enumerate((-14.0, -10.5, -7.0, -3.5, 0.0, 3.5, 7.0, 10.5, 14.0)):
+        box(f"Riverfront_Back_Glass_Bay_{i}", (x, 13.15, 4.35), (3.12, 0.10, 7.55), mats["glass"], 0.018)
+        box(f"Riverfront_Back_Glass_Transom_{i}", (x, 13.08, 6.35), (3.12, 0.14, 0.09), mats["aluminium"], 0.018)
+        box(f"Riverfront_Back_Glass_Sill_{i}", (x, 13.06, 0.72), (3.12, 0.14, 0.15), mats["aluminium"], 0.018)
+    box("Panoramic_Tactical_Display_Housing", (0.0, 12.72, 5.35), (17.0, 0.36, 2.55), mats["dark"], 0.10)
+    box("Panoramic_Tactical_Display_Glass", (0.0, 12.50, 5.35), (16.45, 0.055, 2.12), mats["screen"], 0.035)
+    for i in range(18):
+        x = -7.70 + i * 0.90
+        box(f"Tactical_Display_Data_Rail_{i}", (x, 12.455, 4.78 + (i % 4) * 0.18), (0.56, 0.018, 0.032), mats["waterline"], 0.009)
     # Equipment alcoves and wall-mounted tactical displays, designed as believable hardware.
     for i, x in enumerate((-11.5, -6.0, 6.0, 11.5)):
         box(f"Command_Display_Housing_{i}", (x, -3.35, 4.25), (2.55, 0.42, 1.65), mats["dark"], 0.11)
@@ -1281,19 +1337,36 @@ def build_lobby(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], ope
     # Operator-safe camera from the riverfront entrance through the glass hall.
     # The view includes floor contact, the overhead architecture, displays and
     # the ferry/river depth behind the hall; no primitive podium fills the frame.
-    cam = camera(scene, "Lobby_Art_Review_Camera", (-7.0, 7.5, 3.8), (0.0, 0.0, 1.35), 38.0)
+    cam = camera(scene, "Lobby_Art_Review_Camera", (0.0, -13.8, 4.9), (0.0, 0.5, 1.55), 47.0)
     animate_camera_path(cam, "Lobby_Camera_Inspection_Arc", [
-        (1, (-8.0, 7.2, 3.6), (0.0, -0.2, 1.35)),
-        (90, (-7.0, 7.5, 3.8), (0.0, 0.0, 1.35)),
-        (180, (-6.0, 7.8, 3.7), (0.0, 0.5, 1.40)),
+        (1, (-0.8, -14.8, 5.1), (0.0, 0.2, 1.55)),
+        (90, (0.0, -13.8, 4.9), (0.0, 0.5, 1.55)),
+        (180, (0.9, -12.7, 4.7), (0.0, 0.8, 1.55)),
     ])
-    # Use the exact same roster-matched, rigged operator in the lobby art review.
-    # Remove this preview-only subject before exporting the environment GLB.
-    operator_preview = add_operator_preview(
-        operator_glb, (0.0, 0.0, 0.20), "Lobby_Field_Ranger_Preview"
+    # Three independent roster GLBs; all temporary review subjects are removed before export.
+    previews = []
+    field_preview = add_operator_preview(
+        operator_glb, (0.0, 0.0, 0.24), "Lobby_Field_Ranger_Preview",
+        "Rifle idle (low ready)",
     )
-    face_operator_to_camera(operator_preview, cam)
-    return operator_preview
+    field_preview.scale = (0.82, 0.82, 0.82)
+    face_operator_to_camera(field_preview, cam)
+    previews.append(field_preview)
+    delta_preview = add_operator_preview(
+        delta_operator_glb, (-3.35, 0.0, 0.24), "Lobby_Delta_Recon_Preview",
+        "Rifle idle (low ready)",
+    )
+    delta_preview.scale = (0.72, 0.72, 0.72)
+    face_operator_to_camera(delta_preview, cam)
+    previews.append(delta_preview)
+    river_preview = add_operator_preview(
+        river_operator_glb, (3.35, 0.0, 0.24), "Lobby_River_Scout_Preview",
+        "Rifle idle (low ready)",
+    )
+    river_preview.scale = (0.72, 0.72, 0.72)
+    face_operator_to_camera(river_preview, cam)
+    previews.append(river_preview)
+    return previews
 
 
 
@@ -1346,6 +1419,20 @@ def consolidate_static_meshes(scene: bpy.types.Scene) -> None:
             bpy.data.objects.remove(obj, do_unlink=True)
 
 
+def triangulate_all_meshes(scene: bpy.types.Scene) -> None:
+    """Triangulate all remaining meshes before glTF tangent-space export."""
+    for obj in list(scene.objects):
+        if obj.type != "MESH" or not any(len(poly.vertices) > 3 for poly in obj.data.polygons):
+            continue
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        if bm.faces:
+            bmesh.ops.triangulate(bm, faces=list(bm.faces))
+        bm.to_mesh(obj.data)
+        bm.free()
+        obj.data.update()
+
+
 def create_manifest(scene: bpy.types.Scene, args: argparse.Namespace) -> dict:
     mesh_count = sum(1 for obj in scene.objects if obj.type == "MESH")
     triangles = sum(len(poly.vertices) - 2 for obj in scene.objects if obj.type == "MESH" for poly in obj.data.polygons)
@@ -1360,6 +1447,7 @@ def create_manifest(scene: bpy.types.Scene, args: argparse.Namespace) -> dict:
         "source_assets": _all_used_polyhaven_sources(),
         "operator_preview_source": str(scene.get("operator_preview_source", "")),
         "operator_preview_sha256": str(scene.get("operator_preview_sha256", "")),
+        "operator_preview_sources": json.loads(str(scene.get("operator_preview_sources_json", "[]"))),
         "operator_preview_removed_before_export": scene.get("operator_preview_removed_before_export", False) is True,
         "camera_shakify": {
             "version": str(scene.get("camera_shakify_version", "")),
@@ -1395,10 +1483,16 @@ def main() -> int:
     scene = clear_scene()
     mats = make_material_set()
     if args.kind == "login":
-        operator_preview = build_login(scene, mats, args.operator_glb)
+        operator_previews = [build_login(scene, mats, args.operator_glb)]
     else:
-        operator_preview = build_lobby(scene, mats, args.operator_glb)
+        if args.operator_glb_delta is None or args.operator_glb_river is None:
+            raise ValueError("Lobby art review requires all three roster-matched operator GLBs.")
+        operator_previews = build_lobby(
+            scene, mats, args.operator_glb,
+            args.operator_glb_delta, args.operator_glb_river,
+        )
     consolidate_static_meshes(scene)
+    triangulate_all_meshes(scene)
     scene.frame_set(90)
     args.preview.parent.mkdir(parents=True, exist_ok=True)
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -1406,7 +1500,8 @@ def main() -> int:
     bpy.ops.render.render(write_still=True)
     # Operator model is a render subject only; the engine scene uses the actual
     # player's HumanoidVisual and must not contain a second baked-in operator.
-    remove_operator_preview(operator_preview)
+    for operator_preview in operator_previews:
+        remove_operator_preview(operator_preview)
     bpy.ops.export_scene.gltf(
         filepath=str(args.out),
         export_format="GLB",

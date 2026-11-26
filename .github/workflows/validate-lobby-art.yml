@@ -215,6 +215,8 @@ jobs:
             --python tools/blender/build_login_lobby_environments.py -- \
             --kind lobby \
             --operator-glb "$(find build/ara-operator/field_ranger/high -maxdepth 1 -type f -name '*.glb' -print -quit)" \
+            --operator-glb-delta "$(find build/ara-operator/delta_recon/high -maxdepth 1 -type f -name '*.glb' -print -quit)" \
+            --operator-glb-river "$(find build/ara-operator/river_scout/high -maxdepth 1 -type f -name '*.glb' -print -quit)" \
             --out build/lobby-art/a_square_delta_command_lobby.glb \
             --preview build/lobby-art/a_square_delta_command_lobby.png \
             > build/lobby-art/lobby-authoring.log 2>&1; then
