@@ -35,7 +35,7 @@ METAL_DARK = (0.055, 0.080, 0.096, 1.0)
 METAL_BLUE = (0.075, 0.155, 0.190, 1.0)
 BRASS = (0.58, 0.37, 0.13, 1.0)
 TEAL = (0.025, 0.27, 0.25, 1.0)
-GLASS = (0.06, 0.18, 0.22, 1.0)
+GLASS = (0.10, 0.28, 0.34, 1.0)
 CONCRETE = (0.31, 0.34, 0.32, 1.0)
 PAINT_CREAM = (0.66, 0.60, 0.47, 1.0)
 RED = (0.54, 0.075, 0.045, 1.0)
@@ -72,7 +72,7 @@ def clear_scene() -> bpy.types.Scene:
     scene.render.image_settings.file_format = "PNG"
     scene.view_settings.view_transform = "AgX"
     scene.view_settings.look = "AgX - Medium High Contrast"
-    scene.view_settings.exposure = 0.85
+    scene.view_settings.exposure = 0.15
     scene.view_settings.gamma = 1.0
     scene.camera = None
     return scene
@@ -157,6 +157,15 @@ def material(
     if emission > 0.0:
         shader.inputs["Emission Color"].default_value = colour
         shader.inputs["Emission Strength"].default_value = emission
+    if "Glass" in name or name.endswith("_Glass"):
+        # Low-opacity, softly tinted glazing keeps the hall interior visible
+        # while retaining enough reflection to read as architectural glass.
+        if "Alpha" in shader.inputs:
+            shader.inputs["Alpha"].default_value = 0.24
+        if hasattr(mat, "surface_render_method"):
+            mat.surface_render_method = "BLENDED"
+        if hasattr(mat, "use_transparency_overlap"):
+            mat.use_transparency_overlap = False
     if texture_scale > 0.0:
         base_image, rough_image, normal_image = _pbr_bitmap_images(name, colour, texture_scale)
         texcoord = nodes.new("ShaderNodeTexCoord")
@@ -309,20 +318,20 @@ def world_and_lighting(scene: bpy.types.Scene, warm: bool = True) -> None:
     world.use_nodes = True
     background = world.node_tree.nodes.get("Background")
     background.inputs["Color"].default_value = (0.30, 0.39, 0.47, 1.0) if warm else (0.19, 0.27, 0.34, 1.0)
-    background.inputs["Strength"].default_value = 0.72 if warm else 0.62
+    background.inputs["Strength"].default_value = 0.52 if warm else 0.48
     scene.world = world
     # A real directional sun gives the architectural planes readable form at
     # the scale of the full street/hall instead of relying on weak nearby lamps.
     sun_data = bpy.data.lights.new("A_Square_Directional_Sun", "SUN")
-    sun_data.energy = 2.4 if warm else 2.0
+    sun_data.energy = 1.8 if warm else 1.6
     sun_data.angle = math.radians(8.0)
     sun_obj = bpy.data.objects.new("A_Square_Directional_Sun", sun_data)
     scene.collection.objects.link(sun_obj)
     sun_obj.location = (12.0, 8.0, 16.0)
     sun_obj.rotation_euler = (Vector((0.0, -2.0, 0.0)) - sun_obj.location).to_track_quat("-Z", "Y").to_euler()
-    add_area_light(scene, "Sunset_Key", (4.5, 9.5, 13.0), (0.0, -7.0, 2.0), 14500, (1.0, 0.70, 0.46), 12.0)
-    add_area_light(scene, "Cool_Sky_Fill", (-10.0, 4.0, 11.0), (0.0, -4.0, 3.0), 9500, (0.42, 0.68, 0.82), 14.0)
-    add_area_light(scene, "Warm_Rim", (7.0, -13.0, 9.0), (0.0, -3.0, 2.0), 7800, (1.0, 0.49, 0.28), 10.0)
+    add_area_light(scene, "Sunset_Key", (4.5, 9.5, 13.0), (0.0, -7.0, 2.0), 9800, (1.0, 0.70, 0.46), 12.0)
+    add_area_light(scene, "Cool_Sky_Fill", (-10.0, 4.0, 11.0), (0.0, -4.0, 3.0), 7200, (0.42, 0.68, 0.82), 14.0)
+    add_area_light(scene, "Warm_Rim", (7.0, -13.0, 9.0), (0.0, -3.0, 2.0), 5600, (1.0, 0.49, 0.28), 10.0)
 
 
 def camera(
@@ -781,11 +790,11 @@ def build_lobby(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material]) -> 
     # Operator-safe camera from the riverfront entrance through the glass hall.
     # The view includes floor contact, the overhead architecture, displays and
     # the ferry/river depth behind the hall; no primitive podium fills the frame.
-    cam = camera(scene, "Lobby_Art_Review_Camera", (-7.5, -7.6, 7.8), (0.0, 1.0, 3.7), 34.0)
+    cam = camera(scene, "Lobby_Art_Review_Camera", (0.0, -14.0, 8.5), (0.0, 1.0, 4.0), 30.0)
     animate_camera_path(cam, "Lobby_Camera_Inspection_Arc", [
-        (1, (-8.2, -8.2, 8.0), (0.0, 0.2, 3.8)),
-        (90, (-7.5, -7.6, 7.8), (0.0, 1.0, 3.7)),
-        (180, (-6.6, -6.9, 7.4), (0.0, 2.0, 3.5)),
+        (1, (1.2, -15.0, 9.0), (0.0, 0.2, 4.0)),
+        (90, (0.0, -14.0, 8.5), (0.0, 1.0, 4.0)),
+        (180, (-1.2, -12.5, 8.0), (0.0, 2.5, 3.8)),
     ])
 
 
