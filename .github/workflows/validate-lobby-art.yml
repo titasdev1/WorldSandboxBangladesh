@@ -29,13 +29,13 @@ jobs:
       - name: Checkout Project A-Square
         uses: actions/checkout@v5
 
-      - name: Cache Blender 5.2.4 LTS
+      - name: Cache Blender 5.2.5 LTS
         uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}/blender-5.2.4
+          path: ${{ runner.temp }}/blender-5.2.5
           key: blender-linux-5.2.4-lts
 
-      - name: Install checksum-verified Blender 5.2.4 LTS
+      - name: Install checksum-verified Blender 5.2.5 LTS
         shell: bash
         run: |
           set -euo pipefail
