@@ -33,14 +33,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/blender-5.2.5
-          key: blender-linux-5.2.4-lts
+          key: blender-linux-5.2.5-lts
 
       - name: Install checksum-verified Blender 5.2.5 LTS
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y curl xz-utils python3-numpy xvfb libgl1-mesa-dri libegl1 libglx-mesa0
+          sudo apt-get install -y curl xz-utils python3-numpy python3-pil xvfb libgl1-mesa-dri libegl1 libglx-mesa0
           bash -n tools/install_blender_ci.sh
           source tools/install_blender_ci.sh
           blender --version
@@ -127,12 +127,57 @@ jobs:
           PY
 
 
+      - name: Fetch pinned Camera Shakify 0.5.1 authoring extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          CAMERA_SHAKIFY_COMMIT="a59d9f91dd899dd5e8539dec1e7d5d2c69516920"
+          mkdir -p build/blender_addons/unpacked build/blender_addons/camera_shakify
+          curl --fail --location --silent --show-error --retry 2 --retry-delay 3 \
+            "https://codeload.github.com/EatTheFuture/camera_shakify/zip/${CAMERA_SHAKIFY_COMMIT}" \
+            -o build/blender_addons/camera_shakify-source.zip
+          unzip -q build/blender_addons/camera_shakify-source.zip -d build/blender_addons/unpacked
+          ADDON_SOURCE="$(find build/blender_addons/unpacked -mindepth 2 -maxdepth 3 -name blender_manifest.toml -printf '%h\\n' | head -n 1)"
+          test -n "$ADDON_SOURCE"
+          cp -a "$ADDON_SOURCE"/. build/blender_addons/camera_shakify/
+          python3 - <<'PY'
+          import json
+          import tomllib
+          from pathlib import Path
+          root = Path("build/blender_addons/camera_shakify")
+          manifest = tomllib.loads((root / "blender_manifest.toml").read_text(encoding="utf-8"))
+          if manifest.get("id") != "camera_shakify" or manifest.get("version") != "0.5.1":
+              raise SystemExit("CAMERA_SHAKIFY_GATE: version mismatch")
+          if manifest.get("blender_version_min") != "4.4.0":
+              raise SystemExit("CAMERA_SHAKIFY_GATE: compatibility metadata changed")
+          if "SPDX:GPL-3.0-or-later" not in manifest.get("license", []):
+              raise SystemExit("CAMERA_SHAKIFY_GATE: missing GPL code licence")
+          for name in ("LICENSE_CODE.md", "LICENSE_DATA.md"):
+              if not (root / name).is_file():
+                  raise SystemExit("CAMERA_SHAKIFY_GATE: missing " + name)
+          record = {
+              "name": "Camera Shakify",
+              "version": "0.5.1",
+              "source": "https://github.com/EatTheFuture/camera_shakify",
+              "pinned_commit": "a59d9f91dd899dd5e8539dec1e7d5d2c69516920",
+              "code_license": "GPL-3.0-or-later",
+              "shake_data_license": "CC0-1.0",
+              "blender_minimum": "4.4.0",
+              "authoring_only": True,
+              "runtime_dependency": False
+          }
+          Path("build/blender_addons/camera_shakify-provenance.json").write_text(json.dumps(record, indent=2) + "\\n", encoding="utf-8")
+          print("CAMERA_SHAKIFY_GATE:PASS", json.dumps(record, sort_keys=True))
+          PY
+
       - name: Build and render Shariatpur login environment
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build/lobby-art
-          if ! xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 blender --background --factory-startup \
+          if ! ASQUARE_CAMERA_SHAKIFY_DIR="$PWD/build/blender_addons/camera_shakify" \
+            ASQUARE_CAMERA_SHAKIFY_COMMIT="a59d9f91dd899dd5e8539dec1e7d5d2c69516920" \
+            xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 blender --background --factory-startup \
             --python tools/blender/build_login_lobby_environments.py -- \
             --kind login \
             --operator-glb "$(find build/ara-operator/field_ranger/high -maxdepth 1 -type f -name '*.glb' -print -quit)" \
@@ -184,6 +229,18 @@ jobs:
             --glb build/lobby-art/a_square_delta_command_lobby.glb \
             --out build/lobby-art/lobby-verification.json
 
+      - name: Preserve lobby scene candidate for visual review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: A-Square-Lobby-Scene-Candidate
+          path: |
+            build/lobby-art/a_square_delta_command_lobby.glb
+            build/lobby-art/a_square_delta_command_lobby.png
+            build/lobby-art/lobby-verification.json
+            build/lobby-art/lobby-authoring.log
+          if-no-files-found: ignore
+
       - name: Record original asset licence and manifest
         shell: bash
         run: |
@@ -196,7 +253,9 @@ jobs:
           source URLs and downloaded channels are recorded in asset_manifest.json.
           Operator preview only: Ara 3D Gen source code MIT; MakeHuman mesh/morph/skin/hair/clothing CC0 1.0.
           CMU motion-capture usage restrictions remain in force; no standalone converted-motion resale.
-          The operator is removed before environment GLB export and is not duplicated in the game world.
+          The rigged Field Ranger is preview-only and removed before environment GLB export.
+          Camera Shakify 0.5.1 code is GPL-3.0-or-later; its shake dataset is CC0-1.0.
+          Only baked camera transform keys are exported; the add-on is not a runtime dependency.
           No game rips, commercial-game assets, logos, street-view images or map-provider 3D tiles.
           EOF
           python3 - <<'PY'
@@ -230,4 +289,7 @@ jobs:
             build/lobby-art/*.txt
             build/lobby-art/*-authoring.log
             external_content/polyhaven_pbr/asset_manifest.json
+            build/blender_addons/camera_shakify-provenance.json
+            build/blender_addons/camera_shakify/LICENSE_CODE.md
+            build/blender_addons/camera_shakify/LICENSE_DATA.md
           if-no-files-found: error

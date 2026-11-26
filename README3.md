@@ -297,3 +297,36 @@ A scene is promoted only after:
 5. The actual Android device shows the scene without stutter, incorrect camera framing, black materials, visible pop-in or memory/thermal problems.
 
 A green workflow and a non-empty GLB are necessary gates, not an artistic sign-off.
+
+
+## 13. Production continuation — 2026-11-26 (operator art, camera animation and mobile packaging)
+
+### Production direction retained from the full user brief
+Login, loading, lobby and all navigation hierarchy should be art-led and cinematic, using CODM / MLBB / AOV / HOK as mobile presentation references and GTA / Call of Duty / Uncharted as broader character/environment-animation references. This is not approval to copy commercial-game assets, logos, music, or protected scenes. Create original A-Square art with its own Bangladesh identity.
+
+The product hierarchy must remain functional, icon-led and scene-first. Character and environment performance should dominate the composition; menu labels, settings and mode entries should be contextual, readable and backed by working behavior. Login is a cinematic scene with animated character/cloth, trees, traffic and water; post-login district loading may use a carefully art-directed still image with animated progress/transition rather than loading the whole district in 3D. Lobby must present the selected real rigged operator and its distinct kit/idle rather than a colour-swapped stand-in.
+
+### Current correction work
+- Both login and Delta Command preview scenes now instantiate the exact roster-matched Field Ranger GLB as a temporary render subject, remove it before exporting the environment GLB, and record its source filename/hash in the manifest. The live player/selected operator remains supplied by Godot at runtime to avoid duplicate characters.
+- Neutral-idle selection excludes carry, cover, crouch, aim, vehicle, swim, sprint and injury actions where a neutral idle is available. If no neutral idle exists in the source pack, the missing source animation must be solved upstream; do not quietly use a carry/crouch pose as the hero lobby idle.
+- Login camera art direction is reframed around a larger foreground operator; the Bangladesh CNG traffic pass, riverside launch, varied mixed-use blocks and vegetation remain the environment context. CNG wheel spokes, rim lips, mudguard, lamps, plates and body pinstriping add local-vehicle silhouette detail.
+- Camera Shakify 0.5.1 is pinned to upstream commit `a59d9f91dd899dd5e8539dec1e7d5d2c69516920`. Its extension manifest declares Blender 4.4.0 minimum; code license GPL-3.0-or-later; shake data license CC0-1.0. It is used only to author subtle login camera movement, sampled and baked into ordinary location/quaternion keys, with authoring constraints and helpers removed before GLB export. No plugin/runtime dependency is shipped.
+- Poly Haven albedo and scalar PBR maps are converted to high-quality JPEG with the established 4K-road-albedo / 2K-other-map limits; PNG normal maps remain lossless. Original CC0 source asset IDs, URLs, licenses, output dimensions and byte reductions are retained in the asset manifest.
+- Static mesh batches are triangulated before glTF tangent generation to remove export warnings and produce deterministic tangent-space inputs.
+
+### Visual and technical gates are still separate
+The previous login preview contained a small Field Ranger, a simplified CNG and repetitive building facades; its 76.8 MB GLB is not approved for Android packaging. The previous lobby preview failed because the character preview was not actually instantiated. A corrected Blender run must render both scenes and the user-facing previews must be visually inspected again.
+
+A structural pass requires: a roster-matched rig source hash in both preview manifests; rig removed from the environment export; login camera animation target channels; a baked `Login_Dolly_Shake_Baked` action; valid embedded PBR maps; texture and triangle counts; no missing output files. Visual acceptance separately checks hero framing, skin/hair/cloth detail, natural pose, facade variety, scene composition, daylight/lighting, reflections, environmental motion, icon-led UI hierarchy and transitions.
+
+Mobile promotion separately checks compressed GLB/package size, texture memory, LODs, draw calls, frame time, shader compatibility and thermal stability on the Redmi Note 14 Pro 4G. No new Android APK or physical-device test is claimed by this authoring workflow.
+
+### Remaining art work
+1. Improve the three operator source profiles with distinct facial structure, hair, layered uniforms, equipment, material roughness, cloth/hair rigs and individual authored idle/turn/selection/weapon-check animations. Do not count three recolours as three characters.
+2. Build a real login sequence: short cinematic camera reveal, hero operator close-up, subtle breathing/weight shift, CNG and river launch motion, tree/flag/cloth wind, water movement, controlled DOF, tuned AgX grade and an accessible Skip/Continue transition.
+3. Build a character-led Delta Command lobby: operator in foreground, separate background depth layers, animated staff/equipment/screens, river/ferry activity, clear light direction, reflections and deliberate composition. Navigation and settings remain functional, not decorative.
+4. Create illustrated/animated mode-family art for JibonJatra, Modern Warfare Missions, Greenwake and Strikefront; avoid multiple duplicate BR entries. Combat Lab/Strike Front remain unavailable until real multiplayer exists.
+5. Import the approved source-matched GLBs into Godot 4.4.1, retain a small base APK, and stream optional regional/character/cosmetic asset packs. No whole-city load during parachute/drop; visible-area-first imagery/LOD transitions are required.
+6. After visual approval, run engine import, Android packaging, target-device frame-time/memory/thermal tests, and only then label the APK deliverable.
+
+Do not claim GTA 6 / COD Modern Warfare 4 parity, photorealism, complete cinematics or a release build from a Blender preview, CI green state or triangle count. Treat these references as quality targets, not as already reached outcomes.

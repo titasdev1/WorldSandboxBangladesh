@@ -87,6 +87,27 @@ def validate(kind: str, path: pathlib.Path) -> dict:
             errors.append("login scene does not export its cinematic camera")
         if not any("Login" in name or "CNG" in name for name in names):
             errors.append("login scene is missing Bangladesh traffic/camera naming markers")
+        camera_node_ids = {
+            index for index, node in enumerate(nodes)
+            if "Login_Cinematic_Camera" in str(node.get("name", ""))
+        }
+        animated_camera = any(
+            int(channel.get("target", {}).get("node", -1)) in camera_node_ids
+            for animation in animations
+            for channel in animation.get("channels", [])
+        )
+        shake = manifest.get("camera_shakify", {})
+        if not animated_camera:
+            errors.append("login cinematic camera has no exported animated transform channel")
+        if (
+            shake.get("version") != "0.5.1"
+            or shake.get("baked") is not True
+            or shake.get("runtime_dependency") is not False
+            or "Login_Dolly_Shake_Baked" not in [
+                animation.get("name", "") for animation in animations
+            ]
+        ):
+            errors.append("Camera Shakify 0.5.1 animation was not baked into a runtime-independent camera action")
     if kind == "lobby" and not any("Hall" in name or "Command" in name for name in names):
         errors.append("lobby scene is missing its authored command-hall structure")
     return {

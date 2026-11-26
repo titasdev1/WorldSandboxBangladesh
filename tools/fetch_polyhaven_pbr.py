@@ -5,11 +5,14 @@ Only actual authored texture maps are downloaded. If the public API is unavailab
 the game continues with its existing procedural materials.
 """
 from __future__ import annotations
+import io
 import json
 import pathlib
 import re
 import urllib.parse
 import urllib.request
+
+from PIL import Image
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUT = ROOT / "external_content" / "polyhaven_pbr"
@@ -43,6 +46,49 @@ def get_bytes(url: str) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(request, timeout=45) as response:
         return response.read()
+
+def optimize_texture_payload(payload: bytes, surface: str, kind: str, source_suffix: str) -> tuple[bytes, str, dict]:
+    """Cap dimensions and store colour/scalar maps compactly for Android packs."""
+    with Image.open(io.BytesIO(payload)) as source:
+        image = source.copy()
+        cap = 4096 if surface == "road" and kind == "albedo" else 2048
+        original_size = list(image.size)
+        if max(image.size) > cap:
+            ratio = cap / max(image.size)
+            target = (
+                max(1, round(image.width * ratio)),
+                max(1, round(image.height * ratio)),
+            )
+            image = image.resize(target, Image.Resampling.LANCZOS)
+
+        if kind in {"roughness", "metallic", "ao", "height"}:
+            image = image.convert("L")
+            output = io.BytesIO()
+            image.save(output, format="JPEG", quality=91, optimize=True, progressive=True)
+            suffix = ".jpg"
+        elif kind == "albedo":
+            image = image.convert("RGB")
+            output = io.BytesIO()
+            image.save(output, format="JPEG", quality=93, optimize=True, progressive=True)
+            suffix = ".jpg"
+        elif source_suffix in {".jpg", ".jpeg", ".webp"}:
+            image = image.convert("RGB")
+            output = io.BytesIO()
+            image.save(output, format="JPEG", quality=96, optimize=True, progressive=True)
+            suffix = ".jpg"
+        else:
+            image = image.convert("RGB")
+            output = io.BytesIO()
+            image.save(output, format="PNG", optimize=True)
+            suffix = ".png"
+        result = output.getvalue()
+        return result, suffix, {
+            "original_bytes": len(payload),
+            "optimized_bytes": len(result),
+            "original_dimensions": original_size,
+            "optimized_dimensions": list(image.size),
+            "format": suffix.lstrip("."),
+        }
 
 def describe(item: dict) -> str:
     fields = [item.get("name", ""), item.get("description", ""), item.get("category", "")]
@@ -135,19 +181,24 @@ def main() -> int:
                     if score < 99:
                         candidates.setdefault(kind, []).append((score, path, url, suffix))
                 maps = {}
+                map_optimizations = {}
                 for kind, options in candidates.items():
                     options.sort(key=lambda row: (row[0], len(row[1])))
                     rank, path, url, suffix = options[0]
                     if rank > 3:
                         continue
-                    filename = kind + suffix
+                    raw_payload = get_bytes(url)
+                    if not raw_payload or len(raw_payload) < 1024:
+                        continue
+                    payload, optimized_suffix, optimization = optimize_texture_payload(
+                        raw_payload, surface, kind, suffix
+                    )
+                    filename = kind + optimized_suffix
                     destination = OUT / asset_id / filename
                     destination.parent.mkdir(parents=True, exist_ok=True)
-                    payload = get_bytes(url)
-                    if not payload or len(payload) < 1024:
-                        continue
                     destination.write_bytes(payload)
                     maps[kind] = "res://" + destination.relative_to(ROOT).as_posix()
+                    map_optimizations[kind] = optimization
                 if "albedo" in maps:
                     surfaces[surface] = {
                         "asset_id": asset_id,
@@ -155,11 +206,12 @@ def main() -> int:
                         "source_url": "https://polyhaven.com/a/" + asset_id,
                         "license": "CC0-1.0",
                         "maps": maps,
+                        "map_optimizations": map_optimizations,
                     }
                     print(f"Prepared {surface}: {asset_id} ({', '.join(sorted(maps))})")
             except Exception as exc:
                 print(f"WARNING: could not prepare {surface} texture: {exc}")
-        write_manifest(surfaces, "Only downloaded CC0 files are included; road albedo is capped at 4K, all other channels at 2K, with 1K/512 fallback; missing maps use procedural fallbacks.")
+        write_manifest(surfaces, "Only downloaded CC0 files are included; road albedo is capped at 4K and all other channels at 2K. Albedo/scalar maps use optimized JPEG; source PNG normal maps remain lossless. Missing maps use procedural fallbacks.")
         print(f"Poly Haven CC0 PBR surfaces prepared: {len(surfaces)}")
         return 0
     except Exception as exc:

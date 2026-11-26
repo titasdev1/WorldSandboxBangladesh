@@ -284,7 +284,17 @@ def material(
         rough_node = add_image_node("PBR Roughness", rough_image)
         rough_sep = nodes.new("ShaderNodeSeparateColor")
         rough_sep.mode = "RGB"
-        links.new(base_node.outputs["Color"], shader.inputs["Base Color"])
+        # Keep the chosen material palette visible while retaining real source
+        # texture detail; otherwise one downloaded blue plaster map can flatten
+        # every facade into nearly the same colour.
+        tint_node = nodes.new("ShaderNodeRGB")
+        tint_node.outputs["Color"].default_value = colour
+        albedo_mix = nodes.new("ShaderNodeMixRGB")
+        albedo_mix.blend_type = "MULTIPLY"
+        albedo_mix.inputs["Fac"].default_value = 0.32
+        links.new(base_node.outputs["Color"], albedo_mix.inputs["Color1"])
+        links.new(tint_node.outputs["Color"], albedo_mix.inputs["Color2"])
+        links.new(albedo_mix.outputs["Color"], shader.inputs["Base Color"])
         links.new(rough_node.outputs["Color"], rough_sep.inputs["Color"])
         links.new(rough_sep.outputs["Red"], shader.inputs["Roughness"])
 
@@ -305,7 +315,7 @@ def material(
             ao_mix = nodes.new("ShaderNodeMixRGB")
             ao_mix.blend_type = "MULTIPLY"
             ao_mix.inputs["Fac"].default_value = 0.34
-            links.new(base_node.outputs["Color"], ao_mix.inputs["Color1"])
+            links.new(albedo_mix.outputs["Color"], ao_mix.inputs["Color1"])
             links.new(ao_node.outputs["Color"], ao_mix.inputs["Color2"])
             links.new(ao_mix.outputs["Color"], shader.inputs["Base Color"])
 
@@ -512,7 +522,7 @@ def add_operator_preview(glb_path: pathlib.Path, location: tuple[float, float, f
     wrapper = bpy.data.objects.new(name, None)
     bpy.context.collection.objects.link(wrapper)
     wrapper.location = location
-    wrapper.scale = (0.90, 0.90, 0.90)
+    wrapper.scale = (1.18, 1.18, 1.18)
     wrapper["preview_only"] = True
     wrapper["source_asset"] = glb_path.name
     wrapper["source_sha256"] = hashlib.sha256(glb_path.read_bytes()).hexdigest()
@@ -525,9 +535,26 @@ def add_operator_preview(glb_path: pathlib.Path, location: tuple[float, float, f
 
     # Choose a real imported idle action for the still/contact-sheet pose.
     # The exported lobby environment never receives this operator or its clips.
+    all_idle_actions = [
+        action for action in bpy.data.actions
+        if "idle" in action.name.lower()
+    ]
+    excluded_idle_tokens = (
+        "crouch", "cover", "carry", "aim", "wall", "vehicle",
+        "swim", "sprint", "reload", "injured"
+    )
+    neutral_idle_actions = [
+        action for action in all_idle_actions
+        if not any(token in action.name.lower() for token in excluded_idle_tokens)
+    ]
     idle_actions = sorted(
-        (action for action in bpy.data.actions if "idle" in action.name.lower()),
-        key=lambda action: ("idle" not in action.name.lower(), action.name.lower()),
+        neutral_idle_actions,
+        key=lambda action: (
+            0 if action.name.lower().strip() in {
+                "idle", "standing idle", "unarmed idle"
+            } else 1,
+            action.name.lower(),
+        ),
     )
     armatures = [obj for obj in imported if obj.type == "ARMATURE"]
     if armatures and idle_actions:
@@ -814,6 +841,27 @@ def add_cng(name: str, x: float, y: float, mats: dict[str, bpy.types.Material]) 
         cylinder(name + f"_AlloyHub_{index}", pos, 0.18, 0.18, mats["aluminium"], 24, (math.pi * 0.5, 0.0, 0.0), hub)
         cylinder(name + f"_HubCap_{index}", pos, 0.075, 0.19, mats["brass"], 20, (math.pi * 0.5, 0.0, 0.0), hub)
         wheels.append(hub)
+        # Radial spokes, a machined rim lip and hub cap give the CNG wheel a
+        # layered silhouette rather than one dark cylinder.
+        for spoke in range(10):
+            angle = math.tau * spoke / 10.0
+            inner = (
+                pos[0] + 0.105 * math.cos(angle),
+                pos[1] - 0.095,
+                pos[2] + 0.105 * math.sin(angle),
+            )
+            outer = (
+                pos[0] + 0.292 * math.cos(angle),
+                pos[1] - 0.095,
+                pos[2] + 0.292 * math.sin(angle),
+            )
+            path_curve(name + f"_WheelSpoke_{index}_{spoke}", [inner, outer], mats["aluminium"], 0.012, root)
+        cylinder(
+            name + f"_RimLip_{index}",
+            (pos[0], pos[1] - 0.092, pos[2]),
+            0.298, 0.018, mats["brass"], 32,
+            (math.pi * 0.5, 0.0, 0.0), root,
+        )
         hub.rotation_mode = "XYZ"
         hub.rotation_euler = (0.0, 0.0, 0.0)
         hub.keyframe_insert(data_path="rotation_euler", frame=1, group=f"CNG_Wheel_Rotation_{index}")
@@ -821,6 +869,28 @@ def add_cng(name: str, x: float, y: float, mats: dict[str, bpy.types.Material]) 
         hub.keyframe_insert(data_path="rotation_euler", frame=180, group=f"CNG_Wheel_Rotation_{index}")
         if hub.animation_data and hub.animation_data.action:
             hub.animation_data.action.name = f"CNG_Wheel_Rotation_{index}"
+    # Front mudguard arc, enamel pinstripe, indicators and readable plates.
+    front_wheel = wheel_positions[0]
+    fender_points = []
+    for step in range(19):
+        angle = math.pi * step / 18.0
+        fender_points.append((
+            front_wheel[0] + 0.405 * math.cos(angle),
+            y - 0.11,
+            front_wheel[2] + 0.405 * math.sin(angle),
+        ))
+    path_curve(name + "_Front_Mudguard_Arch", fender_points, mats["cng_green_light"], 0.075, root)
+    path_curve(name + "_Body_Cream_Pinstripe", [
+        (x - 0.88, y - 0.635, 0.78),
+        (x - 0.25, y - 0.635, 0.82),
+        (x + 0.38, y - 0.635, 0.82),
+        (x + 0.86, y - 0.55, 0.92),
+    ], mats["cream"], 0.018, root)
+    for side in (-1, 1):
+        sphere(name + f"_Front_Indicator_{side}", (x + 1.36, y + side * 0.49, 0.88), (0.085, 0.08, 0.065), mats["lamp"], 16, 10, root)
+        sphere(name + f"_Rear_TailLamp_{side}", (x - 1.18, y + side * 0.50, 0.72), (0.075, 0.065, 0.11), mats["red"], 16, 10, root)
+    box(name + "_Front_NumberPlate", (x + 1.405, y - 0.005, 0.49), (0.045, 0.52, 0.19), mats["white"], 0.018, root)
+    box(name + "_Rear_NumberPlate", (x - 1.18, y - 0.005, 0.48), (0.045, 0.48, 0.17), mats["white"], 0.016, root)
     root["wheel_pivots"] = [obj.name for obj in wheels]
     root["asset_role"] = "Bangladesh_CNG_AutoRickshaw"
     return root
@@ -864,8 +934,8 @@ def make_material_set() -> dict[str, bpy.types.Material]:
         "road": material("Asphalt_With_Fine_Aggregate", (0.075, 0.095, 0.10, 1), 0.94, 0.0, 70, 0.30),
         "rubber": material("Tyre_Rubber", (0.025, 0.028, 0.029, 1), 0.93, 0.0, 80, 0.17),
         "canvas": material("Sun_Faded_Canvas", (0.62, 0.53, 0.36, 1), 0.91, 0.0, 24, 0.22),
-        "cng_green": material("CNG_Deep_Emerald_Paint", (0.012, 0.30, 0.19, 1), 0.31, 0.48, 46, 0.10),
-        "cng_green_light": material("CNG_Emerald_Highlight", (0.025, 0.46, 0.27, 1), 0.29, 0.42, 38, 0.08),
+        "cng_green": material("CNG_Deep_Emerald_Paint", (0.035, 0.48, 0.22, 1), 0.31, 0.48, 46, 0.10),
+        "cng_green_light": material("CNG_Emerald_Highlight", (0.08, 0.64, 0.31, 1), 0.29, 0.42, 38, 0.08),
         "cng_dark": material("CNG_Dark_Frame", (0.025, 0.08, 0.07, 1), 0.43, 0.68),
         "cream": material("CNG_Cream_Trim", PAINT_CREAM, 0.40, 0.24),
         "lamp": material("Warm_LED_Lamp", (0.96, 0.66, 0.31, 1), 0.20, 0.10, emission=1.8),
@@ -882,6 +952,121 @@ def river_plane(mats: dict[str, bpy.types.Material], y: float, width: float, dep
     water = box("Meghna_River_Surface", (0.0, y, -0.40), (width, depth, 0.18), mats["river"], 0.0)
     water["surface_role"] = "river_water"
     return water
+
+
+def apply_camera_shakify(camera_obj: bpy.types.Object, scene: bpy.types.Scene) -> dict:
+    """Apply Camera Shakify 0.5.1 and bake its evaluated camera movement."""
+    addon_dir = pathlib.Path(os.environ.get("ASQUARE_CAMERA_SHAKIFY_DIR", ""))
+    addon_commit = os.environ.get("ASQUARE_CAMERA_SHAKIFY_COMMIT", "")
+    manifest_path = addon_dir / "blender_manifest.toml"
+    if not addon_dir.is_dir() or not manifest_path.is_file():
+        raise RuntimeError("Pinned Camera Shakify 0.5.1 authoring extension is missing.")
+    try:
+        import tomllib
+        addon_manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"Camera Shakify manifest could not be read: {exc}") from exc
+    if addon_manifest.get("version") != "0.5.1":
+        raise RuntimeError("Camera Shakify version pin mismatch.")
+    if addon_manifest.get("blender_version_min") != "4.4.0":
+        raise RuntimeError("Camera Shakify Blender compatibility metadata changed.")
+
+    sys.path.insert(0, str(addon_dir.parent))
+    import importlib
+    addon = importlib.import_module("camera_shakify")
+    addon.register()
+
+    def sample_camera() -> dict[int, tuple[Vector, object]]:
+        result = {}
+        for frame in range(scene.frame_start, scene.frame_end + 1):
+            scene.frame_set(frame)
+            bpy.context.view_layer.update()
+            evaluated = camera_obj.evaluated_get(bpy.context.evaluated_depsgraph_get())
+            matrix = evaluated.matrix_world.copy()
+            result[frame] = (matrix.translation.copy(), matrix.to_quaternion().copy())
+        return result
+
+    baseline = sample_camera()
+    for item in list(bpy.context.selected_objects):
+        item.select_set(False)
+    camera_obj.select_set(True)
+    bpy.context.view_layer.objects.active = camera_obj
+    created = bpy.ops.object.camera_shake_add()
+    if "FINISHED" not in created or len(camera_obj.camera_shakes) != 1:
+        raise RuntimeError("Camera Shakify did not create a camera shake item.")
+
+    shake = camera_obj.camera_shakes[0]
+    shake.shake_type = "INVESTIGATION"
+    shake.influence = 0.42
+    shake.scale = 0.34
+    shake.use_manual_timing = False
+    shake.speed = 0.72
+    shaken = sample_camera()
+
+    max_translation = max((shaken[f][0] - baseline[f][0]).length for f in baseline)
+    max_rotation = max(baseline[f][1].rotation_difference(shaken[f][1]).angle for f in baseline)
+    if max_translation < 0.00001 and max_rotation < math.radians(0.005):
+        raise RuntimeError("Camera Shakify generated no measurable shake.")
+    if max_translation > 0.45 or max_rotation > math.radians(6.0):
+        raise RuntimeError("Camera Shakify exceeded the cinematic motion budget.")
+
+    for constraint in list(camera_obj.constraints):
+        camera_obj.constraints.remove(constraint)
+    camera_obj.animation_data_clear()
+    camera_obj.rotation_mode = "QUATERNION"
+    baked = bpy.data.actions.new("Login_Dolly_Shake_Baked")
+    camera_obj.animation_data_create()
+    camera_obj.animation_data.action = baked
+    for frame in sorted(shaken):
+        location, rotation = shaken[frame]
+        camera_obj.location = location
+        camera_obj.rotation_quaternion = rotation
+        camera_obj.keyframe_insert(data_path="location", frame=frame, group="Login_Dolly_Shake_Baked")
+        camera_obj.keyframe_insert(data_path="rotation_quaternion", frame=frame, group="Login_Dolly_Shake_Baked")
+    for curve in list(baked.fcurves):
+        for key in curve.keyframe_points:
+            key.interpolation = "LINEAR"
+
+    helper_collection = bpy.data.collections.get("CameraShakify.v3")
+    if helper_collection is not None:
+        for helper_object in list(helper_collection.objects):
+            if helper_object.animation_data:
+                helper_object.animation_data_clear()
+            bpy.data.objects.remove(helper_object, do_unlink=True)
+        bpy.data.collections.remove(helper_collection, do_unlink=True)
+    if hasattr(camera_obj, "camera_shakes"):
+        camera_obj.camera_shakes.clear()
+    addon.unregister()
+
+    scene["camera_shakify_version"] = "0.5.1"
+    scene["camera_shakify_source_commit"] = addon_commit
+    scene["camera_shakify_preset"] = "INVESTIGATION"
+    scene["camera_shakify_influence"] = 0.42
+    scene["camera_shakify_scale"] = 0.34
+    scene["camera_shakify_baked"] = True
+    scene["camera_shakify_runtime_dependency"] = False
+    scene.frame_set(90)
+    report = {
+        "version": "0.5.1",
+        "source_commit": addon_commit,
+        "preset": "INVESTIGATION",
+        "max_translation_m": round(max_translation, 6),
+        "max_rotation_degrees": round(math.degrees(max_rotation), 4),
+        "baked": True,
+        "runtime_dependency": False,
+    }
+    print("CAMERA_SHAKIFY_BAKE_PASS:", json.dumps(report, sort_keys=True))
+    return report
+
+
+def face_operator_to_camera(operator: bpy.types.Object, camera_obj: bpy.types.Object) -> None:
+    direction = Vector((
+        camera_obj.location.x - operator.location.x,
+        camera_obj.location.y - operator.location.y,
+        0.0,
+    ))
+    if direction.length_squared > 0.0001:
+        operator.rotation_euler[2] = math.atan2(-direction.x, -direction.y)
 
 
 def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], operator_glb: pathlib.Path) -> bpy.types.Object:
@@ -944,15 +1129,16 @@ def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], ope
     # Login camera: a Z-up, river-facing composition from the near road toward
     # the varied shopfronts, tree canopy and Meghna launch. Every keyframe stores
     # a real look-at quaternion so animation never drifts into the sky or road.
-    cam = camera(scene, "Login_Cinematic_Camera", (5.0, 18.0, 8.6), (0.0, -4.5, 2.4), 27.0)
+    cam = camera(scene, "Login_Cinematic_Camera", (1.0, 16.5, 5.8), (-5.8, 6.3, 1.15), 52.0)
     animate_camera_path(cam, "Login_Dolly_Reveal", [
-        (1, (8.0, 20.0, 9.0), (0.0, -5.0, 3.0)),
-        (90, (5.0, 18.0, 8.6), (0.0, -4.5, 2.4)),
-        (180, (1.5, 15.0, 7.0), (-3.0, 4.0, 1.8)),
+        (1, (1.5, 17.8, 6.2), (-5.8, 6.3, 1.15)),
+        (90, (1.0, 16.5, 5.8), (-5.8, 6.3, 1.15)),
+        (180, (0.5, 15.2, 5.4), (-5.2, 5.7, 1.10)),
     ])
+    apply_camera_shakify(cam, scene)
     scene.render.filepath = "//login_preview.png"
-    operator_preview = add_operator_preview(operator_glb, (-4.0, 6.3, 0.05), "Login_Field_Ranger_Preview")
-    operator_preview.rotation_euler[2] = math.pi
+    operator_preview = add_operator_preview(operator_glb, (-5.8, 6.3, 0.05), "Login_Field_Ranger_Preview")
+    face_operator_to_camera(operator_preview, cam)
     return operator_preview
 
 
@@ -1100,6 +1286,13 @@ def build_lobby(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], ope
         (90, (-7.0, 7.5, 3.8), (0.0, 0.0, 1.35)),
         (180, (-6.0, 7.8, 3.7), (0.0, 0.5, 1.40)),
     ])
+    # Use the exact same roster-matched, rigged operator in the lobby art review.
+    # Remove this preview-only subject before exporting the environment GLB.
+    operator_preview = add_operator_preview(
+        operator_glb, (0.0, 0.0, 0.20), "Lobby_Field_Ranger_Preview"
+    )
+    face_operator_to_camera(operator_preview, cam)
+    return operator_preview
 
 
 
@@ -1130,6 +1323,9 @@ def consolidate_static_meshes(scene: bpy.types.Scene) -> None:
                 source_mesh.transform(obj.matrix_local)
             bm.from_mesh(source_mesh)
             bpy.data.meshes.remove(source_mesh)
+        # Explicitly triangulate merged quads/ngons before glTF tangent export.
+        if bm.faces:
+            bmesh.ops.triangulate(bm, faces=list(bm.faces))
         combined_mesh = bpy.data.meshes.new(f"Batch_{parent_name}_{material_name}")
         bm.to_mesh(combined_mesh)
         bm.free()
@@ -1164,6 +1360,15 @@ def create_manifest(scene: bpy.types.Scene, args: argparse.Namespace) -> dict:
         "operator_preview_source": str(scene.get("operator_preview_source", "")),
         "operator_preview_sha256": str(scene.get("operator_preview_sha256", "")),
         "operator_preview_removed_before_export": scene.get("operator_preview_removed_before_export", False) is True,
+        "camera_shakify": {
+            "version": str(scene.get("camera_shakify_version", "")),
+            "source_commit": str(scene.get("camera_shakify_source_commit", "")),
+            "preset": str(scene.get("camera_shakify_preset", "")),
+            "influence": float(scene.get("camera_shakify_influence", 0.0)),
+            "scale": float(scene.get("camera_shakify_scale", 0.0)),
+            "baked": scene.get("camera_shakify_baked", False) is True,
+            "runtime_dependency": scene.get("camera_shakify_runtime_dependency", True) is True,
+        },
         "operator_preview_license": {
             "generator_source": "https://github.com/olatunde85/3d-gen",
             "generator_code_license": "MIT",
