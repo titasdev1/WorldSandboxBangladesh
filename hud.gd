@@ -1330,6 +1330,10 @@ func _show_map_information() -> void:
 
 
 func _choose_mode(mode_id: String) -> void:
+ var selectable_modes := ["jibon_jatra", "deshi_story", "free_roam", "street_life", "survival"]
+ if not selectable_modes.has(mode_id):
+  _set_save_feedback("PLAYLIST NOT AVAILABLE", false)
+  return
  selected_mode = mode_id
  _show_lobby_page("briefing")
 
@@ -1342,8 +1346,7 @@ func _build_mode_briefing() -> void:
   "street_life": "Explore shops, markets, transport and local activities.",
   "survival": "Three escalating waves of armed AI opponents. Offline solo combat.",
   "arena_training": "Six stationary practice targets for movement and weapon training.",
-  "street_skirmish": "Ten armed AI opponents in a local elimination round.",
-  "battle_royale_solo": "Cargo aircraft insertion, freefall steering, an inflating ram-air canopy, a landing-zone choice, local AI operators and a closing safe zone."
+  "street_skirmish": "A separate combat ruleset is in development."
  }
  _lobby_add_heading("DEPLOYMENT BRIEF", String(descriptions.get(selected_mode, "Local deployment.")))
  _lobby_add_section("MISSION PARAMETERS")
@@ -1352,11 +1355,10 @@ func _build_mode_briefing() -> void:
  if is_instance_valid(w) and (w.get("real_dhaka_loaded") == true):
   map_name = "Shariatpur, Bangladesh"
  _lobby_add_info("AREA", map_name)
- if selected_mode in ["survival", "arena_training", "street_skirmish"]:
-  var targets := 6 if selected_mode == "arena_training" or selected_mode == "survival" else 10
-  _lobby_add_section("LOCAL ROSTER • NO ONLINE PLAYERS")
-  _lobby_add_info("YOU", "Local operator • active player")
-  _lobby_add_info("AI OPPOSITION", "%d opponents / targets will be spawned by the local combat system" % targets)
+ if selected_mode == "survival":
+  _lobby_add_section("SOLO SURVIVAL")
+  _lobby_add_info("ROUNDS", "Three escalating waves")
+  _lobby_add_info("PLAYERS", "Solo • local AI opposition")
  else:
   _lobby_add_section("EXPERIENCE")
   _lobby_add_info("PLAY STYLE", "Single-player local world simulation")
@@ -1910,7 +1912,7 @@ func _complete_enter_selected_mode() -> void:
  if w:
   w.game_mode = selected_mode
   if w.has_method("set_world_traffic_enabled"):
-   var combat_mode_ids := ["survival", "arena_training", "street_skirmish", "battle_royale_solo"]
+   var combat_mode_ids := ["survival"]
    w.call("set_world_traffic_enabled", not combat_mode_ids.has(selected_mode))
   if selected_mode == "jibon_jatra":
    w.mission_active = false
@@ -1933,34 +1935,21 @@ func _complete_enter_selected_mode() -> void:
   elif selected_mode == "street_skirmish":
    w.mission_active = false
    w.event_text = "STREET SKIRMISH • ELIMINATE 10 ENEMIES"
-  elif selected_mode == "battle_royale_solo":
+  elif selected_mode == "arena_training" or selected_mode == "street_skirmish":
    w.mission_active = false
-   var combat: Node = w.get("combat_controller") as Node
-   var deployment: Node = w.get("battle_royale_controller") as Node
-   if not is_instance_valid(combat) or not is_instance_valid(deployment):
-    w.event_text = "BR SOLO UNAVAILABLE • DEPLOYMENT SYSTEM NOT READY"
-    w.event_time_left = 8.0
-    if is_instance_valid(lobby_overlay):
-     lobby_overlay.visible = true
-     _show_lobby_page("play")
-    return
-   combat.call("start_mode", "battle_royale_solo")
-   if not (deployment.call("start_solo_deployment") == true):
-    combat.call("_finish_match", "DEFEAT")
-    w.event_text = "BR SOLO FAILED • AIRCRAFT OR PARACHUTE ASSET COULD NOT LOAD"
-    w.event_time_left = 9.0
-    if is_instance_valid(lobby_overlay):
-     lobby_overlay.visible = true
-     _show_lobby_page("play")
-    return
-   w.event_text = "BATTLE ROYALE • CARGO FLIGHT • CHOOSE YOUR DROP"
+   w.event_text = "PLAYLIST NOT AVAILABLE • SELECT STRIKEFRONT FROM THE LOBBY"
+   w.event_time_left = 8.0
+   if is_instance_valid(lobby_overlay):
+    lobby_overlay.visible = true
+    _show_lobby_page("strikefront")
+   return
   elif selected_mode == "district_explorer":
    w.mission_active = true
    w.event_text = "DISTRICT ATLAS: FOLLOW THE CITY MARKER"
   else:
    w.mission_active = false
    w.event_text = "COMBAT LAB • OFFLINE PRACTICE"
-  if w.combat_controller and selected_mode in ["survival","arena_training","street_skirmish"]:
+  if w.combat_controller and selected_mode == "survival":
    w.combat_controller.start_mode(selected_mode)
   w.event_time_left = 8.0
  if lobby_overlay:
