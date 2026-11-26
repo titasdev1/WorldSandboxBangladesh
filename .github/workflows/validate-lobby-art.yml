@@ -137,7 +137,7 @@ jobs:
             "https://codeload.github.com/EatTheFuture/camera_shakify/zip/${CAMERA_SHAKIFY_COMMIT}" \
             -o build/blender_addons/camera_shakify-source.zip
           unzip -q build/blender_addons/camera_shakify-source.zip -d build/blender_addons/unpacked
-          ADDON_SOURCE="$(find build/blender_addons/unpacked -mindepth 2 -maxdepth 3 -name blender_manifest.toml -printf '%h\\n' | head -n 1)"
+          ADDON_SOURCE="$(find build/blender_addons/unpacked -mindepth 2 -maxdepth 3 -name blender_manifest.toml -printf '%h\n' | head -n 1)"
           test -n "$ADDON_SOURCE"
           cp -a "$ADDON_SOURCE"/. build/blender_addons/camera_shakify/
           python3 - <<'PY'
@@ -166,7 +166,7 @@ jobs:
               "authoring_only": True,
               "runtime_dependency": False
           }
-          Path("build/blender_addons/camera_shakify-provenance.json").write_text(json.dumps(record, indent=2) + "\\n", encoding="utf-8")
+          Path("build/blender_addons/camera_shakify-provenance.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
           print("CAMERA_SHAKIFY_GATE:PASS", json.dumps(record, sort_keys=True))
           PY
 

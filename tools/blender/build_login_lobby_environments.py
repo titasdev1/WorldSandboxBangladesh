@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import pathlib
 import random
 import sys
@@ -1023,7 +1024,7 @@ def apply_camera_shakify(camera_obj: bpy.types.Object, scene: bpy.types.Scene) -
         camera_obj.rotation_quaternion = rotation
         camera_obj.keyframe_insert(data_path="location", frame=frame, group="Login_Dolly_Shake_Baked")
         camera_obj.keyframe_insert(data_path="rotation_quaternion", frame=frame, group="Login_Dolly_Shake_Baked")
-    for curve in list(baked.fcurves):
+    for curve in list(getattr(baked, "fcurves", [])):
         for key in curve.keyframe_points:
             key.interpolation = "LINEAR"
 
