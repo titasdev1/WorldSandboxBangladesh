@@ -355,6 +355,22 @@ def animate_transform(obj: bpy.types.Object, name: str, keys: list[tuple[int, tu
                     curve.modifiers.new("CYCLES")
 
 
+def animate_camera_path(
+    obj: bpy.types.Object,
+    name: str,
+    keys: list[tuple[int, tuple[float, float, float], tuple[float, float, float]]],
+) -> None:
+    """Key camera position and true world-space look-at quaternions (Blender Z-up)."""
+    obj.rotation_mode = "QUATERNION"
+    for frame, location, target in keys:
+        obj.location = location
+        obj.rotation_quaternion = (Vector(target) - Vector(location)).to_track_quat("-Z", "Y")
+        obj.keyframe_insert(data_path="location", frame=frame, group=name)
+        obj.keyframe_insert(data_path="rotation_quaternion", frame=frame, group=name)
+    if obj.animation_data and obj.animation_data.action:
+        obj.animation_data.action.name = name
+
+
 def add_facade_building(
     name: str,
     x: float,
@@ -638,16 +654,15 @@ def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material]) -> 
         box(f"Launch_Window_{side}", (6.35, -17.0 + side * 0.48, 1.63), (1.75, 0.045, 0.60), mats["glass"], 0.018, boat)
         path_curve(f"Launch_Rail_{side}", [(4.6, -17.0 + side * 0.56, 1.07), (7.6, -17.0 + side * 0.56, 1.07), (9.2, -17.0 + side * 0.40, 0.95)], mats["aluminium"], 0.032, boat)
     animate_location(boat, "River_Launch_Glide", [(1, (10.0, -17.0, 0.10)), (180, (6.0, -17.0, 0.10))], True)
-    # Login camera: deliberate foreground-to-midground reveal, lens compression and sunset rim.
-    cam = camera(scene, "Login_Cinematic_Camera", (2.4, 8.6, 14.5), (0.0, 1.9, -7.4), 38.0)
-    animate_transform(cam, "Login_Dolly_Reveal", [
-        (1, (4.1, 9.5, 16.2), (math.radians(70), 0.0, math.radians(6))),
-        (90, (2.4, 8.6, 14.5), (math.radians(73), 0.0, math.radians(1))),
-        (180, (0.6, 7.7, 13.4), (math.radians(75), 0.0, math.radians(-3))),
+    # Login camera: a Z-up, river-facing composition from the near road toward
+    # the varied shopfronts, tree canopy and Meghna launch. Every keyframe stores
+    # a real look-at quaternion so animation never drifts into the sky or road.
+    cam = camera(scene, "Login_Cinematic_Camera", (1.8, 18.0, 12.0), (0.0, -6.0, 3.8), 30.0)
+    animate_camera_path(cam, "Login_Dolly_Reveal", [
+        (1, (4.1, 19.0, 12.8), (0.0, -4.6, 3.8)),
+        (90, (1.8, 18.0, 12.0), (0.0, -6.0, 3.8)),
+        (180, (-1.2, 16.4, 10.8), (0.0, -7.6, 3.4)),
     ])
-    # The imported camera is aimed to show the river, shops, traffic and a clear operator-safe foreground.
-    cam.rotation_euler = (Vector((0.0, 1.9, -7.4)) - cam.location).to_track_quat("-Z", "Y").to_euler()
-    cam.keyframe_insert(data_path="rotation_euler", frame=90, group="Login_Dolly_Reveal")
     scene.render.filepath = "//login_preview.png"
 
 
@@ -754,14 +769,15 @@ def build_lobby(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material]) -> 
             cylinder(f"Telemetry_Collar_{i}_{level}", (x, 3.8, 4.0 + level * 1.2), 0.11, 0.045, mats["brass"], 18)
         dish = sphere(f"Telemetry_Dish_{i}", (x, 3.8, 7.6), (0.52, 0.18, 0.52), mats["aluminium"], 24, 14)
         dish.rotation_euler[0] = math.radians(26)
-    # Subtle environmental animation and a clean portrait composition for lobby character.
-    cam = camera(scene, "Lobby_Art_Review_Camera", (0.8, 16.5, 7.2), (0.0, 1.0, 3.1), 46.0)
-    animate_transform(cam, "Lobby_Camera_Inspection_Arc", [
-        (1, (1.7, 16.2, 7.0), (math.radians(74), 0.0, math.radians(-2))),
-        (90, (0.8, 16.5, 7.2), (math.radians(76), 0.0, 0.0)),
-        (180, (-0.4, 16.2, 7.1), (math.radians(77), 0.0, math.radians(2))),
+    # Operator-safe camera from the riverfront entrance through the glass hall.
+    # The view includes floor contact, the overhead architecture, displays and
+    # the ferry/river depth behind the hall; no primitive podium fills the frame.
+    cam = camera(scene, "Lobby_Art_Review_Camera", (0.0, -23.0, 10.5), (0.0, 1.5, 4.0), 28.0)
+    animate_camera_path(cam, "Lobby_Camera_Inspection_Arc", [
+        (1, (1.4, -24.0, 11.0), (0.0, 0.0, 4.0)),
+        (90, (0.0, -23.0, 10.5), (0.0, 1.5, 4.0)),
+        (180, (-1.4, -21.5, 10.0), (0.0, 2.5, 4.0)),
     ])
-    cam.rotation_euler = (Vector((0.0, 1.0, 3.1)) - cam.location).to_track_quat("-Z", "Y").to_euler()
 
 
 
