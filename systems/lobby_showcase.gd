@@ -211,7 +211,11 @@ func _start_authored_environment_animations(root: Node) -> void:
 				for library_name in source.get_animation_library_list():
 					player.add_animation_library(library_name, source.get_animation_library(library_name))
 				source.get_parent().add_child(player)
-			player.play(String(clips[index]))
+			var clip_name := String(clips[index])
+			var clip := player.get_animation(clip_name)
+			if clip != null:
+				clip.loop_mode = Animation.LOOP
+			player.play(clip_name)
 			_authored_animation_players.append(player)
 
 
