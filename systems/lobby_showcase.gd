@@ -5,6 +5,7 @@ class_name LobbyOperatorShowcase
 # operator. It is built from native Godot meshes/materials/lights: no baked
 # lobby screenshot, external render, or generated character image is used.
 
+const AUTHORED_LOBBY_SCENE_PATH := "res://external_content/lobby_art/a_square_delta_command_lobby.glb"
 const BASE_CAMERA_SWAY_DEGREES := 4.0
 const CHARACTER_IDLE_SWAY_RADIANS := 0.12
 const LOBBY_IDLE_ACTIONS: Array[String] = ["idle_look", "idle_fidget", "idle_breathe"]
@@ -16,6 +17,8 @@ var _stage_root: Node3D
 var _orbit_rig: Node3D
 var _key_light: SpotLight3D
 var _fill_light: OmniLight3D
+var _authored_environment: Node3D
+var _authored_animation_players: Array[AnimationPlayer] = []
 var _enabled := false
 var _elapsed := 0.0
 var _camera_yaw_origin := 24.0
@@ -103,6 +106,12 @@ func _build_stage() -> void:
 	_stage_root.name = "OperatorDisplayPlatform"
 	add_child(_stage_root)
 
+	# Prefer the Blender-authored river-facing command hall. The procedural
+	# podium remains only as a compatibility fallback until the GLB passes
+	# import and visual review; it is not considered final lobby art.
+	if _load_authored_lobby_environment():
+		return
+
 	# The podium stays just below the operator's feet and is shadowless, so it
 	# does not fight the world collision or add a costly shadow map.
 	_add_cylinder("GraphiteBase", 1.46, 0.14, -0.13, _surface(Color("#111c27"), 0.86, 0.30))
@@ -162,6 +171,48 @@ func _build_stage() -> void:
 	_fill_light.omni_range = 4.8
 	_fill_light.shadow_enabled = false
 	_stage_root.add_child(_fill_light)
+
+
+func _load_authored_lobby_environment() -> bool:
+	if not ResourceLoader.exists(AUTHORED_LOBBY_SCENE_PATH):
+		return false
+	var packed := ResourceLoader.load(AUTHORED_LOBBY_SCENE_PATH) as PackedScene
+	if packed == null:
+		push_warning("LOBBY_ART_IMPORT_FAILED • path=" + AUTHORED_LOBBY_SCENE_PATH)
+		return false
+	var instance := packed.instantiate() as Node3D
+	if instance == null:
+		push_warning("LOBBY_ART_ROOT_INVALID • expected Node3D from authored lobby GLB.")
+		return false
+	instance.name = "AuthoredDeltaCommandEnvironment"
+	_stage_root.add_child(instance)
+	_authored_environment = instance
+	_start_authored_environment_animations(instance)
+	print("LOBBY_ART_SCENE_READY • authored_blender_glb=true")
+	return true
+
+
+func _collect_animation_players(root: Node, result: Array[AnimationPlayer]) -> void:
+	if root is AnimationPlayer:
+		result.append(root as AnimationPlayer)
+	for child in root.get_children():
+		_collect_animation_players(child, result)
+
+
+func _start_authored_environment_animations(root: Node) -> void:
+	var players: Array[AnimationPlayer] = []
+	_collect_animation_players(root, players)
+	for source in players:
+		var clips := source.get_animation_list()
+		for index in range(clips.size()):
+			var player := source if index == 0 else AnimationPlayer.new()
+			if index > 0:
+				player.root_node = source.root_node
+				for library_name in source.get_animation_library_list():
+					player.add_animation_library(library_name, source.get_animation_library(library_name))
+				source.get_parent().add_child(player)
+			player.play(String(clips[index]))
+			_authored_animation_players.append(player)
 
 
 func _add_cylinder(node_name: String, radius: float, height: float, y: float, material: Material) -> void:
