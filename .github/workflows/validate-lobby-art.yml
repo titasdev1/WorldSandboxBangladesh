@@ -6,6 +6,7 @@ on:
       - feature/three-distinct-ara-operators
       - art/cinematic-composition-pass
       - art/login-film-cuts
+      - art/crafted-riverside-architecture
     paths:
       - "tools/blender/build_login_lobby_environments.py"
       - "tools/blender/verify_login_lobby_environments.py"
