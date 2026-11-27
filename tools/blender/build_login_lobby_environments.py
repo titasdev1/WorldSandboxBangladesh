@@ -49,6 +49,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--kind", choices=("login", "lobby"), required=True)
     parser.add_argument("--out", type=pathlib.Path, required=True)
     parser.add_argument("--preview", type=pathlib.Path, required=True)
+    parser.add_argument("--film-output", type=pathlib.Path, help="Optional H.264 cinematic review film rendered with the actual rigged operators present.")
     parser.add_argument("--operator-glb", type=pathlib.Path, required=True, help="Exact roster-matched rigged Field Ranger GLB used for preview only.")
     parser.add_argument("--operator-glb-delta", type=pathlib.Path, help="Roster-matched Delta Recon high-LOD GLB for lobby review.")
     parser.add_argument("--operator-glb-river", type=pathlib.Path, help="Roster-matched River Scout high-LOD GLB for lobby review.")
@@ -64,7 +65,7 @@ def clear_scene() -> bpy.types.Scene:
                 datablock.remove(block)
     scene = bpy.context.scene
     scene.frame_start = 1
-    scene.frame_end = 180
+    scene.frame_end = 288
     scene.render.fps = 30
     scene.render.engine = "BLENDER_EEVEE"
     scene.render.resolution_x = 1600
@@ -521,6 +522,7 @@ def add_operator_preview(
     if not glb_path.is_file() or glb_path.stat().st_size <= 0:
         raise FileNotFoundError(f"Rigged operator preview GLB is missing: {glb_path}")
     before = set(bpy.context.scene.objects)
+    actions_before = set(bpy.data.actions)
     bpy.ops.import_scene.gltf(filepath=str(glb_path))
     imported = [obj for obj in bpy.context.scene.objects if obj not in before]
     if not imported:
@@ -541,10 +543,11 @@ def add_operator_preview(
         obj.matrix_parent_inverse = Matrix.Identity(4)
         obj.matrix_basis = original_basis
 
-    # Choose a real imported idle action for the still/contact-sheet pose.
-    # The exported lobby environment never receives this operator or its clips.
+    # Only use actions imported with this exact roster member. A global action
+    # lookup can accidentally bind a previous character's take to the next rig.
+    imported_actions = [action for action in bpy.data.actions if action not in actions_before]
     all_idle_actions = [
-        action for action in bpy.data.actions
+        action for action in imported_actions
         if "idle" in action.name.lower()
     ]
     excluded_idle_tokens = (
@@ -557,7 +560,7 @@ def add_operator_preview(
     ]
     preferred = next(
         (
-            action for action in neutral_idle_actions
+            action for action in imported_actions
             if action.name.lower().strip() == preferred_action.lower().strip()
         ),
         None,
@@ -576,11 +579,26 @@ def add_operator_preview(
         for armature in armatures:
             armature.animation_data_create()
             try:
-                armature.animation_data.action = selected_action
+                # Keep the motion as an NLA strip and repeat it across the film.
+                # This lets Blender evaluate a full authored performance without
+                # inventing joint physics or freezing the character at one pose.
+                animation_data = armature.animation_data
+                animation_data.action = None
+                track = animation_data.nla_tracks.new()
+                track.name = "A_Square_Cinematic_Performance"
+                strip = track.strips.new(selected_action.name, 1, selected_action)
+                source_span = max(1.0, float(selected_action.frame_range[1] - selected_action.frame_range[0]))
+                strip.repeat = max(1.0, (scene.frame_end - scene.frame_start + 1) / source_span)
+                strip.blend_in = min(10.0, source_span * 0.12)
+                strip.blend_out = min(10.0, source_span * 0.12)
             except (AttributeError, TypeError, RuntimeError) as exc:
-                print(f"OPERATOR_PREVIEW_IDLE_WARNING: {exc}")
+                print(f"OPERATOR_PREVIEW_ANIMATION_WARNING: {exc}")
+                try:
+                    armature.animation_data.action = selected_action
+                except (AttributeError, TypeError, RuntimeError):
+                    pass
     elif armatures:
-        print("OPERATOR_PREVIEW_IDLE_WARNING: no neutral idle action was found; source rig rest pose is retained.")
+        print("OPERATOR_PREVIEW_ANIMATION_WARNING: no authored action was found for this imported rig; rest pose retained.")
 
     bpy.context.scene["operator_preview_source"] = glb_path.name
     bpy.context.scene["operator_preview_sha256"] = wrapper["source_sha256"]
@@ -600,6 +618,7 @@ def add_operator_preview(
         "objects": len(imported),
         "armatures": len(armatures),
         "selected_action": selected_action.name if selected_action else "",
+        "imported_action_count": len(imported_actions),
         "neutral_idle_actions": [action.name for action in neutral_idle_actions],
     }, sort_keys=True))
     return wrapper
@@ -891,8 +910,8 @@ def add_cng(name: str, x: float, y: float, mats: dict[str, bpy.types.Material]) 
         hub.rotation_mode = "XYZ"
         hub.rotation_euler = (0.0, 0.0, 0.0)
         hub.keyframe_insert(data_path="rotation_euler", frame=1, group=f"CNG_Wheel_Rotation_{index}")
-        hub.rotation_euler[1] = math.tau * 2.0
-        hub.keyframe_insert(data_path="rotation_euler", frame=180, group=f"CNG_Wheel_Rotation_{index}")
+        hub.rotation_euler[1] = math.tau * 3.2
+        hub.keyframe_insert(data_path="rotation_euler", frame=288, group=f"CNG_Wheel_Rotation_{index}")
         if hub.animation_data and hub.animation_data.action:
             hub.animation_data.action.name = f"CNG_Wheel_Rotation_{index}"
     # Front mudguard arc, enamel pinstripe, indicators and readable plates.
@@ -1141,7 +1160,13 @@ def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], ope
         sphere(f"StreetLamp_{i}_Lantern", (x + 0.82, 1, 7.08), (0.24, 0.18, 0.12), mats["lamp"], 16, 8)
     # Local three-wheeler and a small motor launch on the river.
     cng = add_cng("Shariatpur_Emerald_CNG", 3.0, 3.3, mats)
-    animate_location(cng, "Login_CNG_Pass", [(1, (-15.0, 3.3, 0.0)), (90, (0.0, 3.3, 0.0)), (180, (15.0, 3.3, 0.0))], True)
+    animate_location(cng, "Login_CNG_Pass", [
+        (1, (-15.0, 3.3, 0.0)),
+        (72, (-9.0, 3.3, 0.0)),
+        (144, (-2.0, 3.3, 0.0)),
+        (216, (7.0, 3.3, 0.0)),
+        (288, (15.0, 3.3, 0.0)),
+    ], True)
     boat = bpy.data.objects.new("River_Launch", None)
     bpy.context.collection.objects.link(boat)
     boat.location = (7.0, -17.0, 0.10)
@@ -1151,21 +1176,37 @@ def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], ope
     for side in (-1, 1):
         box(f"Launch_Window_{side}", (6.35, -17.0 + side * 0.48, 1.63), (1.75, 0.045, 0.60), mats["glass"], 0.018, boat)
         path_curve(f"Launch_Rail_{side}", [(4.6, -17.0 + side * 0.56, 1.07), (7.6, -17.0 + side * 0.56, 1.07), (9.2, -17.0 + side * 0.40, 0.95)], mats["aluminium"], 0.032, boat)
-    animate_location(boat, "River_Launch_Glide", [(1, (10.0, -17.0, 0.10)), (180, (6.0, -17.0, 0.10))], True)
-    # Login camera: a Z-up, river-facing composition from the near road toward
-    # the varied shopfronts, tree canopy and Meghna launch. Every keyframe stores
-    # a real look-at quaternion so animation never drifts into the sky or road.
-    cam = camera(scene, "Login_Cinematic_Camera", (0.0, 18.0, 6.0), (-0.7, -2.5, 2.05), 48.0)
+    animate_location(boat, "River_Launch_Glide", [
+        (1, (10.0, -17.0, 0.10)),
+        (72, (9.2, -17.0, 0.17)),
+        (144, (8.2, -17.0, 0.10)),
+        (216, (7.1, -17.0, 0.16)),
+        (288, (6.0, -17.0, 0.10)),
+    ], True)
+    # The camera performs a 12-second authored reveal: distant riverside
+    # geography, a low pass across the street, then a compressed operator
+    # portrait. Focal length and focus distance animate with the camera move.
+    cam = camera(scene, "Login_Cinematic_Camera", (0.0, 20.0, 7.5), (-4.0, -18.0, 1.2), 42.0)
     animate_camera_path(cam, "Login_Dolly_Reveal", [
-        (1, (0.8, 19.2, 6.3), (-0.9, -2.1, 2.05)),
-        (90, (0.0, 18.0, 6.0), (-0.7, -2.5, 2.05)),
-        (180, (-0.7, 16.7, 5.6), (-0.2, -1.8, 2.10)),
+        (1, (0.0, 20.0, 7.5), (-4.0, -18.0, 1.2)),
+        (72, (6.0, 17.0, 5.5), (-2.0, -7.0, 1.8)),
+        (144, (0.0, 16.5, 5.1), (-2.8, 5.0, 1.7)),
+        (216, (-4.5, 15.0, 4.2), (-3.0, 7.0, 1.65)),
+        (288, (0.0, 18.0, 6.0), (-1.8, -3.0, 2.0)),
     ])
+    for frame, lens, focus in [
+        (1, 42.0, 30.0), (72, 48.0, 22.0), (144, 55.0, 12.0),
+        (216, 68.0, 10.0), (288, 48.0, 24.0),
+    ]:
+        cam.data.lens = lens
+        cam.data.dof.focus_distance = focus
+        cam.data.keyframe_insert(data_path="lens", frame=frame, group="Login_Optical_Performance")
+        cam.data.keyframe_insert(data_path="dof.focus_distance", frame=frame, group="Login_Rack_Focus")
     apply_camera_shakify(cam, scene)
     scene.render.filepath = "//login_preview.png"
     operator_preview = add_operator_preview(
-        operator_glb, (-5.2, 8.0, 0.05), "Login_Field_Ranger_Preview",
-        "Rifle idle (low ready)",
+        operator_glb, (-3.0, 8.0, 0.05), "Login_Field_Ranger_Preview",
+        "Look around",
     )
     face_operator_to_camera(operator_preview, cam)
     return operator_preview
@@ -1303,7 +1344,10 @@ def build_lobby(
     box("Ferry_Main_Deck", (-5.0, 22.0, 0.87), (8.2, 1.65, 0.12), mats["wood"], 0.035, ferry)
     box("Ferry_Cabin", (-5.0, 22.0, 1.80), (4.1, 1.4, 1.70), mats["cream"], 0.08, ferry)
     box("Ferry_Wheelhouse_Glass", (-5.0, 22.0, 2.0), (3.55, 0.06, 0.88), mats["glass"], 0.018, ferry)
-    animate_location(ferry, "Lobby_Ferry_Drift", [(1, (-12.0, 22.0, 0.0)), (180, (1.0, 22.0, 0.0))], True)
+    animate_location(ferry, "Lobby_Ferry_Drift", [
+        (1, (-12.0, 22.0, 0.0)), (144, (-5.5, 22.0, 0.05)),
+        (288, (1.0, 22.0, 0.0)),
+    ], True)
     # Suspended cable trays, work lamps, ventilation and rotating fans.
     for i in range(6):
         x = -12.5 + i * 5.0
@@ -1321,7 +1365,7 @@ def build_lobby(
     fan.rotation_euler[2] = 0.0
     fan.keyframe_insert(data_path="rotation_euler", frame=1, group="Lobby_Fan_Loop")
     fan.rotation_euler[2] = math.tau
-    fan.keyframe_insert(data_path="rotation_euler", frame=180, group="Lobby_Fan_Loop")
+    fan.keyframe_insert(data_path="rotation_euler", frame=288, group="Lobby_Fan_Loop")
     if fan.animation_data and fan.animation_data.action:
         # Blender 5.2 uses layered Actions rather than the legacy Action.fcurves
         # collection. Leave the keyed fan track intact here; the Godot importer
@@ -1337,11 +1381,13 @@ def build_lobby(
     # Operator-safe camera from the riverfront entrance through the glass hall.
     # The view includes floor contact, the overhead architecture, displays and
     # the ferry/river depth behind the hall; no primitive podium fills the frame.
-    cam = camera(scene, "Lobby_Art_Review_Camera", (0.0, -13.8, 4.9), (0.0, 0.5, 1.55), 47.0)
+    cam = camera(scene, "Lobby_Art_Review_Camera", (0.0, -12.8, 4.2), (0.0, 0.1, 1.35), 52.0)
     animate_camera_path(cam, "Lobby_Camera_Inspection_Arc", [
-        (1, (-0.8, -14.8, 5.1), (0.0, 0.2, 1.55)),
-        (90, (0.0, -13.8, 4.9), (0.0, 0.5, 1.55)),
-        (180, (0.9, -12.7, 4.7), (0.0, 0.8, 1.55)),
+        (1, (-1.2, -14.2, 4.8), (0.0, 0.0, 1.45)),
+        (72, (-0.6, -13.2, 4.3), (0.0, 0.0, 1.45)),
+        (144, (0.0, -12.0, 4.0), (0.0, 0.1, 1.45)),
+        (216, (0.8, -11.4, 3.8), (0.0, 0.1, 1.50)),
+        (288, (1.4, -13.0, 4.4), (0.0, 1.0, 1.55)),
     ])
     # Three independent roster GLBs; all temporary review subjects are removed before export.
     previews = []
@@ -1349,21 +1395,21 @@ def build_lobby(
         operator_glb, (0.0, 0.0, 0.24), "Lobby_Field_Ranger_Preview",
         "Rifle idle (low ready)",
     )
-    field_preview.scale = (0.82, 0.82, 0.82)
+    field_preview.scale = (0.96, 0.96, 0.96)
     face_operator_to_camera(field_preview, cam)
     previews.append(field_preview)
     delta_preview = add_operator_preview(
         delta_operator_glb, (-3.35, 0.0, 0.24), "Lobby_Delta_Recon_Preview",
-        "Rifle idle (low ready)",
+        "Pistol idle (low ready)",
     )
-    delta_preview.scale = (0.72, 0.72, 0.72)
+    delta_preview.scale = (0.88, 0.88, 0.88)
     face_operator_to_camera(delta_preview, cam)
     previews.append(delta_preview)
     river_preview = add_operator_preview(
         river_operator_glb, (3.35, 0.0, 0.24), "Lobby_River_Scout_Preview",
-        "Rifle idle (low ready)",
+        "Look around",
     )
-    river_preview.scale = (0.72, 0.72, 0.72)
+    river_preview.scale = (0.88, 0.88, 0.88)
     face_operator_to_camera(river_preview, cam)
     previews.append(river_preview)
     return previews
@@ -1371,10 +1417,25 @@ def build_lobby(
 
 
 def consolidate_static_meshes(scene: bpy.types.Scene) -> None:
-    """Collapse static meshes by material and animation parent to keep draw calls bounded."""
+    """Batch only truly static meshes; never destroy skinned character geometry."""
     groups: dict[tuple[str, str], list[bpy.types.Object]] = {}
+    deforming_modifier_types = {"ARMATURE", "MESH_DEFORM", "SURFACE_DEFORM", "LATTICE", "HOOK"}
     for obj in list(scene.objects):
         if obj.type != "MESH" or obj.animation_data is not None:
+            continue
+        # Imported skinned GLB meshes commonly have animation on their Armature
+        # object, not on the mesh object itself. Merging them by material bakes
+        # away vertex groups/deformation and can make the character disappear.
+        if any(modifier.type in deforming_modifier_types for modifier in obj.modifiers):
+            continue
+        ancestor = obj.parent
+        under_armature = False
+        while ancestor is not None:
+            if ancestor.type == "ARMATURE":
+                under_armature = True
+                break
+            ancestor = ancestor.parent
+        if under_armature or obj.data.shape_keys is not None:
             continue
         if len(obj.data.materials) != 1 or obj.data.materials[0] is None:
             continue
@@ -1419,10 +1480,67 @@ def consolidate_static_meshes(scene: bpy.types.Scene) -> None:
             bpy.data.objects.remove(obj, do_unlink=True)
 
 
+def validate_preview_rigs(previews: list[bpy.types.Object]) -> None:
+    """Fail closed if static optimization has removed a roster operator's skin."""
+    for wrapper in previews:
+        skinned_meshes = [
+            obj for obj in wrapper.children_recursive
+            if obj.type == "MESH" and any(modifier.type == "ARMATURE" for modifier in obj.modifiers)
+        ]
+        if not skinned_meshes:
+            raise RuntimeError(
+                f"PREVIEW_RIG_GATE: {wrapper.name} has no surviving armature-deformed mesh."
+            )
+        print("PREVIEW_RIG_GATE:PASS", json.dumps({
+            "preview": wrapper.name,
+            "skinned_mesh_count": len(skinned_meshes),
+            "source": str(wrapper.get("source_asset", "")),
+            "sha256": str(wrapper.get("source_sha256", "")),
+        }, sort_keys=True))
+
+
+def render_film_preview(scene: bpy.types.Scene, output: pathlib.Path) -> pathlib.Path:
+    """Render the complete 12-second cinematic with live roster rigs present."""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    expected_output = output.with_suffix(".mp4")
+    scene.render.filepath = str(output.with_suffix(""))
+    scene.render.image_settings.file_format = "FFMPEG"
+    scene.render.use_file_extension = True
+    scene.render.ffmpeg.format = "MPEG4"
+    scene.render.ffmpeg.codec = "H264"
+    scene.render.ffmpeg.constant_rate_factor = "HIGH"
+    scene.render.ffmpeg.video_bitrate = 8000
+    scene.render.ffmpeg.maxrate = 12000
+    scene.render.fps = 24
+    scene.render.resolution_percentage = 75
+    print("A_SQUARE_FILM_RENDER_START:", str(expected_output))
+    bpy.ops.render.render(animation=True)
+    if not expected_output.is_file() or expected_output.stat().st_size < 100_000:
+        raise RuntimeError(f"FILM_RENDER_GATE: H.264 MP4 was not produced: {expected_output}")
+    report = {
+        "path": str(expected_output),
+        "bytes": expected_output.stat().st_size,
+        "frames": scene.frame_end - scene.frame_start + 1,
+        "fps": scene.render.fps,
+        "duration_seconds": round((scene.frame_end - scene.frame_start + 1) / scene.render.fps, 3),
+        "codec": "H.264",
+        "operator_rigs_visible": True,
+    }
+    print("A_SQUARE_FILM_RENDER_PASS:", json.dumps(report, sort_keys=True))
+    scene.render.image_settings.file_format = "PNG"
+    scene.render.resolution_percentage = 75
+    scene.frame_set(144)
+    return expected_output
+
+
 def triangulate_all_meshes(scene: bpy.types.Scene) -> None:
-    """Triangulate all remaining meshes before glTF tangent-space export."""
+    """Triangulate only static meshes; preserve rigging and facial shape keys."""
     for obj in list(scene.objects):
-        if obj.type != "MESH" or not any(len(poly.vertices) > 3 for poly in obj.data.polygons):
+        if obj.type != "MESH" or obj.data.shape_keys is not None:
+            continue
+        if any(modifier.type in {"ARMATURE", "MESH_DEFORM", "SURFACE_DEFORM", "LATTICE", "HOOK"} for modifier in obj.modifiers):
+            continue
+        if not any(len(poly.vertices) > 3 for poly in obj.data.polygons):
             continue
         bm = bmesh.new()
         bm.from_mesh(obj.data)
@@ -1492,10 +1610,15 @@ def main() -> int:
             args.operator_glb_delta, args.operator_glb_river,
         )
     consolidate_static_meshes(scene)
+    validate_preview_rigs(operator_previews)
     triangulate_all_meshes(scene)
-    scene.frame_set(90)
+    validate_preview_rigs(operator_previews)
+    scene.frame_set(144)
     args.preview.parent.mkdir(parents=True, exist_ok=True)
     args.out.parent.mkdir(parents=True, exist_ok=True)
+    if args.film_output is not None:
+        render_film_preview(scene, args.film_output)
+    scene.frame_set(144)
     scene.render.filepath = str(args.preview)
     bpy.ops.render.render(write_still=True)
     # Operator model is a render subject only; the engine scene uses the actual
