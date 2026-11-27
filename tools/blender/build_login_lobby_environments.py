@@ -1310,6 +1310,41 @@ def face_operator_to_camera(operator: bpy.types.Object, camera_obj: bpy.types.Ob
         operator.rotation_euler[2] = math.atan2(-direction.x, -direction.y)
 
 
+def set_parent_local(obj: bpy.types.Object, parent: bpy.types.Object | None) -> bpy.types.Object:
+    """Parent locally-authored geometry without cancelling the parent's transform."""
+    if parent is not None:
+        obj.parent = parent
+        obj.matrix_parent_inverse.identity()
+    return obj
+
+
+def local_path_curve(
+    name: str,
+    points: list[tuple[float, float, float]],
+    mat: bpy.types.Material,
+    radius: float,
+    parent: bpy.types.Object | None = None,
+    cyclic: bool = False,
+) -> bpy.types.Object:
+    """Create a curve whose coordinates follow the local space of its authored parent."""
+    data = bpy.data.curves.new(name + "_LocalSpline", "CURVE")
+    data.dimensions = "3D"
+    data.resolution_u = 18
+    data.bevel_depth = radius
+    data.bevel_resolution = 4
+    spline = data.splines.new("BEZIER")
+    spline.bezier_points.add(len(points) - 1)
+    for point, coordinate in zip(spline.bezier_points, points):
+        point.co = coordinate
+        point.handle_left_type = "AUTO"
+        point.handle_right_type = "AUTO"
+    spline.use_cyclic_u = cyclic
+    obj = bpy.data.objects.new(name, data)
+    bpy.context.collection.objects.link(obj)
+    data.materials.append(mat)
+    return set_parent_local(obj, parent)
+
+
 def authored_mesh(
     name: str,
     vertices: list[tuple[float, float, float]],
@@ -1328,7 +1363,7 @@ def authored_mesh(
     mesh.materials.append(mat)
     for polygon in mesh.polygons:
         polygon.use_smooth = smooth
-    return set_parent(obj, parent)
+    return set_parent_local(obj, parent)
 
 
 def authored_xz_prism(
@@ -1462,6 +1497,11 @@ def add_crafted_riverfront_corner_store(
     # The front elevation is assembled around genuine negative-space openings.
     # These custom wall panels form piers, lintels and upper infill; the shop
     # glazing and doors are not simply pasted over a solid box.
+    arch_left = -2.12
+    arch_right = -0.10
+    arch_spring = 2.20
+    arch_crown = 2.76
+
     ground_panels = [
         [(-half, 0.0), (arch_left - 0.08, 0.0), (arch_left - 0.08, 3.78), (-half, 3.78)],
         [(arch_right + 0.08, 0.0), (0.66, 0.0), (0.66, 2.92), (arch_right + 0.08, 2.92)],
@@ -1506,7 +1546,7 @@ def add_crafted_riverfront_corner_store(
         name + "_Recessed_Arched_Shop_Window",
         left_arch, front + 0.065, front + 0.020, mats["dark"], root,
     )
-    path_curve(name + "_Arched_Shop_Stone_Moulding", [
+    local_path_curve(name + "_Arched_Shop_Stone_Moulding", [
         (arch_left, front + 0.11, 0.28),
         (arch_left, front + 0.11, arch_spring),
         (-1.91, front + 0.11, 2.49),
@@ -1515,7 +1555,7 @@ def add_crafted_riverfront_corner_store(
         (arch_right - 0.06, front + 0.11, arch_spring),
         (arch_right, front + 0.11, 0.28),
     ], mats["stone"], 0.095, root)
-    path_curve(name + "_Inner_Arch_Brass_Inlay", [
+    local_path_curve(name + "_Inner_Arch_Brass_Inlay", [
         (-1.94, front + 0.13, 0.45),
         (-1.94, front + 0.13, 2.18),
         (-1.76, front + 0.13, 2.42),
@@ -1538,7 +1578,7 @@ def add_crafted_riverfront_corner_store(
             shape, front + 0.145, front + 0.12, mats["glass"], root,
         )
         for edge_x in (shape[0][0], shape[1][0]):
-            path_curve(name + f"_Pane_Mullion_{pane}_{edge_x:.2f}", [
+            local_path_curve(name + f"_Pane_Mullion_{pane}_{edge_x:.2f}", [
                 (edge_x, front + 0.17, 0.48),
                 (edge_x, front + 0.17, 2.18),
             ], mats["aluminium"], 0.018, root)
@@ -1580,7 +1620,7 @@ def add_crafted_riverfront_corner_store(
         name + "_Hand_Painted_Fascia",
         fascia, front + 0.20, front + 0.12, mats["blue"], root, 0.035,
     )
-    path_curve(name + "_Fascia_Gold_Border", [
+    local_path_curve(name + "_Fascia_Gold_Border", [
         (-2.18, front + 0.25, 3.06), (-1.05, front + 0.25, 3.03),
         (0.90, front + 0.25, 3.03), (2.08, front + 0.25, 3.07),
         (2.08, front + 0.25, 3.49), (0.0, front + 0.25, 3.52),
@@ -1599,7 +1639,7 @@ def add_crafted_riverfront_corner_store(
     sign_text.location = (-0.04, front + 0.27, 3.29)
     sign_text.rotation_euler = (math.pi * 0.5, 0.0, 0.0)
     sign_data.materials.append(mats["cream"])
-    set_parent(sign_text, root)
+    set_parent_local(sign_text, root)
 
     # Folded awning: a dense cloth-like grid with uneven sag, soft creases and
     # alternating hand-painted canvas panels. Shape keys add a restrained breeze.
@@ -1640,7 +1680,7 @@ def add_crafted_riverfront_corner_store(
     for seam in range(1, 7):
         u = seam / 7.0
         seam_x = -awning_width * 0.5 + awning_width * u
-        path_curve(name + f"_Awning_Stitched_Seam_{seam}", [
+        local_path_curve(name + f"_Awning_Stitched_Seam_{seam}", [
             (seam_x, awning_start_y + 0.04, 3.00),
             (seam_x + 0.015 * math.sin(seam), (awning_start_y + awning_end_y) * 0.5, 2.77),
             (seam_x, awning_end_y - 0.035, 2.52),
@@ -1672,9 +1712,9 @@ def add_crafted_riverfront_corner_store(
             awning_end_y + 0.01,
             2.42 - 0.035 * math.sin(u * math.pi * 12.0),
         ))
-    path_curve(name + "_Scalloped_Canvas_Valance", scallop_points, mats["red"], 0.055, root)
+    local_path_curve(name + "_Scalloped_Canvas_Valance", scallop_points, mats["red"], 0.055, root)
     for side in (-1, 1):
-        path_curve(name + f"_Forged_Awning_Support_{side}", [
+        local_path_curve(name + f"_Forged_Awning_Support_{side}", [
             (side * 2.36, front + 0.22, 3.00),
             (side * 2.48, front + 0.50, 2.80),
             (side * 2.48, front + 0.92, 2.64),
@@ -1694,7 +1734,7 @@ def add_crafted_riverfront_corner_store(
             name + f"_Upper_Arched_Window_{index}",
             arch, front + 0.085, front + 0.035, mats["glass"], root,
         )
-        path_curve(name + f"_Upper_Window_Stone_Arch_{index}", [
+        local_path_curve(name + f"_Upper_Window_Stone_Arch_{index}", [
             (cx - 0.56, front + 0.14, z0 - 0.68),
             (cx - 0.56, front + 0.14, z0 + 0.20),
             (cx - 0.35, front + 0.14, z0 + 0.52),
@@ -1704,11 +1744,11 @@ def add_crafted_riverfront_corner_store(
             (cx + 0.56, front + 0.14, z0 - 0.68),
         ], mats["stone"], 0.065, root)
         for bar in (-0.24, 0.0, 0.24):
-            path_curve(name + f"_Window_Grille_{index}_{bar:.2f}", [
+            local_path_curve(name + f"_Window_Grille_{index}_{bar:.2f}", [
                 (cx + bar, front + 0.17, z0 - 0.60),
                 (cx + bar, front + 0.17, z0 + 0.36),
             ], mats["aluminium"], 0.014, root)
-        path_curve(name + f"_Window_Crossbar_{index}", [
+        local_path_curve(name + f"_Window_Crossbar_{index}", [
             (cx - 0.45, front + 0.17, z0 - 0.02),
             (cx, front + 0.17, z0 - 0.06),
             (cx + 0.45, front + 0.17, z0 - 0.02),
@@ -1735,23 +1775,23 @@ def add_crafted_riverfront_corner_store(
         (1.11, front + 0.68, 5.00), (1.48, front + 0.38, 4.99),
         (1.68, front + 0.08, 4.98),
     ]
-    path_curve(name + "_Forged_Balcony_Handrail", rail_points, mats["brass"], 0.042, root)
+    local_path_curve(name + "_Forged_Balcony_Handrail", rail_points, mats["brass"], 0.042, root)
     for index in range(17):
         u = index / 16.0
         px = -1.62 + 3.24 * u
         py = front + 0.10 + 0.83 * math.sin(math.pi * u)
         top_z = 4.96 + 0.08 * math.sin(math.pi * u)
-        path_curve(name + f"_Forged_Baluster_{index:02d}", [
+        local_path_curve(name + f"_Forged_Baluster_{index:02d}", [
             (px, py, 4.34), (px, py + 0.012, 4.54),
             (px + 0.025 * math.sin(u * math.tau), py, 4.75),
             (px, py, top_z),
         ], mats["aluminium"], 0.019 if index % 2 else 0.026, root)
-    path_curve(name + "_Balcony_Floral_Spiral_Left", [
+    local_path_curve(name + "_Balcony_Floral_Spiral_Left", [
         (-0.45, front + 0.91, 4.55), (-0.30, front + 0.91, 4.71),
         (-0.10, front + 0.91, 4.60), (-0.23, front + 0.91, 4.47),
         (-0.38, front + 0.91, 4.55),
     ], mats["brass"], 0.027, root)
-    path_curve(name + "_Balcony_Floral_Spiral_Right", [
+    local_path_curve(name + "_Balcony_Floral_Spiral_Right", [
         (0.45, front + 0.91, 4.55), (0.30, front + 0.91, 4.71),
         (0.10, front + 0.91, 4.60), (0.23, front + 0.91, 4.47),
         (0.38, front + 0.91, 4.55),
@@ -1760,7 +1800,7 @@ def add_crafted_riverfront_corner_store(
     # Shop interior: deep shelves, folded awnings of stock, tea jars, rice sacks
     # and warm practical light visible through the arched glazing.
     for shelf, z in enumerate((0.82, 1.30, 1.83)):
-        path_curve(name + f"_Interior_Wood_Shelf_{shelf}", [
+        local_path_curve(name + f"_Interior_Wood_Shelf_{shelf}", [
             (-1.74, front - 0.32, z), (-1.15, front - 0.35, z - 0.015),
             (-0.54, front - 0.32, z),
         ], mats["wood"], 0.052, root)
@@ -1785,7 +1825,7 @@ def add_crafted_riverfront_corner_store(
             )
             bag_obj.location = (bx, front - 0.31, z + 0.04)
     for side in (-1, 1):
-        path_curve(name + f"_Interior_Support_Post_{side}", [
+        local_path_curve(name + f"_Interior_Support_Post_{side}", [
             (side * 0.14, front - 0.18, 0.45),
             (side * 0.14, front - 0.18, 2.70),
         ], mats["wood"], 0.055, root)
@@ -1795,7 +1835,7 @@ def add_crafted_riverfront_corner_store(
     for streak in range(13):
         sx = -2.05 + streak * 0.32
         length = 0.22 + (streak % 4) * 0.12
-        path_curve(name + f"_Rain_Stain_{streak:02d}", [
+        local_path_curve(name + f"_Rain_Stain_{streak:02d}", [
             (sx, front + 0.015, 3.88),
             (sx + 0.025 * math.sin(streak), front + 0.018, 3.88 - length * 0.5),
             (sx - 0.018 * math.cos(streak), front + 0.020, 3.88 - length),
@@ -1818,16 +1858,17 @@ def add_crafted_riverfront_corner_store(
         mats["aluminium"], root, 48,
     )
     cap.location = (1.55, back + 0.55, 8.69)
-    path_curve(name + "_Roof_Feed_Pipe", [
+    local_path_curve(name + "_Roof_Feed_Pipe", [
         (1.55, back + 0.55, 7.56), (1.30, back + 0.30, 6.95),
         (1.22, back + 0.26, 5.85), (1.22, back + 0.26, 0.25),
     ], mats["aluminium"], 0.038, root)
-    path_curve(name + "_Roof_Telephone_Cable", [
+    local_path_curve(name + "_Roof_Telephone_Cable", [
         (-2.45, back + 0.18, 7.20), (-1.70, back + 0.10, 7.55),
         (-0.82, back + 0.08, 7.33), (0.12, back + 0.12, 7.52),
         (1.20, back + 0.18, 7.31),
     ], mats["dark"], 0.018, root)
 
+    root["placement_rule"] = "root_at_authored_shariatpur_block_coordinate;children_in_local_space"
     root["asset_role"] = "hero_local_corner_store"
     root["art_method"] = "hand_authored_mesh_profiles;arched_recesses;curved_balcony;cloth_grid;lathed_utility_assets;visible_shop_interior"
     root["silhouette_review"] = "irregular_roofline;offset_upper_openings;curved_awning;deep_balcony"
@@ -1838,6 +1879,11 @@ def add_crafted_riverfront_corner_store(
         "method": root["art_method"],
         "visible_interior": True,
         "animated_awning": True,
+        "facade_profile_points": len(body_contour),
+    }, sort_keys=True))
+    return root
+
+  "animated_awning": True,
         "facade_profile_points": len(body_contour),
     }, sort_keys=True))
     return root
