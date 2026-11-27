@@ -266,6 +266,8 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
         self.assertIn("tread_count = 44", body)
         self.assertIn("CNG_Front_Steering", body)
         self.assertIn("CNG_Suspension_Body_Performance", body)
+        self.assertIn("name_text.location = (-0.24, 0.625, 0.85)", body)
+        self.assertIn("name_text.rotation_euler = (-math.pi * 0.5, 0.0, 0.0)", body)
 
     def test_cng_canopy_has_custom_cloth_topology_and_gust_animation(self) -> None:
         body = self.function_text("add_handcrafted_cng")
