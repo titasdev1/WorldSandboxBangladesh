@@ -5,6 +5,7 @@ on:
     branches:
       - feature/three-distinct-ara-operators
       - art/crafted-riverside-architecture
+      - art/crafted-cng-vehicle
     paths:
       - "docs/animation/A-SQUARE_FILM_ART_DIRECTION_SCOREBOOK.md"
       - "tools/animation/render_scorebook_pdf.py"
