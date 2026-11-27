@@ -1339,15 +1339,18 @@ def authored_xz_prism(
     mat: bpy.types.Material,
     parent: bpy.types.Object | None = None,
     bevel: float = 0.0,
+    include_front_face: bool = True,
+    include_back_face: bool = True,
 ) -> bpy.types.Object:
     """Extrude an irregular artist-drawn elevation contour along the depth axis."""
     count = len(contour)
     vertices = [(x, front_y, z) for x, z in contour]
     vertices.extend((x, back_y, z) for x, z in contour)
-    faces: list[tuple[int, ...]] = [
-        tuple(range(count)),
-        tuple(range(count * 2 - 1, count - 1, -1)),
-    ]
+    faces: list[tuple[int, ...]] = []
+    if include_front_face:
+        faces.append(tuple(range(count)))
+    if include_back_face:
+        faces.append(tuple(range(count * 2 - 1, count - 1, -1)))
     for i in range(count):
         j = (i + 1) % count
         faces.append((i, j, count + j, count + i))
@@ -1449,7 +1452,44 @@ def add_crafted_riverfront_corner_store(
     authored_xz_prism(
         name + "_Irregular_Masonry_Mass",
         body_contour, front, back, mats["sand"], root, 0.035,
+        include_front_face=False, include_back_face=False,
     )
+    authored_xz_prism(
+        name + "_Deep_Interior_Back_Wall",
+        body_contour, back + 0.055, back - 0.015, mats["dark"], root,
+    )
+
+    # The front elevation is assembled around genuine negative-space openings.
+    # These custom wall panels form piers, lintels and upper infill; the shop
+    # glazing and doors are not simply pasted over a solid box.
+    ground_panels = [
+        [(-half, 0.0), (arch_left - 0.08, 0.0), (arch_left - 0.08, 3.78), (-half, 3.78)],
+        [(arch_right + 0.08, 0.0), (0.66, 0.0), (0.66, 2.92), (arch_right + 0.08, 2.92)],
+        [(1.93, 0.0), (half, 0.0), (half, 3.78), (1.93, 3.78)],
+        [(-half, 2.80), (half, 2.80), (half, 3.02), (-half, 3.02)],
+        [(-half, 3.56), (half, 3.56), (half, 3.82), (-half, 3.82)],
+    ]
+    for index, panel in enumerate(ground_panels):
+        authored_xz_prism(
+            name + f"_Ground_Facade_Pier_{index}",
+            panel, front + 0.055, front - 0.015, mats["sand"] if index % 2 else mats["brick"], root, 0.012,
+        )
+    upper_piers = [
+        (-half, -2.22), (-1.02, -0.58), (0.60, 1.00), (2.20, half),
+    ]
+    for index, (left, right) in enumerate(upper_piers):
+        authored_xz_prism(
+            name + f"_Upper_Architectural_Pier_{index}",
+            [(left, 3.80), (right, 3.80), (right, 7.05), (left, 7.05)],
+            front + 0.055, front - 0.015, mats["sand"], root, 0.012,
+        )
+    # Upper lintels frame the arch windows without closing their apertures.
+    for index, (z0, z1) in enumerate(((3.78, 4.02), (5.30, 5.52), (6.85, 7.05))):
+        authored_xz_prism(
+            name + f"_Upper_Window_Lintel_Band_{index}",
+            [(-half, z0), (half, z0), (half, z1), (-half, z1)],
+            front + 0.065, front - 0.010, mats["stone"], root, 0.018,
+        )
 
     # Deep shop recesses: two different arches, one broad service hatch and a
     # narrow timber door. Their custom profiles are intentionally not mirrored.
@@ -1591,11 +1631,20 @@ def add_crafted_riverfront_corner_store(
         name + "_Sculpted_Canvas_Awning",
         awning_vertices, awning_faces, mats["canvas"], root, True,
     )
-    for col in range(awning_cols):
-        if col % 4 in (0, 1):
-            for polygon in awning_obj.data.polygons:
-                if col in range(polygon.index % awning_cols, polygon.index % awning_cols + 1):
-                    polygon.material_index = 0
+    awning_obj.data.materials.append(mats["red"])
+    for polygon in awning_obj.data.polygons:
+        column = polygon.index % awning_cols
+        polygon.material_index = 1 if column % 4 in (0, 1) else 0
+    # Painted stripe panels are separate material regions; the front hem is
+    # stitched as an irregular line rather than a flat rectangular valance.
+    for seam in range(1, 7):
+        u = seam / 7.0
+        seam_x = -awning_width * 0.5 + awning_width * u
+        path_curve(name + f"_Awning_Stitched_Seam_{seam}", [
+            (seam_x, awning_start_y + 0.04, 3.00),
+            (seam_x + 0.015 * math.sin(seam), (awning_start_y + awning_end_y) * 0.5, 2.77),
+            (seam_x, awning_end_y - 0.035, 2.52),
+        ], mats["sand"], 0.008, root)
     breeze = awning_obj.shape_key_add(name="Canvas_Gust_Anticipation", from_mix=False)
     for index, vertex in enumerate(awning_vertices):
         x_local, y_local, z_local = vertex
