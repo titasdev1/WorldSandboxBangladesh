@@ -485,6 +485,141 @@ def add_area_light(scene: bpy.types.Scene, name: str, location: tuple[float, flo
     return obj
 
 
+def configure_cinematic_compositor(scene: bpy.types.Scene, warm: bool = True) -> None:
+    """Build a restrained film-look compositor for both login and lobby images.
+
+    This is an authored Blender node graph: scene-linear highlight handling,
+    profile-specific lift/gamma/gain, thresholded optical glow, slight lens
+    dispersion and a soft elliptical vignette. The treatment is intentionally
+    subtle so it preserves skin, local colour and mobile-size readability.
+    """
+    scene.use_nodes = True
+    tree = scene.node_tree
+    if tree is None:
+        raise RuntimeError("CINEMATIC_COMPOSITOR_GATE: compositor node tree unavailable.")
+    nodes = tree.nodes
+    links = tree.links
+    nodes.clear()
+
+    render = nodes.new("CompositorNodeRLayers")
+    render.name = "A_Square_Render_Layers"
+    render.label = "Scene-linear render"
+    render.location = (-900, 220)
+
+    balance = nodes.new("CompositorNodeColorBalance")
+    balance.name = "A_Square_Film_Color_Balance"
+    balance.label = "Warm delta / cool command grade"
+    balance.location = (-650, 220)
+    if hasattr(balance, "correction_method"):
+        balance.correction_method = "LIFT_GAMMA_GAIN"
+    if "Fac" in balance.inputs:
+        balance.inputs["Fac"].default_value = 0.82
+    if warm:
+        # Cool shadow separation, warm mids/highlights, with restrained skin bias.
+        balance.lift = (0.985, 0.997, 1.018)
+        balance.gamma = (1.012, 1.002, 0.988)
+        balance.gain = (1.035, 1.012, 0.982)
+    else:
+        # Graphite/river-teal shadows; warm practicals and faces remain motivated by lights.
+        balance.lift = (0.978, 0.996, 1.025)
+        balance.gamma = (0.994, 1.004, 1.018)
+        balance.gain = (1.012, 1.020, 1.035)
+
+    glow = nodes.new("CompositorNodeGlare")
+    glow.name = "A_Square_Optical_Highlight_Glow"
+    glow.label = "Restrained highlight halation"
+    glow.location = (-390, 220)
+    if hasattr(glow, "glare_type"):
+        glow.glare_type = "FOG_GLOW"
+    if hasattr(glow, "quality"):
+        glow.quality = "HIGH"
+    if hasattr(glow, "threshold"):
+        glow.threshold = 1.55 if warm else 1.75
+    if hasattr(glow, "size"):
+        glow.size = 7
+    for socket_name, value in (("Threshold", 1.55 if warm else 1.75), ("Size", 7)):
+        if socket_name in glow.inputs:
+            glow.inputs[socket_name].default_value = value
+    if "Mix" in glow.inputs:
+        glow.inputs["Mix"].default_value = -0.94
+    elif hasattr(glow, "mix"):
+        glow.mix = -0.94
+
+    lens = nodes.new("CompositorNodeLensdist")
+    lens.name = "A_Square_Optical_Lens_Finish"
+    lens.label = "Near-invisible chromatic edge finish"
+    lens.location = (-120, 220)
+    if hasattr(lens, "use_fit"):
+        lens.use_fit = True
+    if "Distortion" in lens.inputs:
+        lens.inputs["Distortion"].default_value = 0.0015
+    if "Dispersion" in lens.inputs:
+        lens.inputs["Dispersion"].default_value = 0.0020
+
+    ellipse = nodes.new("CompositorNodeEllipseMask")
+    ellipse.name = "A_Square_Lens_Vignette_Mask"
+    ellipse.label = "Hand-shaped optical falloff"
+    ellipse.location = (-370, -180)
+    ellipse.x = 0.5
+    ellipse.y = 0.5
+    ellipse.width = 0.88 if warm else 0.86
+    ellipse.height = 0.90 if warm else 0.88
+    ellipse.rotation = 0.0
+
+    blur = nodes.new("CompositorNodeBlur")
+    blur.name = "A_Square_Vignette_Soften"
+    blur.label = "Feathered vignette edge"
+    blur.location = (-120, -180)
+    if hasattr(blur, "filter_type"):
+        blur.filter_type = "GAUSS"
+    if hasattr(blur, "size_x"):
+        blur.size_x = 150
+    if hasattr(blur, "size_y"):
+        blur.size_y = 150
+
+    ramp = nodes.new("CompositorNodeValToRGB")
+    ramp.name = "A_Square_Vignette_Density"
+    ramp.label = "Subtle lens falloff"
+    ramp.location = (110, -170)
+    ramp.color_ramp.elements[0].position = 0.0
+    ramp.color_ramp.elements[0].color = (0.91, 0.925, 0.95, 1.0)
+    ramp.color_ramp.elements[1].position = 1.0
+    ramp.color_ramp.elements[1].color = (1.0, 1.0, 1.0, 1.0)
+    ramp.color_ramp.interpolation = "EASE"
+
+    multiply = nodes.new("CompositorNodeMixRGB")
+    multiply.name = "A_Square_Film_Vignette"
+    multiply.label = "Optical edge density"
+    multiply.location = (390, 220)
+    multiply.blend_type = "MULTIPLY"
+    multiply.inputs["Fac"].default_value = 1.0
+
+    composite = nodes.new("CompositorNodeComposite")
+    composite.name = "A_Square_Final_Composite"
+    composite.location = (650, 220)
+
+    links.new(render.outputs["Image"], balance.inputs["Image"])
+    links.new(balance.outputs["Image"], glow.inputs["Image"])
+    links.new(glow.outputs["Image"], lens.inputs["Image"])
+    links.new(ellipse.outputs["Mask"], blur.inputs["Image"])
+    links.new(blur.outputs["Image"], ramp.inputs["Fac"])
+    links.new(lens.outputs["Image"], multiply.inputs[1])
+    links.new(ramp.outputs["Image"], multiply.inputs[2])
+    links.new(multiply.outputs["Image"], composite.inputs["Image"])
+
+    scene["cinematic_compositor"] = "ASQ_FILM_GRADE_V1"
+    scene["cinematic_grade_profile"] = "SHARIATPUR_WARM_RIVER" if warm else "DELTA_COMMAND_COOL_GRAPHITE"
+    scene["cinematic_compositor_nodes"] = len(nodes)
+    scene["cinematic_optical_finish"] = "AgX;lift_gamma_gain;thresholded_fog_glow;subtle_lens_dispersion;soft_elliptical_vignette"
+    print("A_SQUARE_COMPOSITOR_READY:", json.dumps({
+        "profile": scene["cinematic_grade_profile"],
+        "nodes": len(nodes),
+        "glow_threshold": 1.55 if warm else 1.75,
+        "lens_dispersion": 0.002,
+        "vignette": "soft_elliptical",
+    }, sort_keys=True))
+
+
 def world_and_lighting(scene: bpy.types.Scene, warm: bool = True) -> None:
     world = bpy.data.worlds.new("A_Square_Atmosphere")
     world.use_nodes = True
@@ -504,6 +639,7 @@ def world_and_lighting(scene: bpy.types.Scene, warm: bool = True) -> None:
     add_area_light(scene, "Sunset_Key", (4.5, 9.5, 13.0), (0.0, -7.0, 2.0), 9800, (1.0, 0.70, 0.46), 12.0)
     add_area_light(scene, "Cool_Sky_Fill", (-10.0, 4.0, 11.0), (0.0, -4.0, 3.0), 7200, (0.42, 0.68, 0.82), 14.0)
     add_area_light(scene, "Warm_Rim", (7.0, -13.0, 9.0), (0.0, -3.0, 2.0), 5600, (1.0, 0.49, 0.28), 10.0)
+    configure_cinematic_compositor(scene, warm)
 
 
 def camera(
