@@ -8,6 +8,7 @@ on:
       - "tools/blender/build_login_lobby_environments.py"
       - "tools/blender/verify_login_lobby_environments.py"
       - "tools/fetch_polyhaven_pbr.py"
+      - "tests/test_blender_cinematic_pipeline.py"
       - "tools/install_blender_ci.sh"
       - "tools/fetch_polyhaven_pbr.py"
       - ".github/workflows/validate-lobby-art.yml"
