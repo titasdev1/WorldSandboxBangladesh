@@ -1883,11 +1883,6 @@ def add_crafted_riverfront_corner_store(
     }, sort_keys=True))
     return root
 
-  "animated_awning": True,
-        "facade_profile_points": len(body_contour),
-    }, sort_keys=True))
-    return root
-
 
 def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], operator_glb: pathlib.Path) -> bpy.types.Object:
     scene["scene_role"] = "A-Square Login — Shariatpur Riverfront"
