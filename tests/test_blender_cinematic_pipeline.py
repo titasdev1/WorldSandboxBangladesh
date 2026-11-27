@@ -317,7 +317,7 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
         self.assertIn("Wake_Dissipation", wake)
         self.assertIn("Launch_Wake_Follows_Hull", wake)
         self.assertIn("motion: list[tuple[int, tuple[float, float, float]]]", wake)
-        self.assertIn("add_launch_wake(\\"River_Launch_Stern_Wake\\", launch_motion, mats)", body)
+        self.assertIn('add_launch_wake("River_Launch_Stern_Wake", launch_motion, mats)', body)
         self.assertNotIn("path_curve(", wake)
 
 
