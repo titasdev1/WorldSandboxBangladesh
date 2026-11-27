@@ -231,7 +231,7 @@ def main() -> int:
     # The cover already carries the title/subtitle/metadata; keep the editorial introduction.
     source_lines = source.splitlines()
     if source_lines and source_lines[0].startswith("# A-Square "):
-        source = "\n".join(source_lines[10:])
+        source = "\n".join(source_lines[16:])
     md = markdown.Markdown(
         extensions=["extra", "toc", "sane_lists", "tables"],
         extension_configs={"toc": {"toc_depth": "1-1"}},
