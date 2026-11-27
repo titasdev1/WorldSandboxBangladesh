@@ -55,6 +55,8 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
         self.assertIn("imported_actions", body)
         self.assertIn("nla_tracks.new()", body)
         self.assertIn("strip.repeat", body)
+        self.assertIn("bpy.context.scene.frame_end", body)
+        self.assertNotIn("(scene.frame_end", body)
 
     def test_live_rig_gate_is_required_for_every_preview_actor(self) -> None:
         body = self.function_text("validate_preview_rigs")
