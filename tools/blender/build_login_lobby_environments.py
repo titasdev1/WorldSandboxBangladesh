@@ -56,6 +56,25 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def configure_eevee_reflections(scene: bpy.types.Scene) -> None:
+    """Enable EEVEE screen-traced reflections for the authoring/review scene."""
+    eevee = getattr(scene, "eevee", None)
+    if eevee is None:
+        scene["eevee_screen_space_reflections"] = False
+        print("EEVEE_REFLECTIONS_WARNING: no EEVEE scene settings are available.")
+        return
+    try:
+        eevee.use_raytracing = True
+        eevee.ray_tracing_method = "SCREEN"
+        scene["eevee_screen_space_reflections"] = True
+        scene["eevee_reflection_method"] = "SCREEN_TRACE_WITH_PROBE_FALLBACK"
+        print("EEVEE_REFLECTIONS_READY: screen-space ray tracing enabled.")
+    except (AttributeError, TypeError, RuntimeError) as exc:
+        scene["eevee_screen_space_reflections"] = False
+        scene["eevee_reflection_warning"] = str(exc)
+        print(f"EEVEE_REFLECTIONS_WARNING: {exc}")
+
+
 def clear_scene() -> bpy.types.Scene:
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete(use_global=False)
@@ -68,6 +87,7 @@ def clear_scene() -> bpy.types.Scene:
     scene.frame_end = 288
     scene.render.fps = 30
     scene.render.engine = "BLENDER_EEVEE"
+    configure_eevee_reflections(scene)
     scene.render.resolution_x = 1600
     scene.render.resolution_y = 900
     # A contact-sheet preview is intentionally lighter than the exported GLB.
@@ -956,6 +976,85 @@ def animate_location(obj: bpy.types.Object, name: str, keys: list[tuple[int, tup
                 curve.modifiers.new("CYCLES")
 
 
+def configure_river_water_material(mat: bpy.types.Material) -> None:
+    """Author layered river colour, roughness and multi-scale ripple normals."""
+    mat.diffuse_color = (0.025, 0.135, 0.17, 1.0)
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    nodes.clear()
+
+    output = nodes.new("ShaderNodeOutputMaterial")
+    output.location = (760, 80)
+    shader = nodes.new("ShaderNodeBsdfPrincipled")
+    shader.location = (480, 80)
+    shader.inputs["Metallic"].default_value = 0.14
+    shader.inputs["Roughness"].default_value = 0.19
+    if "IOR" in shader.inputs:
+        shader.inputs["IOR"].default_value = 1.333
+    if "Specular IOR Level" in shader.inputs:
+        shader.inputs["Specular IOR Level"].default_value = 0.72
+    if "Coat Weight" in shader.inputs:
+        shader.inputs["Coat Weight"].default_value = 0.28
+        shader.inputs["Coat Roughness"].default_value = 0.12
+    links.new(shader.outputs["BSDF"], output.inputs["Surface"])
+
+    coordinates = nodes.new("ShaderNodeTexCoord")
+    coordinates.location = (-900, 80)
+
+    long_wave = nodes.new("ShaderNodeTexWave")
+    long_wave.location = (-660, 280)
+    long_wave.wave_type = "BANDS"
+    long_wave.bands_direction = "X"
+    long_wave.inputs["Scale"].default_value = 3.2
+    long_wave.inputs["Distortion"].default_value = 5.0
+    long_wave.inputs["Detail"].default_value = 3.0
+    long_wave.inputs["Detail Scale"].default_value = 1.35
+    links.new(coordinates.outputs["UV"], long_wave.inputs["Vector"])
+
+    micro_noise = nodes.new("ShaderNodeTexNoise")
+    micro_noise.location = (-660, -120)
+    micro_noise.inputs["Scale"].default_value = 28.0
+    micro_noise.inputs["Detail"].default_value = 4.0
+    micro_noise.inputs["Roughness"].default_value = 0.72
+    links.new(coordinates.outputs["UV"], micro_noise.inputs["Vector"])
+
+    colour_ramp = nodes.new("ShaderNodeValToRGB")
+    colour_ramp.location = (-360, 390)
+    colour_ramp.color_ramp.elements[0].position = 0.18
+    colour_ramp.color_ramp.elements[0].color = (0.006, 0.045, 0.058, 1.0)
+    colour_ramp.color_ramp.elements[1].position = 0.82
+    colour_ramp.color_ramp.elements[1].color = (0.045, 0.235, 0.255, 1.0)
+    links.new(micro_noise.outputs["Fac"], colour_ramp.inputs["Fac"])
+    links.new(colour_ramp.outputs["Color"], shader.inputs["Base Color"])
+
+    roughness_ramp = nodes.new("ShaderNodeValToRGB")
+    roughness_ramp.location = (-360, 100)
+    roughness_ramp.color_ramp.elements[0].position = 0.12
+    roughness_ramp.color_ramp.elements[0].color = (0.105, 0.105, 0.105, 1.0)
+    roughness_ramp.color_ramp.elements[1].position = 0.88
+    roughness_ramp.color_ramp.elements[1].color = (0.31, 0.31, 0.31, 1.0)
+    links.new(micro_noise.outputs["Fac"], roughness_ramp.inputs["Fac"])
+    links.new(roughness_ramp.outputs["Color"], shader.inputs["Roughness"])
+
+    broad_bump = nodes.new("ShaderNodeBump")
+    broad_bump.location = (30, -40)
+    broad_bump.inputs["Strength"].default_value = 0.18
+    broad_bump.inputs["Distance"].default_value = 0.018
+    links.new(long_wave.outputs["Color"], broad_bump.inputs["Height"])
+
+    micro_bump = nodes.new("ShaderNodeBump")
+    micro_bump.location = (260, -80)
+    micro_bump.inputs["Strength"].default_value = 0.22
+    micro_bump.inputs["Distance"].default_value = 0.006
+    links.new(micro_noise.outputs["Fac"], micro_bump.inputs["Height"])
+    links.new(broad_bump.outputs["Normal"], micro_bump.inputs["Normal"])
+    links.new(micro_bump.outputs["Normal"], shader.inputs["Normal"])
+
+    mat["surface_role"] = "layered_meghna_water_pbr"
+    mat["surface_features"] = "long_wave_bands;micro_ripple_normal;roughness_breakup;screen_traced_reflection"
+
+
 def make_material_set() -> dict[str, bpy.types.Material]:
     mats = {
         "dark": material("Graphite_Ceramic", METAL_DARK, 0.31, 0.74, 55, 0.12),
@@ -990,14 +1089,94 @@ def make_material_set() -> dict[str, bpy.types.Material]:
         "white": material("Warm_White_Lacquer", (0.73, 0.70, 0.61, 1), 0.34, 0.22),
         "wood": material("Oiled_Teak", (0.24, 0.12, 0.055, 1), 0.58, 0.06, 6, 0.12),
     }
+    configure_river_water_material(mats["river"])
     return mats
 
 
 def river_plane(mats: dict[str, bpy.types.Material], y: float, width: float, depth: float) -> bpy.types.Object:
-    water = box("Meghna_River_Surface", (0.0, y, -0.40), (width, depth, 0.18), mats["river"], 0.0)
-    water["surface_role"] = "river_water"
-    return water
+    """Create a tessellated river with an authored, looping multi-scale swell."""
+    columns = max(96, int(width * 2.0))
+    rows = max(48, int(depth * 2.0))
+    water_level = -0.31
+    vertices: list[tuple[float, float, float]] = []
+    faces: list[tuple[int, int, int, int]] = []
+    for row in range(rows + 1):
+        local_y = -depth * 0.5 + depth * row / rows
+        for column in range(columns + 1):
+            local_x = -width * 0.5 + width * column / columns
+            vertices.append((local_x, local_y, water_level))
+    stride = columns + 1
+    for row in range(rows):
+        for column in range(columns):
+            a = row * stride + column
+            b = a + 1
+            d = (row + 1) * stride + column
+            c = d + 1
+            faces.append((a, b, c, d))
 
+    mesh = bpy.data.meshes.new(f"Meghna_River_Surface_Mesh_{abs(y):.1f}m")
+    mesh.from_pydata(vertices, [], faces)
+    mesh.update()
+    water = bpy.data.objects.new("Meghna_River_Surface", mesh)
+    bpy.context.collection.objects.link(water)
+    mesh.materials.append(mats["river"])
+    for polygon in mesh.polygons:
+        polygon.use_smooth = True
+
+    uv_layer = mesh.uv_layers.new(name="River_Wave_UV")
+    for loop in mesh.loops:
+        row, column = divmod(loop.vertex_index, stride)
+        uv_layer.data[loop.index].uv = (column / columns, row / rows)
+
+    # The four wave poses are separate authored deformations. Cycling their
+    # weights produces a soft handoff rather than one identical sine bob.
+    wave_keys = []
+    for phase_index in range(4):
+        phase = math.tau * phase_index / 4.0
+        key = water.shape_key_add(name=f"River_Wave_Phase_{phase_index + 1}", from_mix=False)
+        for vertex_index, (local_x, local_y, _) in enumerate(vertices):
+            world_y = local_y + y
+            long_swell = 0.040 * math.sin(local_x * 0.19 + world_y * 0.105 + phase)
+            cross_swell = 0.018 * math.sin(local_x * 0.49 - world_y * 0.31 + phase * 1.37)
+            capillary = 0.006 * math.sin(local_x * 1.48 + world_y * 0.86 - phase * 0.73)
+            key.data[vertex_index].co.z = water_level + long_swell + cross_swell + capillary
+        wave_keys.append(key)
+
+    phase_frames = (1, 73, 145, 217, 289)
+    for phase_step, frame in enumerate(phase_frames):
+        active_phase = phase_step % 4
+        for phase_index, key in enumerate(wave_keys):
+            key.value = 1.0 if phase_index == active_phase else 0.0
+            key.keyframe_insert(data_path="value", frame=frame, group="River_Wave_Performance")
+
+    shape_keys = mesh.shape_keys
+    if shape_keys and shape_keys.animation_data and shape_keys.animation_data.action:
+        action = shape_keys.animation_data.action
+        action.name = "Meghna_River_Looping_Wave_Performance"
+        try:
+            for curve in action.fcurves:
+                for keyframe in curve.keyframe_points:
+                    keyframe.interpolation = "BEZIER"
+                    keyframe.handle_left_type = "AUTO_CLAMPED"
+                    keyframe.handle_right_type = "AUTO_CLAMPED"
+                curve.modifiers.new("CYCLES")
+        except AttributeError:
+            print("RIVER_WAVE_ANIMATION_WARNING: legacy F-curve API unavailable; authored keys retained.")
+
+    water["surface_role"] = "river_water"
+    water["wave_mesh_dimensions"] = f"{columns}x{rows}"
+    water["wave_vertex_count"] = len(vertices)
+    water["wave_phase_count"] = len(wave_keys)
+    water["wave_animation"] = "four-phase cyclic shape-key swell with micro-ripple shader"
+    water["reflection_intent"] = "EEVEE screen tracing with light-probe fallback"
+    print("RIVER_SURFACE_READY:", json.dumps({
+        "name": water.name,
+        "vertices": len(vertices),
+        "faces": len(faces),
+        "wave_phases": len(wave_keys),
+        "reflection_intent": "screen_trace",
+    }, sort_keys=True))
+    return water
 
 def apply_camera_shakify(camera_obj: bpy.types.Object, scene: bpy.types.Scene) -> dict:
     """Apply Camera Shakify 0.5.1 and bake its evaluated camera movement."""
