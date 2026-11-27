@@ -663,6 +663,197 @@ def camera(
     return obj
 
 
+def animate_operator_facial_performance(
+    wrapper: bpy.types.Object,
+    scene: bpy.types.Scene,
+) -> dict:
+    """Layer subtle role-specific facial performance over each imported Ara 3D rig.
+
+    Only shape keys that exist on the imported face meshes are animated. Any
+    imported facial action is retained as a base NLA strip; the authored
+    micro-performance is added on a separate low-influence track.
+    """
+    lower_name = wrapper.name.lower()
+    if "delta_recon" in lower_name:
+        profile = "delta_recon"
+        if "lobby" in lower_name:
+            start, end = 87, 124
+        else:
+            start, end = 1, 288
+        blink_frames = [start + 17]
+        gaze_frames = [(start + 5, start + 12)]
+    elif "river_scout" in lower_name:
+        profile = "river_scout"
+        if "lobby" in lower_name:
+            start, end = 125, 162
+        else:
+            start, end = 1, 288
+        blink_frames = [start + 23]
+        gaze_frames = [(start + 8, start + 16)]
+    else:
+        profile = "field_ranger"
+        if "lobby" in lower_name:
+            start, end = 49, 86
+        elif "login" in lower_name:
+            start, end = 161, 226
+        else:
+            start, end = 1, 288
+        blink_frames = [start + 26]
+        gaze_frames = [(start + 7, start + 15)]
+
+    def normalized(value: str) -> str:
+        return "".join(character for character in value.lower() if character.isalnum())
+
+    animated: list[dict] = []
+    for mesh in wrapper.children_recursive:
+        if mesh.type != "MESH" or mesh.data.shape_keys is None:
+            continue
+        key_data = mesh.data.shape_keys
+        blocks = list(key_data.key_blocks)
+        if len(blocks) <= 1:
+            continue
+
+        blink_keys = []
+        gaze_left_keys = []
+        gaze_right_keys = []
+        brow_keys = []
+        mouth_keys = []
+        for block in blocks[1:]:
+            key_name = normalized(block.name)
+            if "blink" in key_name:
+                blink_keys.append(block)
+            if "eyelook" in key_name or "lookeye" in key_name:
+                if any(token in key_name for token in ("left", "lookleft", "outleft", "inright")):
+                    gaze_left_keys.append(block)
+                if any(token in key_name for token in ("right", "lookright", "outright", "inleft")):
+                    gaze_right_keys.append(block)
+            if "brow" in key_name:
+                brow_keys.append(block)
+            if any(token in key_name for token in ("mouthpress", "mouthsmile", "jawopen")):
+                mouth_keys.append(block)
+
+        if not any((blink_keys, gaze_left_keys, gaze_right_keys, brow_keys, mouth_keys)):
+            continue
+
+        key_data.animation_data_create()
+        animation_data = key_data.animation_data
+        imported_action = animation_data.action
+        animation_data.action = None
+
+        # Preserve any imported facial take in its own NLA strip before adding
+        # the authored glance/blink layer.
+        if imported_action is not None:
+            base_track = animation_data.nla_tracks.new()
+            base_track.name = "Imported_Ara_Facial_Take"
+            base_strip = base_track.strips.new(imported_action.name, 1, imported_action)
+            source_span = max(1.0, float(imported_action.frame_range[1] - imported_action.frame_range[0]))
+            base_strip.repeat = max(1.0, (end - start + 1) / source_span)
+            base_strip.blend_type = "REPLACE"
+
+        facial_action = bpy.data.actions.new(f"A_Square_{profile}_Facial_MicroPerformance")
+        animation_data.action = facial_action
+        group_name = f"{profile}_eyes_blink_brow_mouth"
+
+        def key_block(block: bpy.types.ShapeKey, values: list[tuple[int, float]]) -> None:
+            for frame, value in values:
+                block.value = value
+                block.keyframe_insert(data_path="value", frame=frame, group=group_name)
+
+        # Two soft blinks, deliberately offset from head turns and camera cuts.
+        if blink_keys:
+            blink_values = [(start, 0.0)]
+            for blink_frame in blink_frames:
+                blink_values.extend([
+                    (max(start, blink_frame - 1), 0.0),
+                    (blink_frame, 0.88),
+                    (blink_frame + 2, 0.0),
+                ])
+            blink_values.append((end, 0.0))
+            for block in blink_keys:
+                key_block(block, blink_values)
+
+        # A tiny eye-led glance occurs before the imported head/neck action
+        # completes the look, giving the performance a human anticipation beat.
+        glance_value = 0.11 if profile != "river_scout" else 0.085
+        for gaze_key in gaze_left_keys:
+            values = [(start, 0.0)]
+            for glance_start, glance_end in gaze_frames:
+                values.extend([
+                    (glance_start, 0.0),
+                    (glance_start + 2, glance_value),
+                    (glance_end, 0.0),
+                ])
+            values.append((end, 0.0))
+            key_block(gaze_key, values)
+        for gaze_key in gaze_right_keys:
+            values = [(start, 0.0)]
+            for glance_start, glance_end in gaze_frames:
+                values.extend([
+                    (glance_start, 0.0),
+                    (glance_start + 2, glance_value * 0.65),
+                    (glance_end, 0.0),
+                ])
+            values.append((end, 0.0))
+            key_block(gaze_key, values)
+
+        # Expression is intentionally restrained: a slight brow set and a
+        # quiet mouth press, never a permanent smile or exaggerated grimace.
+        for block in brow_keys:
+            key_name = normalized(block.name)
+            amount = 0.035 if profile == "delta_recon" else 0.025
+            key_block(block, [
+                (start, 0.0),
+                (start + (12 if profile == "field_ranger" else 7), amount),
+                (end - 3, amount * 0.45),
+                (end, 0.0),
+            ])
+        for block in mouth_keys:
+            key_name = normalized(block.name)
+            amount = 0.025 if "mouthpress" in key_name else 0.012
+            key_block(block, [
+                (start, 0.0),
+                (start + 5, amount),
+                (end - 4, amount * 0.6),
+                (end, 0.0),
+            ])
+
+        animation_data.action = None
+        overlay_track = animation_data.nla_tracks.new()
+        overlay_track.name = "A_Square_Authored_Facial_Acting"
+        overlay_strip = overlay_track.strips.new(facial_action.name, 1, facial_action)
+        overlay_strip.blend_type = "ADD"
+        overlay_strip.influence = 0.28
+        overlay_strip.blend_in = 2
+        overlay_strip.blend_out = 3
+
+        animated.append({
+            "mesh": mesh.name,
+            "shape_key_count": len(blocks) - 1,
+            "blink_channels": len(blink_keys),
+            "gaze_channels": len(gaze_left_keys) + len(gaze_right_keys),
+            "brow_channels": len(brow_keys),
+            "mouth_channels": len(mouth_keys),
+            "action": facial_action.name,
+        })
+
+    wrapper["facial_performance_profile"] = profile
+    wrapper["facial_performance_mesh_count"] = len(animated)
+    wrapper["facial_performance_channels"] = sum(
+        item["blink_channels"] + item["gaze_channels"] + item["brow_channels"] + item["mouth_channels"]
+        for item in animated
+    )
+    wrapper["facial_performance_method"] = "imported_face_shapes_plus_low_influence_authored_nla_microperformance"
+    report = {
+        "operator": wrapper.name,
+        "profile": profile,
+        "animated_face_meshes": len(animated),
+        "channels": wrapper["facial_performance_channels"],
+        "mesh_details": animated,
+    }
+    print("OPERATOR_FACIAL_PERFORMANCE_PASS:", json.dumps(report, sort_keys=True))
+    return report
+
+
 def add_operator_preview(
     glb_path: pathlib.Path,
     location: tuple[float, float, float],
@@ -759,12 +950,14 @@ def add_operator_preview(
     bpy.context.scene["operator_preview_source"] = glb_path.name
     bpy.context.scene["operator_preview_sha256"] = wrapper["source_sha256"]
     bpy.context.scene["operator_preview_only"] = True
+    facial_report = animate_operator_facial_performance(wrapper, bpy.context.scene)
     source_records = json.loads(str(bpy.context.scene.get("operator_preview_sources_json", "[]")))
     source_records.append({
         "preview_name": name,
         "source": glb_path.name,
         "sha256": wrapper["source_sha256"],
         "selected_action": selected_action.name if selected_action else "",
+        "facial_performance_channels": facial_report["channels"],
     })
     bpy.context.scene["operator_preview_sources_json"] = json.dumps(source_records, sort_keys=True)
     print("OPERATOR_PREVIEW_IMPORTED:", json.dumps({
