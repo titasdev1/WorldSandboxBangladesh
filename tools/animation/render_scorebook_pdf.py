@@ -234,7 +234,7 @@ def main() -> int:
         source = "\n".join(source_lines[10:])
     md = markdown.Markdown(
         extensions=["extra", "toc", "sane_lists", "tables"],
-        extension_configs={"toc": {"toc_depth": "1-2"}},
+        extension_configs={"toc": {"toc_depth": "1-1"}},
     )
     body = md.convert(source)
     toc = md.toc or "<p>Contents will be built from the document headings.</p>"
