@@ -322,5 +322,31 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
 
 
 
+    def test_film_compositor_has_authored_color_glow_lens_and_vignette_chain(self) -> None:
+        body = self.function_text("configure_cinematic_compositor")
+        self.assertIn("scene.use_nodes = True", body)
+        self.assertIn('"CompositorNodeColorBalance"', body)
+        self.assertIn('"CompositorNodeGlare"', body)
+        self.assertIn('"CompositorNodeLensdist"', body)
+        self.assertIn('"CompositorNodeEllipseMask"', body)
+        self.assertIn('"CompositorNodeBlur"', body)
+        self.assertIn('"CompositorNodeValToRGB"', body)
+        self.assertIn('"CompositorNodeMixRGB"', body)
+        self.assertIn('"CompositorNodeComposite"', body)
+        self.assertIn("links.new(lens.outputs[\\"Image\\"], multiply.inputs[1])", body)
+        self.assertIn("links.new(ramp.outputs[\\"Image\\"], multiply.inputs[2])", body)
+
+    def test_login_and_lobby_lighting_both_apply_distinct_compositor_profiles(self) -> None:
+        body = self.function_text("world_and_lighting")
+        self.assertIn("configure_cinematic_compositor(scene, warm)", body)
+        compositor = self.function_text("configure_cinematic_compositor")
+        self.assertIn("SHARIATPUR_WARM_RIVER", compositor)
+        self.assertIn("DELTA_COMMAND_COOL_GRAPHITE", compositor)
+        self.assertIn("balance.lift", compositor)
+        self.assertIn("balance.gamma", compositor)
+        self.assertIn("balance.gain", compositor)
+
+
+
 if __name__ == "__main__":
     unittest.main()
