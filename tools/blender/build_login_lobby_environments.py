@@ -2726,38 +2726,107 @@ def add_handcrafted_launch(
 
 def add_launch_wake(
     name: str,
-    x: float,
-    y: float,
+    motion: list[tuple[int, tuple[float, float, float]]],
     mats: dict[str, bpy.types.Material],
 ) -> list[bpy.types.Object]:
-    """Create local, staggered wake lines that spread and dissipate beside the moving launch."""
+    """Create widening, deforming water-surface wakes that follow the launch stern."""
     wake_root = bpy.data.objects.new(name + "_Wake_Root", None)
     bpy.context.collection.objects.link(wake_root)
-    wake_root.location = (x, y, 0.0)
-    wake_root["effect_role"] = "launch_stern_wake_surface_interaction"
-    wakes = []
+    wake_root["effect_role"] = "launch_stern_surface_wake"
+    wake_root["motion_source"] = "same_authored_path_as_River_Launch_Glide"
+
+    # The wake root tracks the launch's stern along its actual authored route.
+    # The geometry itself is behind the stern, widening and fading as it travels.
+    for frame, position in motion:
+        px, py, pz = position
+        wake_root.location = (px + 2.48, py, pz - 0.365)
+        wake_root.keyframe_insert(data_path="location", frame=frame, group="Launch_Wake_Follows_Hull")
+
+    wakes: list[bpy.types.Object] = []
+    length_samples = 22
+    width_samples = 7
+    base_lengths = (3.2, 3.7, 4.1)
+    base_widths = (0.16, 0.28, 0.42)
+
     for side in (-1, 1):
-        for layer, width in enumerate((0.18, 0.34, 0.52)):
-            points = [
-                (1.6 + layer * 0.28, side * 0.18, -0.265),
-                (2.0 + layer * 0.36, side * (0.34 + width * 0.25), -0.270),
-                (2.5 + layer * 0.44, side * (0.62 + width * 0.40), -0.278),
-                (3.0 + layer * 0.54, side * (0.94 + width * 0.52), -0.286),
-                (3.5 + layer * 0.64, side * (1.30 + width * 0.66), -0.292),
-            ]
-            line = local_path_curve(
-                name + f"_Wake_{side}_{layer}",
-                points, mats["waterline"] if layer < 2 else mats["cream"],
-                0.020 if layer == 0 else 0.011,
-                wake_root,
+        for layer, (wake_length, max_width) in enumerate(zip(base_lengths, base_widths)):
+            vertices: list[tuple[float, float, float]] = []
+            faces: list[tuple[int, int, int, int]] = []
+            for row in range(length_samples + 1):
+                t = row / length_samples
+                x = 0.10 + wake_length * t
+                envelope = (0.12 + 0.88 * (t ** 0.82))
+                width = max_width * envelope
+                for col in range(width_samples + 1):
+                    u = col / width_samples
+                    lateral = (u * 2.0 - 1.0)
+                    broken_edge = (
+                        math.sin(t * math.pi * (5.0 + layer) + side * 0.7)
+                        * 0.018
+                        * (0.25 + t)
+                    )
+                    y = side * (0.10 + lateral * width + broken_edge)
+                    ripple = (
+                        math.sin(t * 14.0 + u * 9.0 + layer * 0.8)
+                        * 0.009
+                        + math.sin(t * 27.0 - u * 13.0)
+                        * 0.004
+                    )
+                    z = ripple + (0.002 * side * lateral)
+                    vertices.append((x, y, z))
+            stride = width_samples + 1
+            for row in range(length_samples):
+                for col in range(width_samples):
+                    a = row * stride + col
+                    b = a + 1
+                    d = (row + 1) * stride + col
+                    cc = d + 1
+                    faces.append((a, b, cc, d))
+
+            wake = authored_mesh(
+                name + f"_Surface_Ribbon_{side}_{layer}",
+                vertices, faces, mats["waterline"], wake_root, True,
             )
-            line.scale = (0.62, 0.62, 0.62)
-            line.keyframe_insert(data_path="scale", frame=1, group="Launch_Wake_Dissipation")
-            line.scale = (1.0, 1.0, 1.0)
-            line.keyframe_insert(data_path="scale", frame=160 + layer * 18, group="Launch_Wake_Dissipation")
-            line.scale = (0.74, 0.74, 0.74)
-            line.keyframe_insert(data_path="scale", frame=288, group="Launch_Wake_Dissipation")
-            wakes.append(line)
+            wake.data.materials.append(mats["cream"])
+            for polygon in wake.data.polygons:
+                col = polygon.index % width_samples
+                # Only the outermost edge catches broken whitewater highlights.
+                polygon.material_index = 1 if col in (0, width_samples - 1) and layer == 0 else 0
+
+            turbulence = wake.shape_key_add(name="Stern_Turbulence", from_mix=False)
+            dissipation = wake.shape_key_add(name="Wake_Dissipation", from_mix=False)
+            for index, (vx, vy, vz) in enumerate(vertices):
+                row = index // stride
+                col = index % stride
+                t = row / length_samples
+                u = col / width_samples
+                turbulence.data[index].co.z = vz + (
+                    0.035 * math.sin(t * 24.0 + u * 11.0 + layer)
+                    * (1.0 - t * 0.45)
+                )
+                dissipation.data[index].co.y = vy * (1.0 + 0.14 * t)
+                dissipation.data[index].co.z = vz - 0.006 * t
+
+            for frame, value in ((1, 0.0), (28, 0.9), (96, 0.55), (176, 0.18), (288, 0.0)):
+                turbulence.value = value
+                turbulence.keyframe_insert(data_path="value", frame=frame, group="Launch_Wake_Turbulence")
+            for frame, value in ((1, 0.0), (96, 0.0), (176, 0.6), (288, 1.0)):
+                dissipation.value = value
+                dissipation.keyframe_insert(data_path="value", frame=frame, group="Launch_Wake_Dissipation")
+
+            wake["wake_profile"] = "tapered_surface_ribbon_with_broken_edges"
+            wake["wake_length"] = wake_length
+            wake["wake_max_width"] = max_width
+            wake["surface_topology"] = f"{length_samples}x{width_samples}"
+            wakes.append(wake)
+
+    wake_root["wake_surface_count"] = len(wakes)
+    print("LAUNCH_WAKE_SURFACES_READY:", json.dumps({
+        "root": wake_root.name,
+        "surface_count": len(wakes),
+        "motion_keys": len(motion),
+        "topology_per_surface": [length_samples, width_samples],
+    }, sort_keys=True))
     return wakes
 
 
@@ -2819,14 +2888,15 @@ def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], ope
         (288, (15.0, 3.3, 0.0)),
     ], True)
     boat = add_handcrafted_launch("River_Launch_Hero", 7.0, -17.0, 0.10, mats)
-    animate_location(boat, "River_Launch_Glide", [
+    launch_motion = [
         (1, (10.0, -17.0, 0.10)),
         (72, (9.2, -17.0, 0.17)),
         (144, (8.2, -17.0, 0.10)),
         (216, (7.1, -17.0, 0.16)),
         (288, (6.0, -17.0, 0.10)),
-    ], True)
-    launch_wakes = add_launch_wake("River_Launch_Stern_Wake", 6.0, -17.0, mats)
+    ]
+    animate_location(boat, "River_Launch_Glide", launch_motion, True)
+    launch_wakes = add_launch_wake("River_Launch_Stern_Wake", launch_motion, mats)
     scene["launch_wake_lines"] = len(launch_wakes)
     # The login film is edited as five separate, motivated shots. Each camera
     # has its own lens and subject distance; timeline markers perform real cuts.
