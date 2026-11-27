@@ -232,5 +232,15 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
 
 
 
+    def test_hero_awning_animation_supports_blender_52_layered_actions(self) -> None:
+        body = self.function_text("add_crafted_riverfront_corner_store")
+        self.assertIn("try:", body)
+        self.assertIn("awning_curves = awning_action.fcurves", body)
+        self.assertIn("except AttributeError:", body)
+        self.assertIn("Blender layered Action; native shape-key interpolation retained.", body)
+        self.assertIn("breeze.keyframe_insert", body)
+
+
+
 if __name__ == "__main__":
     unittest.main()
