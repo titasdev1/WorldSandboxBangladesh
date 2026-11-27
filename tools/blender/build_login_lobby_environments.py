@@ -486,138 +486,166 @@ def add_area_light(scene: bpy.types.Scene, name: str, location: tuple[float, flo
 
 
 def configure_cinematic_compositor(scene: bpy.types.Scene, warm: bool = True) -> None:
-    """Build a restrained film-look compositor for both login and lobby images.
+    """Author a Blender 5.2 compositor group for the riverfront and command hall.
 
-    This is an authored Blender node graph: scene-linear highlight handling,
-    profile-specific lift/gamma/gain, thresholded optical glow, slight lens
-    dispersion and a soft elliptical vignette. The treatment is intentionally
-    subtle so it preserves skin, local colour and mobile-size readability.
+    The grade is built from 5.2 node-group API and current node sockets:
+    lift/gamma/gain, restrained highlight bloom, optical dispersion, and a
+    feathered, shaped vignette. No deprecated Scene.node_tree API is used.
     """
-    scene.use_nodes = True
-    tree = scene.node_tree
-    if tree is None:
-        raise RuntimeError("CINEMATIC_COMPOSITOR_GATE: compositor node tree unavailable.")
+    scene.render.use_compositing = True
+    profile = "SHARIATPUR_WARM_RIVER" if warm else "DELTA_COMMAND_COOL_GRAPHITE"
+
+    tree = bpy.data.node_groups.new("A_Square_Film_Compositor_" + profile, "CompositorNodeTree")
+    scene.compositing_node_group = tree
+    tree.interface.new_socket(
+        name="Image",
+        in_out="OUTPUT",
+        socket_type="NodeSocketColor",
+    )
     nodes = tree.nodes
     links = tree.links
     nodes.clear()
 
+    def set_socket(node: bpy.types.Node, socket_name: str, value) -> bool:
+        socket = node.inputs.get(socket_name)
+        if socket is None:
+            return False
+        try:
+            socket.default_value = value
+            return True
+        except (AttributeError, TypeError, ValueError) as exc:
+            print("COMPOSITOR_SOCKET_NOTE:", json.dumps({
+                "node": node.name,
+                "socket": socket_name,
+                "value": repr(value),
+                "error": str(exc),
+            }, sort_keys=True))
+            return False
+
     render = nodes.new("CompositorNodeRLayers")
     render.name = "A_Square_Render_Layers"
     render.label = "Scene-linear render"
-    render.location = (-900, 220)
+    render.location = (-1000, 240)
 
     balance = nodes.new("CompositorNodeColorBalance")
     balance.name = "A_Square_Film_Color_Balance"
     balance.label = "Warm delta / cool command grade"
-    balance.location = (-650, 220)
-    if hasattr(balance, "correction_method"):
-        balance.correction_method = "LIFT_GAMMA_GAIN"
-    if "Fac" in balance.inputs:
-        balance.inputs["Fac"].default_value = 0.82
+    balance.location = (-760, 240)
+    set_socket(balance, "Factor", 0.82)
+    set_socket(balance, "Type", "LIFT_GAMMA_GAIN")
     if warm:
-        # Cool shadow separation, warm mids/highlights, with restrained skin bias.
-        balance.lift = (0.985, 0.997, 1.018)
-        balance.gamma = (1.012, 1.002, 0.988)
-        balance.gain = (1.035, 1.012, 0.982)
+        # Slight cyan bias in the deepest values, warm mid/highlight separation.
+        set_socket(balance, "Base Lift", 0.005)
+        set_socket(balance, "Color Lift", (0.985, 0.997, 1.018, 1.0))
+        set_socket(balance, "Base Gamma", 1.0)
+        set_socket(balance, "Color Gamma", (1.012, 1.002, 0.988, 1.0))
+        set_socket(balance, "Base Gain", 1.0)
+        set_socket(balance, "Color Gain", (1.035, 1.012, 0.982, 1.0))
     else:
-        # Graphite/river-teal shadows; warm practicals and faces remain motivated by lights.
-        balance.lift = (0.978, 0.996, 1.025)
-        balance.gamma = (0.994, 1.004, 1.018)
-        balance.gain = (1.012, 1.020, 1.035)
+        # Graphite/river-teal shadow separation; skin stays lit by warm practicals.
+        set_socket(balance, "Base Lift", 0.008)
+        set_socket(balance, "Color Lift", (0.978, 0.996, 1.025, 1.0))
+        set_socket(balance, "Base Gamma", 1.0)
+        set_socket(balance, "Color Gamma", (0.994, 1.004, 1.018, 1.0))
+        set_socket(balance, "Base Gain", 1.0)
+        set_socket(balance, "Color Gain", (1.012, 1.020, 1.035, 1.0))
 
     glow = nodes.new("CompositorNodeGlare")
     glow.name = "A_Square_Optical_Highlight_Glow"
-    glow.label = "Restrained highlight halation"
-    glow.location = (-390, 220)
-    if hasattr(glow, "glare_type"):
-        glow.glare_type = "FOG_GLOW"
-    if hasattr(glow, "quality"):
-        glow.quality = "HIGH"
-    if hasattr(glow, "threshold"):
-        glow.threshold = 1.55 if warm else 1.75
-    if hasattr(glow, "size"):
-        glow.size = 7
-    for socket_name, value in (("Threshold", 1.55 if warm else 1.75), ("Size", 7)):
-        if socket_name in glow.inputs:
-            glow.inputs[socket_name].default_value = value
-    if "Mix" in glow.inputs:
-        glow.inputs["Mix"].default_value = -0.94
-    elif hasattr(glow, "mix"):
-        glow.mix = -0.94
+    glow.label = "Restrained optical halation"
+    glow.location = (-500, 240)
+    set_socket(glow, "Type", "FOG_GLOW")
+    set_socket(glow, "Quality", "HIGH")
+    set_socket(glow, "Highlights Threshold", 1.55 if warm else 1.75)
+    set_socket(glow, "Highlights Smoothness", 0.18)
+    set_socket(glow, "Clamp Highlights", True)
+    set_socket(glow, "Maximum Highlights", 8.0)
+    set_socket(glow, "Strength", 0.16 if warm else 0.12)
+    set_socket(glow, "Saturation", 0.78)
+    set_socket(glow, "Size", 0.24 if warm else 0.20)
 
     lens = nodes.new("CompositorNodeLensdist")
     lens.name = "A_Square_Optical_Lens_Finish"
-    lens.label = "Near-invisible chromatic edge finish"
-    lens.location = (-120, 220)
-    if hasattr(lens, "use_fit"):
-        lens.use_fit = True
-    if "Distortion" in lens.inputs:
-        lens.inputs["Distortion"].default_value = 0.0015
-    if "Dispersion" in lens.inputs:
-        lens.inputs["Dispersion"].default_value = 0.0020
+    lens.label = "Near-invisible optical dispersion"
+    lens.location = (-240, 240)
+    set_socket(lens, "Type", "RADIAL")
+    set_socket(lens, "Distortion", 0.0006)
+    set_socket(lens, "Dispersion", 0.0012)
+    set_socket(lens, "Jitter", False)
+    set_socket(lens, "Fit", True)
 
     ellipse = nodes.new("CompositorNodeEllipseMask")
     ellipse.name = "A_Square_Lens_Vignette_Mask"
     ellipse.label = "Hand-shaped optical falloff"
-    ellipse.location = (-370, -180)
-    ellipse.x = 0.5
-    ellipse.y = 0.5
-    ellipse.width = 0.88 if warm else 0.86
-    ellipse.height = 0.90 if warm else 0.88
-    ellipse.rotation = 0.0
+    ellipse.location = (-500, -180)
+    set_socket(ellipse, "Operation", "ADD")
+    set_socket(ellipse, "Value", 1.0)
+    set_socket(ellipse, "Position", (0.5, 0.5))
+    set_socket(ellipse, "Size", (0.87 if warm else 0.85, 0.90 if warm else 0.88))
+    set_socket(ellipse, "Rotation", 0.0)
 
     blur = nodes.new("CompositorNodeBlur")
     blur.name = "A_Square_Vignette_Soften"
-    blur.label = "Feathered vignette edge"
-    blur.location = (-120, -180)
-    if hasattr(blur, "filter_type"):
-        blur.filter_type = "GAUSS"
-    if hasattr(blur, "size_x"):
-        blur.size_x = 150
-    if hasattr(blur, "size_y"):
-        blur.size_y = 150
+    blur.label = "Feathered vignette boundary"
+    blur.location = (-240, -180)
+    set_socket(blur, "Size", (120.0, 120.0))
+    set_socket(blur, "Type", "GAUSSIAN")
+    set_socket(blur, "Separable", True)
+    set_socket(blur, "Extend Bounds", True)
 
-    ramp = nodes.new("CompositorNodeValToRGB")
+    ramp = nodes.new("ShaderNodeValToRGB")
     ramp.name = "A_Square_Vignette_Density"
-    ramp.label = "Subtle lens falloff"
-    ramp.location = (110, -170)
+    ramp.label = "Subtle edge density"
+    ramp.location = (20, -160)
     ramp.color_ramp.elements[0].position = 0.0
-    ramp.color_ramp.elements[0].color = (0.91, 0.925, 0.95, 1.0)
+    ramp.color_ramp.elements[0].color = (0.905, 0.920, 0.945, 1.0)
     ramp.color_ramp.elements[1].position = 1.0
     ramp.color_ramp.elements[1].color = (1.0, 1.0, 1.0, 1.0)
     ramp.color_ramp.interpolation = "EASE"
 
-    multiply = nodes.new("CompositorNodeMixRGB")
+    multiply = nodes.new("ShaderNodeMix")
     multiply.name = "A_Square_Film_Vignette"
     multiply.label = "Optical edge density"
-    multiply.location = (390, 220)
+    multiply.location = (300, 240)
+    multiply.data_type = "RGBA"
     multiply.blend_type = "MULTIPLY"
-    multiply.inputs["Fac"].default_value = 1.0
-
-    composite = nodes.new("CompositorNodeComposite")
-    composite.name = "A_Square_Final_Composite"
-    composite.location = (650, 220)
+    multiply.clamp_factor = True
+    multiply.clamp_result = True
+    set_socket(multiply, "Factor", 0.72)
+    
+    output = nodes.new("NodeGroupOutput")
+    output.name = "A_Square_Final_Composite"
+    output.label = "Final film image"
+    output.location = (580, 240)
 
     links.new(render.outputs["Image"], balance.inputs["Image"])
     links.new(balance.outputs["Image"], glow.inputs["Image"])
     links.new(glow.outputs["Image"], lens.inputs["Image"])
     links.new(ellipse.outputs["Mask"], blur.inputs["Image"])
     links.new(blur.outputs["Image"], ramp.inputs["Fac"])
-    links.new(lens.outputs["Image"], multiply.inputs[1])
-    links.new(ramp.outputs["Image"], multiply.inputs[2])
-    links.new(multiply.outputs["Image"], composite.inputs["Image"])
+    links.new(lens.outputs["Image"], multiply.inputs["A"])
+    links.new(ramp.outputs["Color"], multiply.inputs["B"])
+    links.new(multiply.outputs["Result"], output.inputs["Image"])
 
-    scene["cinematic_compositor"] = "ASQ_FILM_GRADE_V1"
-    scene["cinematic_grade_profile"] = "SHARIATPUR_WARM_RIVER" if warm else "DELTA_COMMAND_COOL_GRAPHITE"
+    scene["cinematic_compositor"] = "ASQ_FILM_GRADE_V2_BLENDER_52"
+    scene["cinematic_grade_profile"] = profile
     scene["cinematic_compositor_nodes"] = len(nodes)
-    scene["cinematic_optical_finish"] = "AgX;lift_gamma_gain;thresholded_fog_glow;subtle_lens_dispersion;soft_elliptical_vignette"
+    scene["cinematic_optical_finish"] = (
+        "AgX;lift_gamma_gain;fog_glow;subtle_lens_dispersion;"
+        "gaussian_elliptical_vignette;Blender_5_2_node_group"
+    )
+    scene["cinematic_compositor_api"] = "scene.compositing_node_group"
     print("A_SQUARE_COMPOSITOR_READY:", json.dumps({
-        "profile": scene["cinematic_grade_profile"],
+        "profile": profile,
+        "node_group": tree.name,
         "nodes": len(nodes),
+        "api": "scene.compositing_node_group",
         "glow_threshold": 1.55 if warm else 1.75,
-        "lens_dispersion": 0.002,
-        "vignette": "soft_elliptical",
+        "glow_strength": 0.16 if warm else 0.12,
+        "lens_dispersion": 0.0012,
+        "vignette": "soft_elliptical_gaussian",
     }, sort_keys=True))
+
 
 
 def world_and_lighting(scene: bpy.types.Scene, warm: bool = True) -> None:
