@@ -2393,9 +2393,8 @@ def add_handcrafted_launch(
     vertices: list[tuple[float, float, float]] = []
     faces: list[tuple[int, ...]] = []
     section_points = [
-        (0.00, 0.00), (0.52, 0.30), (1.00, 0.73),
-        (0.96, 1.00), (0.48, 1.00), (0.00, 1.00),
-        (-0.48, 1.00), (-0.96, 1.00), (-1.00, 0.73),
+        (0.00, 0.00), (0.52, 0.30), (0.96, 0.73),
+        (1.00, 1.00), (-1.00, 1.00), (-0.96, 0.73),
         (-0.52, 0.30),
     ]
     for station_x, half_width, keel_z, chine_z, deck_z in stations:
@@ -2713,7 +2712,7 @@ def add_handcrafted_launch(
         (216, math.radians(0.5), math.radians(-0.4), math.radians(0.6)),
         (288, 0.0, 0.0, 0.0),
     ):
-        root.rotation_euler = (pitch, roll, yaw)
+        root.rotation_euler = (roll, pitch, yaw)
         root.keyframe_insert(data_path="rotation_euler", frame=frame, group="Launch_Buoyancy_Performance")
 
     root["asset_role"] = "Bangladesh_local_passenger_launch"
@@ -2731,21 +2730,26 @@ def add_launch_wake(
     y: float,
     mats: dict[str, bpy.types.Material],
 ) -> list[bpy.types.Object]:
-    """Place staggered, fading surface wakes along the launch's screen-space route."""
+    """Create local, staggered wake lines that spread and dissipate beside the moving launch."""
+    wake_root = bpy.data.objects.new(name + "_Wake_Root", None)
+    bpy.context.collection.objects.link(wake_root)
+    wake_root.location = (x, y, 0.0)
+    wake_root["effect_role"] = "launch_stern_wake_surface_interaction"
     wakes = []
     for side in (-1, 1):
         for layer, width in enumerate((0.18, 0.34, 0.52)):
             points = [
-                (x + 1.6 + layer * 0.28, y + side * 0.18, -0.265),
-                (x + 2.0 + layer * 0.36, y + side * (0.34 + width * 0.25), -0.270),
-                (x + 2.5 + layer * 0.44, y + side * (0.62 + width * 0.40), -0.278),
-                (x + 3.0 + layer * 0.54, y + side * (0.94 + width * 0.52), -0.286),
-                (x + 3.5 + layer * 0.64, y + side * (1.30 + width * 0.66), -0.292),
+                (1.6 + layer * 0.28, side * 0.18, -0.265),
+                (2.0 + layer * 0.36, side * (0.34 + width * 0.25), -0.270),
+                (2.5 + layer * 0.44, side * (0.62 + width * 0.40), -0.278),
+                (3.0 + layer * 0.54, side * (0.94 + width * 0.52), -0.286),
+                (3.5 + layer * 0.64, side * (1.30 + width * 0.66), -0.292),
             ]
-            line = path_curve(
+            line = local_path_curve(
                 name + f"_Wake_{side}_{layer}",
                 points, mats["waterline"] if layer < 2 else mats["cream"],
                 0.020 if layer == 0 else 0.011,
+                wake_root,
             )
             line.scale = (0.62, 0.62, 0.62)
             line.keyframe_insert(data_path="scale", frame=1, group="Launch_Wake_Dissipation")
