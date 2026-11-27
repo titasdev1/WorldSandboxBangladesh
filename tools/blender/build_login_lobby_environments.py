@@ -1119,6 +1119,7 @@ def river_plane(mats: dict[str, bpy.types.Material], y: float, width: float, dep
     mesh.update()
     water = bpy.data.objects.new("Meghna_River_Surface", mesh)
     bpy.context.collection.objects.link(water)
+    water.location = (0.0, y, 0.0)
     mesh.materials.append(mats["river"])
     for polygon in mesh.polygons:
         polygon.use_smooth = True
