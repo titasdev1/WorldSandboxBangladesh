@@ -1695,7 +1695,8 @@ def render_film_preview(scene: bpy.types.Scene, output: pathlib.Path) -> pathlib
     scene.render.ffmpeg.video_bitrate = 8000
     scene.render.ffmpeg.maxrate = 12000
     scene.render.fps = 24
-    scene.render.resolution_percentage = 75
+    # H.264 YUV420 output requires even dimensions: 1600x900 at 76% = 1216x684.
+    scene.render.resolution_percentage = 76
     print("A_SQUARE_FILM_RENDER_START:", str(expected_output))
     bpy.ops.render.render(animation=True)
     if not expected_output.is_file() or expected_output.stat().st_size < 100_000:
