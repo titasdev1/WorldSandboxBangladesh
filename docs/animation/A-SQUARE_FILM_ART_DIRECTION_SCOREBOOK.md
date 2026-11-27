@@ -796,7 +796,7 @@ Render the opening, quarter, middle, three-quarter and final frames plus the com
 
 The isolated branch \`feature/three-distinct-ara-operators\` gained a tessellated river master with four authored shape-key phases, layered water PBR detail, EEVEE screen-traced reflection setup and source-level regression tests. The river section's local mesh is explicitly offset to its intended river position.
 
-The film encoder previously failed because the review frame height was odd (1200 × 675). The film render now uses 76 percent of a 1600 × 900 scene, producing even 1216 × 684 H.264 dimensions; the still preview returns to 75 percent afterwards.
+The film encoder previously failed because the review frame height was odd (1200 × 675). The time-bounded editorial review film now uses 50 percent of a 1600 × 900 scene (800 × 450) and 16 EEVEE render samples when supported, keeping the 288-frame review practical on CPU rendering. This is a blocking/acting/composition preview only, not the final art master. After the film, the still review returns to 75 percent resolution and the previous EEVEE sample count is restored. The approved final film receives a separate full-quality render profile.
 
 The corrected run still has to produce the actual login and lobby renders. Water build logs and rig-preservation checks are evidence of construction, not proof of visual quality. The current scene composition and the older previews remain subject to art-direction review and substantial improvement. No art approval, Godot import approval, Android device approval or canonical integration is implied here.
 
