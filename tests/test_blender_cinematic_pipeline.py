@@ -100,6 +100,7 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
     def test_river_surface_is_tessellated_and_has_looped_shape_key_waves(self) -> None:
         body = self.function_text("river_plane")
         self.assertIn("mesh.from_pydata", body)
+        self.assertIn("water.location = (0.0, y, 0.0)", body)
         self.assertIn("uv_layers.new", body)
         self.assertIn("shape_key_add", body)
         self.assertIn("River_Wave_Phase_", body)
