@@ -73,6 +73,8 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
         self.assertLess(body.index('media_type = "IMAGE"'), body.index('file_format = "PNG"'))
         self.assertIn('format = "MPEG4"', body)
         self.assertIn('codec = "H264"', body)
+        self.assertIn("scene.render.resolution_percentage = 76", body)
+        self.assertIn("scene.render.resolution_percentage = 75", body)
         self.assertIn("bpy.ops.render.render(animation=True)", body)
         self.assertIn("expected_output.stat().st_size < 100_000", body)
 
