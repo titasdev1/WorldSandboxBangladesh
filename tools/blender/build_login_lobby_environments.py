@@ -1379,32 +1379,132 @@ def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], ope
         (216, (7.1, -17.0, 0.16)),
         (288, (6.0, -17.0, 0.10)),
     ], True)
-    # The camera performs a 12-second authored reveal: distant riverside
-    # geography, a low pass across the street, then a compressed operator
-    # portrait. Focal length and focus distance animate with the camera move.
+    # The login film is edited as five separate, motivated shots. Each camera
+    # has its own lens and subject distance; timeline markers perform real cuts.
+    # The camera never tries to show the river, street, launch, actor and title
+    # all at once.
     cam = camera(scene, "Login_Cinematic_Camera", (0.0, 20.0, 7.5), (-4.0, -18.0, 1.2), 42.0)
-    animate_camera_path(cam, "Login_Dolly_Reveal", [
-        (1, (0.0, 20.0, 7.5), (-4.0, -18.0, 1.2)),
-        (72, (6.0, 17.0, 5.5), (-2.0, -7.0, 1.8)),
-        (144, (0.0, 16.5, 5.1), (-2.8, 5.0, 1.7)),
-        (216, (-4.5, 15.0, 4.2), (-3.0, 7.0, 1.65)),
+    animate_camera_path(cam, "Login_Riverfront_Establishing_Move", [
+        (1, (13.0, -7.8, 5.2), (6.0, -22.0, 0.1)),
+        (58, (10.5, -8.6, 4.6), (6.8, -22.5, 0.05)),
+        (227, (0.0, 20.0, 7.5), (-4.0, -18.0, 1.2)),
         (288, (0.0, 18.0, 6.0), (-1.8, -3.0, 2.0)),
     ])
-    for frame, lens, focus in [
-        (1, 42.0, 30.0), (72, 48.0, 22.0), (144, 55.0, 12.0),
-        (216, 68.0, 10.0), (288, 48.0, 24.0),
-    ]:
-        cam.data.lens = lens
-        cam.data.dof.focus_distance = focus
-        cam.data.keyframe_insert(data_path="lens", frame=frame, group="Login_Optical_Performance")
-        cam.data.keyframe_insert(data_path="dof.focus_distance", frame=frame, group="Login_Rack_Focus")
+
+    cng_cut = camera(scene, "Login_CNG_Street_Portrait_Camera", (-12.4, 10.4, 3.15), (-9.4, 3.3, 1.25), 58.0)
+    animate_camera_path(cng_cut, "Login_CNG_Tracking_Pass", [
+        (59, (-12.4, 10.4, 3.15), (-9.4, 3.3, 1.25)),
+        (108, (-8.8, 9.4, 2.85), (-5.2, 3.3, 1.15)),
+    ])
+
+    launch_cut = camera(scene, "Login_Launch_Waterline_Camera", (15.2, -8.8, 3.75), (8.6, -17.0, 0.88), 58.0)
+    animate_camera_path(launch_cut, "Login_Launch_Tracking_Pass", [
+        (109, (15.2, -8.8, 3.75), (8.6, -17.0, 0.88)),
+        (160, (13.5, -9.6, 3.45), (7.8, -17.0, 0.95)),
+    ])
+
+    ranger_cut = camera(scene, "Login_Field_Ranger_Portrait_Camera", (-4.7, 12.6, 2.55), (-3.0, 8.0, 1.32), 66.0)
+    animate_camera_path(ranger_cut, "Login_Field_Ranger_Portrait_Dolly", [
+        (161, (-4.9, 12.9, 2.62), (-3.0, 8.0, 1.34)),
+        (226, (-4.2, 12.2, 2.48), (-3.0, 8.0, 1.34)),
+    ])
+
+    # Original A-Square delta/river mark: an authored three-tributary motif,
+    # not a spinning primitive or a borrowed game emblem. The strokes reveal
+    # in a staggered rhythm, then the wordmark and tagline settle underneath.
+    logo_rotation = Vector((0.0, 1.0, 0.0)).to_track_quat("Z", "Y")
+    logo_paths = [
+        (
+            "ASQ_Delta_Emblem_Outer",
+            [(-0.94, 0.54, 0.0), (-0.53, -0.10, 0.0), (0.0, -0.88, 0.0),
+             (0.53, -0.10, 0.0), (0.94, 0.54, 0.0)],
+            mats["brass"], 0.040, 232, 253,
+        ),
+        (
+            "ASQ_Delta_River_Tributary_Left",
+            [(-0.45, 0.45, 0.0), (-0.16, 0.12, 0.0), (0.0, -0.28, 0.0)],
+            mats["waterline"], 0.026, 237, 257,
+        ),
+        (
+            "ASQ_Delta_River_Tributary_Right",
+            [(0.45, 0.45, 0.0), (0.16, 0.12, 0.0), (0.0, -0.28, 0.0)],
+            mats["waterline"], 0.026, 241, 261,
+        ),
+        (
+            "ASQ_Delta_Lower_Current",
+            [(-0.62, 0.47, 0.0), (0.0, 0.23, 0.0), (0.62, 0.47, 0.0)],
+            mats["brass"], 0.018, 245, 263,
+        ),
+    ]
+    for name, points, line_material, radius, first_frame, last_frame in logo_paths:
+        stroke = path_curve(name, points, line_material, radius)
+        stroke.location = (0.0, 5.4, 3.85)
+        stroke.rotation_mode = "QUATERNION"
+        stroke.rotation_quaternion = logo_rotation
+        stroke.scale = (0.001, 0.001, 0.001)
+        stroke.keyframe_insert(data_path="scale", frame=first_frame, group="ASQ_Delta_Mark_Reveal")
+        stroke.scale = (1.0, 1.0, 1.0)
+        stroke.keyframe_insert(data_path="scale", frame=last_frame, group="ASQ_Delta_Mark_Reveal")
+        if stroke.animation_data and stroke.animation_data.action:
+            stroke.animation_data.action.name = name + "_Draw_On"
+
+    wordmark_data = bpy.data.curves.new("A_Square_Wordmark_Font", "FONT")
+    wordmark_data.body = "A-SQUARE"
+    wordmark_data.size = 0.64
+    wordmark_data.extrude = 0.010
+    wordmark_data.bevel_depth = 0.002
+    wordmark_data.align_x = "CENTER"
+    wordmark_data.align_y = "CENTER"
+    wordmark = bpy.data.objects.new("A_Square_Original_Wordmark", wordmark_data)
+    scene.collection.objects.link(wordmark)
+    wordmark_data.materials.append(mats["cream"])
+    wordmark.location = (0.0, 5.4, 2.55)
+    wordmark.rotation_mode = "QUATERNION"
+    wordmark.rotation_quaternion = logo_rotation
+    wordmark.scale = (0.78, 0.78, 0.78)
+    wordmark.keyframe_insert(data_path="scale", frame=246, group="ASQ_Wordmark_Resolve")
+    wordmark.scale = (1.0, 1.0, 1.0)
+    wordmark.keyframe_insert(data_path="scale", frame=264, group="ASQ_Wordmark_Resolve")
+    if wordmark.animation_data and wordmark.animation_data.action:
+        wordmark.animation_data.action.name = "ASQ_Wordmark_Resolve"
+
+    tagline_data = bpy.data.curves.new("A_Square_Tagline_Font", "FONT")
+    tagline_data.body = "THE DELTA IS OUR WORLD"
+    tagline_data.size = 0.145
+    tagline_data.extrude = 0.002
+    tagline_data.align_x = "CENTER"
+    tagline = bpy.data.objects.new("A_Square_Original_Tagline", tagline_data)
+    scene.collection.objects.link(tagline)
+    tagline_data.materials.append(mats["waterline"])
+    tagline.location = (0.0, 5.38, 2.12)
+    tagline.rotation_mode = "QUATERNION"
+    tagline.rotation_quaternion = logo_rotation
+    tagline.scale = (0.001, 0.001, 0.001)
+    tagline.keyframe_insert(data_path="scale", frame=252, group="ASQ_Tagline_Resolve")
+    tagline.scale = (1.0, 1.0, 1.0)
+    tagline.keyframe_insert(data_path="scale", frame=270, group="ASQ_Tagline_Resolve")
+    if tagline.animation_data and tagline.animation_data.action:
+        tagline.animation_data.action.name = "ASQ_Tagline_Resolve"
+
+    title_cut = camera(scene, "Login_A_Square_Title_Reveal_Camera", (0.2, 14.0, 4.1), (0.0, 5.4, 3.18), 52.0)
+    animate_camera_path(title_cut, "Login_A_Square_Title_Reveal_Dolly", [
+        (227, (0.2, 14.5, 4.25), (0.0, 5.4, 3.18)),
+        (288, (0.2, 13.4, 4.0), (0.0, 5.4, 3.18)),
+    ])
+
+    register_camera_cut(scene, cam, 1, "A1_SHARIATPUR_RIVER_ESTABLISHING")
+    register_camera_cut(scene, cng_cut, 59, "A2_LOCAL_CNG_STREET_PORTRAIT")
+    register_camera_cut(scene, launch_cut, 109, "A3_LAUNCH_WAKE_AND_REFLECTION")
+    register_camera_cut(scene, ranger_cut, 161, "A4_FIELD_RANGER_HUMAN_PORTRAIT")
+    register_camera_cut(scene, title_cut, 227, "A5_ORIGINAL_A_SQUARE_TITLE_REVEAL")
+    scene.camera = cam
     apply_camera_shakify(cam, scene)
     scene.render.filepath = "//login_preview.png"
     operator_preview = add_operator_preview(
         operator_glb, (-3.0, 8.0, 0.05), "Login_Field_Ranger_Preview",
         "Look around",
     )
-    face_operator_to_camera(operator_preview, cam)
+    face_operator_to_camera(operator_preview, ranger_cut)
     return operator_preview
 
 
