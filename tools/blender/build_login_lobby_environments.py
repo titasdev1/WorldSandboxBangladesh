@@ -532,7 +532,7 @@ def configure_cinematic_compositor(scene: bpy.types.Scene, warm: bool = True) ->
     balance.label = "Warm delta / cool command grade"
     balance.location = (-760, 240)
     set_socket(balance, "Factor", 0.82)
-    set_socket(balance, "Type", "LIFT_GAMMA_GAIN")
+    set_socket(balance, "Type", "Lift/Gamma/Gain")
     if warm:
         # Slight cyan bias in the deepest values, warm mid/highlight separation.
         set_socket(balance, "Base Lift", 0.005)
@@ -554,8 +554,8 @@ def configure_cinematic_compositor(scene: bpy.types.Scene, warm: bool = True) ->
     glow.name = "A_Square_Optical_Highlight_Glow"
     glow.label = "Restrained optical halation"
     glow.location = (-500, 240)
-    set_socket(glow, "Type", "FOG_GLOW")
-    set_socket(glow, "Quality", "HIGH")
+    set_socket(glow, "Type", "Fog Glow")
+    set_socket(glow, "Quality", "High")
     set_socket(glow, "Highlights Threshold", 1.55 if warm else 1.75)
     set_socket(glow, "Highlights Smoothness", 0.18)
     set_socket(glow, "Clamp Highlights", True)
@@ -568,7 +568,7 @@ def configure_cinematic_compositor(scene: bpy.types.Scene, warm: bool = True) ->
     lens.name = "A_Square_Optical_Lens_Finish"
     lens.label = "Near-invisible optical dispersion"
     lens.location = (-240, 240)
-    set_socket(lens, "Type", "RADIAL")
+    set_socket(lens, "Type", "Radial")
     set_socket(lens, "Distortion", 0.0006)
     set_socket(lens, "Dispersion", 0.0012)
     set_socket(lens, "Jitter", False)
@@ -578,7 +578,7 @@ def configure_cinematic_compositor(scene: bpy.types.Scene, warm: bool = True) ->
     ellipse.name = "A_Square_Lens_Vignette_Mask"
     ellipse.label = "Hand-shaped optical falloff"
     ellipse.location = (-500, -180)
-    set_socket(ellipse, "Operation", "ADD")
+    set_socket(ellipse, "Operation", "Add")
     set_socket(ellipse, "Value", 1.0)
     set_socket(ellipse, "Position", (0.5, 0.5))
     set_socket(ellipse, "Size", (0.87 if warm else 0.85, 0.90 if warm else 0.88))
@@ -589,7 +589,7 @@ def configure_cinematic_compositor(scene: bpy.types.Scene, warm: bool = True) ->
     blur.label = "Feathered vignette boundary"
     blur.location = (-240, -180)
     set_socket(blur, "Size", (120.0, 120.0))
-    set_socket(blur, "Type", "GAUSS")
+    set_socket(blur, "Type", "Gaussian")
     set_socket(blur, "Separable", True)
     set_socket(blur, "Extend Bounds", True)
 
