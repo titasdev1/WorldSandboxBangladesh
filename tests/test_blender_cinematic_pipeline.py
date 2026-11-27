@@ -179,5 +179,47 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
 
 
 
+    def test_shariatpur_centre_store_is_a_custom_mesh_art_asset(self) -> None:
+        body = self.function_text("add_crafted_riverfront_corner_store")
+        self.assertIn("authored_xz_prism", body)
+        self.assertIn("authored_xy_slab", body)
+        self.assertIn("authored_lathe", body)
+        self.assertIn("Curved_Balcony_Stone_Deck", body)
+        self.assertIn("Forged_Balcony_Handrail", body)
+        self.assertIn("Recessed_Arched_Shop_Window", body)
+        self.assertIn("Deep_Interior_Back_Wall", body)
+        self.assertIn("visible_interior", body)
+        self.assertNotIn("box(", body)
+        self.assertNotIn("cylinder(", body)
+        self.assertNotIn("sphere(", body)
+
+    def test_hero_store_replaces_the_centre_repeated_facade(self) -> None:
+        body = self.function_text("build_login")
+        self.assertIn("if i == 2:", body)
+        self.assertIn("add_crafted_riverfront_corner_store", body)
+        self.assertIn("Shariatpur_MixedUse_Block_", body)
+
+    def test_hero_awning_has_cloth_topology_and_secondary_animation(self) -> None:
+        body = self.function_text("add_crafted_riverfront_corner_store")
+        self.assertIn("awning_cols, awning_rows = 28, 8", body)
+        self.assertIn("Canvas_Gust_Anticipation", body)
+        self.assertIn("breeze.keyframe_insert", body)
+        self.assertIn('awning_obj.data.materials.append(mats["red"])', body)
+        self.assertIn("polygon.material_index = 1 if column % 4 in (0, 1) else 0", body)
+        self.assertIn("Awning_Stitched_Seam_", body)
+
+    def test_hero_facade_has_true_openings_and_inhabited_roof_details(self) -> None:
+        body = self.function_text("add_crafted_riverfront_corner_store")
+        self.assertIn("include_front_face=False", body)
+        self.assertIn("include_back_face=False", body)
+        self.assertIn("Upper_Arched_Window_", body)
+        self.assertIn("Interior_Wood_Shelf_", body)
+        self.assertIn("Tea_Jar_", body)
+        self.assertIn("Rice_Sack_", body)
+        self.assertIn("Ribbed_Poly_Water_Tank", body)
+        self.assertIn("Roof_Feed_Pipe", body)
+
+
+
 if __name__ == "__main__":
     unittest.main()
