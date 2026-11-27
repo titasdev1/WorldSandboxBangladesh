@@ -317,7 +317,7 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
         self.assertIn("Wake_Dissipation", wake)
         self.assertIn("Launch_Wake_Follows_Hull", wake)
         self.assertIn("motion: list[tuple[int, tuple[float, float, float]]]", wake)
-        self.assertIn("add_launch_wake(\\"River_Launch_Stern_Wake\\", launch_motion, mats)", body)
+        self.assertIn('add_launch_wake("River_Launch_Stern_Wake", launch_motion, mats)', body)
         self.assertNotIn("path_curve(", wake)
 
 
@@ -333,8 +333,8 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
         self.assertIn('"CompositorNodeValToRGB"', body)
         self.assertIn('"CompositorNodeMixRGB"', body)
         self.assertIn('"CompositorNodeComposite"', body)
-        self.assertIn("links.new(lens.outputs[\\"Image\\"], multiply.inputs[1])", body)
-        self.assertIn("links.new(ramp.outputs[\\"Image\\"], multiply.inputs[2])", body)
+        self.assertIn('links.new(lens.outputs["Image"], multiply.inputs[1])', body)
+        self.assertIn('links.new(ramp.outputs["Image"], multiply.inputs[2])', body)
 
     def test_login_and_lobby_lighting_both_apply_distinct_compositor_profiles(self) -> None:
         body = self.function_text("world_and_lighting")
