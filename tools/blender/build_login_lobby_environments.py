@@ -1696,12 +1696,21 @@ def add_crafted_riverfront_corner_store(
         breeze.keyframe_insert(data_path="value", frame=frame, group="Awning_Wind_Performance")
     awning_keys = awning_obj.data.shape_keys
     if awning_keys and awning_keys.animation_data and awning_keys.animation_data.action:
-        awning_keys.animation_data.action.name = "MEGHNA_STORE_CANVAS_GUST"
-        for curve in awning_keys.animation_data.action.fcurves:
-            for point in curve.keyframe_points:
-                point.interpolation = "BEZIER"
-                point.handle_left_type = "AUTO_CLAMPED"
-                point.handle_right_type = "AUTO_CLAMPED"
+        awning_action = awning_keys.animation_data.action
+        awning_action.name = "MEGHNA_STORE_CANVAS_GUST"
+        # Blender 5.2 uses layered/slotted Actions; the legacy Action.fcurves
+        # collection is absent. Preserve keyed Bezier performance natively on
+        # the new API, and refine handles only on Blender versions exposing it.
+        try:
+            awning_curves = awning_action.fcurves
+        except AttributeError:
+            print("AWNING_CURVE_API_NOTE: Blender layered Action; native shape-key interpolation retained.")
+        else:
+            for curve in awning_curves:
+                for point in curve.keyframe_points:
+                    point.interpolation = "BEZIER"
+                    point.handle_left_type = "AUTO_CLAMPED"
+                    point.handle_right_type = "AUTO_CLAMPED"
 
     # Scalloped edge is a hand-drawn curve with a different drop per panel.
     scallop_points = []
