@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/three-distinct-ara-operators
+      - art/cinematic-composition-pass
     paths:
       - "tools/blender/build_login_lobby_environments.py"
       - "tools/blender/verify_login_lobby_environments.py"
