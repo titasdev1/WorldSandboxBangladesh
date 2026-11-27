@@ -11,8 +11,10 @@ on:
       - art/crafted-launch-vessel
       - art/cinematic-compositor-pass
       - art/character-facial-performance
+      - art/character-facial-performance
     paths:
       - "tools/blender/build_login_lobby_environments.py"
+      - "tools/blender/test_compositor_api.py"
       - "tools/blender/verify_login_lobby_environments.py"
       - "tools/fetch_polyhaven_pbr.py"
       - "tests/test_blender_cinematic_pipeline.py"
@@ -67,6 +69,13 @@ jobs:
           set -euo pipefail
           python3 -m py_compile tests/test_blender_cinematic_pipeline.py
           python3 -m unittest discover -s tests -p 'test_blender_cinematic_pipeline.py' -v
+
+      - name: Smoke-test Blender 5.2 compositor node-group API
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/blender/test_compositor_api.py
+          xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 blender --background --factory-startup --python tools/blender/test_compositor_api.py
 
       - name: Resolve and download the validated Field Ranger rig for lobby art review
         shell: bash
