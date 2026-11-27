@@ -69,6 +69,7 @@ jobs:
         run: |
           set -euo pipefail
           BRANCH="${GITHUB_REF_NAME}"
+          ARA_SOURCE_BRANCH="feature/three-distinct-ara-operators"
           CURRENT_ROSTER_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/contents/tools/ara3d/roster.json?ref=${BRANCH}" --jq '.sha // empty')"
           if [[ -z "$CURRENT_ROSTER_SHA" ]]; then
             echo "Could not resolve the current operator roster blob." >&2
@@ -76,8 +77,8 @@ jobs:
           fi
           RUN_ID=""
           for attempt in $(seq 1 40); do
-            RUNS="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?branch=${BRANCH}&per_page=100" \
-              --jq '.workflow_runs | map(select(.workflow_id == 417330351 and .head_branch == "'"${BRANCH}"'" and .status == "completed" and .conclusion == "success")) | sort_by(.created_at) | reverse | .[0:30][] | [.id, .head_sha] | @tsv' \
+            RUNS="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?branch=${ARA_SOURCE_BRANCH}&per_page=100" \
+              --jq '.workflow_runs | map(select(.workflow_id == 417330351 and .head_branch == "'"${ARA_SOURCE_BRANCH}"'" and .status == "completed" and .conclusion == "success")) | sort_by(.created_at) | reverse | .[0:30][] | [.id, .head_sha] | @tsv' \
               || true)"
             while IFS=$'\t' read -r CANDIDATE_ID CANDIDATE_SHA; do
               [[ -n "${CANDIDATE_ID:-}" && -n "${CANDIDATE_SHA:-}" ]] || continue
