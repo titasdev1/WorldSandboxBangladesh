@@ -5,6 +5,7 @@ on:
     branches:
       - feature/three-distinct-ara-operators
       - art/cinematic-composition-pass
+      - art/login-film-cuts
     paths:
       - "tools/blender/build_login_lobby_environments.py"
       - "tools/blender/verify_login_lobby_environments.py"
