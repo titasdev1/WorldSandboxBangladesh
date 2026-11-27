@@ -117,7 +117,16 @@ body {
   margin: 0;
   padding-left: 5mm;
 }
-.contents > ul { padding-left: 0; }
+.contents > ul {
+  padding-left: 0;
+  columns: 2;
+  column-gap: 10mm;
+  column-fill: auto;
+}
+.contents > ul > li {
+  break-inside: avoid;
+  padding-right: 2mm;
+}
 .contents li { margin: 0 0 2.3mm; }
 .contents a {
   color: #2a5262;
