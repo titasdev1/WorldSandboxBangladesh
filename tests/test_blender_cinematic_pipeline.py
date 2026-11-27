@@ -313,7 +313,7 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
         body = self.function_text("build_login")
         self.assertIn("Surface_Ribbon_", wake)
         self.assertIn("authored_mesh(", wake)
-        self.assertIn("wake.shape_key_add(name=\\"Stern_Turbulence\\"", wake)
+        self.assertIn('wake.shape_key_add(name="Stern_Turbulence"', wake)
         self.assertIn("Wake_Dissipation", wake)
         self.assertIn("Launch_Wake_Follows_Hull", wake)
         self.assertIn("motion: list[tuple[int, tuple[float, float, float]]]", wake)
