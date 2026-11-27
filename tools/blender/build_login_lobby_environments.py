@@ -1310,6 +1310,490 @@ def face_operator_to_camera(operator: bpy.types.Object, camera_obj: bpy.types.Ob
         operator.rotation_euler[2] = math.atan2(-direction.x, -direction.y)
 
 
+def authored_mesh(
+    name: str,
+    vertices: list[tuple[float, float, float]],
+    faces: list[tuple[int, ...]],
+    mat: bpy.types.Material,
+    parent: bpy.types.Object | None = None,
+    smooth: bool = False,
+) -> bpy.types.Object:
+    """Create an editable, hand-authored surface mesh without primitive operators."""
+    mesh = bpy.data.meshes.new(name + "_SculptedMesh")
+    mesh.from_pydata(vertices, [], faces)
+    mesh.validate(clean_customdata=False)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    mesh.materials.append(mat)
+    for polygon in mesh.polygons:
+        polygon.use_smooth = smooth
+    return set_parent(obj, parent)
+
+
+def authored_xz_prism(
+    name: str,
+    contour: list[tuple[float, float]],
+    front_y: float,
+    back_y: float,
+    mat: bpy.types.Material,
+    parent: bpy.types.Object | None = None,
+    bevel: float = 0.0,
+) -> bpy.types.Object:
+    """Extrude an irregular artist-drawn elevation contour along the depth axis."""
+    count = len(contour)
+    vertices = [(x, front_y, z) for x, z in contour]
+    vertices.extend((x, back_y, z) for x, z in contour)
+    faces: list[tuple[int, ...]] = [
+        tuple(range(count)),
+        tuple(range(count * 2 - 1, count - 1, -1)),
+    ]
+    for i in range(count):
+        j = (i + 1) % count
+        faces.append((i, j, count + j, count + i))
+    obj = authored_mesh(name, vertices, faces, mat, parent, False)
+    if bevel > 0.0:
+        edge = obj.modifiers.new(name + "_HandFinishedEdges", "BEVEL")
+        edge.width = bevel
+        edge.segments = 3
+        edge.profile = 0.5
+        normals = obj.modifiers.new(name + "_CraftedNormals", "WEIGHTED_NORMAL")
+        normals.keep_sharp = True
+        normals.weight = 35
+    return obj
+
+
+def authored_xy_slab(
+    name: str,
+    contour: list[tuple[float, float]],
+    lower_z: float,
+    upper_z: float,
+    mat: bpy.types.Material,
+    parent: bpy.types.Object | None = None,
+    bevel: float = 0.0,
+) -> bpy.types.Object:
+    """Extrude a custom plan-view contour vertically for shaped balconies and canopies."""
+    count = len(contour)
+    vertices = [(x, y, upper_z) for x, y in contour]
+    vertices.extend((x, y, lower_z) for x, y in contour)
+    faces: list[tuple[int, ...]] = [
+        tuple(range(count)),
+        tuple(range(count * 2 - 1, count - 1, -1)),
+    ]
+    for i in range(count):
+        j = (i + 1) % count
+        faces.append((i, j, count + j, count + i))
+    obj = authored_mesh(name, vertices, faces, mat, parent, False)
+    if bevel > 0.0:
+        edge = obj.modifiers.new(name + "_SoftWornEdge", "BEVEL")
+        edge.width = bevel
+        edge.segments = 3
+        obj.modifiers.new(name + "_WeightedSurfaceNormals", "WEIGHTED_NORMAL")
+    return obj
+
+
+def authored_lathe(
+    name: str,
+    profile: list[tuple[float, float]],
+    mat: bpy.types.Material,
+    parent: bpy.types.Object | None = None,
+    segments: int = 48,
+    rib_amount: float = 0.0,
+) -> bpy.types.Object:
+    """Turn a hand-drawn radius/height profile into a lathed, optionally ribbed surface."""
+    vertices: list[tuple[float, float, float]] = []
+    faces: list[tuple[int, int, int, int]] = []
+    for ring, (z, radius) in enumerate(profile):
+        for segment in range(segments):
+            angle = math.tau * segment / segments
+            rib = 1.0 + rib_amount * math.sin(angle * 12.0 + ring * 0.15)
+            r = radius * rib
+            vertices.append((math.cos(angle) * r, math.sin(angle) * r, z))
+    for ring in range(len(profile) - 1):
+        for segment in range(segments):
+            a = ring * segments + segment
+            b = ring * segments + (segment + 1) % segments
+            c = (ring + 1) * segments + (segment + 1) % segments
+            d = (ring + 1) * segments + segment
+            faces.append((a, b, c, d))
+    return authored_mesh(name, vertices, faces, mat, parent, True)
+
+
+def add_crafted_riverfront_corner_store(
+    x: float,
+    y: float,
+    width: float,
+    depth: float,
+    mats: dict[str, bpy.types.Material],
+) -> bpy.types.Object:
+    """Build the hero shop as a bespoke mesh/curve composition, not a primitive kit."""
+    name = "Shariatpur_Meghna_Corner_Store_Hero"
+    root = bpy.data.objects.new(name, None)
+    bpy.context.collection.objects.link(root)
+    root.location = (x, y, 0.0)
+
+    half = width * 0.5
+    front = depth * 0.5
+    back = -depth * 0.5
+    facade_top = 7.38
+
+    # Irregular roofline, subtle corner offsets and hand-shaped massing give the
+    # building a unique silhouette before any signs, windows or surface detail.
+    body_contour = [
+        (-half, 0.0), (half, 0.0), (half, 6.76),
+        (half - 0.22, 6.98), (half - 0.56, 6.93),
+        (1.42, 7.20), (0.94, 7.08), (0.35, 7.42),
+        (-0.26, 7.19), (-0.84, 7.34), (-1.42, 7.04),
+        (-half + 0.48, 7.12), (-half, 6.82),
+    ]
+    authored_xz_prism(
+        name + "_Irregular_Masonry_Mass",
+        body_contour, front, back, mats["sand"], root, 0.035,
+    )
+
+    # Deep shop recesses: two different arches, one broad service hatch and a
+    # narrow timber door. Their custom profiles are intentionally not mirrored.
+    arch_left = -2.12
+    arch_right = -0.10
+    arch_spring = 2.20
+    arch_crown = 2.76
+    left_arch = [
+        (arch_left, 0.32), (arch_right, 0.32), (arch_right, arch_spring),
+        (arch_right - 0.12, 2.43), (-0.53, 2.63), (-0.94, arch_crown),
+        (-1.39, 2.62), (-1.82, 2.44), (arch_left, arch_spring),
+    ]
+    authored_xz_prism(
+        name + "_Recessed_Arched_Shop_Window",
+        left_arch, front + 0.065, front + 0.020, mats["dark"], root,
+    )
+    path_curve(name + "_Arched_Shop_Stone_Moulding", [
+        (arch_left, front + 0.11, 0.28),
+        (arch_left, front + 0.11, arch_spring),
+        (-1.91, front + 0.11, 2.49),
+        (-1.50, front + 0.11, arch_crown),
+        (-1.05, front + 0.11, 2.57),
+        (arch_right - 0.06, front + 0.11, arch_spring),
+        (arch_right, front + 0.11, 0.28),
+    ], mats["stone"], 0.095, root)
+    path_curve(name + "_Inner_Arch_Brass_Inlay", [
+        (-1.94, front + 0.13, 0.45),
+        (-1.94, front + 0.13, 2.18),
+        (-1.76, front + 0.13, 2.42),
+        (-1.36, front + 0.13, 2.62),
+        (-0.94, front + 0.13, 2.42),
+        (-0.28, front + 0.13, 2.18),
+        (-0.28, front + 0.13, 0.45),
+    ], mats["brass"], 0.022, root)
+
+    # The glazing is broken into separate panes, leaving the shop interior
+    # visible. The lower kick-panel and upper transom follow the arched opening.
+    glass_shapes = [
+        [(-1.84, 0.55), (-1.42, 0.55), (-1.42, 2.23), (-1.62, 2.42), (-1.84, 2.22)],
+        [(-1.33, 0.55), (-0.87, 0.55), (-0.87, 2.23), (-1.10, 2.42), (-1.33, 2.23)],
+        [(-0.78, 0.55), (-0.38, 0.55), (-0.38, 2.22), (-0.56, 2.39), (-0.78, 2.22)],
+    ]
+    for pane, shape in enumerate(glass_shapes):
+        authored_xz_prism(
+            name + f"_Arched_Glass_Pane_{pane + 1}",
+            shape, front + 0.145, front + 0.12, mats["glass"], root,
+        )
+        for edge_x in (shape[0][0], shape[1][0]):
+            path_curve(name + f"_Pane_Mullion_{pane}_{edge_x:.2f}", [
+                (edge_x, front + 0.17, 0.48),
+                (edge_x, front + 0.17, 2.18),
+            ], mats["aluminium"], 0.018, root)
+
+    # A side entrance with a non-square head, inset panels, handle and stone step.
+    door_profile = [
+        (0.72, 0.18), (1.84, 0.18), (1.84, 2.36),
+        (1.62, 2.52), (0.95, 2.48), (0.72, 2.28),
+    ]
+    authored_xz_prism(
+        name + "_Handmade_Timber_Door",
+        door_profile, front + 0.10, front + 0.04, mats["wood"], root, 0.018,
+    )
+    for panel_z, panel_h in ((0.63, 0.56), (1.45, 0.80), (2.08, 0.30)):
+        panel_profile = [
+            (0.86, panel_z), (1.70, panel_z),
+            (1.70, panel_z + panel_h), (0.86, panel_z + panel_h),
+        ]
+        authored_xz_prism(
+            name + f"_Door_Raised_Panel_{panel_z:.2f}",
+            panel_profile, front + 0.145, front + 0.138, mats["sand"], root,
+        )
+    authored_lathe(
+        name + "_Door_Bronze_Handle",
+        [(0.0, 0.015), (0.06, 0.024), (0.13, 0.018), (0.18, 0.010)],
+        mats["brass"], root, 20,
+    ).location = (1.57, front + 0.19, 1.36)
+    authored_xy_slab(
+        name + "_Worn_Threshold_Stone",
+        [(0.55, front - 0.08), (2.02, front - 0.08), (2.08, front + 0.38),
+         (1.88, front + 0.44), (0.62, front + 0.36)],
+        0.03, 0.20, mats["stone"], root, 0.025,
+    )
+
+    # A painted sign fascia with individual lettering and a small side-mounted
+    # swinging ticket board; no flat generic text overlay.
+    fascia = [(-2.30, 2.96), (2.20, 2.96), (2.12, 3.60), (-2.22, 3.60)]
+    authored_xz_prism(
+        name + "_Hand_Painted_Fascia",
+        fascia, front + 0.20, front + 0.12, mats["blue"], root, 0.035,
+    )
+    path_curve(name + "_Fascia_Gold_Border", [
+        (-2.18, front + 0.25, 3.06), (-1.05, front + 0.25, 3.03),
+        (0.90, front + 0.25, 3.03), (2.08, front + 0.25, 3.07),
+        (2.08, front + 0.25, 3.49), (0.0, front + 0.25, 3.52),
+        (-2.18, front + 0.25, 3.49), (-2.18, front + 0.25, 3.06),
+    ], mats["brass"], 0.018, root)
+
+    sign_data = bpy.data.curves.new(name + "_Sign_Lettering_Font", "FONT")
+    sign_data.body = "MEGHNA  /  GENERAL STORE"
+    sign_data.size = 0.34
+    sign_data.extrude = 0.004
+    sign_data.bevel_depth = 0.0015
+    sign_data.align_x = "CENTER"
+    sign_data.align_y = "CENTER"
+    sign_text = bpy.data.objects.new(name + "_Sign_Lettering", sign_data)
+    bpy.context.collection.objects.link(sign_text)
+    sign_text.location = (-0.04, front + 0.27, 3.29)
+    sign_text.rotation_euler = (math.pi * 0.5, 0.0, 0.0)
+    sign_data.materials.append(mats["cream"])
+    set_parent(sign_text, root)
+
+    # Folded awning: a dense cloth-like grid with uneven sag, soft creases and
+    # alternating hand-painted canvas panels. Shape keys add a restrained breeze.
+    awning_cols, awning_rows = 28, 8
+    awning_vertices: list[tuple[float, float, float]] = []
+    awning_faces: list[tuple[int, int, int, int]] = []
+    awning_width = 4.90
+    awning_start_y = front + 0.25
+    awning_end_y = front + 1.18
+    for row in range(awning_rows + 1):
+        v = row / awning_rows
+        for col in range(awning_cols + 1):
+            u = col / awning_cols
+            local_x = -awning_width * 0.5 + awning_width * u
+            local_y = awning_start_y + (awning_end_y - awning_start_y) * v
+            fold = math.sin(u * math.pi * 12.0) * 0.035 * (0.30 + v)
+            sag = 0.12 * math.sin(u * math.pi) + 0.05 * math.sin(v * math.pi)
+            z = 3.04 - 0.44 * v - sag + fold
+            awning_vertices.append((local_x, local_y, z))
+    stride = awning_cols + 1
+    for row in range(awning_rows):
+        for col in range(awning_cols):
+            a = row * stride + col
+            b = a + 1
+            d = (row + 1) * stride + col
+            c = d + 1
+            awning_faces.append((a, b, c, d))
+    awning_obj = authored_mesh(
+        name + "_Sculpted_Canvas_Awning",
+        awning_vertices, awning_faces, mats["canvas"], root, True,
+    )
+    for col in range(awning_cols):
+        if col % 4 in (0, 1):
+            for polygon in awning_obj.data.polygons:
+                if col in range(polygon.index % awning_cols, polygon.index % awning_cols + 1):
+                    polygon.material_index = 0
+    breeze = awning_obj.shape_key_add(name="Canvas_Gust_Anticipation", from_mix=False)
+    for index, vertex in enumerate(awning_vertices):
+        x_local, y_local, z_local = vertex
+        u = (x_local + awning_width * 0.5) / awning_width
+        v = (y_local - awning_start_y) / (awning_end_y - awning_start_y)
+        breeze.data[index].co.z = z_local + 0.055 * math.sin(u * math.pi * 5.0 + v * 2.0)
+    for frame, value in ((1, 0.0), (24, 1.0), (48, 0.25), (72, 0.0), (289, 0.4)):
+        breeze.value = value
+        breeze.keyframe_insert(data_path="value", frame=frame, group="Awning_Wind_Performance")
+    awning_keys = awning_obj.data.shape_keys
+    if awning_keys and awning_keys.animation_data and awning_keys.animation_data.action:
+        awning_keys.animation_data.action.name = "MEGHNA_STORE_CANVAS_GUST"
+        for curve in awning_keys.animation_data.action.fcurves:
+            for point in curve.keyframe_points:
+                point.interpolation = "BEZIER"
+                point.handle_left_type = "AUTO_CLAMPED"
+                point.handle_right_type = "AUTO_CLAMPED"
+
+    # Scalloped edge is a hand-drawn curve with a different drop per panel.
+    scallop_points = []
+    for index in range(25):
+        u = index / 24.0
+        scallop_points.append((
+            -awning_width * 0.5 + awning_width * u,
+            awning_end_y + 0.01,
+            2.42 - 0.035 * math.sin(u * math.pi * 12.0),
+        ))
+    path_curve(name + "_Scalloped_Canvas_Valance", scallop_points, mats["red"], 0.055, root)
+    for side in (-1, 1):
+        path_curve(name + f"_Forged_Awning_Support_{side}", [
+            (side * 2.36, front + 0.22, 3.00),
+            (side * 2.48, front + 0.50, 2.80),
+            (side * 2.48, front + 0.92, 2.64),
+        ], mats["aluminium"], 0.032, root)
+
+    # Upper windows: individually arched openings with thick plaster reveals,
+    # hand-bent grilles, drainage sills and sun-faded shutters.
+    for index, cx in enumerate((-1.62, 0.02, 1.60)):
+        z0 = 4.66 + (0.06 if index == 1 else 0.0)
+        arch = [
+            (cx - 0.48, z0 - 0.66), (cx + 0.48, z0 - 0.66),
+            (cx + 0.48, z0 + 0.22), (cx + 0.33, z0 + 0.48),
+            (cx, z0 + 0.62), (cx - 0.34, z0 + 0.47),
+            (cx - 0.48, z0 + 0.20),
+        ]
+        authored_xz_prism(
+            name + f"_Upper_Arched_Window_{index}",
+            arch, front + 0.085, front + 0.035, mats["glass"], root,
+        )
+        path_curve(name + f"_Upper_Window_Stone_Arch_{index}", [
+            (cx - 0.56, front + 0.14, z0 - 0.68),
+            (cx - 0.56, front + 0.14, z0 + 0.20),
+            (cx - 0.35, front + 0.14, z0 + 0.52),
+            (cx, front + 0.14, z0 + 0.72),
+            (cx + 0.35, front + 0.14, z0 + 0.52),
+            (cx + 0.56, front + 0.14, z0 + 0.20),
+            (cx + 0.56, front + 0.14, z0 - 0.68),
+        ], mats["stone"], 0.065, root)
+        for bar in (-0.24, 0.0, 0.24):
+            path_curve(name + f"_Window_Grille_{index}_{bar:.2f}", [
+                (cx + bar, front + 0.17, z0 - 0.60),
+                (cx + bar, front + 0.17, z0 + 0.36),
+            ], mats["aluminium"], 0.014, root)
+        path_curve(name + f"_Window_Crossbar_{index}", [
+            (cx - 0.45, front + 0.17, z0 - 0.02),
+            (cx, front + 0.17, z0 - 0.06),
+            (cx + 0.45, front + 0.17, z0 - 0.02),
+        ], mats["aluminium"], 0.017, root)
+
+    # A curved upper balcony with a hand-forged rail, tapered spindles and a
+    # central cast-iron floral medallion, unique to this corner elevation.
+    balcony_contour = [
+        (-1.75, front + 0.05), (1.76, front + 0.05),
+        (1.68, front + 0.35), (1.44, front + 0.63),
+        (1.08, front + 0.82), (0.55, front + 0.95),
+        (0.0, front + 1.00), (-0.58, front + 0.95),
+        (-1.10, front + 0.80), (-1.48, front + 0.56),
+        (-1.70, front + 0.28),
+    ]
+    authored_xy_slab(
+        name + "_Curved_Balcony_Stone_Deck",
+        balcony_contour, 4.12, 4.30, mats["concrete"], root, 0.035,
+    )
+    rail_points = [
+        (-1.68, front + 0.08, 4.98), (-1.46, front + 0.42, 4.99),
+        (-1.10, front + 0.69, 5.00), (-0.54, front + 0.90, 5.02),
+        (0.0, front + 0.95, 5.04), (0.56, front + 0.89, 5.02),
+        (1.11, front + 0.68, 5.00), (1.48, front + 0.38, 4.99),
+        (1.68, front + 0.08, 4.98),
+    ]
+    path_curve(name + "_Forged_Balcony_Handrail", rail_points, mats["brass"], 0.042, root)
+    for index in range(17):
+        u = index / 16.0
+        px = -1.62 + 3.24 * u
+        py = front + 0.10 + 0.83 * math.sin(math.pi * u)
+        top_z = 4.96 + 0.08 * math.sin(math.pi * u)
+        path_curve(name + f"_Forged_Baluster_{index:02d}", [
+            (px, py, 4.34), (px, py + 0.012, 4.54),
+            (px + 0.025 * math.sin(u * math.tau), py, 4.75),
+            (px, py, top_z),
+        ], mats["aluminium"], 0.019 if index % 2 else 0.026, root)
+    path_curve(name + "_Balcony_Floral_Spiral_Left", [
+        (-0.45, front + 0.91, 4.55), (-0.30, front + 0.91, 4.71),
+        (-0.10, front + 0.91, 4.60), (-0.23, front + 0.91, 4.47),
+        (-0.38, front + 0.91, 4.55),
+    ], mats["brass"], 0.027, root)
+    path_curve(name + "_Balcony_Floral_Spiral_Right", [
+        (0.45, front + 0.91, 4.55), (0.30, front + 0.91, 4.71),
+        (0.10, front + 0.91, 4.60), (0.23, front + 0.91, 4.47),
+        (0.38, front + 0.91, 4.55),
+    ], mats["brass"], 0.027, root)
+
+    # Shop interior: deep shelves, folded awnings of stock, tea jars, rice sacks
+    # and warm practical light visible through the arched glazing.
+    for shelf, z in enumerate((0.82, 1.30, 1.83)):
+        path_curve(name + f"_Interior_Wood_Shelf_{shelf}", [
+            (-1.74, front - 0.32, z), (-1.15, front - 0.35, z - 0.015),
+            (-0.54, front - 0.32, z),
+        ], mats["wood"], 0.052, root)
+        for jar in range(4):
+            jx = -1.65 + jar * 0.27
+            jar_obj = authored_lathe(
+                name + f"_Tea_Jar_{shelf}_{jar}",
+                [(0.0, 0.055), (0.07, 0.075), (0.25, 0.078),
+                 (0.31, 0.060), (0.34, 0.045)],
+                mats["warm_glass"], root, 18,
+            )
+            jar_obj.location = (jx, front - 0.31, z + 0.035)
+        for bag in range(3):
+            bx = 0.18 + bag * 0.38
+            sack_profile = [
+                (0.0, 0.14), (0.07, 0.19), (0.24, 0.18),
+                (0.42, 0.11), (0.47, 0.045),
+            ]
+            bag_obj = authored_lathe(
+                name + f"_Rice_Sack_{shelf}_{bag}",
+                sack_profile, mats["canvas"] if bag % 2 else mats["sand"], root, 24, 0.05,
+            )
+            bag_obj.location = (bx, front - 0.31, z + 0.04)
+    for side in (-1, 1):
+        path_curve(name + f"_Interior_Support_Post_{side}", [
+            (side * 0.14, front - 0.18, 0.45),
+            (side * 0.14, front - 0.18, 2.70),
+        ], mats["wood"], 0.055, root)
+
+    # The projecting balcony underside carries damp streaks, chipped paint and
+    # irregular mineral deposits rather than a uniformly clean grey surface.
+    for streak in range(13):
+        sx = -2.05 + streak * 0.32
+        length = 0.22 + (streak % 4) * 0.12
+        path_curve(name + f"_Rain_Stain_{streak:02d}", [
+            (sx, front + 0.015, 3.88),
+            (sx + 0.025 * math.sin(streak), front + 0.018, 3.88 - length * 0.5),
+            (sx - 0.018 * math.cos(streak), front + 0.020, 3.88 - length),
+        ], mats["brick"] if streak % 3 else mats["stone"], 0.012 + (streak % 3) * 0.003, root)
+
+    # The roof tank is turned from an irregular profile with ring ribs; thin
+    # pipework, cable clips and an old antenna make the roof feel inhabited.
+    tank_profile = [
+        (0.0, 0.45), (0.08, 0.56), (0.22, 0.59), (0.34, 0.54),
+        (0.98, 0.50), (1.08, 0.58), (1.16, 0.55), (1.24, 0.42),
+    ]
+    tank = authored_lathe(
+        name + "_Ribbed_Poly_Water_Tank",
+        tank_profile, mats["tank"], root, 64, 0.028,
+    )
+    tank.location = (1.55, back + 0.55, 7.52)
+    cap = authored_lathe(
+        name + "_Water_Tank_Collar",
+        [(0.0, 0.50), (0.05, 0.57), (0.12, 0.54), (0.15, 0.42)],
+        mats["aluminium"], root, 48,
+    )
+    cap.location = (1.55, back + 0.55, 8.69)
+    path_curve(name + "_Roof_Feed_Pipe", [
+        (1.55, back + 0.55, 7.56), (1.30, back + 0.30, 6.95),
+        (1.22, back + 0.26, 5.85), (1.22, back + 0.26, 0.25),
+    ], mats["aluminium"], 0.038, root)
+    path_curve(name + "_Roof_Telephone_Cable", [
+        (-2.45, back + 0.18, 7.20), (-1.70, back + 0.10, 7.55),
+        (-0.82, back + 0.08, 7.33), (0.12, back + 0.12, 7.52),
+        (1.20, back + 0.18, 7.31),
+    ], mats["dark"], 0.018, root)
+
+    root["asset_role"] = "hero_local_corner_store"
+    root["art_method"] = "hand_authored_mesh_profiles;arched_recesses;curved_balcony;cloth_grid;lathed_utility_assets;visible_shop_interior"
+    root["silhouette_review"] = "irregular_roofline;offset_upper_openings;curved_awning;deep_balcony"
+    root["surface_story"] = "sun_fade;rain_streaks;mineral_deposits;worn_stone;painted_signage"
+    root["animation"] = "cloth_awning_gust;secondary_sign_and_fabric_motion"
+    print("CRAFTED_HERO_BUILDING_READY:", json.dumps({
+        "name": root.name,
+        "method": root["art_method"],
+        "visible_interior": True,
+        "animated_awning": True,
+        "facade_profile_points": len(body_contour),
+    }, sort_keys=True))
+    return root
+
+
 def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], operator_glb: pathlib.Path) -> bpy.types.Object:
     scene["scene_role"] = "A-Square Login — Shariatpur Riverfront"
     world_and_lighting(scene, True)
@@ -1336,15 +1820,19 @@ def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], ope
         cylinder(f"Ghat_Mooring_Bollard_{x}", (x, -6.0, 0.35), 0.12, 0.65, mats["dark"], 20)
         path_curve(f"Ghat_Mooring_Rope_{x}", [(x, -5.9, 0.50), (x + 0.8, -7.2, 0.18), (x + 1.7, -8.4, 0.12)], mats["wood"], 0.035)
     # Varied low-rise and mid-rise Bangladeshi mixed-use blocks, not one repeated box silhouette.
-    for i, args in enumerate([
+    blocks = [
         (-15.8, -10.0, 5.6, 3.8, 4, 0),
         (-9.2, -11.8, 4.2, 3.2, 5, 2),
         (-3.5, -12.3, 5.0, 3.7, 3, 1),
         (3.0, -11.2, 5.4, 3.4, 6, 3),
         (10.0, -11.8, 4.5, 3.3, 4, 0),
         (16.2, -10.0, 5.4, 3.8, 5, 2),
-    ]):
-        add_facade_building(f"Shariatpur_MixedUse_Block_{i+1}", *args, mats)
+    ]
+    for i, args in enumerate(blocks):
+        if i == 2:
+            add_crafted_riverfront_corner_store(args[0], args[1], args[2], args[3], mats)
+        else:
+            add_facade_building(f"Shariatpur_MixedUse_Block_{i+1}", *args, mats)
     # Palm/banyan canopy framing the street, individual leaf cards and exposed limbs.
     add_banyan_or_palm("Banyan_Left", -19.0, -2.0, 6.6, mats, 45)
     add_banyan_or_palm("Banyan_Right", 19.0, -2.4, 6.0, mats, 85)
