@@ -97,5 +97,26 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
         self.assertIn('"Look around"', lobby)
 
 
+    def test_river_surface_is_tessellated_and_has_looped_shape_key_waves(self) -> None:
+        body = self.function_text("river_plane")
+        self.assertIn("mesh.from_pydata", body)
+        self.assertIn("uv_layers.new", body)
+        self.assertIn("shape_key_add", body)
+        self.assertIn("River_Wave_Phase_", body)
+        self.assertIn("key.keyframe_insert", body)
+        self.assertIn("curve.modifiers.new(\"CYCLES\")", body)
+
+    def test_water_shader_and_eevee_reflections_are_authored(self) -> None:
+        reflection = self.function_text("configure_eevee_reflections")
+        self.assertIn("use_raytracing = True", reflection)
+        self.assertIn('ray_tracing_method = "SCREEN"', reflection)
+        water = self.function_text("configure_river_water_material")
+        self.assertIn("ShaderNodeTexWave", water)
+        self.assertIn("ShaderNodeTexNoise", water)
+        self.assertIn("ShaderNodeBump", water)
+        self.assertIn('shader.inputs["IOR"].default_value = 1.333', water)
+
+
+
 if __name__ == "__main__":
     unittest.main()
