@@ -1893,6 +1893,479 @@ def add_crafted_riverfront_corner_store(
     return root
 
 
+def add_handcrafted_cng(
+    name: str,
+    x: float,
+    y: float,
+    mats: dict[str, bpy.types.Material],
+) -> bpy.types.Object:
+    """A locally modelled Bangladesh three-wheeler with custom shell, cloth, wheels and rigged motion."""
+    root = bpy.data.objects.new(name, None)
+    bpy.context.collection.objects.link(root)
+    root.location = (x, y, 0.0)
+
+    # The lower body is an extruded hand-drawn side elevation. Upper body mass
+    # is deliberately interrupted around the passenger opening and windscreen.
+    side_profile = [
+        (-1.34, 0.33), (-1.30, 0.72), (-1.12, 0.95), (-0.76, 1.02),
+        (-0.30, 1.00), (0.12, 0.93), (0.45, 0.96), (0.77, 1.22),
+        (1.14, 1.18), (1.42, 0.92), (1.48, 0.52), (1.22, 0.36),
+        (0.50, 0.30), (-0.45, 0.29),
+    ]
+    authored_xz_prism(
+        name + "_Sculpted_Lower_Body_Shell",
+        side_profile, 0.56, -0.56, mats["cng_green"], root, 0.035,
+    )
+
+    # A lower sill is a separate formed panel with a shallow belly and wheel
+    # clearance cut into its silhouette.
+    sill_profile = [
+        (-1.25, 0.48), (-1.02, 0.42), (-0.72, 0.47), (-0.50, 0.58),
+        (0.20, 0.56), (0.55, 0.48), (1.25, 0.53), (1.35, 0.62),
+        (0.91, 0.70), (0.40, 0.72), (-0.43, 0.70), (-0.94, 0.66),
+    ]
+    authored_xz_prism(
+        name + "_Lower_Handformed_Sill",
+        sill_profile, 0.585, -0.585, mats["cng_dark"], root, 0.018,
+    )
+
+    # A shaped bonnet and front apron create an identifiable nose, rather than
+    # a rectangular body with a flat front face.
+    bonnet_profile = [
+        (0.70, 0.62), (1.42, 0.63), (1.56, 0.76), (1.48, 1.06),
+        (1.24, 1.29), (0.96, 1.32), (0.78, 1.12),
+    ]
+    authored_xz_prism(
+        name + "_Sloped_Front_Bonnet",
+        bonnet_profile, 0.47, -0.47, mats["cng_green_light"], root, 0.026,
+    )
+    apron_profile = [
+        (1.31, 0.38), (1.56, 0.42), (1.58, 0.88),
+        (1.47, 1.03), (1.31, 0.88),
+    ]
+    authored_xz_prism(
+        name + "_Front_Apron_Stamped_Panel",
+        apron_profile, 0.44, -0.44, mats["cng_dark"], root, 0.018,
+    )
+
+    # Raised front crease, lower character lines and enamel piping catch the
+    # sunset key in a way a toy-green block cannot.
+    for side in (-1, 1):
+        local_path_curve(name + f"_Bonnet_Crease_{side}", [
+            (0.78, side * 0.478, 1.13),
+            (1.02, side * 0.482, 1.22),
+            (1.30, side * 0.445, 1.04),
+            (1.48, side * 0.425, 0.80),
+        ], mats["cream"], 0.018, root)
+        local_path_curve(name + f"_Side_Enamel_Pinstripe_{side}", [
+            (-1.17, side * 0.575, 0.78),
+            (-0.78, side * 0.590, 0.73),
+            (-0.18, side * 0.592, 0.76),
+            (0.42, side * 0.590, 0.78),
+            (0.83, side * 0.555, 0.92),
+        ], mats["cream"], 0.020, root)
+        local_path_curve(name + f"_Side_Upper_Beltline_{side}", [
+            (-1.05, side * 0.565, 0.98),
+            (-0.42, side * 0.565, 1.00),
+            (0.14, side * 0.55, 0.99),
+        ], mats["brass"], 0.014, root)
+
+    # Passenger cabin is an open architectural frame. The seat, footwell and
+    # inner trim remain visible through the sides; no solid box closes it.
+    floor_contour = [
+        (-1.22, -0.52), (0.48, -0.52), (0.74, -0.38),
+        (0.82, 0.30), (0.48, 0.49), (-1.18, 0.49),
+        (-1.31, 0.26),
+    ]
+    authored_xy_slab(
+        name + "_Passenger_Footwell_Stamped_Floor",
+        floor_contour, 0.72, 0.83, mats["dark"], root, 0.028,
+    )
+    seat_profile = [
+        (-1.10, 0.86), (-0.26, 0.86), (-0.13, 1.05),
+        (-0.24, 1.23), (-0.92, 1.25), (-1.12, 1.08),
+    ]
+    authored_xz_prism(
+        name + "_Rear_Bench_Cushion",
+        seat_profile, 0.39, -0.39, mats["canvas"], root, 0.075,
+    )
+    backrest_profile = [
+        (-1.12, 1.04), (-0.90, 1.10), (-0.86, 1.58),
+        (-0.98, 1.72), (-1.27, 1.61), (-1.31, 1.27),
+    ]
+    authored_xz_prism(
+        name + "_Rear_Bench_Backrest",
+        backrest_profile, 0.41, -0.41, mats["canvas"], root, 0.055,
+    )
+    for seam in (-0.72, -0.26, 0.22):
+        local_path_curve(name + f"_Seat_Stitch_{seam:.2f}", [
+            (seam, -0.408, 0.94),
+            (seam + 0.025, -0.409, 1.03),
+            (seam, -0.408, 1.14),
+        ], mats["sand"], 0.007, root)
+    for side in (-1, 1):
+        local_path_curve(name + f"_Passenger_Grab_Rail_{side}", [
+            (-1.18, side * 0.58, 0.92),
+            (-0.92, side * 0.62, 1.14),
+            (-0.42, side * 0.62, 1.12),
+            (0.12, side * 0.60, 1.04),
+        ], mats["aluminium"], 0.032, root)
+        local_path_curve(name + f"_Doorway_Entry_Trim_{side}", [
+            (-1.20, side * 0.60, 0.86),
+            (-1.14, side * 0.62, 1.52),
+            (-0.91, side * 0.62, 1.66),
+        ], mats["brass"], 0.024, root)
+
+    # Instrument cowl and driver controls are modelled as separate objects.
+    dash_profile = [
+        (0.48, 1.02), (0.92, 1.07), (1.03, 1.23),
+        (0.91, 1.37), (0.57, 1.31),
+    ]
+    authored_xz_prism(
+        name + "_Driver_Dashboard_Cowl",
+        dash_profile, 0.39, -0.39, mats["cng_dark"], root, 0.034,
+    )
+    local_path_curve(name + "_Steering_Column", [
+        (0.48, -0.015, 1.14), (0.40, -0.015, 1.45), (0.28, -0.015, 1.54),
+    ], mats["aluminium"], 0.036, root)
+    local_path_curve(name + "_Steering_Handlebar", [
+        (0.12, -0.30, 1.55), (0.28, -0.015, 1.56), (0.12, 0.30, 1.55),
+    ], mats["dark"], 0.035, root)
+    for side in (-1, 1):
+        local_path_curve(name + f"_Brake_Lever_{side}", [
+            (0.18, side * 0.25, 1.55),
+            (0.02, side * 0.36, 1.49),
+            (-0.08, side * 0.43, 1.42),
+        ], mats["aluminium"], 0.012, root)
+
+    # Windscreen is a curved, slanted custom panel across the vehicle width,
+    # with separate laminated glass and a four-sided aluminium frame.
+    windscreen_vertices = [
+        (0.84, -0.435, 1.18), (1.10, -0.435, 1.72),
+        (1.10, 0.435, 1.72), (0.84, 0.435, 1.18),
+        (0.86, -0.415, 1.18), (1.12, -0.415, 1.72),
+        (1.12, 0.415, 1.72), (0.86, 0.415, 1.18),
+    ]
+    windscreen_faces = [
+        (0, 1, 2, 3), (4, 7, 6, 5),
+        (0, 4, 5, 1), (1, 5, 6, 2),
+        (2, 6, 7, 3), (3, 7, 4, 0),
+    ]
+    authored_mesh(
+        name + "_Laminated_Windscreen",
+        windscreen_vertices, windscreen_faces, mats["glass"], root, True,
+    )
+    local_path_curve(name + "_Windscreen_Upper_Frame", [
+        (1.10, -0.45, 1.73), (1.115, 0.0, 1.76), (1.10, 0.45, 1.73),
+    ], mats["aluminium"], 0.033, root)
+    local_path_curve(name + "_Windscreen_Lower_Frame", [
+        (0.84, -0.46, 1.18), (0.84, 0.0, 1.15), (0.84, 0.46, 1.18),
+    ], mats["dark"], 0.030, root)
+
+    # Curved canopy support arches and the hand-formed roof skin are distinct.
+    for side in (-1, 1):
+        local_path_curve(name + f"_Canopy_A_Pillar_{side}", [
+            (0.84, side * 0.53, 1.13),
+            (0.76, side * 0.56, 1.52),
+            (0.40, side * 0.62, 1.92),
+        ], mats["dark"], 0.038, root)
+        local_path_curve(name + f"_Canopy_Rear_Post_{side}", [
+            (-1.18, side * 0.53, 0.99),
+            (-1.11, side * 0.60, 1.43),
+            (-0.88, side * 0.66, 1.91),
+        ], mats["dark"], 0.036, root)
+        local_path_curve(name + f"_Canopy_Side_Bow_{side}", [
+            (-1.15, side * 0.63, 1.90),
+            (-0.46, side * 0.66, 2.01),
+            (0.34, side * 0.63, 2.00),
+        ], mats["aluminium"], 0.024, root)
+    # Three transverse bows follow a slight crown to shed rain.
+    for bow, bx in enumerate((-0.98, -0.32, 0.30)):
+        local_path_curve(name + f"_Canopy_Transverse_Bow_{bow}", [
+            (bx, -0.65, 1.93),
+            (bx + 0.08, 0.0, 2.10),
+            (bx, 0.65, 1.93),
+        ], mats["dark"], 0.023, root)
+
+    canopy_cols, canopy_rows = 26, 12
+    canopy_vertices: list[tuple[float, float, float]] = []
+    canopy_faces: list[tuple[int, int, int, int]] = []
+    canopy_length, canopy_width = 1.68, 1.36
+    for row in range(canopy_rows + 1):
+        v = row / canopy_rows
+        for col in range(canopy_cols + 1):
+            u = col / canopy_cols
+            local_x = -1.08 + canopy_length * u
+            local_y = -canopy_width * 0.5 + canopy_width * v
+            crown = 0.13 * math.cos((v - 0.5) * math.pi)
+            long_sag = 0.045 * math.sin(math.pi * u)
+            folds = 0.018 * math.sin(u * math.pi * 10.0 + v * 4.5)
+            canopy_vertices.append((local_x, local_y, 1.96 + crown - long_sag + folds))
+    stride = canopy_cols + 1
+    for row in range(canopy_rows):
+        for col in range(canopy_cols):
+            a = row * stride + col
+            b = a + 1
+            d = (row + 1) * stride + col
+            cc = d + 1
+            canopy_faces.append((a, b, cc, d))
+    canopy_obj = authored_mesh(
+        name + "_Sculpted_Canvas_Roof",
+        canopy_vertices, canopy_faces, mats["canvas"], root, True,
+    )
+    canopy_obj.data.materials.append(mats["red"])
+    for poly in canopy_obj.data.polygons:
+        col = poly.index % canopy_cols
+        poly.material_index = 1 if col % 6 in (0, 1) else 0
+    gust = canopy_obj.shape_key_add(name="CNG_Canopy_Gust", from_mix=False)
+    for index, vertex in enumerate(canopy_vertices):
+        px, py, pz = vertex
+        gust.data[index].co.z = pz + 0.04 * math.sin(px * 6.0 + py * 4.0)
+    for frame, value in ((1, 0.0), (62, 0.85), (120, 0.2), (184, 0.7), (288, 0.0)):
+        gust.value = value
+        gust.keyframe_insert(data_path="value", frame=frame, group="CNG_Canopy_Wind")
+    if canopy_obj.data.shape_keys and canopy_obj.data.shape_keys.animation_data:
+        action = canopy_obj.data.shape_keys.animation_data.action
+        if action:
+            action.name = "CNG_CANOPY_WIND_PERFORMANCE"
+
+    local_path_curve(name + "_Canopy_Front_Seam", [
+        (0.62, -0.68, 1.91), (0.73, 0.0, 2.03), (0.62, 0.68, 1.91),
+    ], mats["sand"], 0.010, root)
+    local_path_curve(name + "_Canopy_Rear_Valance", [
+        (-1.10, -0.68, 1.88), (-1.22, -0.32, 1.90),
+        (-1.24, 0.0, 1.91), (-1.22, 0.32, 1.90),
+        (-1.10, 0.68, 1.88),
+    ], mats["red"], 0.042, root)
+
+    # Hand-built three-wheel set: each tyre is a toroidal mesh with a layered
+    # sidewall, tread blocks and independent axle pivot. Wheels are not
+    # displaced cylinders, and their rotation follows the long street pass.
+    def make_treaded_tyre(wheel_parent: bpy.types.Object, wheel_name: str) -> bpy.types.Object:
+        major_radius, tube_radius = 0.325, 0.058
+        segments, cross_segments = 72, 16
+        vertices: list[tuple[float, float, float]] = []
+        faces: list[tuple[int, int, int, int]] = []
+        for ring in range(segments):
+            theta = math.tau * ring / segments
+            for cross in range(cross_segments):
+                phi = math.tau * cross / cross_segments
+                radial = major_radius + tube_radius * math.cos(phi)
+                vertices.append((
+                    radial * math.cos(theta),
+                    tube_radius * math.sin(phi),
+                    radial * math.sin(theta),
+                ))
+        for ring in range(segments):
+            next_ring = (ring + 1) % segments
+            for cross in range(cross_segments):
+                next_cross = (cross + 1) % cross_segments
+                a = ring * cross_segments + cross
+                b = next_ring * cross_segments + cross
+                cc = next_ring * cross_segments + next_cross
+                d = ring * cross_segments + next_cross
+                faces.append((a, b, cc, d))
+        tyre = authored_mesh(
+            wheel_name + "_Sculpted_Tyre_Torus",
+            vertices, faces, mats["rubber"], wheel_parent, True,
+        )
+        tyre["tire_geometry"] = "hand_tessellated_torus;72x16_segments"
+        return tyre
+
+    wheel_specs = [
+        ("Front", (1.10, 0.0, 0.375), True),
+        ("Rear_Near", (-0.91, -0.55, 0.375), False),
+        ("Rear_Far", (-0.91, 0.55, 0.375), False),
+    ]
+    wheel_pivots: list[bpy.types.Object] = []
+    for wheel_index, (label, position, is_front) in enumerate(wheel_specs):
+        steering = bpy.data.objects.new(name + f"_{label}_Steering_Pivot", None)
+        bpy.context.collection.objects.link(steering)
+        steering.location = position
+        set_parent_local(steering, root)
+
+        axle = bpy.data.objects.new(name + f"_{label}_Axle_Rotation", None)
+        bpy.context.collection.objects.link(axle)
+        set_parent_local(axle, steering)
+        make_treaded_tyre(axle, name + f"_{label}_Tyre")
+        wheel_pivots.append(axle)
+
+        # Forged sidewall rings and a machined multi-part hub face.
+        for side in (-1, 1):
+            rim = authored_lathe(
+                name + f"_{label}_Rim_{side}",
+                [(0.0, 0.19), (0.035, 0.24), (0.075, 0.27),
+                 (0.11, 0.245), (0.145, 0.18), (0.17, 0.12)],
+                mats["aluminium"], axle, 56,
+            )
+            rim.rotation_euler[0] = math.pi * 0.5
+            rim.location = (0.0, side * 0.035, 0.0)
+            cap = authored_lathe(
+                name + f"_{label}_Brass_Hub_Cap_{side}",
+                [(0.0, 0.055), (0.025, 0.092), (0.060, 0.078), (0.085, 0.04)],
+                mats["brass"], axle, 32,
+            )
+            cap.rotation_euler[0] = math.pi * 0.5
+            cap.location = (0.0, side * 0.16, 0.0)
+            for spoke in range(10):
+                angle = math.tau * spoke / 10.0
+                local_path_curve(name + f"_{label}_Spoke_{side}_{spoke}", [
+                    (0.065 * math.cos(angle), side * 0.145, 0.065 * math.sin(angle)),
+                    (0.235 * math.cos(angle + 0.08), side * 0.145, 0.235 * math.sin(angle + 0.08)),
+                ], mats["aluminium"], 0.012, axle)
+
+        # Raised tread bars are one custom mesh with curved angular segments.
+        tread_vertices: list[tuple[float, float, float]] = []
+        tread_faces: list[tuple[int, int, int, int]] = []
+        tread_count = 44
+        for tread in range(tread_count):
+            theta = math.tau * tread / tread_count
+            half_angle = 0.032
+            r_outer = 0.385
+            r_inner = 0.355
+            y_half = 0.040
+            points = []
+            for r, a, yy in (
+                (r_inner, theta - half_angle, -y_half),
+                (r_inner, theta - half_angle, y_half),
+                (r_inner, theta + half_angle, y_half),
+                (r_inner, theta + half_angle, -y_half),
+                (r_outer, theta - half_angle, -y_half),
+                (r_outer, theta - half_angle, y_half),
+                (r_outer, theta + half_angle, y_half),
+                (r_outer, theta + half_angle, -y_half),
+            ):
+                points.append((r * math.cos(a), yy, r * math.sin(a)))
+            base = len(tread_vertices)
+            tread_vertices.extend(points)
+            tread_faces.extend([
+                (base + 4, base + 5, base + 6, base + 7),
+                (base + 0, base + 1, base + 5, base + 4),
+                (base + 1, base + 2, base + 6, base + 5),
+                (base + 2, base + 3, base + 7, base + 6),
+                (base + 3, base + 0, base + 4, base + 7),
+            ])
+        tread_obj = authored_mesh(
+            name + f"_{label}_Tread_Blocks",
+            tread_vertices, tread_faces, mats["rubber"], axle, False,
+        )
+        tread_obj["tread_count"] = tread_count
+
+        axle.rotation_mode = "XYZ"
+        axle.rotation_euler = (0.0, 0.0, 0.0)
+        axle.keyframe_insert(data_path="rotation_euler", frame=1, group=f"CNG_{label}_Wheel_Rotation")
+        axle.rotation_euler[1] = -math.tau * 15.0
+        axle.keyframe_insert(data_path="rotation_euler", frame=288, group=f"CNG_{label}_Wheel_Rotation")
+        if axle.animation_data and axle.animation_data.action:
+            axle.animation_data.action.name = f"CNG_{label}_WHEEL_PERFORMANCE"
+
+        if is_front:
+            steering.rotation_euler[2] = 0.0
+            steering.keyframe_insert(data_path="rotation_euler", frame=1, group="CNG_Front_Steering")
+            steering.rotation_euler[2] = math.radians(3.5)
+            steering.keyframe_insert(data_path="rotation_euler", frame=108, group="CNG_Front_Steering")
+            steering.rotation_euler[2] = math.radians(-2.0)
+            steering.keyframe_insert(data_path="rotation_euler", frame=216, group="CNG_Front_Steering")
+            steering.rotation_euler[2] = 0.0
+            steering.keyframe_insert(data_path="rotation_euler", frame=288, group="CNG_Front_Steering")
+
+    # Front mudguard and fork are shaped as independent curves and mesh flares.
+    front_fender_points = []
+    for i in range(25):
+        angle = math.pi * i / 24.0
+        front_fender_points.append((
+            1.10 + 0.435 * math.cos(angle),
+            -0.16,
+            0.375 + 0.435 * math.sin(angle),
+        ))
+    local_path_curve(name + "_Front_Wheel_Mudguard", front_fender_points, mats["cng_green_light"], 0.062, root)
+    local_path_curve(name + "_Front_Fork_Left", [
+        (1.06, -0.14, 0.79), (1.12, -0.18, 0.55), (1.10, -0.18, 0.38),
+    ], mats["aluminium"], 0.035, root)
+    local_path_curve(name + "_Front_Fork_Right", [
+        (1.06, 0.14, 0.79), (1.12, 0.18, 0.55), (1.10, 0.18, 0.38),
+    ], mats["aluminium"], 0.035, root)
+
+    # Front lighting is a small assembly of lathed housings and glass lenses.
+    for side in (-1, 1):
+        lamp_housing = authored_lathe(
+            name + f"_Headlamp_Housing_{side}",
+            [(0.0, 0.11), (0.04, 0.16), (0.12, 0.17), (0.18, 0.13), (0.20, 0.08)],
+            mats["aluminium"], root, 36,
+        )
+        lamp_housing.rotation_euler[1] = math.pi * 0.5
+        lamp_housing.location = (1.53, side * 0.29, 0.88)
+        lens = authored_lathe(
+            name + f"_Warm_Headlamp_Lens_{side}",
+            [(0.0, 0.07), (0.018, 0.125), (0.028, 0.14)],
+            mats["lamp"], root, 36,
+        )
+        lens.rotation_euler[1] = math.pi * 0.5
+        lens.location = (1.70, side * 0.29, 0.88)
+
+    # Side mirrors, grab handles and rear lamps are attached to the real cabin
+    # structure; their geometry follows body movement and wind response.
+    for side in (-1, 1):
+        local_path_curve(name + f"_Mirror_Stem_{side}", [
+            (0.88, side * 0.46, 1.49),
+            (0.98, side * 0.62, 1.72),
+            (1.04, side * 0.70, 1.78),
+        ], mats["aluminium"], 0.018, root)
+        mirror = authored_lathe(
+            name + f"_Side_Mirror_Frame_{side}",
+            [(0.0, 0.10), (0.04, 0.14), (0.09, 0.13), (0.12, 0.08)],
+            mats["dark"], root, 28,
+        )
+        mirror.rotation_euler[0] = math.pi * 0.5
+        mirror.location = (1.04, side * 0.70, 1.80)
+
+        local_path_curve(name + f"_Rear_Lamp_Bezel_{side}", [
+            (-1.28, side * 0.52, 0.68), (-1.31, side * 0.56, 0.85),
+            (-1.10, side * 0.56, 0.89),
+        ], mats["red"], 0.036, root)
+
+    # Hand-painted side medallion and registration panel.
+    side_plate = [
+        [(-0.80, 0.78), (0.28, 0.78), (0.38, 0.90), (0.25, 1.00), (-0.75, 0.98)],
+    ]
+    authored_xz_prism(
+        name + "_Side_Enamel_Registration_Badge",
+        side_plate[0], -0.616, -0.592, mats["cream"], root, 0.012,
+    )
+    name_data = bpy.data.curves.new(name + "_Side_Brand_Font", "FONT")
+    name_data.body = "SHARIATPUR"
+    name_data.size = 0.14
+    name_data.extrude = 0.0015
+    name_data.align_x = "CENTER"
+    name_text = bpy.data.objects.new(name + "_Side_Brand_Lettering", name_data)
+    bpy.context.collection.objects.link(name_text)
+    name_text.location = (-0.24, -0.625, 0.85)
+    name_text.rotation_euler = (math.pi * 0.5, 0.0, 0.0)
+    name_data.materials.append(mats["blue"])
+    set_parent_local(name_text, root)
+
+    # Secondary suspension response: chassis roll, pitch and vertical settle
+    # are independent of wheel rotation and are not a generic constant bob.
+    root.rotation_mode = "XYZ"
+    for frame, pitch, roll in (
+        (1, 0.0, 0.0), (72, math.radians(-0.8), math.radians(0.4)),
+        (108, math.radians(0.5), math.radians(-0.6)),
+        (144, 0.0, 0.0), (216, math.radians(-0.4), math.radians(0.3)),
+        (288, 0.0, 0.0),
+    ):
+        root.rotation_euler = (pitch, 0.0, roll)
+        root.keyframe_insert(data_path="rotation_euler", frame=frame, group="CNG_Suspension_Body_Performance")
+
+    root["asset_role"] = "Bangladesh_three_wheel_CNG_hero"
+    root["geometry_method"] = "hand_drawn_side_profiles;custom_treaded_torus_wheels;curved_tubular_frame;sculpted_cloth_roof"
+    root["wheel_layout"] = "single_front_steer;dual_rear_drive"
+    root["wheel_count"] = 3
+    root["tread_blocks_per_wheel"] = 44
+    root["secondary_animation"] = "independent_wheel_rotation;front_steer;canopy_gust;body_pitch_roll_settle"
+    root["material_story"] = "emerald_enamel;cream_pinstripe;matte_tread;anodised_alloy;weathered_canvas"
+    return root
+
+
 def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], operator_glb: pathlib.Path) -> bpy.types.Object:
     scene["scene_role"] = "A-Square Login — Shariatpur Riverfront"
     world_and_lighting(scene, True)
@@ -1942,7 +2415,7 @@ def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], ope
         path_curve(f"StreetLamp_{i}_Arm", [(x, 1, 6.75), (x + 0.3, 1, 7.12), (x + 0.82, 1, 7.20)], mats["dark"], 0.055)
         sphere(f"StreetLamp_{i}_Lantern", (x + 0.82, 1, 7.08), (0.24, 0.18, 0.12), mats["lamp"], 16, 8)
     # Local three-wheeler and a small motor launch on the river.
-    cng = add_cng("Shariatpur_Emerald_CNG", 3.0, 3.3, mats)
+    cng = add_handcrafted_cng("Shariatpur_Emerald_CNG_Hero", 3.0, 3.3, mats)
     animate_location(cng, "Login_CNG_Pass", [
         (1, (-15.0, 3.3, 0.0)),
         (72, (-9.0, 3.3, 0.0)),
