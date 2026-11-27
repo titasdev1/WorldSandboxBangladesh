@@ -1504,10 +1504,13 @@ def render_film_preview(scene: bpy.types.Scene, output: pathlib.Path) -> pathlib
     output.parent.mkdir(parents=True, exist_ok=True)
     expected_output = output.with_suffix(".mp4")
     scene.render.filepath = str(output.with_suffix(""))
+    # Blender 5.0+ filters file_format by media_type: choose VIDEO first.
+    scene.render.image_settings.media_type = "VIDEO"
     scene.render.image_settings.file_format = "FFMPEG"
     scene.render.use_file_extension = True
     scene.render.ffmpeg.format = "MPEG4"
     scene.render.ffmpeg.codec = "H264"
+    scene.render.ffmpeg.audio_codec = "NONE"
     scene.render.ffmpeg.constant_rate_factor = "HIGH"
     scene.render.ffmpeg.video_bitrate = 8000
     scene.render.ffmpeg.maxrate = 12000
@@ -1525,13 +1528,15 @@ def render_film_preview(scene: bpy.types.Scene, output: pathlib.Path) -> pathlib
         "duration_seconds": round((scene.frame_end - scene.frame_start + 1) / scene.render.fps, 3),
         "codec": "H.264",
         "operator_rigs_visible": True,
+        "audio": "silent_review_render",
     }
     print("A_SQUARE_FILM_RENDER_PASS:", json.dumps(report, sort_keys=True))
+    # Restore the still-image mode in the correct order before the PNG render.
+    scene.render.image_settings.media_type = "IMAGE"
     scene.render.image_settings.file_format = "PNG"
     scene.render.resolution_percentage = 75
     scene.frame_set(144)
     return expected_output
-
 
 def triangulate_all_meshes(scene: bpy.types.Scene) -> None:
     """Triangulate only static meshes; preserve rigging and facial shape keys."""
