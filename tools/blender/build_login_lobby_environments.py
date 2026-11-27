@@ -588,7 +588,7 @@ def add_operator_preview(
                 track.name = "A_Square_Cinematic_Performance"
                 strip = track.strips.new(selected_action.name, 1, selected_action)
                 source_span = max(1.0, float(selected_action.frame_range[1] - selected_action.frame_range[0]))
-                strip.repeat = max(1.0, (scene.frame_end - scene.frame_start + 1) / source_span)
+                strip.repeat = max(1.0, (bpy.context.scene.frame_end - bpy.context.scene.frame_start + 1) / source_span)
                 strip.blend_in = min(10.0, source_span * 0.12)
                 strip.blend_out = min(10.0, source_span * 0.12)
             except (AttributeError, TypeError, RuntimeError) as exc:
