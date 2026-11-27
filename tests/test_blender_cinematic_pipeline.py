@@ -262,7 +262,7 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
         self.assertIn('("Rear_Near", (-0.91, -0.55, 0.375), False)', body)
         self.assertIn('("Rear_Far", (-0.91, 0.55, 0.375), False)', body)
         self.assertIn("make_treaded_tyre", body)
-        self.assertIn('"Tread_Blocks"', body)
+        self.assertIn("_Tread_Blocks", body)
         self.assertIn("tread_count = 44", body)
         self.assertIn("CNG_Front_Steering", body)
         self.assertIn("CNG_Suspension_Body_Performance", body)
