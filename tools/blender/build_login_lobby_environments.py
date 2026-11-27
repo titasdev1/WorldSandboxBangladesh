@@ -2330,7 +2330,7 @@ def add_handcrafted_cng(
     ]
     authored_xz_prism(
         name + "_Side_Enamel_Registration_Badge",
-        side_plate[0], -0.616, -0.592, mats["cream"], root, 0.012,
+        side_plate[0], 0.592, 0.616, mats["cream"], root, 0.012,
     )
     name_data = bpy.data.curves.new(name + "_Side_Brand_Font", "FONT")
     name_data.body = "SHARIATPUR"
@@ -2339,8 +2339,8 @@ def add_handcrafted_cng(
     name_data.align_x = "CENTER"
     name_text = bpy.data.objects.new(name + "_Side_Brand_Lettering", name_data)
     bpy.context.collection.objects.link(name_text)
-    name_text.location = (-0.24, -0.625, 0.85)
-    name_text.rotation_euler = (math.pi * 0.5, 0.0, 0.0)
+    name_text.location = (-0.24, 0.625, 0.85)
+    name_text.rotation_euler = (-math.pi * 0.5, 0.0, 0.0)
     name_data.materials.append(mats["blue"])
     set_parent_local(name_text, root)
 
