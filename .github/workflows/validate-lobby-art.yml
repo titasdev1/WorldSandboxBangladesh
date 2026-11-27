@@ -10,6 +10,7 @@ on:
       - art/crafted-cng-vehicle
       - art/crafted-launch-vessel
       - art/cinematic-compositor-pass
+      - art/character-facial-performance
     paths:
       - "tools/blender/build_login_lobby_environments.py"
       - "tools/blender/verify_login_lobby_environments.py"
