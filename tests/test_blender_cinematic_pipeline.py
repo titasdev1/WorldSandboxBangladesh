@@ -242,5 +242,46 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
 
 
 
+    def test_cng_hero_is_built_from_authored_profiles_not_primitive_blocks(self) -> None:
+        body = self.function_text("add_handcrafted_cng")
+        self.assertIn("authored_xz_prism", body)
+        self.assertIn("authored_xy_slab", body)
+        self.assertIn("authored_mesh", body)
+        self.assertIn("local_path_curve", body)
+        self.assertNotIn("box(", body)
+        self.assertNotIn("cylinder(", body)
+        self.assertNotIn("sphere(", body)
+        self.assertIn("Sculpted_Lower_Body_Shell", body)
+        self.assertIn("Laminated_Windscreen", body)
+        self.assertIn("Passenger_Footwell_Stamped_Floor", body)
+        self.assertIn("Rear_Bench_Cushion", body)
+
+    def test_cng_hero_has_three_custom_treaded_wheels_and_independent_axles(self) -> None:
+        body = self.function_text("add_handcrafted_cng")
+        self.assertIn('("Front", (1.10, 0.0, 0.375), True)', body)
+        self.assertIn('("Rear_Near", (-0.91, -0.55, 0.375), False)', body)
+        self.assertIn('("Rear_Far", (-0.91, 0.55, 0.375), False)', body)
+        self.assertIn("make_treaded_tyre", body)
+        self.assertIn('"_Tread_Blocks"', body)
+        self.assertIn("tread_count = 44", body)
+        self.assertIn("CNG_Front_Steering", body)
+        self.assertIn("CNG_Suspension_Body_Performance", body)
+
+    def test_cng_canopy_has_custom_cloth_topology_and_gust_animation(self) -> None:
+        body = self.function_text("add_handcrafted_cng")
+        self.assertIn("canopy_cols, canopy_rows = 26, 12", body)
+        self.assertIn("CNG_Canopy_Gust", body)
+        self.assertIn("gust.keyframe_insert", body)
+        self.assertIn("CNG_Canopy_Wind", body)
+        self.assertIn("Canopy_Transverse_Bow_", body)
+        self.assertIn("Canopy_Rear_Valance", body)
+
+    def test_login_uses_handcrafted_cng_asset(self) -> None:
+        body = self.function_text("build_login")
+        self.assertIn('add_handcrafted_cng("Shariatpur_Emerald_CNG_Hero"', body)
+        self.assertNotIn('add_cng("Shariatpur_Emerald_CNG"', body)
+
+
+
 if __name__ == "__main__":
     unittest.main()
