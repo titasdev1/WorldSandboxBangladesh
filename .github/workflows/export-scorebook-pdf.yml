@@ -1,0 +1,64 @@
+name: Export A-Square cinematic scorebook PDF
+
+on:
+  push:
+    branches:
+      - feature/three-distinct-ara-operators
+    paths:
+      - "docs/animation/A-SQUARE_FILM_ART_DIRECTION_SCOREBOOK.md"
+      - "tools/animation/render_scorebook_pdf.py"
+      - ".github/workflows/export-scorebook-pdf.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: asquare-scorebook-pdf-\${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout A-Square art direction
+        uses: actions/checkout@v5
+
+      - name: Install PDF text-rendering dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            libpango-1.0-0 libpangoft2-1.0-0 libpangocairo-1.0-0 \
+            libcairo2 libgdk-pixbuf-2.0-0 shared-mime-info fonts-dejavu-core
+
+      - name: Install pinned Markdown and PDF renderer
+        run: |
+          set -euo pipefail
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install "Markdown==3.8.2" "WeasyPrint==66.0"
+
+      - name: Render and validate the long-form scorebook
+        run: |
+          set -euo pipefail
+          mkdir -p build/scorebook
+          .venv/bin/python -m py_compile tools/animation/render_scorebook_pdf.py
+          .venv/bin/python tools/animation/render_scorebook_pdf.py \
+            --input docs/animation/A-SQUARE_FILM_ART_DIRECTION_SCOREBOOK.md \
+            --output build/scorebook/A-Square-Film-Art-Direction-Scorebook.pdf
+          test -s build/scorebook/A-Square-Film-Art-Direction-Scorebook.pdf
+          pdfinfo build/scorebook/A-Square-Film-Art-Direction-Scorebook.pdf | tee build/scorebook/pdfinfo.txt
+          grep -Eq '^Pages:[[:space:]]+[1-9][0-9]*' build/scorebook/pdfinfo.txt
+
+      - name: Preserve PDF and source document
+        uses: actions/upload-artifact@v4
+        with:
+          name: A-Square-Film-Art-Direction-Scorebook-PDF
+          path: |
+            build/scorebook/A-Square-Film-Art-Direction-Scorebook.pdf
+            build/scorebook/pdfinfo.txt
+            docs/animation/A-SQUARE_FILM_ART_DIRECTION_SCOREBOOK.md
+          if-no-files-found: error
+          compression-level: 6
