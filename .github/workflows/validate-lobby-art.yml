@@ -183,6 +183,7 @@ jobs:
             --operator-glb "$(find build/ara-operator/field_ranger/high -maxdepth 1 -type f -name '*.glb' -print -quit)" \
             --out build/lobby-art/a_square_login_riverside.glb \
             --preview build/lobby-art/a_square_login_riverside.png \
+            --film-output build/lobby-art/a_square_login_cinematic \
             > build/lobby-art/login-authoring.log 2>&1; then
             cat build/lobby-art/login-authoring.log
             exit 1
@@ -190,6 +191,7 @@ jobs:
           cat build/lobby-art/login-authoring.log
           test -s build/lobby-art/a_square_login_riverside.glb
           test -s build/lobby-art/a_square_login_riverside.png
+          test -s build/lobby-art/a_square_login_cinematic.mp4
           python3 tools/blender/verify_login_lobby_environments.py \
             --kind login \
             --glb build/lobby-art/a_square_login_riverside.glb \
@@ -203,6 +205,7 @@ jobs:
           path: |
             build/lobby-art/a_square_login_riverside.glb
             build/lobby-art/a_square_login_riverside.png
+            build/lobby-art/a_square_login_cinematic.mp4
             build/lobby-art/login-verification.json
             build/lobby-art/login-authoring.log
           if-no-files-found: ignore
@@ -219,6 +222,7 @@ jobs:
             --operator-glb-river "$(find build/ara-operator/river_scout/high -maxdepth 1 -type f -name '*.glb' -print -quit)" \
             --out build/lobby-art/a_square_delta_command_lobby.glb \
             --preview build/lobby-art/a_square_delta_command_lobby.png \
+            --film-output build/lobby-art/a_square_lobby_cinematic \
             > build/lobby-art/lobby-authoring.log 2>&1; then
             cat build/lobby-art/lobby-authoring.log
             exit 1
@@ -226,6 +230,7 @@ jobs:
           cat build/lobby-art/lobby-authoring.log
           test -s build/lobby-art/a_square_delta_command_lobby.glb
           test -s build/lobby-art/a_square_delta_command_lobby.png
+          test -s build/lobby-art/a_square_lobby_cinematic.mp4
           python3 tools/blender/verify_login_lobby_environments.py \
             --kind lobby \
             --glb build/lobby-art/a_square_delta_command_lobby.glb \
@@ -239,6 +244,7 @@ jobs:
           path: |
             build/lobby-art/a_square_delta_command_lobby.glb
             build/lobby-art/a_square_delta_command_lobby.png
+            build/lobby-art/a_square_lobby_cinematic.mp4
             build/lobby-art/lobby-verification.json
             build/lobby-art/lobby-authoring.log
           if-no-files-found: ignore
@@ -287,6 +293,7 @@ jobs:
           path: |
             build/lobby-art/*.glb
             build/lobby-art/*.png
+            build/lobby-art/*.mp4
             build/lobby-art/*.json
             build/lobby-art/*.txt
             build/lobby-art/*-authoring.log
