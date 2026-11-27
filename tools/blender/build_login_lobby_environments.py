@@ -1850,10 +1850,29 @@ def render_film_preview(scene: bpy.types.Scene, output: pathlib.Path) -> pathlib
     scene.render.ffmpeg.video_bitrate = 8000
     scene.render.ffmpeg.maxrate = 12000
     scene.render.fps = 24
-    # H.264 YUV420 output requires even dimensions: 1600x900 at 76% = 1216x684.
-    scene.render.resolution_percentage = 76
-    print("A_SQUARE_FILM_RENDER_START:", str(expected_output))
-    bpy.ops.render.render(animation=True)
+    # Editorial review profile only: 1600x900 at 50% = 800x450, both even.
+    # This keeps the 288-frame blocking/acting review practical on CPU EEVEE.
+    # Master stills/final film renders use a separate full-quality profile.
+    scene["film_review_profile"] = "EDITORIAL_PREVIEW_800x450"
+    eevee = getattr(scene, "eevee", None)
+    previous_render_samples = None
+    if eevee is not None and hasattr(eevee, "taa_render_samples"):
+        previous_render_samples = eevee.taa_render_samples
+        eevee.taa_render_samples = 16
+    scene.render.resolution_percentage = 50
+    print("A_SQUARE_FILM_RENDER_START:", json.dumps({
+        "path": str(expected_output),
+        "resolution": [scene.render.resolution_x * 50 // 100, scene.render.resolution_y * 50 // 100],
+        "fps": scene.render.fps,
+        "frames": scene.frame_end - scene.frame_start + 1,
+        "profile": scene["film_review_profile"],
+        "eevee_render_samples": getattr(eevee, "taa_render_samples", None),
+    }, sort_keys=True))
+    try:
+        bpy.ops.render.render(animation=True)
+    finally:
+        if eevee is not None and previous_render_samples is not None:
+            eevee.taa_render_samples = previous_render_samples
     if not expected_output.is_file() or expected_output.stat().st_size < 100_000:
         raise RuntimeError(f"FILM_RENDER_GATE: H.264 MP4 was not produced: {expected_output}")
     report = {
