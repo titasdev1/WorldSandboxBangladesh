@@ -139,7 +139,7 @@ body {
   page-break-after: avoid;
 }
 .markdown h1:not(:first-of-type) {
-  page-break-before: always;
+  page-break-before: auto;
   padding-top: 3mm;
 }
 .markdown h2 {
@@ -187,9 +187,10 @@ body {
 }
 .markdown pre code { background: transparent; color: inherit; padding: 0; }
 .markdown hr {
+  page-break-before: always;
   border: 0;
-  border-top: 1px solid #d7dfe0;
-  margin: 7mm 0;
+  height: 0;
+  margin: 0;
 }
 .markdown a { color: #276b76; }
 .markdown table {
@@ -218,7 +219,14 @@ def main() -> int:
     args = parser.parse_args()
 
     source = args.input.read_text(encoding="utf-8")
-    md = markdown.Markdown(extensions=["extra", "toc", "sane_lists", "tables"])
+    # The cover already carries the title/subtitle/metadata; keep the editorial introduction.
+    source_lines = source.splitlines()
+    if source_lines and source_lines[0].startswith("# A-Square "):
+        source = "\\n".join(source_lines[10:])
+    md = markdown.Markdown(
+        extensions=["extra", "toc", "sane_lists", "tables"],
+        extension_configs={"toc": {"toc_depth": "1-2"}},
+    )
     body = md.convert(source)
     toc = md.toc or "<p>Contents will be built from the document headings.</p>"
 
