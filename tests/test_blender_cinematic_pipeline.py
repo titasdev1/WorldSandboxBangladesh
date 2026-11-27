@@ -67,6 +67,10 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
     def test_mp4_render_is_a_real_animation_render_and_h264(self) -> None:
         body = self.function_text("render_film_preview")
         self.assertIn('file_format = "FFMPEG"', body)
+        self.assertIn('media_type = "VIDEO"', body)
+        self.assertIn('media_type = "IMAGE"', body)
+        self.assertLess(body.index('media_type = "VIDEO"'), body.index('file_format = "FFMPEG"'))
+        self.assertLess(body.index('media_type = "IMAGE"'), body.index('file_format = "PNG"'))
         self.assertIn('format = "MPEG4"', body)
         self.assertIn('codec = "H264"', body)
         self.assertIn("bpy.ops.render.render(animation=True)", body)
