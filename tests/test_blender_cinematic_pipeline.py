@@ -172,7 +172,7 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
         self.assertIn('"ASQ_Delta_River_Tributary_Right"', body)
         self.assertIn('wordmark_data.body = "A-SQUARE"', body)
         self.assertIn('tagline_data.body = "THE DELTA IS OUR WORLD"', body)
-        self.assertIn("keyframe_insert(data_path=\\"scale\\"", body)
+        self.assertIn('keyframe_insert(data_path="scale"', body)
         self.assertIn("face_operator_to_camera(operator_preview, ranger_cut)", body)
 
 
