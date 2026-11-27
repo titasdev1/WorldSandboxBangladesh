@@ -104,6 +104,8 @@ body {
 }
 .contents {
   page-break-after: always;
+  font-size: 7.8pt;
+  line-height: 1.30;
 }
 .contents h1 {
   color: #183445;
@@ -118,16 +120,17 @@ body {
   padding-left: 5mm;
 }
 .contents > ul { padding-left: 0; }
-.contents li { margin: 0 0 2.3mm; }
+.contents li { margin: 0 0 1.0mm; }
 .contents a {
   color: #2a5262;
   text-decoration: none;
 }
 .contents ul ul {
   border-left: 1px solid #d8e0e2;
-  margin: 2mm 0 3mm 2mm;
-  padding-left: 5mm;
-  font-size: 8.3pt;
+  margin: 0.8mm 0 1.4mm 2mm;
+  padding-left: 4mm;
+  font-size: 7.1pt;
+  line-height: 1.25;
 }
 .markdown h1 {
   color: #16384a;
