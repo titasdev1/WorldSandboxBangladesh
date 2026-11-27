@@ -348,5 +348,40 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
 
 
 
+    def test_operator_facial_performance_uses_only_available_shape_keys(self) -> None:
+        body = self.function_text("animate_operator_facial_performance")
+        self.assertIn("obj.data.shape_keys", body)
+        self.assertIn('"blink" in key_name', body)
+        self.assertIn('"eyelook" in key_name', body)
+        self.assertIn("shape_key_count", body)
+        self.assertIn("animated_face_meshes", body)
+        self.assertIn("OPERATOR_FACIAL_PERFORMANCE_PASS", body)
+
+    def test_operator_facial_microperformance_preserves_imported_face_actions(self) -> None:
+        body = self.function_text("animate_operator_facial_performance")
+        self.assertIn("Imported_Ara_Facial_Take", body)
+        self.assertIn("A_Square_Authored_Facial_Acting", body)
+        self.assertIn('overlay_strip.blend_type = "ADD"', body)
+        self.assertIn("overlay_strip.influence = 0.28", body)
+        self.assertIn("animation_data.action = None", body)
+
+    def test_each_roster_role_receives_a_distinct_facial_performance_window(self) -> None:
+        body = self.function_text("animate_operator_facial_performance")
+        self.assertIn('profile = "delta_recon"', body)
+        self.assertIn('profile = "river_scout"', body)
+        self.assertIn('profile = "field_ranger"', body)
+        self.assertIn("start, end = 49, 86", body)
+        self.assertIn("start, end = 87, 124", body)
+        self.assertIn("start, end = 125, 162", body)
+        self.assertIn("start, end = 161, 226", body)
+
+    def test_operator_preview_applies_facial_microperformance_without_replacing_body_action(self) -> None:
+        body = self.function_text("add_operator_preview")
+        self.assertIn("animation_data.nla_tracks.new()", body)
+        self.assertIn("animate_operator_facial_performance(wrapper, bpy.context.scene)", body)
+        self.assertIn('facial_performance_channels', body)
+
+
+
 if __name__ == "__main__":
     unittest.main()
