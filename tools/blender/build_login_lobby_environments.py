@@ -2366,6 +2366,397 @@ def add_handcrafted_cng(
     return root
 
 
+def add_handcrafted_launch(
+    name: str,
+    x: float,
+    y: float,
+    z: float,
+    mats: dict[str, bpy.types.Material],
+) -> bpy.types.Object:
+    """A custom multi-station river launch with buoyant hull, cabin apertures and wake performance."""
+    root = bpy.data.objects.new(name, None)
+    bpy.context.collection.objects.link(root)
+    root.location = (x, y, z)
+
+    # The hull is a lofted series of changing transverse stations. Each station
+    # carries keel, bilge, chine and gunwale points, creating a pointed bow and
+    # a broader, lower stern instead of a rectangular box.
+    stations = [
+        (-2.72, 0.10, -0.36, 0.12, 0.56),
+        (-2.30, 0.42, -0.38, 0.02, 0.58),
+        (-1.60, 0.68, -0.39, -0.04, 0.60),
+        (-0.50, 0.82, -0.38, -0.06, 0.62),
+        (0.80, 0.80, -0.34, 0.00, 0.66),
+        (1.75, 0.70, -0.27, 0.10, 0.72),
+        (2.48, 0.50, -0.18, 0.24, 0.82),
+    ]
+    vertices: list[tuple[float, float, float]] = []
+    faces: list[tuple[int, ...]] = []
+    section_points = [
+        (0.00, 0.00), (0.52, 0.30), (1.00, 0.73),
+        (0.96, 1.00), (0.48, 1.00), (0.00, 1.00),
+        (-0.48, 1.00), (-0.96, 1.00), (-1.00, 0.73),
+        (-0.52, 0.30),
+    ]
+    for station_x, half_width, keel_z, chine_z, deck_z in stations:
+        for lateral, height_blend in section_points:
+            y_pos = lateral * half_width
+            if abs(lateral) < 0.01:
+                z_pos = keel_z
+            elif abs(lateral) < 0.6:
+                z_pos = keel_z + (chine_z - keel_z) * (height_blend / 0.30)
+            elif abs(lateral) < 0.99:
+                z_pos = chine_z
+            else:
+                z_pos = deck_z
+            vertices.append((station_x, y_pos, z_pos))
+    ring_size = len(section_points)
+    for station in range(len(stations) - 1):
+        for point in range(ring_size):
+            a = station * ring_size + point
+            b = station * ring_size + (point + 1) % ring_size
+            cc = (station + 1) * ring_size + (point + 1) % ring_size
+            d = (station + 1) * ring_size + point
+            faces.append((a, b, cc, d))
+    faces.append(tuple(range(ring_size - 1, -1, -1)))
+    last = (len(stations) - 1) * ring_size
+    faces.append(tuple(last + i for i in range(ring_size)))
+    hull = authored_mesh(name + "_Lofted_Meghna_Hull", vertices, faces, mats["blue"], root, True)
+    hull["hull_method"] = "seven_variable_breadth_stations;bilge_chine_keel_gunwale_loft"
+    hull["waterline_target"] = -0.31
+
+    # The strakes follow the chine and waterline, with a raised bow edge and a
+    # darker lower boot stripe to show the hull's immersion and wear history.
+    for side in (-1, 1):
+        chine_points = [
+            (sx, side * (width - 0.025), cz)
+            for sx, width, kz, cz, dz in stations[1:-1]
+        ]
+        local_path_curve(name + f"_Hull_Chine_Strake_{side}", chine_points, mats["aluminium"], 0.026, root)
+        waterline_points = [
+            (sx, side * (width - 0.012), kz + (cz - kz) * 0.36)
+            for sx, width, kz, cz, dz in stations[1:-1]
+        ]
+        local_path_curve(name + f"_Hull_Boot_Stripe_{side}", waterline_points, mats["cng_dark"], 0.030, root)
+        rub_rail = [
+            (sx, side * (width - 0.035), dz + 0.055)
+            for sx, width, kz, cz, dz in stations[1:-1]
+        ]
+        local_path_curve(name + f"_Upper_Rubbing_Strake_{side}", rub_rail, mats["cream"], 0.022, root)
+
+    # Hand-shaped deck plan, raised gunwale lips and a worn bow landing area.
+    deck_outline = [
+        (-2.48, -0.34), (-2.18, -0.54), (-1.50, -0.76), (-0.50, -0.84),
+        (0.75, -0.80), (1.65, -0.69), (2.35, -0.48), (2.47, 0.0),
+        (2.35, 0.48), (1.65, 0.69), (0.75, 0.80), (-0.50, 0.84),
+        (-1.50, 0.76), (-2.18, 0.54), (-2.48, 0.34),
+    ]
+    authored_xy_slab(
+        name + "_Shaped_Deck_Planking",
+        deck_outline, 0.54, 0.66, mats["wood"], root, 0.028,
+    )
+    for side in (-1, 1):
+        local_path_curve(name + f"_Bow_Gunwale_{side}", [
+            (-2.58, side * 0.18, 0.62),
+            (-2.20, side * 0.53, 0.66),
+            (-1.45, side * 0.75, 0.67),
+            (-0.45, side * 0.82, 0.66),
+            (0.85, side * 0.78, 0.68),
+            (1.78, side * 0.66, 0.75),
+            (2.40, side * 0.45, 0.86),
+        ], mats["aluminium"], 0.034, root)
+
+    # Cabin lower wall panels, built around open window bands. Each glazing
+    # aperture remains a real opening with a separate framed glass surface.
+    for side in (-1, 1):
+        lower_side = [
+            [(-1.52, 0.70), (0.58, 0.70), (0.58, 1.14), (-1.52, 1.14)],
+        ]
+        authored_xz_prism(
+            name + f"_Cabin_Side_Lower_Panel_{side}",
+            lower_side[0], side * 0.50, side * 0.55, mats["cream"], root, 0.014,
+        )
+        upper_sill = [
+            (-1.50, 1.07), (-0.95, 1.07), (-0.92, 1.17),
+            (0.42, 1.17), (0.54, 1.06),
+        ]
+        local_path_curve(name + f"_Cabin_Side_Window_Sill_{side}", [
+            (px, side * 0.56, pz) for px, pz in upper_sill
+        ], mats["wood"], 0.035, root)
+        roof_edge = [
+            (-1.47, side * 0.55, 2.10),
+            (-0.92, side * 0.57, 2.16),
+            (-0.18, side * 0.57, 2.17),
+            (0.51, side * 0.54, 2.12),
+        ]
+        local_path_curve(name + f"_Cabin_Roof_Edge_{side}", roof_edge, mats["aluminium"], 0.030, root)
+
+        # Four cabin glazing modules, each with a thick frame and a slightly
+        # varied pane proportion so the side is not a repeated glass rectangle.
+        panes = [
+            (-1.35, -0.89, 1.22, 1.93),
+            (-0.78, -0.30, 1.22, 1.96),
+            (-0.17, 0.34, 1.22, 1.91),
+        ]
+        for pane, (x0, x1, z0, z1) in enumerate(panes):
+            y_front = side * 0.548
+            y_back = side * 0.526
+            glass_vertices = [
+                (x0, y_front, z0), (x1, y_front, z0 + 0.02),
+                (x1 - 0.02, y_front, z1), (x0 + 0.02, y_front, z1 - 0.02),
+                (x0, y_back, z0), (x1, y_back, z0 + 0.02),
+                (x1 - 0.02, y_back, z1), (x0 + 0.02, y_back, z1 - 0.02),
+            ]
+            glass_faces = [
+                (0, 1, 2, 3), (4, 7, 6, 5),
+                (0, 4, 5, 1), (1, 5, 6, 2),
+                (2, 6, 7, 3), (3, 7, 4, 0),
+            ]
+            authored_mesh(
+                name + f"_Cabin_Laminated_Window_{side}_{pane}",
+                glass_vertices, glass_faces, mats["glass"], root, True,
+            )
+            for x_edge in (x0, x1):
+                local_path_curve(name + f"_Cabin_Window_Post_{side}_{pane}_{x_edge:.2f}", [
+                    (x_edge, side * 0.575, z0),
+                    (x_edge + 0.012, side * 0.575, (z0 + z1) * 0.5),
+                    (x_edge, side * 0.575, z1),
+                ], mats["aluminium"], 0.024, root)
+            local_path_curve(name + f"_Cabin_Window_Top_{side}_{pane}", [
+                (x0, side * 0.575, z1), ((x0 + x1) * 0.5, side * 0.575, z1 + 0.012),
+                (x1, side * 0.575, z1),
+            ], mats["cream"], 0.018, root)
+
+        # Lower cabin moulding and a narrow rub line connect glazing to hull.
+        local_path_curve(name + f"_Cabin_Belt_Moulding_{side}", [
+            (-1.52, side * 0.565, 1.10), (-0.50, side * 0.57, 1.12),
+            (0.60, side * 0.54, 1.08),
+        ], mats["brass"], 0.018, root)
+
+    # Fore and aft cabin walls use shaped openings and a front windscreen.
+    front_window_vertices = [
+        (-1.34, -0.44, 1.15), (-1.48, -0.42, 1.94),
+        (-1.48, 0.42, 1.94), (-1.34, 0.44, 1.15),
+        (-1.31, -0.42, 1.15), (-1.45, -0.40, 1.94),
+        (-1.45, 0.40, 1.94), (-1.31, 0.42, 1.15),
+    ]
+    front_window_faces = [
+        (0, 1, 2, 3), (4, 7, 6, 5), (0, 4, 5, 1),
+        (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0),
+    ]
+    authored_mesh(
+        name + "_Cabin_Bow_Windscreen",
+        front_window_vertices, front_window_faces, mats["glass"], root, True,
+    )
+    for side in (-1, 1):
+        local_path_curve(name + f"_Cabin_Bow_Mullion_{side}", [
+            (-1.50, side * 0.44, 1.94), (-1.47, side * 0.44, 1.54),
+            (-1.34, side * 0.45, 1.15),
+        ], mats["aluminium"], 0.026, root)
+
+    # The cabin roof is a shallow cambered surface with shaped edges and
+    # corrugation detail; a raised centre crown lets rain run off.
+    roof_cols, roof_rows = 24, 12
+    roof_vertices: list[tuple[float, float, float]] = []
+    roof_faces: list[tuple[int, int, int, int]] = []
+    for row in range(roof_rows + 1):
+        v = row / roof_rows
+        py = -0.59 + v * 1.18
+        for col in range(roof_cols + 1):
+            u = col / roof_cols
+            px = -1.56 + u * 2.22
+            crown = 0.10 * math.cos((v - 0.5) * math.pi)
+            edge_sag = 0.018 * math.sin(u * math.pi * 5.0)
+            roof_vertices.append((px, py, 2.10 + crown + edge_sag))
+    stride = roof_cols + 1
+    for row in range(roof_rows):
+        for col in range(roof_cols):
+            a = row * stride + col
+            b = a + 1
+            d = (row + 1) * stride + col
+            cc = d + 1
+            roof_faces.append((a, b, cc, d))
+    roof = authored_mesh(name + "_Cabin_Cambered_Roof", roof_vertices, roof_faces, mats["cream"], root, True)
+    roof["roof_geometry"] = "cambered_grid;24x12;hand_tuned_edge_sag"
+
+    # Interior bench and trim establish passenger scale through the glazing.
+    authored_xy_slab(
+        name + "_Cabin_Passenger_Bench_Seat",
+        [(-1.16, -0.39), (0.36, -0.39), (0.42, -0.28),
+         (0.38, 0.28), (0.30, 0.40), (-1.10, 0.40), (-1.20, 0.24)],
+        0.92, 1.07, mats["wood"], root, 0.06,
+    )
+    for side in (-1, 1):
+        local_path_curve(name + f"_Cabin_Interior_Grab_Handle_{side}", [
+            (-1.08, side * 0.37, 1.13), (-0.62, side * 0.38, 1.16),
+            (-0.25, side * 0.36, 1.14),
+        ], mats["brass"], 0.014, root)
+        local_path_curve(name + f"_Cabin_Interior_Seat_Back_Stitch_{side}", [
+            (-0.95, side * 0.35, 1.12), (-0.90, side * 0.35, 1.34),
+            (-0.62, side * 0.35, 1.38),
+        ], mats["sand"], 0.009, root)
+
+    # Roof equipment: navigation lamp, horn, short mast, horn trumpet and
+    # a hand-lettered launch name with no generic floating UI text.
+    mast = local_path_curve(name + "_Roof_Antenna_Mast", [
+        (0.38, 0.28, 2.18), (0.46, 0.31, 2.56), (0.49, 0.32, 2.88),
+    ], mats["aluminium"], 0.018, root)
+    local_path_curve(name + "_Roof_Horn", [
+        (-0.25, -0.22, 2.18), (-0.10, -0.24, 2.34),
+        (0.06, -0.26, 2.39),
+    ], mats["brass"], 0.032, root)
+    beacon = authored_lathe(
+        name + "_Roof_Navigation_Lantern",
+        [(0.0, 0.06), (0.04, 0.11), (0.15, 0.09), (0.21, 0.05)],
+        mats["lamp"], root, 32,
+    )
+    beacon.location = (-0.52, -0.36, 2.31)
+
+    sign_data = bpy.data.curves.new(name + "_Cabin_Nameboard_Font", "FONT")
+    sign_data.body = "MEGHNA  /  LAUNCH"
+    sign_data.size = 0.19
+    sign_data.extrude = 0.002
+    sign_data.align_x = "CENTER"
+    sign_obj = bpy.data.objects.new(name + "_Cabin_Nameboard", sign_data)
+    bpy.context.collection.objects.link(sign_obj)
+    sign_obj.location = (-0.44, -0.595, 1.93)
+    sign_obj.rotation_euler = (math.pi * 0.5, 0.0, 0.0)
+    sign_data.materials.append(mats["blue"])
+    set_parent_local(sign_obj, root)
+
+    # Deck rails, stanchions, mooring cleats and rope coils vary with the deck
+    # contour rather than running as a single rectangular outline.
+    for side in (-1, 1):
+        rail_points = [
+            (-2.45, side * 0.27, 1.06),
+            (-2.08, side * 0.55, 1.05),
+            (-1.55, side * 0.73, 1.03),
+            (-1.32, side * 0.76, 1.02),
+        ]
+        local_path_curve(name + f"_Bow_Handrail_{side}", rail_points, mats["aluminium"], 0.032, root)
+        for index, (px, py, pz) in enumerate(rail_points[1:-1]):
+            local_path_curve(name + f"_Bow_Rail_Stanchion_{side}_{index}", [
+                (px, py, 0.62), (px, py, 0.84), (px, py, pz),
+            ], mats["brass"], 0.019, root)
+        aft_rail = [
+            (0.62, side * 0.78, 0.87),
+            (1.45, side * 0.68, 0.88),
+            (2.24, side * 0.50, 0.93),
+        ]
+        local_path_curve(name + f"_Aft_Deck_Rail_{side}", aft_rail, mats["aluminium"], 0.032, root)
+        for index, (px, py, pz) in enumerate(aft_rail):
+            local_path_curve(name + f"_Aft_Rail_Stanchion_{side}_{index}", [
+                (px, py, 0.60), (px, py, pz - 0.04),
+            ], mats["brass"], 0.018, root)
+        local_path_curve(name + f"_Mooring_Rope_{side}", [
+            (2.15, side * 0.46, 0.83),
+            (2.36, side * 0.62, 0.78),
+            (2.47, side * 0.58, 0.68),
+        ], mats["wood"], 0.026, root)
+
+    # Rubber fenders, cleats and a stern boarding step.
+    for side in (-1, 1):
+        fender = authored_lathe(
+            name + f"_Hull_Rubber_Fender_{side}",
+            [(0.0, 0.06), (0.05, 0.095), (0.15, 0.095), (0.20, 0.06)],
+            mats["rubber"], root, 32,
+        )
+        fender.rotation_euler[0] = math.pi * 0.5
+        fender.location = (0.12, side * 0.88, 0.42)
+        local_path_curve(name + f"_Mooring_Cleat_{side}", [
+            (2.12, side * 0.51, 0.83),
+            (2.22, side * 0.61, 0.91),
+            (2.29, side * 0.51, 0.83),
+        ], mats["aluminium"], 0.027, root)
+    authored_xy_slab(
+        name + "_Stern_Boarding_Step",
+        [(1.64, -0.55), (2.54, -0.38), (2.58, 0.38), (1.64, 0.55)],
+        0.34, 0.48, mats["wood"], root, 0.025,
+    )
+
+    # Stern shaft and a three-blade propeller are custom meshes that rotate
+    # independently. The propeller is intentionally visible only in the wake
+    # shot where it helps communicate the vessel's direction of travel.
+    local_path_curve(name + "_Propeller_Shaft", [
+        (2.13, 0.0, -0.06), (2.52, 0.0, -0.12), (2.76, 0.0, -0.22),
+    ], mats["aluminium"], 0.034, root)
+    prop = bpy.data.objects.new(name + "_Propeller_Pivot", None)
+    bpy.context.collection.objects.link(prop)
+    prop.location = (2.76, 0.0, -0.22)
+    set_parent_local(prop, root)
+    for blade in range(3):
+        angle = math.tau * blade / 3.0
+        points = [
+            (0.0, 0.0, 0.0),
+            (0.08 * math.cos(angle - 0.25), 0.0, 0.08 * math.sin(angle - 0.25)),
+            (0.34 * math.cos(angle + 0.18), 0.08, 0.34 * math.sin(angle + 0.18)),
+            (0.29 * math.cos(angle + 0.36), 0.11, 0.29 * math.sin(angle + 0.36)),
+            (0.06 * math.cos(angle + 0.15), 0.03, 0.06 * math.sin(angle + 0.15)),
+        ]
+        blade_mesh = authored_mesh(
+            name + f"_Propeller_Blade_{blade}",
+            points, [(0, 1, 2, 3, 4)], mats["aluminium"], prop, False,
+        )
+        blade_mesh["blade_index"] = blade
+    prop.rotation_mode = "XYZ"
+    prop.keyframe_insert(data_path="rotation_euler", frame=1, group="Launch_Propeller_Performance")
+    prop.rotation_euler[0] = math.tau * 7.0
+    prop.keyframe_insert(data_path="rotation_euler", frame=288, group="Launch_Propeller_Performance")
+
+    # The launch gets a low-amplitude buoyant performance distinct from its
+    # forward glide. Camera timing and hull movement are authored separately.
+    root.rotation_mode = "XYZ"
+    for frame, pitch, roll, yaw in (
+        (1, 0.0, 0.0, 0.0),
+        (72, math.radians(0.8), math.radians(-0.5), math.radians(0.5)),
+        (144, math.radians(-0.4), math.radians(0.6), math.radians(-0.8)),
+        (216, math.radians(0.5), math.radians(-0.4), math.radians(0.6)),
+        (288, 0.0, 0.0, 0.0),
+    ):
+        root.rotation_euler = (pitch, roll, yaw)
+        root.keyframe_insert(data_path="rotation_euler", frame=frame, group="Launch_Buoyancy_Performance")
+
+    root["asset_role"] = "Bangladesh_local_passenger_launch"
+    root["geometry_method"] = "variable_breadth_hull_loft;custom_deck;open_cabin_windows;cambered_roof;lathed_fenders"
+    root["hull_stations"] = len(stations)
+    root["waterline_target"] = -0.31
+    root["animation"] = "buoyancy_roll_yaw;stern_propeller;wake_and_reflection_shot"
+    root["material_story"] = "painted_hull;wet_boot_stripe;timber_deck;aluminium_rails;laminated_glass"
+    return root
+
+
+def add_launch_wake(
+    name: str,
+    x: float,
+    y: float,
+    mats: dict[str, bpy.types.Material],
+) -> list[bpy.types.Object]:
+    """Place staggered, fading surface wakes along the launch's screen-space route."""
+    wakes = []
+    for side in (-1, 1):
+        for layer, width in enumerate((0.18, 0.34, 0.52)):
+            points = [
+                (x + 1.6 + layer * 0.28, y + side * 0.18, -0.265),
+                (x + 2.0 + layer * 0.36, y + side * (0.34 + width * 0.25), -0.270),
+                (x + 2.5 + layer * 0.44, y + side * (0.62 + width * 0.40), -0.278),
+                (x + 3.0 + layer * 0.54, y + side * (0.94 + width * 0.52), -0.286),
+                (x + 3.5 + layer * 0.64, y + side * (1.30 + width * 0.66), -0.292),
+            ]
+            line = path_curve(
+                name + f"_Wake_{side}_{layer}",
+                points, mats["waterline"] if layer < 2 else mats["cream"],
+                0.020 if layer == 0 else 0.011,
+            )
+            line.scale = (0.62, 0.62, 0.62)
+            line.keyframe_insert(data_path="scale", frame=1, group="Launch_Wake_Dissipation")
+            line.scale = (1.0, 1.0, 1.0)
+            line.keyframe_insert(data_path="scale", frame=160 + layer * 18, group="Launch_Wake_Dissipation")
+            line.scale = (0.74, 0.74, 0.74)
+            line.keyframe_insert(data_path="scale", frame=288, group="Launch_Wake_Dissipation")
+            wakes.append(line)
+    return wakes
+
+
 def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], operator_glb: pathlib.Path) -> bpy.types.Object:
     scene["scene_role"] = "A-Square Login — Shariatpur Riverfront"
     world_and_lighting(scene, True)
@@ -2423,15 +2814,7 @@ def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], ope
         (216, (7.0, 3.3, 0.0)),
         (288, (15.0, 3.3, 0.0)),
     ], True)
-    boat = bpy.data.objects.new("River_Launch", None)
-    bpy.context.collection.objects.link(boat)
-    boat.location = (7.0, -17.0, 0.10)
-    box("Launch_Hull", (7.0, -17.0, 0.35), (5.3, 1.22, 0.78), mats["blue"], 0.18, boat)
-    box("Launch_Deck", (7.0, -17.0, 0.79), (4.8, 1.08, 0.12), mats["wood"], 0.04, boat)
-    box("Launch_Cabin", (6.35, -17.0, 1.55), (2.35, 0.92, 1.38), mats["cream"], 0.08, boat)
-    for side in (-1, 1):
-        box(f"Launch_Window_{side}", (6.35, -17.0 + side * 0.48, 1.63), (1.75, 0.045, 0.60), mats["glass"], 0.018, boat)
-        path_curve(f"Launch_Rail_{side}", [(4.6, -17.0 + side * 0.56, 1.07), (7.6, -17.0 + side * 0.56, 1.07), (9.2, -17.0 + side * 0.40, 0.95)], mats["aluminium"], 0.032, boat)
+    boat = add_handcrafted_launch("River_Launch_Hero", 7.0, -17.0, 0.10, mats)
     animate_location(boat, "River_Launch_Glide", [
         (1, (10.0, -17.0, 0.10)),
         (72, (9.2, -17.0, 0.17)),
@@ -2439,6 +2822,8 @@ def build_login(scene: bpy.types.Scene, mats: dict[str, bpy.types.Material], ope
         (216, (7.1, -17.0, 0.16)),
         (288, (6.0, -17.0, 0.10)),
     ], True)
+    launch_wakes = add_launch_wake("River_Launch_Stern_Wake", 6.0, -17.0, mats)
+    scene["launch_wake_lines"] = len(launch_wakes)
     # The login film is edited as five separate, motivated shots. Each camera
     # has its own lens and subject distance; timeline markers perform real cuts.
     # The camera never tries to show the river, street, launch, actor and title
