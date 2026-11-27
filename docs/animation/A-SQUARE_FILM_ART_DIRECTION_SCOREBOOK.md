@@ -788,6 +788,36 @@ Apply a cohesive warm/cool grade with natural skin, rich but controlled foliage,
 ## Prompt 12 — Final visual review
 Render the opening, quarter, middle, three-quarter and final frames plus the complete film. Review the actual MP4 and the standalone still. Check operator scale, silhouette, face readability, reflections, camera motion, material separation, local identity, contact and transitions. Write down every flaw visible at phone size. Do not mark art approval from a successful compile or GLB verifier.
 
+
+## Prompt 13 — Shariatpur hero corner store, bespoke environment asset
+Create one original Shariatpur riverside corner shop as an authored hero asset, not a repeated building module. Start with a hand-drawn side elevation and a custom roof silhouette. Give it irregular upper parapet heights, a real ground-floor shop aperture, a recessed arched opening, separate glazing panes, deep stone reveals, a side entrance with a handmade timber door and a curved upper balcony. The front elevation should contain true negative space: the shelves and shop interior must sit behind the opening, not on top of a solid wall. Build each façade pier, lintel and sill to tell a construction story. Give the balcony a curved plan, a cast-stone deck, individually bent spindles, brass handrail and a small cast-metal flourish.
+
+The shop must feel lived in. Model shelves at believable reach height, tea jars, rice sacks, a service counter, timber posts, a worn threshold, uneven floor surfaces and a warm practical interior light. The signboard is individually designed and attached to a proper fascia with a hand-painted border. The awning is a cloth surface with visible fold direction, stretched seam lines, a soft irregular front hem, faded canvas panels and a very low-amplitude wind response. It must not behave like a rigid plank. The roof has a ribbed water tank, collar, feed pipe, telephone/electrical cable, parapet repairs and a few utility attachments. Surface wear is placed by gravity, touch, water and sun direction: rain streaks below balcony edges, chipped corners, polished hand-contact areas, dampness around the base and faded sign paint.
+
+Author in custom mesh profiles, sculpted/extruded sections, curved tubes, lathed profiles, cloth grids, UVs and properly assigned PBR materials. Do not construct the hero façade from a stack of cubes or decorate a solid box with pasted rectangles. Review the silhouette in black, the material response in neutral light, the interior from the street camera and the final sunset shot. The camera should recognise it as a real corner shop in one second.
+
+## Prompt 14 — Bangladesh CNG, hero vehicle asset and road performance
+Create a recognisable local three-wheel CNG as a complete vehicle, not a green toy shell. Start with a three-wheel stance and a hand-designed side silhouette: sloped bonnet, front apron, passenger tub, open doorway, bench, driver cowl, footwell and a curved roof canopy. Separate every major material and component. The body is stamped/formed metal with slightly different curvature on nose, side panel and rear tub; the canopy is faded fabric over a thin tubular frame; the windscreen is laminated glass with thickness and reflections; the trim is aluminium or painted metal; the tyres are matte rubber with individual tread blocks; the hub/rim is machined metal with visible spokes and a central cap.
+
+Make the cabin readable through the side opening. Show the bench cushion, backrest, stitched seams, grab rails, inner trim, dashboard, handlebar and driver controls. The canopy should have transverse bows, curved pillars, seams, a scalloped edge and a cloth response to a breeze. Use a separate shape key or layered animation track for the roof fabric. Do not sway the whole canopy as one rigid panel.
+
+The front wheel is the single steering wheel; the rear axle has two wheels. Each wheel has a distinct pivot, tyre mesh, tread, sidewall, rim, spokes and hub cap. Wheel rotation should correspond to the total distance travelled, not an arbitrary looping spin. The front wheel changes steering direction at turn-in. The chassis settles under acceleration and braking, rolls slightly during a turn, and responds to road imperfections through restrained suspension movement. The passenger body should have a slight weight response, while the canopy fabric and loose trim lag differently. Headlights, indicators, mirrors, number plate, enamel pinstripe, mudguard and side registration badge are individual authored components.
+
+For the hero pass, set a clear screen direction and a precise camera mark. The CNG should approach with a readable silhouette, decelerate slightly near the camera, cross the frame, then leave the shot without hiding the operator. Track its wheels against the road; do not let them slip through the surface or float. Use a low three-quarter lens to see body depth and passenger opening, then a close detail insert for the wheel, canopy and enamel badge. The final still must read as a real working three-wheeler at phone size.
+
+## Prompt 15 — Launch hull, buoyancy, wake and water reflection performance
+Build a small local passenger launch with a coherent hull rather than a rectangular boat body. Sculpt the bow rise, stern transition, keel line, rubbing strakes, waterline, deck, cabin walls, window frames, roof edge, railings, doors, bumpers, ropes and fenders. Use a distinct hull material and layered paint wear. The cabin windows need real frame depth and reflections. A few practical details—mooring cleat, rope coil, small light, worn step, rubber fender and painted lettering—establish use.
+
+Animate low-frequency buoyancy, small roll and yaw, and a subtle current response. The launch should feel heavy and supported by the water. Build a wake from the stern, with near-field turbulence, a broad V-shaped spread, small foam at plausible shear points and an irregular fade into the existing wave field. The reflected hull and cabin must stretch and fragment with the wave normals. The river should not show an exact, static mirror copy. Camera motion should keep the launch readable while allowing the far bank to move slowly in parallax.
+
+## 27 November 2026 — bespoke storefront and CNG authoring
+
+The isolated \`art/crafted-riverside-architecture\` and \`art/crafted-cng-vehicle\` branches are separate from the canonical game branch and from one another's active render jobs. The storefront pass replaces one repetitive central mixed-use facade with a custom hero corner store: an irregular roofline, true ground-floor aperture, visible shelves and goods, arched window treatment, custom timber door, curved balcony, forged rails, sculpted cloth awning, roof tank, feed pipe, rain streaks and weathered trim.
+
+The CNG pass replaces the previous helper-built vehicle at the login call site with a bespoke three-wheeler: custom side-profile shell, sloped bonnet, open passenger cabin, shaped floor and seats, laminated windscreen, curved canopy frame, a 26 × 12 cloth roof grid with a keyed gust, three custom toroidal tyre meshes, 44 tread blocks per wheel, separate pivots, hubs/spokes, front-wheel steering and a restrained body suspension performance. The visible-side registration badge is oriented toward the login film camera.
+
+These source details are not visual approval. The latest Blender run must compile, build the scene, render the still and 12-second review film, export the GLB and survive the scene verifier. The PNG and MP4 must then be inspected at phone scale. No integration or claim of film-grade completion is implied until those gates pass.
+
 ---
 
 # PART XIII — CURRENT REVISION RECORD
@@ -796,7 +826,7 @@ Render the opening, quarter, middle, three-quarter and final frames plus the com
 
 The isolated branch \`feature/three-distinct-ara-operators\` gained a tessellated river master with four authored shape-key phases, layered water PBR detail, EEVEE screen-traced reflection setup and source-level regression tests. The river section's local mesh is explicitly offset to its intended river position.
 
-The film encoder previously failed because the review frame height was odd (1200 × 675). The film render now uses 76 percent of a 1600 × 900 scene, producing even 1216 × 684 H.264 dimensions; the still preview returns to 75 percent afterwards.
+The film encoder previously failed because the review frame height was odd (1200 × 675). The dedicated editorial preview now uses 50 percent of the 1600 × 900 scene (800 × 450) and 16 EEVEE render samples when supported. This is only the blocking/acting/composition review pass; the still review returns to 75 percent and the approved final film uses a separate full-quality profile.
 
 The corrected run still has to produce the actual login and lobby renders. Water build logs and rig-preservation checks are evidence of construction, not proof of visual quality. The current scene composition and the older previews remain subject to art-direction review and substantial improvement. No art approval, Godot import approval, Android device approval or canonical integration is implied here.
 
