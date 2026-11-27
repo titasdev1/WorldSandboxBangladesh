@@ -121,5 +121,34 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
 
 
 
+    def test_lobby_camera_portal_removes_obstructing_centre_glazing(self) -> None:
+        body = self.function_text("build_lobby")
+        self.assertIn('if abs(x) < 7.0:', body)
+        self.assertIn('if abs(glass_x) <= 6.9:', body)
+        self.assertIn('"Lobby_Hero_Portal_Header"', body)
+        self.assertIn('"Lobby_Hero_Portal_Threshold"', body)
+        self.assertIn("scene.camera = cam", body)
+
+    def test_lobby_film_cuts_to_each_distinct_operator_portrait(self) -> None:
+        helper = self.function_text("register_camera_cut")
+        body = self.function_text("build_lobby")
+        self.assertIn("scene.timeline_markers.new", helper)
+        self.assertIn("marker.camera = camera_obj", helper)
+        for marker_name in (
+            "B1_COMMAND_HALL_ESTABLISHING",
+            "B2_FIELD_RANGER_PORTRAIT",
+            "B3_DELTA_RECON_PORTRAIT",
+            "B4_RIVER_SCOUT_PORTRAIT",
+            "B5_THREE_OPERATOR_GROUP",
+            "B6_SELECTED_OPERATOR_HANDOFF",
+        ):
+            self.assertIn(marker_name, body)
+        self.assertIn("Lobby_Field_Ranger_Portrait_Camera", body)
+        self.assertIn("Lobby_Delta_Recon_Portrait_Camera", body)
+        self.assertIn("Lobby_River_Scout_Portrait_Camera", body)
+        self.assertIn("Lobby_Selected_Operator_Closeup_Camera", body)
+
+
+
 if __name__ == "__main__":
     unittest.main()
