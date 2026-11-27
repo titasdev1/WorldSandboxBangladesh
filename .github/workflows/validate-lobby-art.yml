@@ -8,6 +8,7 @@ on:
       - art/login-film-cuts
       - art/crafted-riverside-architecture
       - art/crafted-cng-vehicle
+      - art/crafted-launch-vessel
     paths:
       - "tools/blender/build_login_lobby_environments.py"
       - "tools/blender/verify_login_lobby_environments.py"
