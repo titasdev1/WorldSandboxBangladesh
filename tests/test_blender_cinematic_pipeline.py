@@ -340,7 +340,7 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
         self.assertIn('links.new(multiply.outputs["Result"], output.inputs["Image"])', body)
 
     def test_compositor_smoke_script_checks_both_profiles_in_blender(self) -> None:
-        script = self.read_repo_file("tools/blender/test_compositor_api.py")
+        script = Path("tools/blender/test_compositor_api.py").read_text(encoding="utf-8")
         self.assertIn("validate_profile(bpy.context.scene, True)", script)
         self.assertIn('validate_profile(lobby_scene, False)', script)
         self.assertIn("COMPOSITOR_SMOKE_GATE:ALL_PROFILES_PASS", script)
