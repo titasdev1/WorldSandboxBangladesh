@@ -693,6 +693,22 @@ def animate_camera_path(
         obj.animation_data.action.name = name
 
 
+def register_camera_cut(
+    scene: bpy.types.Scene,
+    camera_obj: bpy.types.Object,
+    frame: int,
+    marker_name: str,
+) -> None:
+    """Bind an authored edit cut to a camera using Blender's timeline markers."""
+    marker = scene.timeline_markers.new(marker_name, frame=frame)
+    marker.camera = camera_obj
+    print("A_SQUARE_CAMERA_CUT:", json.dumps({
+        "marker": marker_name,
+        "frame": frame,
+        "camera": camera_obj.name,
+    }, sort_keys=True))
+
+
 def add_facade_building(
     name: str,
     x: float,
@@ -1430,12 +1446,22 @@ def build_lobby(
             [(x - 0.52, 0.0, 0.26), (x, 0.58, 0.26), (x + 0.52, 0.0, 0.26), (x, -0.58, 0.26), (x - 0.52, 0.0, 0.26)],
             mats["waterline"], 0.018, cyclic=True,
         )
-    # Hall: dark steel ribs, high glazing, transom framing, roof louvres and light baffles.
+    # A broad camera portal replaces the washed-out foreground curtain wall.
+    # The outer steel piers remain as a frame; four central glazed bays are
+    # deliberately omitted so the roster reads clearly from the review camera.
     for i, x in enumerate((-14, -10.5, -7, -3.5, 0, 3.5, 7, 10.5, 14)):
+        if abs(x) < 7.0:
+            continue
         cylinder(f"Hall_Structural_Pillar_{i}", (x, -4.0, 4.65), 0.13, 9.0, mats["dark"], 24)
-        box(f"Hall_Glass_Bay_{i}", (x + 1.70, -4.0, 4.25), (3.18, 0.09, 7.65), mats["glass"], 0.015)
-        box(f"Hall_Transom_{i}", (x + 1.70, -4.10, 6.25), (3.18, 0.15, 0.085), mats["aluminium"], 0.016)
-        box(f"Hall_Sill_{i}", (x + 1.70, -4.11, 0.75), (3.18, 0.16, 0.16), mats["aluminium"], 0.018)
+        glass_x = x + 1.70
+        if abs(glass_x) <= 6.9:
+            continue
+        box(f"Hall_Glass_Bay_{i}", (glass_x, -4.0, 4.25), (3.18, 0.09, 7.65), mats["glass"], 0.015)
+        box(f"Hall_Transom_{i}", (glass_x, -4.10, 6.25), (3.18, 0.15, 0.085), mats["aluminium"], 0.016)
+        box(f"Hall_Sill_{i}", (glass_x, -4.11, 0.75), (3.18, 0.16, 0.16), mats["aluminium"], 0.018)
+    box("Lobby_Hero_Portal_Header", (0.0, -4.06, 8.03), (14.05, 0.30, 0.32), mats["dark"], 0.075)
+    box("Lobby_Hero_Portal_Header_Inlay", (0.0, -4.225, 7.84), (13.60, 0.035, 0.045), mats["brass"], 0.012)
+    box("Lobby_Hero_Portal_Threshold", (0.0, -4.0, 0.22), (13.65, 0.52, 0.075), mats["brass"], 0.018)
     # Monumental canopy with a stepped soffit and warm reflected panels.
     box("Hall_Roof_Upper_Shell", (0.0, 0.1, 9.1), (32.0, 19.0, 0.48), mats["dark"], 0.12)
     box("Hall_Roof_Soffit", (0.0, 0.0, 8.78), (29.0, 16.0, 0.17), mats["blue"], 0.06)
@@ -1558,17 +1584,45 @@ def build_lobby(
             cylinder(f"Telemetry_Collar_{i}_{level}", (x, 3.8, 4.0 + level * 1.2), 0.11, 0.045, mats["brass"], 18)
         dish = sphere(f"Telemetry_Dish_{i}", (x, 3.8, 7.6), (0.52, 0.18, 0.52), mats["aluminium"], 24, 14)
         dish.rotation_euler[0] = math.radians(26)
-    # Operator-safe camera from the riverfront entrance through the glass hall.
-    # The view includes floor contact, the overhead architecture, displays and
-    # the ferry/river depth behind the hall; no primitive podium fills the frame.
-    cam = camera(scene, "Lobby_Art_Review_Camera", (0.0, -12.8, 4.2), (0.0, 0.1, 1.35), 52.0)
-    animate_camera_path(cam, "Lobby_Camera_Inspection_Arc", [
-        (1, (-1.2, -14.2, 4.8), (0.0, 0.0, 1.45)),
-        (72, (-0.6, -13.2, 4.3), (0.0, 0.0, 1.45)),
-        (144, (0.0, -12.0, 4.0), (0.0, 0.1, 1.45)),
-        (216, (0.8, -11.4, 3.8), (0.0, 0.1, 1.50)),
-        (288, (1.4, -13.0, 4.4), (0.0, 1.0, 1.55)),
+    # An editorial sequence of camera cuts makes each operator a readable
+    # subject. A wide frame establishes the hall; portrait lenses then give each
+    # roster member their own moment; the film returns to the group before
+    # settling on the default selected operator for the UI hand-off.
+    cam = camera(scene, "Lobby_Art_Review_Camera", (0.0, -10.4, 3.85), (0.0, 0.1, 1.45), 44.0)
+    animate_camera_path(cam, "Lobby_Group_Dolly_Performance", [
+        (1, (-0.7, -11.2, 4.15), (0.0, 0.0, 1.45)),
+        (48, (-0.25, -10.5, 3.85), (0.0, 0.1, 1.45)),
+        (163, (0.0, -10.3, 3.75), (0.0, 0.1, 1.45)),
+        (220, (0.35, -10.0, 3.7), (0.0, 0.1, 1.5)),
     ])
+
+    field_cut = camera(scene, "Lobby_Field_Ranger_Portrait_Camera", (0.0, -7.4, 2.85), (0.0, 0.0, 1.45), 70.0)
+    animate_camera_path(field_cut, "Lobby_Field_Ranger_Portrait_Dolly", [
+        (49, (0.20, -7.8, 2.95), (0.0, 0.0, 1.45)),
+        (86, (-0.10, -7.35, 2.8), (0.0, 0.0, 1.45)),
+    ])
+    delta_cut = camera(scene, "Lobby_Delta_Recon_Portrait_Camera", (-3.35, -7.4, 2.85), (-3.35, 0.0, 1.45), 70.0)
+    animate_camera_path(delta_cut, "Lobby_Delta_Recon_Portrait_Dolly", [
+        (87, (-3.10, -7.8, 2.95), (-3.35, 0.0, 1.45)),
+        (124, (-3.45, -7.35, 2.8), (-3.35, 0.0, 1.45)),
+    ])
+    river_cut = camera(scene, "Lobby_River_Scout_Portrait_Camera", (3.35, -7.4, 2.85), (3.35, 0.0, 1.45), 70.0)
+    animate_camera_path(river_cut, "Lobby_River_Scout_Portrait_Dolly", [
+        (125, (3.60, -7.8, 2.95), (3.35, 0.0, 1.45)),
+        (162, (3.25, -7.35, 2.8), (3.35, 0.0, 1.45)),
+    ])
+    selected_cut = camera(scene, "Lobby_Selected_Operator_Closeup_Camera", (-0.65, -6.3, 2.55), (-0.2, 0.0, 1.52), 78.0)
+    animate_camera_path(selected_cut, "Lobby_Selected_Operator_Hero_Dolly", [
+        (221, (-0.85, -6.6, 2.65), (-0.2, 0.0, 1.52)),
+        (288, (-0.45, -6.15, 2.52), (-0.2, 0.0, 1.52)),
+    ])
+
+    register_camera_cut(scene, cam, 1, "B1_COMMAND_HALL_ESTABLISHING")
+    register_camera_cut(scene, field_cut, 49, "B2_FIELD_RANGER_PORTRAIT")
+    register_camera_cut(scene, delta_cut, 87, "B3_DELTA_RECON_PORTRAIT")
+    register_camera_cut(scene, river_cut, 125, "B4_RIVER_SCOUT_PORTRAIT")
+    register_camera_cut(scene, cam, 163, "B5_THREE_OPERATOR_GROUP")
+    register_camera_cut(scene, selected_cut, 221, "B6_SELECTED_OPERATOR_HANDOFF")
     # Three independent roster GLBs; all temporary review subjects are removed before export.
     previews = []
     field_preview = add_operator_preview(
@@ -1592,6 +1646,7 @@ def build_lobby(
     river_preview.scale = (0.88, 0.88, 0.88)
     face_operator_to_camera(river_preview, cam)
     previews.append(river_preview)
+    scene.camera = cam
     return previews
 
 
