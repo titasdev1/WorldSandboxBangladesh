@@ -3729,12 +3729,12 @@ def render_film_preview(scene: bpy.types.Scene, output: pathlib.Path) -> pathlib
     # Editorial review profile only: 1600x900 at 50% = 800x450, both even.
     # This keeps the 288-frame blocking/acting review practical on CPU EEVEE.
     # Master stills/final film renders use a separate full-quality profile.
-    scene["film_review_profile"] = "EDITORIAL_PREVIEW_800x450"
+    scene["film_review_profile"] = "EDITORIAL_PREVIEW_800x450_6SAMPLES"
     eevee = getattr(scene, "eevee", None)
     previous_render_samples = None
     if eevee is not None and hasattr(eevee, "taa_render_samples"):
         previous_render_samples = eevee.taa_render_samples
-        eevee.taa_render_samples = 16
+        eevee.taa_render_samples = 6
     scene.render.resolution_percentage = 50
     print("A_SQUARE_FILM_RENDER_START:", json.dumps({
         "path": str(expected_output),
