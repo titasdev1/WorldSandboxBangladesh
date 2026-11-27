@@ -285,5 +285,42 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
 
 
 
+    def test_launch_hero_uses_variable_station_hull_and_authored_cabin(self) -> None:
+        body = self.function_text("add_handcrafted_launch")
+        self.assertIn("stations = [", body)
+        self.assertIn("seven_variable_breadth_stations", body)
+        self.assertIn("Lofted_Meghna_Hull", body)
+        self.assertIn("Shaped_Deck_Planking", body)
+        self.assertIn("Cabin_Laminated_Window_", body)
+        self.assertIn("Cabin_Bow_Windscreen", body)
+        self.assertIn("Cabin_Cambered_Roof", body)
+        self.assertIn("Bow_Handrail_", body)
+        self.assertIn("Propeller_Blade_", body)
+        self.assertNotIn("box(", body)
+        self.assertNotIn("cylinder(", body)
+        self.assertNotIn("sphere(", body)
+
+    def test_launch_buoyancy_and_propeller_have_separate_animation_tracks(self) -> None:
+        body = self.function_text("add_handcrafted_launch")
+        self.assertIn("Launch_Buoyancy_Performance", body)
+        self.assertIn("Launch_Propeller_Performance", body)
+        self.assertIn("Hull_Chine_Strake_", body)
+        self.assertIn("Hull_Boot_Stripe_", body)
+        self.assertIn("Hull_Rubber_Fender_", body)
+
+    def test_launch_wake_is_a_following_surface_effect_not_world_origin_lines(self) -> None:
+        wake = self.function_text("add_launch_wake")
+        body = self.function_text("build_login")
+        self.assertIn("Surface_Ribbon_", wake)
+        self.assertIn("authored_mesh(", wake)
+        self.assertIn("wake.shape_key_add(name=\\"Stern_Turbulence\\"", wake)
+        self.assertIn("Wake_Dissipation", wake)
+        self.assertIn("Launch_Wake_Follows_Hull", wake)
+        self.assertIn("motion: list[tuple[int, tuple[float, float, float]]]", wake)
+        self.assertIn("add_launch_wake(\\"River_Launch_Stern_Wake\\", launch_motion, mats)", body)
+        self.assertNotIn("path_curve(", wake)
+
+
+
 if __name__ == "__main__":
     unittest.main()
