@@ -818,6 +818,24 @@ The CNG pass replaces the previous helper-built vehicle at the login call site w
 
 These source details are not visual approval. The latest Blender run must compile, build the scene, render the still and 12-second review film, export the GLB and survive the scene verifier. The PNG and MP4 must then be inspected at phone scale. No integration or claim of film-grade completion is implied until those gates pass.
 
+
+## Prompt 16 — Film compositor and camera-response finish
+Build an original Blender 5.2 compositor node group for the A-Square login and lobby, with independent profiles that respect the lighting story of each sequence. The Shariatpur riverfront profile uses warm highlights, restrained cool shadow separation, natural skin and controlled river teal. The Delta Command profile uses graphite/teal architecture, cool ambient values and warm faces/task lighting. The grade must be a final polish, not a colour filter that hides weak modelling or bad exposure.
+
+Use the 5.2 compositor node-group API and create the output interface explicitly. Start from Render Layers, use Color Balance in Lift/Gamma/Gain mode, then a thresholded Fog Glow node whose strength and spread are controlled. Add very subtle radial distortion/dispersion, only enough to suggest a lens and never enough to create a visible rainbow fringe around every edge. Create a centered elliptical mask, soften it with Gaussian blur, remap the mask through a Color Ramp and multiply it over the image with a restrained factor. Finish through a Group Output. Set the graph up as named nodes with readable labels and a clear left-to-right layout. Every important socket and link must be verified in a headless Blender smoke test before the expensive scene render begins.
+
+The preview and master share the same composition and grade intent, but the preview can use lower EEVEE samples to review motion. The final master should use higher render samples, clean temporal consistency, a controlled output transform and no visible flicker. Preserve highlights and shadow detail. Do not allow bloom to obscure the operator's eyes, water reflection structure, title lettering, small HUD typography or shop signage. Review the grade on skin, dark cloth, river highlights, black glass, pale concrete and warm practicals at both full-size and phone-size image displays.
+
+## Prompt 17 — Character facial acting and micro-performance
+Treat each operator as a performer, not a rigged mannequin. Use the actual imported Ara 3D face mesh, facial shape keys and animation actions. Inspect the shape-key names and ranges on every rig before writing animation. Never assume that a key named "Blink" or "EyeLookLeft" exists; discover the real data and use only channels the mesh actually provides.
+
+For each character, create a restrained performance with an intention. Field Ranger enters the close portrait with attention just outside camera, catches an environmental cue, then settles his gaze toward the lens. Delta Recon performs a precise glance toward a screen or signal, lets the eyes lead before the head/neck follows, and returns to a focused forward hold. River Scout makes a slower, more deliberate riverward scan; his heavier posture and age read through stillness, timing and weight rather than exaggerated expression.
+
+Add a blink at a natural pause, offset from the camera cut and the head turn. Eye direction changes first; the head and shoulders follow only if the imported body action supports it. Brows and mouth receive tiny changes only when suitable shape keys exist. Never hold a permanent smile or create a dramatic grimace in an otherwise quiet lobby. A facial overlay must not replace the imported face action: preserve the original take in an NLA track and layer the authored micro-performance at low influence. Blend in/out across the shot, inspect for jitter and verify that the shape keys have no pops at the loop boundary.
+
+Review every face close-up with a neutral expression, under the final key/fill/rim setup, and under the actual compositor grade. Check eyes, lids, brows, cheeks, mouth, teeth, facial hair, headwear intersections and skin response. If there are no suitable shape keys on a rig, keep the imported animation and document the missing channels rather than inventing a fake facial deformation.
+
+
 ---
 
 # PART XIII — CURRENT REVISION RECORD
@@ -826,9 +844,18 @@ These source details are not visual approval. The latest Blender run must compil
 
 The isolated branch \`feature/three-distinct-ara-operators\` gained a tessellated river master with four authored shape-key phases, layered water PBR detail, EEVEE screen-traced reflection setup and source-level regression tests. The river section's local mesh is explicitly offset to its intended river position.
 
-The film encoder previously failed because the review frame height was odd (1200 × 675). The dedicated editorial preview now uses 50 percent of the 1600 × 900 scene (800 × 450) and 16 EEVEE render samples when supported. This is only the blocking/acting/composition review pass; the still review returns to 75 percent and the approved final film uses a separate full-quality profile.
+The film encoder previously failed because the review frame height was odd (1200 × 675). The dedicated editorial preview now uses 50 percent of the 1600 × 900 scene (800 × 450) and 6 EEVEE render samples when supported. This is only the blocking/acting/composition review pass; it keeps shot timing and framing while lowering sampling cost. The still review returns to 75 percent and the approved final film uses a separate full-quality render profile.
 
 The corrected run still has to produce the actual login and lobby renders. Water build logs and rig-preservation checks are evidence of construction, not proof of visual quality. The current scene composition and the older previews remain subject to art-direction review and substantial improvement. No art approval, Godot import approval, Android device approval or canonical integration is implied here.
+
+
+## 27 November 2026 — Blender 5.2 compositor and facial performance
+
+The isolated \`art/cinematic-compositor-pass\` and \`art/character-facial-performance\` branches now use the Blender 5.2 compositor node-group system instead of the removed \`Scene.node_tree\` interface. Each scene receives a compositor group with a Color Balance profile, thresholded Fog Glow, subtle Lens Distortion, elliptical mask, Gaussian blur, Color Ramp, Multiply mix and explicit Group Output. A lightweight headless smoke-test script creates both the Shariatpur and Delta Command profiles before the full render begins.
+
+The character branch adds a role-specific facial micro-performance layer to imported Ara operator preview rigs. It inspects the actual shape keys on each imported face mesh, preserves an imported facial action as a separate NLA strip, and adds only the available blink, eye-look, brow and mouth channels on a low-influence authored overlay. Field Ranger, Delta Recon and River Scout receive different timing windows. The code records the number of face meshes and channels it actually animated; missing shape-key channels are not fabricated.
+
+The 800 × 450 editorial film proxy now uses 6 EEVEE render samples. This reduces preview cost only. The 75-percent still and separate full-quality final film profile remain the visual quality gates. The compositor and facial-action code have source regression tests; the headless Blender smoke test and actual scene render must still pass before any art approval.
 
 ## Revision rule
 
