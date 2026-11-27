@@ -53,6 +53,13 @@ jobs:
             tools/blender/build_login_lobby_environments.py \
             tools/blender/verify_login_lobby_environments.py
 
+      - name: Run rig-preservation and cinematic-render source regression gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tests/test_blender_cinematic_pipeline.py
+          python3 -m unittest discover -s tests -p 'test_blender_cinematic_pipeline.py' -v
+
       - name: Resolve and download the validated Field Ranger rig for lobby art review
         shell: bash
         env:
