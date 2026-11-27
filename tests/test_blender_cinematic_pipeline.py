@@ -360,7 +360,7 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
 
     def test_operator_facial_performance_uses_only_available_shape_keys(self) -> None:
         body = self.function_text("animate_operator_facial_performance")
-        self.assertIn("obj.data.shape_keys", body)
+        self.assertIn("mesh.data.shape_keys is None", body)
         self.assertIn('"blink" in key_name', body)
         self.assertIn('"eyelook" in key_name', body)
         self.assertIn("shape_key_count", body)
