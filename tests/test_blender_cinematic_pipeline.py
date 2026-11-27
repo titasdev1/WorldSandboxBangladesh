@@ -322,19 +322,29 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
 
 
 
-    def test_film_compositor_has_authored_color_glow_lens_and_vignette_chain(self) -> None:
+    def test_film_compositor_uses_blender_52_node_group_and_current_nodes(self) -> None:
         body = self.function_text("configure_cinematic_compositor")
-        self.assertIn("scene.use_nodes = True", body)
+        self.assertIn("scene.render.use_compositing = True", body)
+        self.assertIn('bpy.data.node_groups.new("A_Square_Film_Compositor_" + profile, "CompositorNodeTree")', body)
+        self.assertIn("scene.compositing_node_group = tree", body)
         self.assertIn('"CompositorNodeColorBalance"', body)
         self.assertIn('"CompositorNodeGlare"', body)
         self.assertIn('"CompositorNodeLensdist"', body)
         self.assertIn('"CompositorNodeEllipseMask"', body)
         self.assertIn('"CompositorNodeBlur"', body)
-        self.assertIn('"CompositorNodeValToRGB"', body)
-        self.assertIn('"CompositorNodeMixRGB"', body)
-        self.assertIn('"CompositorNodeComposite"', body)
-        self.assertIn('links.new(lens.outputs["Image"], multiply.inputs[1])', body)
-        self.assertIn('links.new(ramp.outputs["Image"], multiply.inputs[2])', body)
+        self.assertIn('"ShaderNodeValToRGB"', body)
+        self.assertIn('"ShaderNodeMix"', body)
+        self.assertIn('"NodeGroupOutput"', body)
+        self.assertNotIn("scene.node_tree", body)
+        self.assertNotIn("scene.use_nodes", body)
+        self.assertIn('links.new(multiply.outputs["Result"], output.inputs["Image"])', body)
+
+    def test_compositor_smoke_script_checks_both_profiles_in_blender(self) -> None:
+        script = Path("tools/blender/test_compositor_api.py").read_text(encoding="utf-8")
+        self.assertIn("validate_profile(bpy.context.scene, True)", script)
+        self.assertIn('validate_profile(lobby_scene, False)', script)
+        self.assertIn("COMPOSITOR_SMOKE_GATE:ALL_PROFILES_PASS", script)
+        self.assertIn('"NodeGroupOutput"', script)
 
     def test_login_and_lobby_lighting_both_apply_distinct_compositor_profiles(self) -> None:
         body = self.function_text("world_and_lighting")
@@ -342,9 +352,9 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
         compositor = self.function_text("configure_cinematic_compositor")
         self.assertIn("SHARIATPUR_WARM_RIVER", compositor)
         self.assertIn("DELTA_COMMAND_COOL_GRAPHITE", compositor)
-        self.assertIn("balance.lift", compositor)
-        self.assertIn("balance.gamma", compositor)
-        self.assertIn("balance.gain", compositor)
+        self.assertIn('"Color Lift"', compositor)
+        self.assertIn('"Color Gamma"', compositor)
+        self.assertIn('"Color Gain"', compositor)
 
 
 
