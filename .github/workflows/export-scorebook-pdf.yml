@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/three-distinct-ara-operators
+      - art/login-film-cuts
     paths:
       - "docs/animation/A-SQUARE_FILM_ART_DIRECTION_SCOREBOOK.md"
       - "tools/animation/render_scorebook_pdf.py"
