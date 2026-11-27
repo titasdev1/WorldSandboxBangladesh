@@ -589,7 +589,7 @@ def configure_cinematic_compositor(scene: bpy.types.Scene, warm: bool = True) ->
     blur.label = "Feathered vignette boundary"
     blur.location = (-240, -180)
     set_socket(blur, "Size", (120.0, 120.0))
-    set_socket(blur, "Type", "GAUSSIAN")
+    set_socket(blur, "Type", "GAUSS")
     set_socket(blur, "Separable", True)
     set_socket(blur, "Extend Bounds", True)
 
