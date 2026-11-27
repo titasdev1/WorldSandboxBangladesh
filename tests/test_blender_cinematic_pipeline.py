@@ -150,5 +150,32 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
 
 
 
+    def test_login_film_has_five_distinct_editorial_shots(self) -> None:
+        body = self.function_text("build_login")
+        for marker_name in (
+            "A1_SHARIATPUR_RIVER_ESTABLISHING",
+            "A2_LOCAL_CNG_STREET_PORTRAIT",
+            "A3_LAUNCH_WAKE_AND_REFLECTION",
+            "A4_FIELD_RANGER_HUMAN_PORTRAIT",
+            "A5_ORIGINAL_A_SQUARE_TITLE_REVEAL",
+        ):
+            self.assertIn(marker_name, body)
+        self.assertIn("Login_CNG_Street_Portrait_Camera", body)
+        self.assertIn("Login_Launch_Waterline_Camera", body)
+        self.assertIn("Login_Field_Ranger_Portrait_Camera", body)
+        self.assertIn("Login_A_Square_Title_Reveal_Camera", body)
+
+    def test_login_reveals_original_delta_wordmark_and_tagline(self) -> None:
+        body = self.function_text("build_login")
+        self.assertIn('"ASQ_Delta_Emblem_Outer"', body)
+        self.assertIn('"ASQ_Delta_River_Tributary_Left"', body)
+        self.assertIn('"ASQ_Delta_River_Tributary_Right"', body)
+        self.assertIn('wordmark_data.body = "A-SQUARE"', body)
+        self.assertIn('tagline_data.body = "THE DELTA IS OUR WORLD"', body)
+        self.assertIn("keyframe_insert(data_path=\\"scale\\"", body)
+        self.assertIn("face_operator_to_camera(operator_preview, ranger_cut)", body)
+
+
+
 if __name__ == "__main__":
     unittest.main()
