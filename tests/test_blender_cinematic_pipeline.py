@@ -221,5 +221,16 @@ class CinematicPipelineRegressionTests(unittest.TestCase):
 
 
 
+    def test_hero_store_keeps_local_geometry_at_the_requested_block_coordinate(self) -> None:
+        parent = self.function_text("set_parent_local")
+        body = self.function_text("add_crafted_riverfront_corner_store")
+        self.assertIn("obj.matrix_parent_inverse.identity()", parent)
+        self.assertIn("return set_parent_local(obj, parent)", self.function_text("authored_mesh"))
+        self.assertIn("local_path_curve(", body)
+        self.assertIn('root["placement_rule"]', body)
+        self.assertLess(body.index("arch_left = -2.12"), body.index("ground_panels = ["))
+
+
+
 if __name__ == "__main__":
     unittest.main()
